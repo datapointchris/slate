@@ -2,8 +2,8 @@ import datetime as dt
 from typing import Annotated
 from uuid import UUID
 
+from pydantic import AfterValidator
 from pydantic import StringConstraints
-from pydantic import model_validator
 
 from slate.schemas.claim import Claim
 from slate.schemas.initiative import InitiativeRef
@@ -21,6 +21,32 @@ IssueRef = UUID | int | str
 
 Slug = Annotated[str, StringConstraints(pattern=r'^[a-z0-9]+(-[a-z0-9]+)*$')]
 
+# A path is a prefix, as a git pathspec without wildcards is: a directory covers everything under it.
+# Two globs can meet in ways no prefix test sees, so a wildcard is refused rather than read literally.
+PATH_WILDCARDS = frozenset('*?[')
+
+
+def normalized_path(raw: str) -> str:
+    """The path as `services/issue_paths.py` compares it: segments joined by `/`, with no `.`, no empty segment and no leading `/`."""
+    segments = [segment for segment in raw.strip().split('/') if segment not in ('', '.')]
+    if not segments:
+        raise ValueError(f'{raw!r} names no file or directory. A path is relative to the repo root, such as cli/internal/cli.')
+    if '..' in segments:
+        raise ValueError(f'{raw!r} climbs out with "..". A path is relative to the repo root.')
+    if PATH_WILDCARDS & set(raw):
+        raise ValueError(f'{raw!r} is a glob. A path names a file or a directory, and a directory covers everything under it.')
+    return '/'.join(segments)
+
+
+IssuePath = Annotated[str, AfterValidator(normalized_path)]
+
+
+def distinct_paths(paths: list[str]) -> list[str]:
+    return sorted(set(paths))
+
+
+IssuePaths = Annotated[list[IssuePath], AfterValidator(distinct_paths)]
+
 
 class IssueSummary(RecordModel):
     """Enough of another issue to print it beside this one without fetching it."""
@@ -32,12 +58,16 @@ class IssueSummary(RecordModel):
 
 
 class IssueCreate(RecordModel):
-    """`status` takes `triage` for work filed by a machine, which waits there until accepted."""
+    """`status` takes `triage` for work filed by a machine, which waits there until accepted.
+
+    `paths` are files and directories in `repo` the work changes, so an issue naming any needs a repo.
+    """
 
     title: str
     description: str | None = None
     acceptance: str | None = None
     repo: str | None = None
+    paths: IssuePaths = []
     type: str = 'task'
     status: str = 'open'
     priority: Priority = 0
@@ -57,13 +87,14 @@ class IssueUpdate(RecordModel):
     a side effect the answer names. `closed_by` names who is closing it and is accepted only with the
     status that closes an open issue; the server stamps the signed-in user's
     email when it is left out. `duplicate_of` is accepted only alongside
-    `status: canceled`, and `labels` replaces the issue's whole set.
+    `status: canceled`, and `labels` and `paths` each replace the issue's whole set.
     """
 
     title: NotNull[str] = None
     description: str | None = None
     acceptance: str | None = None
     repo: str | None = None
+    paths: NotNull[IssuePaths] = None
     type: NotNull[str] = None
     status: NotNull[str] = None
     status_reason: str | None = None
@@ -84,10 +115,11 @@ class Issue(RecordModel):
     `effective_priority` is the priority the ready queue sorts by: the most
     urgent of the issue's own, its open parent's, its active initiative's, and
     anything it blocks. `is_ready` says whether an agent could take it
-    now, whatever its type; the ready queue leaves decisions out separately.
+    now, whatever its type; the queue gives a decision its own step.
     `autofix` is the issue's own setting, and `is_autofixable` is false when it,
     its initiative's or an unclosed parent's is false. `claim` is the issue's
-    unended claim, live or expired, and null when nobody holds it.
+    unended claim, live or expired, and null when nobody holds it. `rank` is its
+    record's place among every record's.
     """
 
     id: UUID
@@ -96,6 +128,7 @@ class Issue(RecordModel):
     description: str | None = None
     acceptance: str | None = None
     repo: str | None = None
+    paths: list[str] = []
     type: str
     status: str
     status_reason: str | None = None
@@ -132,19 +165,6 @@ class IssueDetail(Issue, RecordParts):
 
 class IssueDependencyCreate(RecordModel):
     depends_on: IssueRef
-
-
-class IssueRankMove(RecordModel):
-    """Place an issue immediately before or after another of the same effective priority."""
-
-    before: IssueRef | None = None
-    after: IssueRef | None = None
-
-    @model_validator(mode='after')
-    def exactly_one_neighbor(self):
-        if (self.before is None) == (self.after is None):
-            raise ValueError('give exactly one of before or after')
-        return self
 
 
 class IssueLabelCreate(RecordModel):

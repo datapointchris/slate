@@ -7,7 +7,7 @@ AUTOFIXABLE_FILTER = "True for issues whose own, initiative's and parents' autof
 
 
 class ReadyFilter(BaseModel):
-    """The filters the issue ready queue reads: the query of `GET /issues/ready`, and fields of holding its head."""
+    """The filters on ready issues: fields of holding the queue's head, and the base of `GET /queue`'s query."""
 
     repo: str | None = Field(None, description='A repo name, or an empty string for issues on no repo')
     type: str | None = Field(None, description='An issue type. Decisions are left out unless asked for here.')

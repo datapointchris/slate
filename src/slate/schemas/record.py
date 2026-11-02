@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import StringConstraints
+from pydantic import model_validator
 
 # A record named by its number, as `42` or `#42`. A CLI forwards what was typed, so a number
 # arrives as a string as often as an int.
@@ -36,3 +37,16 @@ class RecordListed(RecordSummary):
 
     priority: int
     created_ts: dt.datetime
+
+
+class RecordRankMove(RecordModel):
+    """Place a record directly before or after another, of any kind, in the queue `slate next` reads."""
+
+    before: RecordRef | None = None
+    after: RecordRef | None = None
+
+    @model_validator(mode='after')
+    def exactly_one_neighbor(self):
+        if (self.before is None) == (self.after is None):
+            raise ValueError('give exactly one of before or after')
+        return self

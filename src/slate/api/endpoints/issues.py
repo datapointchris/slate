@@ -28,23 +28,19 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.models.record import PRIORITIES
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
-from slate.schemas.ready_filter import ReadyFilter
 from slate.services.claims import end_with_record
 from slate.services.issue_filters import apply_label_filter
 from slate.services.issue_filters import apply_repo_filter
 from slate.services.issue_filters import autofixable_filtered
-from slate.services.issue_rank import move_issue
-from slate.services.issue_rank import rank_at_end
-from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_views import ISSUE_LOAD_OPTIONS
 from slate.services.issue_views import calendar_now
 from slate.services.issue_views import fresh_issue_detail
 from slate.services.issue_views import issue_views
 from slate.services.issue_views import list_order
-from slate.services.ready_queue import ready_issues
+from slate.services.likely_duplicates import warn_likely_duplicates
+from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_issue_delete
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_refs import resolve_issue
@@ -127,6 +123,12 @@ def set_labels(session: Session, issue: models.Issue, slugs: list[str]) -> None:
     kept = [assignment for assignment in issue.label_assignments if assignment.label_id in wanted]
     held = {assignment.label_id for assignment in kept}
     issue.label_assignments = kept + [models.IssueLabelAssignment(label_id=label_id) for label_id in sorted(wanted - held)]
+
+
+def ensure_paths_have_a_repo(repo: str | None, paths: list[str]) -> None:
+    """A path is read in the issue's repo, so on no repo it names nothing to compare."""
+    if paths and repo is None:
+        raise unprocessable(f"Paths are relative to the issue's repo, and this issue is on none: {', '.join(paths)}. Give it a repo.")
 
 
 def ensure_parent_open(parent: models.Issue) -> None:
@@ -241,10 +243,6 @@ def apply_status_transition(
         end_with_record(session, issue.number, target, now, issue.closed_by, effects)
 
 
-# `/ready` is declared ahead of `/{id}`, which would otherwise take the segment
-# as an issue reference.
-
-
 @router.get('', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
 def read_many(
     session: DbSession,
@@ -267,7 +265,7 @@ def read_many(
     autofixable: bool | None = Query(None, description=AUTOFIXABLE_FILTER),
     limit: RowLimit = None,
 ):
-    """List issues, open work first by effective priority then rank, closed work after it.
+    """List issues, unclosed work first in queue order, closed work after it.
 
     Completed and canceled issues accumulate without bound, so the default leaves
     them out. The window narrows on `closed_ts`, the one date that records an
@@ -313,15 +311,6 @@ def read_many(
     return issue_views(session, issues, zone, readiness)
 
 
-@router.get('/ready', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
-def read_ready(session: DbSession, zone: RequestZone, filters: Annotated[ReadyFilter, Query()], limit: RowLimit = None):
-    """The issues an agent could take now, in the order to take them; the first row is next."""
-    issues, readiness = ready_issues(session, zone, filters)
-    if limit is not None:
-        issues = issues[:limit]
-    return issue_views(session, issues, zone, readiness)
-
-
 def refuse_all_but_a_triage_filing(issue: schemas.IssueCreate) -> None:
     """A scoped client's filing waits for a person, and names no parent, which would wait on it."""
     if issue.parent is not None:
@@ -340,18 +329,19 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
             detail=f'A new issue starts as {" or ".join(CREATE_STATUSES)}, not {issue.status!r}',
         )
     validate_lookup(session, models.IssueType, issue.type, 'issue type')
+    ensure_paths_have_a_repo(issue.repo, issue.paths)
 
     db_issue = models.Issue(
         title=issue.title,
         description=issue.description,
         acceptance=issue.acceptance,
         repo=issue.repo,
+        paths=issue.paths,
         type=issue.type,
         status=issue.status,
         priority=issue.priority,
         deferred_until_date=issue.deferred_until_date,
         autofix=issue.autofix,
-        rank=rank_at_end(session),
     )
     if issue.initiative is not None:
         initiative = resolve_initiative(session, issue.initiative)
@@ -373,6 +363,7 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
         ensure_no_wait_cycle(session, db_issue, blocker)
         session.add(models.IssueDependency(issue_id=db_issue.id, depends_on_id=blocker.id))
         session.flush()
+    warn_likely_duplicates(session, db_issue.number, db_issue.title, db_issue.repo, effects)
     session.commit()
     logger.info('issue_created', number=db_issue.number, repo=db_issue.repo)
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, db_issue, zone))
@@ -457,6 +448,7 @@ def update(
         issue.discovered_from_id = None if ref is None else resolve_issue(session, ref).id
     if 'labels' in update_data:
         set_labels(session, issue, update_data.pop('labels'))
+    ensure_paths_have_a_repo(update_data.get('repo', issue.repo), update_data.get('paths', issue.paths))
 
     apply_status_transition(session, issue, update_data, now, effects, signed_in=signed_in)
 
@@ -481,40 +473,15 @@ def delete(issue: IssueFromPath, session: DbSession, caller: CurrentCaller, effe
     return effects.answer(schemas.RecordDeleted, deleted=deleted)
 
 
-def priority_phrase(priority: int) -> str:
-    return 'no priority' if priority == 0 else f'{PRIORITIES[priority]} priority'
-
-
-def ensure_same_priority(issue: models.Issue, neighbor: models.Issue, readiness: IssueReadiness) -> None:
-    mine, theirs = readiness.effective_priority[issue.id], readiness.effective_priority[neighbor.id]
-    if mine != theirs:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                f'#{issue.number} sorts at {priority_phrase(mine)} and #{neighbor.number} at {priority_phrase(theirs)}. '
-                f'Rank orders issues only within one priority. '
-                f'Changing the priority of #{issue.number} is what moves it past #{neighbor.number}.'
-            ),
-        )
-
-
 @router.post('/{id}/rank', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
-def rank(issue: IssueFromPath, move: schemas.IssueRankMove, session: DbSession, zone: RequestZone, effects: Effects):
-    """Place this issue directly before or after another of the same effective priority.
+def rank(issue: IssueFromPath, move: schemas.RecordRankMove, session: DbSession, zone: RequestZone, effects: Effects):
+    """Place this issue directly before or after a record of any kind in the queue.
 
-    Rank orders issues within one priority. Beside an issue of another priority,
-    the move would report success and land wherever the other priorities' ranks
-    happen to fall, so it is refused.
+    Inside an initiative it moves among that initiative's issues. Outside one it
+    moves among the records of its priority. A move that would land anywhere
+    but beside the record named is refused, naming why.
     """
-    before = resolve_issue(session, move.before) if move.before is not None else None
-    after = resolve_issue(session, move.after) if move.after is not None else None
-    neighbors = [neighbor for neighbor in (before, after) if neighbor is not None]
-    if any(neighbor.id == issue.id for neighbor in neighbors):
-        raise unprocessable('An issue cannot be ranked beside itself')
-    readiness = measure_readiness(session, *calendar_now(zone))
-    for neighbor in neighbors:
-        ensure_same_priority(issue, neighbor, readiness)
-    move_issue(session, issue, before=before, after=after)
+    move_in_queue(session, zone, issue.record, move)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 

@@ -63,10 +63,6 @@ func TestApplyLimit_RidesEveryListRead(t *testing.T) {
 			_, err := c.ListIssues(ctx, IssueFilter{}, Window{}, "", intptr(3))
 			return err
 		},
-		"ListReadyIssues": func(c *Client) error {
-			_, err := c.ListReadyIssues(ctx, ReadyFilter{}, "", intptr(3))
-			return err
-		},
 	}
 	for name, call := range calls {
 		t.Run(name, func(t *testing.T) {

@@ -48,9 +48,20 @@ func newInitiativesCommand() *cobra.Command {
 		newInitiativesDropCommand(),
 		newInitiativesShelveCommand(),
 		newInitiativesReopenCommand(),
+		newInitiativesReorderCommand(),
 		newInitiativesDeleteCommand(),
 	)...)
 	return cmd
+}
+
+func newInitiativesReorderCommand() *cobra.Command {
+	return newReorderCommand("initiative",
+		"An initiative's issues move with it.",
+		"  slate initiatives reorder \"Ship the tracker\" --before 1491\n  slate initiatives reorder 1502 --after 1491",
+		func(cmd *cobra.Command, client *api.Client, ref string, move api.RankMove) (any, api.WriteEffects, string, error) {
+			written, err := client.RankInitiative(cmd.Context(), ref, move, issueZone())
+			return written, written.WriteEffects, fmt.Sprintf("initiative #%d %q", written.Initiative.Number, written.Initiative.Name), err
+		})
 }
 
 func newInitiativesListCommand() *cobra.Command {
@@ -63,7 +74,7 @@ func newInitiativesListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List the active initiatives in the order to work them",
-		Long: "Active initiatives by priority, then position, under a header for each tier.\n" +
+		Long: "Active initiatives by priority, then rank, under a header for each tier.\n" +
 			"Someday, completed and dropped ones are hidden until --status asks for them,\n" +
 			"and come after the active ones, finished ones latest first.\n\n" +
 			"Each row leads with the initiative's number, which every initiative command\n" +
@@ -171,13 +182,14 @@ func newInitiativesCreateCommand() *cobra.Command {
 		name        string
 		description string
 		priority    string
-		position    int
 		autofix     bool
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "create --name <name> [flags]",
 		Short: "Start an initiative",
+		Long: "The initiative ranks last among the records of its priority, and\n" +
+			"`slate initiatives reorder` moves it.",
 		Example: "  slate initiatives create --name \"Ship the tracker\" --priority high\n" +
 			"  slate initiatives create --name \"Build day\" --autofix=false",
 		Args: cobra.NoArgs,
@@ -193,9 +205,6 @@ func newInitiativesCreateCommand() *cobra.Command {
 					return goclikit.UsageError(fmt.Errorf("--priority: %w", err))
 				}
 				in.Priority = &value
-			}
-			if f.Changed("position") {
-				in.Position = &position
 			}
 			if f.Changed("autofix") {
 				in.Autofix = &autofix
@@ -216,7 +225,6 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&description, "description", "", "The outcome, and how you will know it is done")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
-	cmd.Flags().IntVar(&position, "position", 0, "Place among initiatives of its priority (default last)")
 	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
@@ -227,7 +235,6 @@ func newInitiativesEditCommand() *cobra.Command {
 		name        string
 		description string
 		priority    string
-		position    int
 		autofix     bool
 		asJSON      bool
 	)
@@ -235,7 +242,8 @@ func newInitiativesEditCommand() *cobra.Command {
 		Use:   "edit <initiative> [flags]",
 		Short: "Change an initiative's fields",
 		Long: "Update only the fields whose flags you pass. --description \"\" clears it.\n" +
-			"Status moves through complete, drop, shelve and reopen.",
+			"Status moves through complete, drop, shelve and reopen, and its place in the\n" +
+			"queue through reorder.",
 		Example: "  slate initiatives edit \"Ship the tracker\" --priority urgent\n" +
 			"  slate initiatives edit 1491 --autofix=false",
 		Args: cobra.ExactArgs(1),
@@ -255,9 +263,6 @@ func newInitiativesEditCommand() *cobra.Command {
 				}
 				in.Priority = &value
 			}
-			if f.Changed("position") {
-				in.Position = &position
-			}
 			if f.Changed("autofix") {
 				in.Autofix = &autofix
 			}
@@ -266,7 +271,7 @@ func newInitiativesEditCommand() *cobra.Command {
 				clear = append(clear, "description")
 			}
 			if in == (api.InitiativeUpdateInput{}) && len(clear) == 0 {
-				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --name/--description/--priority/--position/--autofix"))
+				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --name/--description/--priority/--autofix"))
 			}
 			return runInitiativeUpdate(cmd, args[0], in, clear, asJSON, "Updated")
 		},
@@ -275,7 +280,6 @@ func newInitiativesEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&description, "description", "", "New description (empty clears)")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
-	cmd.Flags().IntVar(&position, "position", 0, "New place among initiatives of its priority")
 	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd

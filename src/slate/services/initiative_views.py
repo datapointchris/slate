@@ -46,7 +46,7 @@ def initiative_view(
         status=initiative.status,
         status_reason=initiative.status_reason,
         priority=initiative.priority,
-        position=initiative.position,
+        rank=initiative.rank,
         autofix=initiative.autofix,
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,

@@ -55,6 +55,11 @@ def create(client, **fields) -> dict:
     return wrote(client.post(ISSUES, json={'title': 'Created in a test', **fields}), status.HTTP_201_CREATED)
 
 
+def ready(client, **params) -> list[dict]:
+    """The issues ready to build, in the order `slate next --step build` reads them."""
+    return [row['record'] for row in ok(client.get('/queue', params={'step': 'build', **params}))['queue']]
+
+
 def patch(client, ref, **fields):
     return client.patch(f'{ISSUES}/{ref}', json=fields)
 
@@ -118,6 +123,20 @@ class TestCreate:
         detail = refused(client.post(ISSUES, json={'title': 'x', 'initiative': 'Finished migration'}), 409)
         assert 'completed' in detail
 
+    def test_paths_are_kept_as_prefixes_on_a_repo_and_a_wildcard_is_refused(self, client):
+        assert create(client, repo='webapp', paths=['./src/api/', 'src//api', 'docs'])['paths'] == ['docs', 'src/api']
+        assert 'repo' in refused(client.post(ISSUES, json={'title': 'x', 'paths': ['src']}), 422)
+        assert 'glob' in refused(client.post(ISSUES, json={'title': 'x', 'repo': 'webapp', 'paths': ['src/*.py']}), 422)
+
+    def test_a_title_reading_like_an_open_issue_files_and_names_it(self, client):
+        bug = issue(client, 'Ready bug with high priority')
+        answer = ok(client.post(ISSUES, json={'title': 'The ready bug at high priority returns', 'repo': 'webapp'}), 201)
+        assert answer['warnings'][0]['code'] == 'possible_duplicate'
+        assert answer['warnings'][0]['record'] == bug['number']
+
+        elsewhere = ok(client.post(ISSUES, json={'title': 'The ready bug at high priority returns', 'repo': 'mobile'}), 201)
+        assert bug['number'] not in [warning['record'] for warning in elsewhere['warnings']]
+
 
 class TestList:
     def test_closed_issues_are_left_out_unless_asked_for(self, client):
@@ -169,22 +188,19 @@ class TestList:
 
 
 class TestReadyQueue:
-    def test_the_queue_leaves_out_decisions_and_triage(self, client):
-        assert titles(ok(client.get(f'{ISSUES}/ready'))) == [
+    def test_building_leaves_out_decisions_and_triage(self, client):
+        assert titles(ready(client)) == [
             'Ready bug with high priority',
             'Ready chore with low priority',
             'Ready task without priority',
         ]
-
-    def test_decisions_are_read_by_asking_for_them(self, client):
-        assert titles(ok(client.get(f'{ISSUES}/ready', params={'type': 'decision'}))) == ['Decision waiting on a person']
 
     def test_a_blocker_inherits_the_priority_of_what_it_gates(self, client):
         bug = issue(client, 'Ready bug with high priority')
         chore = issue(client, 'Ready chore with low priority')
         ok(client.post(f'{ISSUES}/{bug["number"]}/dependencies', json={'depends_on': chore['number']}), status.HTTP_201_CREATED)
 
-        queue = ok(client.get(f'{ISSUES}/ready'))
+        queue = ready(client)
         assert titles(queue) == ['Ready chore with low priority', 'Ready task without priority']
         assert queue[0]['priority'] == 4
         assert queue[0]['effective_priority'] == 2
@@ -203,10 +219,10 @@ class TestReadyQueue:
         task = issue(client, 'Ready task without priority')
         wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
         ok(client.patch('/initiatives/Ship the issue tracker', json={'status': 'someday'}))
-        assert task['title'] not in titles(ok(client.get(f'{ISSUES}/ready')))
+        assert task['title'] not in titles(ready(client))
 
         ok(client.patch('/initiatives/Ship the issue tracker', json={'status': 'active'}))
-        assert task['title'] in titles(ok(client.get(f'{ISSUES}/ready')))
+        assert task['title'] in titles(ready(client))
 
     def test_active_work_depending_on_a_someday_issue_brings_it_into_the_queue(self, client):
         task = issue(client, 'Ready task without priority')
@@ -215,12 +231,12 @@ class TestReadyQueue:
         ok(client.patch('/initiatives/Ship the issue tracker', json={'status': 'someday'}))
         ok(client.post(f'{ISSUES}/{bug["number"]}/dependencies', json={'depends_on': task['number']}), status.HTTP_201_CREATED)
 
-        queue = ok(client.get(f'{ISSUES}/ready'))
+        queue = ready(client)
         assert queue[0]['title'] == task['title']
         assert queue[0]['effective_priority'] == 2
 
         wrote(patch(client, bug['number'], status='completed'))
-        assert task['title'] not in titles(ok(client.get(f'{ISSUES}/ready')))
+        assert task['title'] not in titles(ready(client))
 
     def test_autofix_false_on_an_issue_its_parent_or_its_initiative_keeps_it_from_the_autofixable_queue(self, client):
         bug = issue(client, 'Ready bug with high priority')
@@ -231,9 +247,9 @@ class TestReadyQueue:
         parent = create(client, title='Parent with autofix off', autofix=False)
         child = create(client, title='Child of that parent', parent=parent['number'])
 
-        assert titles(ok(client.get(f'{ISSUES}/ready', params={'autofixable': True}))) == ['Ready chore with low priority']
+        assert titles(ready(client, autofixable=True)) == ['Ready chore with low priority']
         everything = {bug['title'], task['title'], child['title'], 'Ready chore with low priority'}
-        assert set(titles(ok(client.get(f'{ISSUES}/ready')))) == everything
+        assert set(titles(ready(client))) == everything
         assert issue(client, task['title'])['is_autofixable'] is False
 
     def test_a_child_without_priority_takes_its_parent(self, client):
@@ -247,8 +263,8 @@ class TestReadyQueue:
         task = issue(client, 'Ready task without priority')
         ahead = dt.datetime.now(ZoneInfo('Pacific/Kiritimati')).date().isoformat()
         wrote(patch(client, task['number'], deferred_until_date=ahead))
-        assert task['title'] in titles(ok(client.get(f'{ISSUES}/ready', params={'timezone': 'Pacific/Kiritimati'})))
-        assert task['title'] not in titles(ok(client.get(f'{ISSUES}/ready', params={'timezone': 'Pacific/Pago_Pago'})))
+        assert task['title'] in titles(ready(client, timezone='Pacific/Kiritimati'))
+        assert task['title'] not in titles(ready(client, timezone='Pacific/Pago_Pago'))
 
 
 class TestStatusTransitions:
@@ -417,12 +433,6 @@ class TestRank:
         detail = refused(client.post(f'{ISSUES}/{task["number"]}/rank', json={'before': bug['number']}), 409)
         assert 'no priority' in detail
         assert 'high priority' in detail
-
-    def test_an_inherited_priority_ranks_with_its_band(self, client):
-        bug = issue(client, 'Ready bug with high priority')
-        child = create(client, title='Child at no priority of its own', parent=bug['number'])
-        ok(client.post(f'{ISSUES}/{child["number"]}/rank', json={'before': bug['number']}))
-        assert titles(ok(client.get(ISSUES)))[:2] == ['Child at no priority of its own', 'Ready bug with high priority']
 
     def test_one_neighbor_exactly(self, client):
         bug = issue(client, 'Ready bug with high priority')

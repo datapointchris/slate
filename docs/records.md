@@ -31,6 +31,9 @@ Each kind keeps its own UUID `id` as its key, which its own edges use: an
 issue's parent, its dependencies, its labels. The number is the handle a
 person or an agent types.
 
+`records` also holds `rank`, the place each record takes in the queue, so
+every kind is ordered in one space. [issues.md](issues.md) gives the order.
+
 ## A number reads as its kind's whole record
 
 `GET /records/{number}` answers `{kind, number, record}`, where `record` is
@@ -98,6 +101,39 @@ kubectl prints from the API server.
   header holds a string, so a client would parse the record number back out
   of the message.
 - *Rejected:* a log line alone. The caller never sees it.
+
+## A new record reading like an open one files anyway, with a warning naming it
+
+Creating an issue, an initiative or an idea compares its title with every
+open record's: unclosed issues, initiatives not finished, and ideas not
+promoted. Each match warns `possible_duplicate`, most alike first, at most
+three. The record is filed whatever the warning says, because a refusal would
+make whoever files it ask again to file work they already checked.
+
+Likeness is the Dice coefficient over the stemmed words of two titles: twice
+the stems they share, over the stems the two hold. Postgres' `english` text
+search configuration stems and drops stop words, so `transcripts` meets
+`transcript` and `the` counts for nothing. A pair at 0.45 or above warns. Two
+records on different repos are different work, so they are never compared. An
+idea or an initiative names no repo, so it is compared with everything.
+
+The bar was set against a tracker of about 1,900 issues, replaying each filing
+against the issues open when it was filed:
+
+- Of four pairs labeled duplicates, two shared their wording and scored 0.48
+  and 0.57. The other two were worded apart, at 0.15 and 0.26, so no bar on
+  words reaches them.
+- At 0.45, about 7% of filings warn when only the same repo is compared, and
+  about 13% across every repo. At 0.50, about 5% and 10%.
+- Titles built from a template, such as a series of guides each naming its
+  subject, are the floor of that noise.
+
+- *Rejected:* trigram similarity, `pg_trgm`. It needs an extension, and its
+  scores separated the labeled pairs from the rest no better.
+- *Rejected:* matching every word, as search does. A reworded duplicate shares
+  most words but rarely all.
+- *Rejected:* embeddings. Two of the four labeled pairs need meaning to match,
+  and slate holds no model to embed with.
 
 ## Deleting a record deletes its number
 

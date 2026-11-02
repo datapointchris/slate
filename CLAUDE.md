@@ -66,7 +66,7 @@ at the root instead:
 - **`show` and `search` read every kind.** Ideas, initiatives and issues share
   one number sequence, so no one noun owns a read across them.
 - **`next` is the order to take the work in**, a question about all of it
-  rather than about one noun.
+  rather than about one noun. Its API path is `/queue`.
 - **`vocabulary` is one read of the values every noun's flags accept**, so it
   has no second verb to grow. Each list in it is named for the noun whose flag
   takes it.

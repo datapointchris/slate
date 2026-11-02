@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 from uuid import UUID
+from uuid import uuid7
 
 from sqlalchemy import Boolean
 from sqlalchemy import CheckConstraint
@@ -16,12 +17,12 @@ from sqlalchemy import SmallInteger
 from sqlalchemy import Text
 from sqlalchemy import Uuid
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 
 from slate.database.base import Base
-from slate.database.fractionally_ranked import FractionallyRanked
 from slate.models.record import Kind
 from slate.models.record import NumberedRecord
 from slate.models.record import record_link
@@ -34,7 +35,7 @@ ISSUE_STATUSES = ['triage', 'open', 'completed', 'canceled']
 CLOSED_ISSUE_STATUSES = ['completed', 'canceled']
 
 # `decision` is the one type that changes what happens to an issue: it waits on
-# a person, so the ready queue an agent reads leaves it out.
+# a person, so the queue lists it at step `decide` and an agent builds the rest.
 ISSUE_TYPES = ['bug', 'feature', 'task', 'chore', 'decision']
 
 
@@ -48,15 +49,14 @@ class IssueType(Base):
     name: Mapped[str] = mapped_column(Text, primary_key=True)
 
 
-class Issue(NumberedRecord, FractionallyRanked, Base):
+class Issue(NumberedRecord, Base):
     """A unit of software work, written for the agent that will do it.
 
     `id` is the key and `number` is the handle a person or an agent types. The
     number is its row in `records`, so a bare number names one record of any kind.
 
-    Order is effective priority, then `rank`, then `number`.
-    `services/issue_readiness.py` derives the effective priority, and
-    `services/issue_rank.py` places `rank`.
+    `services/issue_readiness.py` derives its effective priority and its place
+    in the queue, and `services/fractional_rank.py` moves its record's rank.
 
     Who is working it is its claim, a row in `claims` on its number.
     """
@@ -64,6 +64,7 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
     RECORD_KIND = Kind.ISSUE
 
     __tablename__ = 'issues'
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid7)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     # Facts the agent cannot find in the repo. What the repo already says costs
     # tokens on every read and adds nothing.
@@ -73,6 +74,9 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
     acceptance: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Repo registry name. Null is work no single repo owns.
     repo: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
+    # Files and directories in `repo` the work changes, normalized by `services/issue_paths.py`.
+    # A hold warns about another holder's issue naming an overlapping one.
+    paths: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default=text("'{}'"))
     type: Mapped[str] = mapped_column(Text, ForeignKey('issue_types.name'), nullable=False, server_default='task')
     status: Mapped[str] = mapped_column(Text, ForeignKey('issue_statuses.name'), nullable=False, server_default='open')
     # Why the issue was canceled. Completed work says what it shipped in a comment.
@@ -90,6 +94,7 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
     # Provenance only: found while working the other issue, and never gated by it.
     discovered_from_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey('issues.id', ondelete='SET NULL'), nullable=True)
     duplicate_of_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey('issues.id', ondelete='SET NULL'), nullable=True)
+    created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     updated_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     # When the issue reached completed or canceled. Null on a closed issue means
     # the time is unknown, which is never inferred from `updated_ts`.
@@ -131,7 +136,6 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
         CheckConstraint('discovered_from_id IS NULL OR discovered_from_id <> id', name='issue_not_discovered_from_itself'),
         CheckConstraint('duplicate_of_id IS NULL OR duplicate_of_id <> id', name='issue_not_duplicate_of_itself'),
         Index('idx_issues_status', 'status'),
-        Index('idx_issues_rank', 'rank'),
     )
 
     @property

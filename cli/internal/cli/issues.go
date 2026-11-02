@@ -56,7 +56,8 @@ func newIssuesCommand() *cobra.Command {
 			"children is still open, and it is not shelved in a someday initiative. A\n" +
 			"someday issue that work outside someday depends on is not shelved.\n" +
 			"`slate next` lists the ready issues in the order to take them: priority\n" +
-			"first, then rank. An issue sorts by the most urgent of its own priority, its\n" +
+			"first, each initiative's issues together, then rank. `issues reorder` moves an\n" +
+			"issue. An issue sorts by the most urgent of its own priority, its\n" +
 			"parent's, its initiative's, and that of anything it blocks. Its own priority\n" +
 			"can raise it, never lower it. `slate dependencies` adds and draws what an\n" +
 			"issue waits on.\n" +
@@ -68,8 +69,9 @@ func newIssuesCommand() *cobra.Command {
 			"release` hands an issue back unfinished, and `slate claims list` shows every\n" +
 			"claim held.\n" +
 			"\n" +
-			"Decisions wait on a person, so the queue leaves them out.\n" +
-			"`slate issues list --type decision` lists them.",
+			"A decision waits on a person, so `slate next` lists it at step decide and\n" +
+			"`slate claims hold --next` leaves it out. An open question the work waits on\n" +
+			"is a decision issue it depends on.",
 	})
 	goclikit.WithRecoveryHints(cmd, issueHints...)
 	cmd.AddGroup(
@@ -523,6 +525,7 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 		field("found in", summaryLine(*issue.DiscoveredFrom))
 	}
 	field("labels", strings.Join(issue.Labels, ", "))
+	field("paths", strings.Join(issue.Paths, ", "))
 	field("deferred", strValue(issue.DeferredUntilDate))
 	field("created", localDay(issue.CreatedTS))
 

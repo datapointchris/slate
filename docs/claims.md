@@ -69,8 +69,8 @@ commits go to the second. Coming back sends them to the first again.
 
 A partial unique index allows one unended claim per record. Two holds racing on
 one record are settled by that index: the loser's insert fails, and it answers
-409 naming the holder that won. `POST /claims/next` holds the head of the issue
-ready queue this way, moving to the next issue when it loses one.
+409 naming the holder that won. `POST /claims/next` holds the head of the ready
+issues this way, moving to the next issue when it loses one.
 
 That 409 is the only refusal. A hold goes through whatever else it finds, and
 the answer carries a warning for each thing:
@@ -88,6 +88,7 @@ the answer carries a warning for each thing:
 | `claimed_initiative` | another holder claims the issue's initiative, or the initiative an idea became |
 | `claimed_parent`, `claimed_child`, `claimed_dependent` | another holder claims an issue beside it |
 | `claimed_issue_in_initiative` | another holder claims an issue in the initiative held |
+| `claimed_overlapping_paths` | another holder claims an issue on the same repo whose paths meet this issue's, one warning each |
 
 `WriteEffectCode` in `services/write_effects.py` holds every code, the hold
 warnings under their own comment.

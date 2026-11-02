@@ -4,8 +4,9 @@ None of these refuses the hold. Another holder's live claim on the record itself
 conflict that does, in `claims.take`. A neighbor the same holder claims is that holder's own work,
 so it goes unnamed.
 
-An issue's neighbors are its initiative, its parent, its children, what it depends on and what
-depends on it. An initiative's are its unclosed issues. An idea's is the initiative it became.
+An issue's neighbors are its initiative, its parent, its children, what it depends on, what
+depends on it, and every issue on its repo naming a path that overlaps one of its own. An
+initiative's are its unclosed issues. An idea's is the initiative it became.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
+from slate.services.issue_paths import held_overlaps
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_views import ISSUE_LOAD_OPTIONS
 from slate.services.write_effects import WriteEffectCode
@@ -115,6 +117,15 @@ def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetim
             WriteEffectCode.CLAIMED_INITIATIVE,
             f'#{number} is in initiative #{initiative.number} {initiative.name!r}, which is claimed by {holding}.',
             initiative.number,
+        )
+    for overlap in held_overlaps(session, [issue], now).get(number, []):
+        if overlap.claim.holder == holder:
+            continue
+        effects.warn(
+            WriteEffectCode.CLAIMED_OVERLAPPING_PATHS,
+            f'#{overlap.number} {overlap.title!r} also changes {", ".join(overlap.paths)} in {issue.repo}, '
+            f'and is claimed by {held_by(overlap.claim, effects)}.',
+            overlap.number,
         )
 
 

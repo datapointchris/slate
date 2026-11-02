@@ -91,8 +91,8 @@ func newClaimsHoldCommand() *cobra.Command {
 			"--json gives it as claim.worklog. The Claude Code session joins it, leaving any\n" +
 			"other worklog it was in, which is printed too. `slate worklogs` reads it.\n" +
 			"\n" +
-			"--next holds the head of the issue ready queue in one request, so two\n" +
-			"callers asking at once never hold the same issue. `slate next` under\n" +
+			"--next holds the head of the ready issues in one request, so two callers\n" +
+			"asking at once never hold the same issue. `slate next --step build` under\n" +
 			"the same flags shows what it would take. Decisions are left out unless --type\n" +
 			"decision asks for them. An empty queue warns and exits 0.\n" +
 			"\n" +

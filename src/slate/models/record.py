@@ -7,6 +7,9 @@ inheritance. A claim, and anything else that attaches to "a record", holds one f
 
 Each kind's table carries the kind it is beside the number, and references `records` on both. So
 the database refuses an issue whose number is recorded as an initiative's.
+
+`rank` is every record's place in the one order `slate next` reads, so ideas, initiatives and
+issues are placed against each other in one space. `services/fractional_rank.py` moves it.
 """
 
 from __future__ import annotations
@@ -17,12 +20,17 @@ from typing import ClassVar
 
 from sqlalchemy import BigInteger
 from sqlalchemy import CheckConstraint
+from sqlalchemy import Double
+from sqlalchemy import FetchedValue
 from sqlalchemy import ForeignKey
 from sqlalchemy import ForeignKeyConstraint
+from sqlalchemy import Index
 from sqlalchemy import Sequence
 from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
+from sqlalchemy import select
 from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import column_property
 from sqlalchemy.orm import declared_attr
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
@@ -58,12 +66,19 @@ class Record(Base):
         BigInteger, RECORD_NUMBER_SEQUENCE, primary_key=True, server_default=RECORD_NUMBER_SEQUENCE.next_value()
     )
     kind: Mapped[Kind] = mapped_column(Text, ForeignKey('record_kinds.name'), nullable=False)
+    # Left unset, the `records_rank_at_end` trigger places the record one past the last, so every
+    # way a row is inserted lands at the end.
+    rank: Mapped[float] = mapped_column(Double, nullable=False, server_default=FetchedValue())
 
     # The pair each kind's table references, so the kind it declares is the kind recorded here.
-    __table_args__ = (UniqueConstraint('number', 'kind', name='uq_records_number_kind'),)
+    __table_args__ = (
+        UniqueConstraint('number', 'kind', name='uq_records_number_kind'),
+        Index('idx_records_rank', 'rank'),
+    )
+    __mapper_args__ = {'eager_defaults': True}
 
     def __repr__(self) -> str:
-        return f'Record(number={self.number!r}, kind={self.kind!r})'
+        return f'Record(number={self.number!r}, kind={self.kind!r}, rank={self.rank!r})'
 
 
 class NumberedRecord:
@@ -85,9 +100,17 @@ class NumberedRecord:
     def record(cls: type[NumberedRecord]) -> Mapped[Record]:
         return relationship(Record, foreign_keys=f'[{cls.__name__}.number, {cls.__name__}.record_kind]')
 
+    @declared_attr
+    def rank(cls: type[NumberedRecord]) -> Mapped[float]:
+        """The record's rank, read with the row. A move writes `record.rank`."""
+        return column_property(select(Record.rank).where(Record.number == cls.number).scalar_subquery())
+
     def __init__(self, **kwargs: Any) -> None:
+        """`rank` places the new record; left out, it goes one past the last."""
+        rank = kwargs.pop('rank', None)
         if 'record' not in kwargs and 'number' not in kwargs:
-            kwargs['record'] = Record(kind=self.RECORD_KIND)
+            placed = {} if rank is None else {'rank': rank}
+            kwargs['record'] = Record(kind=self.RECORD_KIND, **placed)
         super().__init__(**kwargs)
 
 

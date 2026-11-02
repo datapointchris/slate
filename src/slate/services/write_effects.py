@@ -55,6 +55,9 @@ class WriteEffectCode(enum.StrEnum):
     # A warning on linking evidence an idea already links.
     EVIDENCE_ALREADY_LINKED = 'evidence_already_linked'
 
+    # A warning on creating a record whose title reads like an open record's.
+    POSSIBLE_DUPLICATE = 'possible_duplicate'
+
     # Warnings on a claim write that changed nothing, or went through without the lease asked for.
     ALREADY_HELD = 'already_held'
     CLAIM_HAD_EXPIRED = 'claim_had_expired'
@@ -94,6 +97,7 @@ class WriteEffectCode(enum.StrEnum):
     CLAIMED_PARENT = 'claimed_parent'
     CLAIMED_CHILD = 'claimed_child'
     CLAIMED_DEPENDENT = 'claimed_dependent'
+    CLAIMED_OVERLAPPING_PATHS = 'claimed_overlapping_paths'
 
 
 class WriteEffects:

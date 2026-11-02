@@ -70,7 +70,8 @@ class IdeaEvidence(RecordModel):
 class Idea(RecordModel):
     """An idea, its evidence oldest first, and the initiative it became with that initiative's progress.
 
-    `claim` is the idea's unended claim, live or expired.
+    `claim` is the idea's unended claim, live or expired. `rank` places it among the records of its
+    priority in the queue.
     """
 
     id: UUID
@@ -78,6 +79,7 @@ class Idea(RecordModel):
     title: str
     description: str | None = None
     priority: int
+    rank: float
     created_ts: dt.datetime
     updated_ts: dt.datetime
     evidence: list[IdeaEvidence] = []

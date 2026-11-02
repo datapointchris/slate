@@ -19,6 +19,7 @@ from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
+from slate.api.request_zone import RequestZone
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.claims import end_with_record
 from slate.services.initiative_views import counted
@@ -31,6 +32,8 @@ from slate.services.initiatives import refuse_number_shaped_name
 from slate.services.initiatives import require_reason_when_dropped
 from slate.services.initiatives import validate_status
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
+from slate.services.likely_duplicates import warn_likely_duplicates
+from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_initiative_delete
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_summaries import record_summaries
@@ -68,7 +71,7 @@ def read_many(
     ] = 'active',
     sort: Annotated[
         InitiativeSort,
-        Query(description='priority: the order to work them in. open: most unclosed issues first. newest: latest started first.'),
+        Query(description='priority: the order the queue takes them in. open: most unclosed issues first. newest: latest started first.'),
     ] = 'priority',
     limit: RowLimit = None,
 ):
@@ -89,8 +92,8 @@ def read_many(
     counts = issue_count_columns()
     open_count = counts[1]
     orders: dict[str, tuple[ColumnElement[Any], ...]] = {
-        'priority': (urgency.asc(), models.Initiative.position.asc(), models.Initiative.created_ts.asc()),
-        'open': (open_count.desc(), urgency.asc(), models.Initiative.position.asc()),
+        'priority': (urgency.asc(), models.Initiative.rank.asc()),
+        'open': (open_count.desc(), urgency.asc(), models.Initiative.rank.asc()),
         'newest': (models.Initiative.created_ts.desc(),),
     }
     within_class = orders[sort]
@@ -108,10 +111,21 @@ def read_many(
 
 @router.post('', response_model=schemas.InitiativeWritten, status_code=status.HTTP_201_CREATED)
 def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Effects):
+    """Create an initiative last in the queue, warning about each open record whose title reads like its name."""
     db_obj = new_initiative(session, initiative)
+    warn_likely_duplicates(session, db_obj.number, db_obj.name, None, effects)
     session.commit()
     session.refresh(db_obj)
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, db_obj))
+
+
+@router.post('/{id:path}/rank', response_model=schemas.InitiativeWritten, status_code=status.HTTP_200_OK)
+def rank(initiative: InitiativeFromPath, move: schemas.RecordRankMove, session: DbSession, zone: RequestZone, effects: Effects):
+    """Place this initiative, with its issues, directly before or after another record of its priority in the queue."""
+    move_in_queue(session, zone, initiative.record, move)
+    session.commit()
+    session.refresh(initiative)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
 
 
 @router.get('/{id:path}', response_model=schemas.InitiativeDetail, status_code=status.HTTP_200_OK)

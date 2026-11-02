@@ -48,7 +48,7 @@ def codes(effects: list[dict]) -> list[tuple[str, int | None]]:
 
 
 def ready_titles(client) -> list[str]:
-    return [row['title'] for row in ok(client.get(f'{ISSUES}/ready'))]
+    return [row['title'] for row in ok(client.get('/queue', params={'step': 'build'}))['queue']]
 
 
 def test_holding_the_queue_takes_each_issue_once_then_none(client):
@@ -155,6 +155,20 @@ def test_a_hold_warns_about_each_open_dependency_and_each_claimed_dependent(clie
     hold(client, task, 'agent-dependent')
 
     assert codes(hold(client, bug, 'agent-a')['warnings']) == [('open_dependency', chore), ('claimed_dependent', task)]
+
+
+def test_a_hold_names_another_holders_issue_changing_the_same_code(client):
+    """A directory covers every file under it, and the same path on another repo is other code."""
+    held = number(client, 'Ready bug with high priority')
+    ok(client.patch(f'{ISSUES}/{held}', json={'paths': ['src/api']}))
+    hold(client, held, 'agent-a')
+    elsewhere = ok(client.post(ISSUES, json={'title': 'Same path, other repo', 'repo': 'mobile', 'paths': ['src/api']}), 201)
+    meets = ok(client.post(ISSUES, json={'title': 'Touches a file under it', 'repo': 'webapp', 'paths': ['src/api/main.py']}), 201)
+
+    answer = hold(client, meets['issue']['number'], 'agent-b')
+    assert codes(answer['warnings']) == [('claimed_overlapping_paths', held)]
+    assert 'agent-a' in answer['warnings'][0]['message']
+    assert codes(hold(client, elsewhere['issue']['number'], 'agent-c')['warnings']) == []
 
 
 @pytest.mark.parametrize(('title', 'code'), [('Filed by a hook into triage', 'in_triage'), ('Completed feature', 'record_closed')])

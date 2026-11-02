@@ -16,6 +16,7 @@ from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
+from slate.api.request_zone import RequestZone
 from slate.services.claims import end_with_record
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
@@ -23,6 +24,8 @@ from slate.services.idea_views import idea_view
 from slate.services.idea_views import idea_views
 from slate.services.initiatives import new_initiative
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
+from slate.services.likely_duplicates import warn_likely_duplicates
+from slate.services.queue_moves import move_in_queue
 from slate.services.record_refs import resolve_idea
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
@@ -50,11 +53,23 @@ def read_many(session: DbSession, limit: RowLimit = None):
 
 @router.post('', response_model=schemas.IdeaWritten, status_code=status.HTTP_201_CREATED)
 def create(idea: schemas.IdeaCreate, session: DbSession, effects: Effects):
+    """Record an idea last in the queue, warning about each open record whose title reads like it."""
     db_obj = models.Idea(title=idea.title, description=idea.description, priority=idea.priority)
     session.add(db_obj)
+    session.flush()
+    warn_likely_duplicates(session, db_obj.number, db_obj.title, None, effects)
     session.commit()
     session.refresh(db_obj)
     return effects.answer(schemas.IdeaWritten, idea=idea_view(session, db_obj))
+
+
+@router.post('/{id}/rank', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
+def rank(idea: IdeaFromPath, move: schemas.RecordRankMove, session: DbSession, zone: RequestZone, effects: Effects):
+    """Place this idea directly before or after another record of its priority in the queue."""
+    move_in_queue(session, zone, idea.record, move)
+    session.commit()
+    session.refresh(idea)
+    return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
 
 
 @router.get('/{id}', response_model=schemas.IdeaDetail, status_code=status.HTTP_200_OK)

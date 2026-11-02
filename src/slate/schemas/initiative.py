@@ -28,7 +28,6 @@ class InitiativeCreate(RecordModel):
     status: str = 'active'
     status_reason: str | None = None
     priority: Priority = 0
-    position: int | None = None
     autofix: bool = True
 
 
@@ -40,7 +39,6 @@ class InitiativeUpdate(RecordModel):
     status: NotNull[str] = None
     status_reason: str | None = None
     priority: NotNull[Priority] = None
-    position: NotNull[int] = None
     autofix: NotNull[bool] = None
 
 
@@ -50,7 +48,8 @@ class Initiative(RecordModel):
     The three counts partition `issue_count`. `repos` is derived from every issue
     not canceled, never stored, so it cannot drift from what the work touches.
     `claim` is the initiative's unended claim, live or expired. `idea` is the
-    idea promoted into it.
+    idea promoted into it. `rank` places it, with its issues, among the
+    records of its priority in the queue.
     """
 
     id: UUID
@@ -60,7 +59,7 @@ class Initiative(RecordModel):
     status: str
     status_reason: str | None = None
     priority: int
-    position: int
+    rank: float
     autofix: bool
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None

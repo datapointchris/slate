@@ -30,17 +30,62 @@ for every issue in one pass on each read. The API returns it as `is_ready`
 and `is_blocked`, and every client filters on those rather than re-deriving
 them.
 
-`GET /issues/ready` is the queue, in the order to take it. `slate next`
-prints it.
+`GET /queue` lists the ready issues among every other kind of open work, in
+the order to take it. `slate next` prints it.
 
-## A decision waits on a person, so the ready queue leaves it out
+## `next` lists every kind of open work, each row with the step it asks for
+
+A row is a record and what taking it means:
+
+| Step | Row |
+| --- | --- |
+| `discuss` | an idea nobody has promoted |
+| `plan` | an active initiative with no unclosed issue |
+| `decide` | a ready `decision` issue |
+| `build` | any other ready issue |
+
+`step` keeps one step's rows, so `slate next --step build` is the work an agent
+takes. An initiative holding unclosed issues is not a row of its own, because
+its issues are. `repo`, `type`, `label` and `autofixable` read only issues, so
+each leaves the ideas and initiatives out. `initiative` narrows to one
+initiative's rows.
+
+Each row says its `kind`, `number`, `step` and `priority`, and carries the
+kind's own read as `record`. `priority` is the one the row sorts at: an
+issue's effective priority, else the record's own.
+
+A live claim says someone is working the record, so a held record is listed
+apart in `claimed`, by holder, whatever its readiness. The rest are `queue`,
+first row next. `limit` caps `queue` and never `claimed`.
+
+`POST /claims/next` holds the head of the `build` rows under the same filters.
+
+## A decision waits on a person, so it is decided rather than built
 
 The `decision` type is the one type that changes what happens to an issue.
-It needs a person to choose, and an agent that held one could only stall.
-The ready queue drops it.
+It needs a person to choose, and an agent that held one could only stall. So
+`next` lists a ready decision at step `decide`, and `POST /claims/next` leaves
+it out unless `type=decision` asks for it.
 
 The other types are `bug`, `feature`, `task` and `chore`. They differ only in
 what they say about the work, and `task` is the default.
+
+## A dependency means the work cannot start until the other issue closes
+
+An edge from A to B says A cannot start while B is open. It never means
+related, or better done after. Work that only touches the same code names the
+same paths instead, and the hold warns.
+
+- **A gate on going live sits on the issue that goes live.** The issue that
+  deploys depends on its review. The work building it does not, so the work
+  starts while the review waits.
+- **A question only a person can answer is a `decision` issue the work depends
+  on.** The decision then inherits the priority of the work it gates, so
+  `next` lists it at step `decide` at that priority. A question written into
+  the description instead blocks nothing, and an agent reaching it can only
+  stall.
+- **The description is the issue's current state.** A correction rewrites it,
+  and a comment keeps the history of when and why.
 
 ## A someday initiative holds ideas until active work needs one
 
@@ -72,17 +117,18 @@ with readiness and returned as `is_autofixable`. So an issue filed later into
 such an initiative, or under such a parent, is covered with nothing set on it.
 
 `autofix` says nothing about whether an issue is ready. A session reads the
-whole queue with `slate next`. `slate next --autofixable` is the
-queue for an unattended fix, and is `GET /issues/ready?autofixable=true`. The
-filter is named for `is_autofixable`, the derived fact it reads, the way
+whole queue with `slate next`. `slate next --step build --autofixable` is the
+queue for an unattended fix, and is `GET /queue?step=build&autofixable=true`.
+The filter is named for `is_autofixable`, the derived fact it reads, the way
 `blocked` reads `is_blocked`. `autofix` stays the stored setting.
 
 The flag is a veto the reader asks to honor. A hold by number takes an issue
 whatever its flag says, and a fixer narrowing further, by type or repo, does so
 on its own side. An API that does not know the filter ignores it, so `slate
-next` refuses any row under `--autofixable` whose `is_autofixable` is
-missing or does not match. `slate claims hold --next --autofixable` needs no
-such check, because every API serving `/claims/next` reads the filter.
+issues list` refuses any row under `--autofixable` whose `is_autofixable` is
+missing or does not match. `slate next` and `slate claims hold --next
+--autofixable` need no such check, because every API serving `/queue` and
+`/claims/next` reads the filter.
 
 Neither status nor someday carries this. Status says where the work is in its
 life, and someday means nobody has taken the work on.
@@ -94,7 +140,7 @@ it as `open`. Work noticed in passing is filed there, with `discovered_from`
 naming the issue it was found during. It is recorded without jumping ahead of
 work someone chose.
 
-## Order is effective priority, then rank, then number
+## Order is priority, then each initiative's work together, then rank
 
 Priority uses Linear's scale:
 
@@ -123,25 +169,84 @@ Raising a blocker is priority inheritance, from scheduling. Without it a blocker
 filed at low priority waits at the bottom while the urgent work it gates sits
 at the top of the list, hidden because it is blocked.
 
-`rank` breaks ties inside a priority. It is a float, the way Linear's
-`sortOrder` is. A new issue goes one past the last. A move takes the midpoint
-of its two new neighbors, so it writes one row. When a move would leave a gap
-smaller than `MIN_GAP` in `services/issue_rank.py`, every rank is renumbered to
-whole numbers in its current order. `number` breaks a rank tie, because it is
-issued in creation order and never repeats.
+The queue is a list of slots, and `services/issue_readiness.py` derives each
+issue's place in it on every read. A slot is one of:
 
-A move names the issue to sit before or after, and that issue must sort at the
-same effective priority. Ranks are one global sequence, so a move beside an
-issue of another priority would land wherever the other priorities' ranks fall.
-Such a move is refused with a 409 naming both priorities. Changing the priority
-is what moves an issue past another priority's.
+- an active initiative, with its issues
+- an idea, or an active initiative with no unclosed issue
+- an issue in no active initiative
+
+Slots sort by priority, then by the slot's rank. Inside an initiative, its
+issues sort by their own rank. So an initiative's work runs together, and the
+initiative's place decides where all of it falls. An issue whose own priority
+is more urgent than its initiative's stands alone, at its own priority.
+
+An issue something waits on sorts just ahead of the earliest issue waiting on
+it, at any depth. A blocker is waited on by its dependents, and a child by its
+parent. So it comes up before the work it gates, wherever that work sits.
+
+```text
+urgent  initiative 12 ── issue 40 (rank 3) ── issue 44 (rank 9)
+        issue 51, in no initiative
+        initiative 15 ── issue 41 (rank 4) ── issue 43 (rank 8)
+high    idea 60
+```
+
+`rank` lives on `records`, so ideas, initiatives and issues share one space.
+It is a float, the way Linear's `sortOrder` is. A new record goes one past the
+last, placed by the `records_rank_at_end` trigger, so a new issue lands at its
+initiative's tail. A move takes the midpoint of its two new neighbors, so it
+writes one row. When a move would leave a gap smaller than `MIN_GAP` in
+`services/fractional_rank.py`, every rank is renumbered to whole numbers in its
+current order. `number` breaks a rank tie, because it is issued in creation
+order and never repeats.
+
+`POST /issues/{id}/rank`, `POST /initiatives/{id}/rank` and
+`POST /ideas/{id}/rank` place a record directly before or after a record of
+any kind, through one rule in `services/queue_moves.py`:
+
+- A slot moves among the slots of its priority. Named beside an issue inside
+  an initiative, it goes beside that whole initiative.
+- An issue inside an initiative moves only among that initiative's issues.
+- An issue sorting ahead of what waits on it moves with that, so it is placed
+  only beside another issue sorting there.
+
+A move that would land anywhere but beside the record named answers 409,
+saying why. One across priorities names both, because changing the priority is
+what moves a record past another priority's.
+
+- *Rejected:* an initiative `position` beside the issues' rank. No sort read
+  it, so initiatives ordered nothing, and an initiative's issues scattered
+  among every other issue of their priority.
 
 ## Who is working an issue is its claim, never its status
 
-An agent takes an issue by holding a claim on it, and `next` leaves out an
-issue someone holds. A claim is a lease on a record of any kind, kept after it
-ends. [claims.md](claims.md) gives the model: the one refusal, the warnings, and
-how a claim expires and ends.
+An agent takes an issue by holding a claim on it, and `next` lists what someone
+holds apart, under its holder. A claim is a lease on a record of any kind, kept
+after it ends. [claims.md](claims.md) gives the model: the one refusal, the
+warnings, and how a claim expires and ends.
+
+## An issue names the paths it changes, so a hold sees work on the same code
+
+`paths` lists files and directories in the issue's repo, from the repo root.
+A directory covers everything under it, the way a git pathspec without
+wildcards does. Two paths overlap when they are equal or one is a directory
+holding the other. Two issues overlap when they are on the same repo and any
+of their paths do.
+
+Holding a claim on an issue warns `claimed_overlapping_paths` for each issue
+another holder has under a live claim whose paths meet its own. `next` marks a
+queued row the same way, in its `overlaps`, so the collision shows before
+anyone takes the work. Nothing refuses: two holders on the same code is often
+fine, and a refusal would make both ask twice.
+
+A write normalizes each path, dropping `.` and empty segments, and refuses an
+empty path, one climbing out with `..`, and a glob. An issue naming paths
+needs a repo, because a path is read in it.
+
+- *Rejected:* globs. Whether two globs can match the same file is a harder
+  question than whether one prefix holds another, and the author of an issue
+  knows the directory it changes.
 
 ## Nothing closes an issue for its age
 
@@ -202,9 +307,10 @@ other, and an issue carries at most one label from each group.
 
 An initiative groups issues toward something with a definition of done, and
 lends them its priority. Work with no end is a label instead. An initiative
-that can never finish would rank its issues forever by a position nobody
-revisits. Only an active initiative lends its priority, so completing or
-dropping one stops it ranking the issues still open inside it.
+that can never finish would hold its issues together in the queue forever.
+Only an active initiative lends its priority and groups its issues, so
+completing or dropping one leaves each issue still open inside it standing
+alone.
 
 ## Not built
 
