@@ -171,7 +171,7 @@ func newClaimsExtendCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			written, err := client.ExtendClaim(cmd.Context(), args[0], holder, minutes)
+			written, err := client.ExtendClaim(cmd.Context(), args[0], holder, minutes, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
@@ -208,7 +208,7 @@ func newClaimsReleaseCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			written, err := client.ReleaseClaim(cmd.Context(), args[0], releasedBy)
+			written, err := client.ReleaseClaim(cmd.Context(), args[0], releasedBy, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}

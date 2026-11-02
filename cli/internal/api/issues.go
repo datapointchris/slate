@@ -336,10 +336,11 @@ func (c *Client) UpdateIssue(ctx context.Context, ref string, in IssueUpdateInpu
 }
 
 // DeleteIssue removes an issue, its comments, its edges and its claims. The
-// answer names each claim it took and each issue that lost its link to it.
-func (c *Client) DeleteIssue(ctx context.Context, ref string) (RecordDeleted, error) {
+// answer names each claim it took and each issue that lost its link to it,
+// giving each time in zone.
+func (c *Client) DeleteIssue(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {
 	var deleted RecordDeleted
-	if err := c.send(ctx, http.MethodDelete, issuePath(ref), nil, &deleted); err != nil {
+	if err := c.send(ctx, http.MethodDelete, withQuery(issuePath(ref), zoneQuery(zone)), nil, &deleted); err != nil {
 		return RecordDeleted{}, err
 	}
 	return deleted, nil
@@ -510,24 +511,26 @@ func (c *Client) CreateInitiative(ctx context.Context, in InitiativeCreateInput)
 	return written, nil
 }
 
-// UpdateInitiative applies a partial update, sending each field in clear as null.
-func (c *Client) UpdateInitiative(ctx context.Context, ref string, in InitiativeUpdateInput, clear []string) (InitiativeWritten, error) {
+// UpdateInitiative applies a partial update, sending each field in clear as
+// null. The answer's messages give each time in zone.
+func (c *Client) UpdateInitiative(ctx context.Context, ref string, in InitiativeUpdateInput, clear []string, zone DayZone) (InitiativeWritten, error) {
 	body, err := mergeClearNulls(in, clear)
 	if err != nil {
 		return InitiativeWritten{}, err
 	}
 	var written InitiativeWritten
-	if err := c.send(ctx, http.MethodPatch, initiativePath(ref), body, &written); err != nil {
+	if err := c.send(ctx, http.MethodPatch, withQuery(initiativePath(ref), zoneQuery(zone)), body, &written); err != nil {
 		return InitiativeWritten{}, err
 	}
 	return written, nil
 }
 
 // DeleteInitiative removes an initiative and its claims. Its issues stay,
-// belonging to none, and the answer names each of them.
-func (c *Client) DeleteInitiative(ctx context.Context, ref string) (RecordDeleted, error) {
+// belonging to none, and the answer names each of them, giving each time in
+// zone.
+func (c *Client) DeleteInitiative(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {
 	var deleted RecordDeleted
-	if err := c.send(ctx, http.MethodDelete, initiativePath(ref), nil, &deleted); err != nil {
+	if err := c.send(ctx, http.MethodDelete, withQuery(initiativePath(ref), zoneQuery(zone)), nil, &deleted); err != nil {
 		return RecordDeleted{}, err
 	}
 	return deleted, nil

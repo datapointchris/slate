@@ -131,10 +131,11 @@ func (c *Client) LinkIdeaEvidence(ctx context.Context, ref string, in IdeaEviden
 	return written, nil
 }
 
-// PromoteIdea creates the initiative an idea becomes. A promoted idea is refused.
-func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInput) (IdeaWritten, error) {
+// PromoteIdea creates the initiative an idea becomes. A promoted idea is
+// refused. The answer's messages give each time in zone.
+func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInput, zone DayZone) (IdeaWritten, error) {
 	var written IdeaWritten
-	if err := c.send(ctx, http.MethodPost, ideaPath(ref)+"/promote", in, &written); err != nil {
+	if err := c.send(ctx, http.MethodPost, withQuery(ideaPath(ref)+"/promote", zoneQuery(zone)), in, &written); err != nil {
 		return IdeaWritten{}, err
 	}
 	return written, nil

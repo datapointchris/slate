@@ -25,7 +25,9 @@ def name_claims_deleted(session: Session, number: int, deleted_by: str, now: dt.
     live = next((claim for claim in claims if claim.is_live(now)), None)
     if live is not None and live.holder != deleted_by:
         effects.warn(
-            WriteEffectCode.DELETED_ANOTHERS_CLAIM, f'#{number} was claimed by {held_by(live)}, and the claim went with it.', number
+            WriteEffectCode.DELETED_ANOTHERS_CLAIM,
+            f'#{number} was claimed by {held_by(live, effects)}, and the claim went with it.',
+            number,
         )
     noun = 'claim' if len(claims) == 1 else 'claims'
     effects.did(WriteEffectCode.CLAIMS_DELETED, f'Deleted the {len(claims)} {noun} #{number} had, its whole claim history.', number)

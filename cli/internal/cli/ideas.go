@@ -298,7 +298,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			written, err := client.PromoteIdea(cmd.Context(), args[0], in)
+			written, err := client.PromoteIdea(cmd.Context(), args[0], in, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}

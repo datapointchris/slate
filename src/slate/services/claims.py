@@ -24,7 +24,6 @@ from slate.services.claim_neighbors import warn_about_neighbors
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
 from slate.services.claim_views import unended_claims
-from slate.services.claim_views import utc_minute
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -53,7 +52,7 @@ def end_with_record(session: Session, number: int, ending: str, now: dt.datetime
     if claim is None:
         return
     if end_claim(claim, ending, now, ended_by):
-        message = f"Ended {claim.holder}'s claim on #{number}, which had expired at {utc_minute(claim.expires_ts)}."
+        message = f"Ended {claim.holder}'s claim on #{number}, which had expired at {effects.moment(claim.expires_ts)}."
     else:
         message = f"Ended {claim.holder}'s claim on #{number}, because #{number} is {ending}."
     effects.did(WriteEffectCode.CLAIM_ENDED, message, number)
@@ -67,17 +66,17 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
         if live and current.holder == lease.holder:
             effects.warn(
                 WriteEffectCode.ALREADY_HELD,
-                f'{lease.holder} already holds #{number} until {utc_minute(current.expires_ts)}. '
+                f'{lease.holder} already holds #{number} until {effects.moment(current.expires_ts)}. '
                 'Holding it again changed nothing. Extend the claim to keep it longer.',
                 number,
             )
             return current
         if live:
-            raise ClaimRefused(f'#{number} is claimed by {held_by(current)}.')
+            raise ClaimRefused(f'#{number} is claimed by {held_by(current, effects)}.')
         end_claim(current, 'expired', now, None)
         effects.did(
             WriteEffectCode.EXPIRED_CLAIM_ENDED,
-            f"Ended {current.holder}'s claim on #{number} as expired at {utc_minute(current.expires_ts)}, before this one started.",
+            f"Ended {current.holder}'s claim on #{number} as expired at {effects.moment(current.expires_ts)}, before this one started.",
             number,
         )
         session.flush()
@@ -104,13 +103,13 @@ def hold(
     The insert runs in a savepoint. A hold racing this one past the read loses
     to the partial unique index, and only its own savepoint rolls back.
     """
-    attempt = WriteEffects()
+    attempt = effects.attempt()
     try:
         with session.begin_nested():
             claim = take(session, record.number, lease, now, attempt)
     except IntegrityError:
         current = live_claims(session, [record.number], now).get(record.number)
-        held = f'is claimed by {held_by(current)}' if current is not None else 'was taken by a hold that landed first'
+        held = f'is claimed by {held_by(current, effects)}' if current is not None else 'was taken by a hold that landed first'
         raise ClaimRefused(f'#{record.number} {held}.') from None
     effects.merge(attempt)
     warn_about_neighbors(session, record, lease.holder, now, today, effects)
@@ -136,11 +135,13 @@ def extend(session: Session, number: int, holder: str, minutes: int, now: dt.dat
     if current is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} holds no claim to extend. Hold it instead.')
     if current.holder != holder:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} is claimed by {held_by(current)}, not {holder}.')
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f'#{number} is claimed by {held_by(current, effects)}, not {holder}.'
+        )
     if current.is_expired(now):
         effects.warn(
             WriteEffectCode.CLAIM_HAD_EXPIRED,
-            f'The claim on #{number} had expired at {utc_minute(current.expires_ts)}. Nobody held #{number} since, so it holds again.',
+            f'The claim on #{number} had expired at {effects.moment(current.expires_ts)}. Nobody held #{number} since, so it holds again.',
             number,
         )
     current.expires_ts = now + dt.timedelta(minutes=minutes)
@@ -163,7 +164,7 @@ def release(session: Session, number: int, released_by: str, now: dt.datetime, e
     if end_claim(current, 'released', now, released_by):
         effects.did(
             WriteEffectCode.CLAIM_ENDED,
-            f'The claim on #{number} had expired at {utc_minute(current.expires_ts)}, so it ended as expired rather than released.',
+            f'The claim on #{number} had expired at {effects.moment(current.expires_ts)}, so it ended as expired rather than released.',
             number,
         )
     logger.info('claim_released', record=number, holder=current.holder, released_by=released_by, ending=current.ending)

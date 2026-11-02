@@ -81,7 +81,7 @@ def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetim
     claimed = claimed_by_others(session, neighbors, holder, now)
 
     for dependency in dependencies:
-        held = f', and claimed by {held_by(claimed[dependency.number])}' if dependency.number in claimed else ''
+        held = f', and claimed by {held_by(claimed[dependency.number], effects)}' if dependency.number in claimed else ''
         effects.warn(
             WriteEffectCode.OPEN_DEPENDENCY,
             f'#{number} depends on #{dependency.number}, which is {dependency.status}{held}.',
@@ -93,22 +93,24 @@ def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetim
         if child.number in claimed:
             effects.warn(
                 WriteEffectCode.CLAIMED_CHILD,
-                f"#{number}'s child #{child.number} is claimed by {held_by(claimed[child.number])}.",
+                f"#{number}'s child #{child.number} is claimed by {held_by(claimed[child.number], effects)}.",
                 child.number,
             )
     if issue.parent is not None and issue.parent.number in claimed:
         parent = issue.parent.number
-        effects.warn(WriteEffectCode.CLAIMED_PARENT, f"#{number}'s parent #{parent} is claimed by {held_by(claimed[parent])}.", parent)
+        effects.warn(
+            WriteEffectCode.CLAIMED_PARENT, f"#{number}'s parent #{parent} is claimed by {held_by(claimed[parent], effects)}.", parent
+        )
     for dependent in dependents:
         if dependent.number in claimed:
             effects.warn(
                 WriteEffectCode.CLAIMED_DEPENDENT,
-                f'#{dependent.number} depends on #{number}, and is claimed by {held_by(claimed[dependent.number])}.',
+                f'#{dependent.number} depends on #{number}, and is claimed by {held_by(claimed[dependent.number], effects)}.',
                 dependent.number,
             )
     if issue.initiative is not None and issue.initiative.number in claimed:
         initiative = issue.initiative
-        holding = held_by(claimed[initiative.number])
+        holding = held_by(claimed[initiative.number], effects)
         effects.warn(
             WriteEffectCode.CLAIMED_INITIATIVE,
             f'#{number} is in initiative #{initiative.number} {initiative.name!r}, which is claimed by {holding}.',
@@ -129,7 +131,7 @@ def warn_about_initiative(session: Session, number: int, holder: str, now: dt.da
     for issue_number in sorted(claimed):
         effects.warn(
             WriteEffectCode.CLAIMED_ISSUE_IN_INITIATIVE,
-            f'#{issue_number}, in #{number} {initiative.name!r}, is claimed by {held_by(claimed[issue_number])}.',
+            f'#{issue_number}, in #{number} {initiative.name!r}, is claimed by {held_by(claimed[issue_number], effects)}.',
             issue_number,
         )
 
@@ -146,6 +148,6 @@ def warn_about_idea(session: Session, number: int, holder: str, now: dt.datetime
     if (claim := claimed_by_others(session, [initiative.number], holder, now).get(initiative.number)) is not None:
         effects.warn(
             WriteEffectCode.CLAIMED_INITIATIVE,
-            f'#{number} became initiative #{initiative.number} {initiative.name!r}, which is claimed by {held_by(claim)}.',
+            f'#{number} became initiative #{initiative.number} {initiative.name!r}, which is claimed by {held_by(claim, effects)}.',
             initiative.number,
         )

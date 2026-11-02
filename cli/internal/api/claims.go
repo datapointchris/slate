@@ -128,26 +128,28 @@ func (c *Client) HoldNextClaim(ctx context.Context, lease ClaimLease, filter Rea
 	return written, nil
 }
 
-// ExtendClaim moves the holder's claim on record to minutes from now.
-func (c *Client) ExtendClaim(ctx context.Context, record, holder string, minutes int) (ClaimWritten, error) {
+// ExtendClaim moves the holder's claim on record to minutes from now. The
+// answer's messages give each time in zone.
+func (c *Client) ExtendClaim(ctx context.Context, record, holder string, minutes int, zone DayZone) (ClaimWritten, error) {
 	body := struct {
 		Holder  string `json:"holder"`
 		Minutes int    `json:"minutes,omitempty"`
 	}{holder, minutes}
 	var written ClaimWritten
-	if err := c.send(ctx, http.MethodPost, claimPath(record, "extend"), body, &written); err != nil {
+	if err := c.send(ctx, http.MethodPost, withQuery(claimPath(record, "extend"), zoneQuery(zone)), body, &written); err != nil {
 		return ClaimWritten{}, err
 	}
 	return written, nil
 }
 
-// ReleaseClaim ends the record's claim as released by releasedBy.
-func (c *Client) ReleaseClaim(ctx context.Context, record, releasedBy string) (ClaimWritten, error) {
+// ReleaseClaim ends the record's claim as released by releasedBy. The
+// answer's messages give each time in zone.
+func (c *Client) ReleaseClaim(ctx context.Context, record, releasedBy string, zone DayZone) (ClaimWritten, error) {
 	body := struct {
 		ReleasedBy string `json:"released_by"`
 	}{releasedBy}
 	var written ClaimWritten
-	if err := c.send(ctx, http.MethodPost, claimPath(record, "release"), body, &written); err != nil {
+	if err := c.send(ctx, http.MethodPost, withQuery(claimPath(record, "release"), zoneQuery(zone)), body, &written); err != nil {
 		return ClaimWritten{}, err
 	}
 	return written, nil

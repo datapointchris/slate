@@ -16,14 +16,11 @@ from slate import models
 from slate import schemas
 from slate.schemas.claim import ClaimState
 from slate.services.record_summaries import record_summaries
+from slate.services.write_effects import WriteEffects
 
 
-def utc_minute(ts: dt.datetime) -> str:
-    return f'{ts.astimezone(dt.UTC):%Y-%m-%d %H:%M} UTC'
-
-
-def held_by(claim: models.Claim) -> str:
-    return f'{claim.holder} until {utc_minute(claim.expires_ts)}'
+def held_by(claim: models.Claim, effects: WriteEffects) -> str:
+    return f'{claim.holder} until {effects.moment(claim.expires_ts)}'
 
 
 def claim_state(claim: models.Claim, now: dt.datetime) -> ClaimState:

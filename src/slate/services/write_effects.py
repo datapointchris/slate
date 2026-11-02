@@ -5,12 +5,16 @@ so in its answer, and so does a write that went through a conflict a caller shou
 handler takes `Effects`, passes it to whatever does the work, and answers `effects.answer(...)`.
 """
 
+import datetime as dt
 import enum
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 import structlog
 from fastapi import Depends
 
+from slate.api.request_zone import CALENDAR_FALLBACK_ZONE
+from slate.api.request_zone import RequestZone
 from slate.schemas.write_effects import WriteEffect
 from slate.schemas.write_effects import Written
 
@@ -61,11 +65,20 @@ class WriteEffectCode(enum.StrEnum):
 
 
 class WriteEffects:
-    """The side effects and warnings of one request's write. FastAPI builds one per request."""
+    """The side effects and warnings of one request's write, written for a reader in `zone`. FastAPI builds one per request."""
 
-    def __init__(self) -> None:
+    def __init__(self, zone: str = CALENDAR_FALLBACK_ZONE) -> None:
+        self.zone = zone
         self.side_effects: list[WriteEffect] = []
         self.warnings: list[WriteEffect] = []
+
+    def moment(self, ts: dt.datetime) -> str:
+        """`ts` to the minute on the reader's clock, naming the zone, so a message agrees with the times the CLI prints."""
+        return f'{ts.astimezone(ZoneInfo(self.zone)):%Y-%m-%d %H:%M %Z}'
+
+    def attempt(self) -> WriteEffects:
+        """A gathering for one attempt, on the same clock, that `merge` takes on once the attempt succeeds."""
+        return WriteEffects(self.zone)
 
     def did(self, code: WriteEffectCode, message: str, record: int | None = None) -> None:
         self.side_effects.append(WriteEffect(code=code, message=message, record=record))
@@ -84,4 +97,8 @@ class WriteEffects:
         return schema(side_effects=self.side_effects, warnings=self.warnings, **written)
 
 
-Effects = Annotated[WriteEffects, Depends(WriteEffects)]
+def request_effects(zone: RequestZone) -> WriteEffects:
+    return WriteEffects(zone)
+
+
+Effects = Annotated[WriteEffects, Depends(request_effects)]

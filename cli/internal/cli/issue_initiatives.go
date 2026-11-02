@@ -259,7 +259,7 @@ func runInitiativeUpdate(cmd *cobra.Command, ref string, in api.InitiativeUpdate
 	if err != nil {
 		return handleAPIError(err)
 	}
-	written, err := client.UpdateInitiative(cmd.Context(), ref, in, clear)
+	written, err := client.UpdateInitiative(cmd.Context(), ref, in, clear, issueZone())
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
@@ -385,7 +385,7 @@ func newInitiativesDeleteCommand() *cobra.Command {
 					return nil
 				}
 			}
-			deleted, err := client.DeleteInitiative(cmd.Context(), initiative.ID)
+			deleted, err := client.DeleteInitiative(cmd.Context(), initiative.ID, issueZone())
 			if err != nil {
 				return handleAPIError(err)
 			}

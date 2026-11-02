@@ -499,7 +499,7 @@ func newIssuesDeleteCommand() *cobra.Command {
 					return nil
 				}
 			}
-			deleted, err := client.DeleteIssue(cmd.Context(), issue.ID)
+			deleted, err := client.DeleteIssue(cmd.Context(), issue.ID, issueZone())
 			if err != nil {
 				return handleAPIError(err)
 			}

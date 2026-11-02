@@ -1,4 +1,5 @@
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import status
@@ -72,9 +73,11 @@ def test_another_holders_live_claim_refuses_the_hold_by_name(client):
 def test_holding_again_changes_nothing_and_only_an_extend_moves_the_expiry(client):
     bug = number(client, 'Ready bug with high priority')
     first = hold(client, bug, 'agent-a', minutes=10)['claim']
-    again = hold(client, bug, 'agent-a', minutes=600)
+    again = ok(client.post(CLAIMS, params={'timezone': 'America/Chicago'}, json={'record': bug, 'holder': 'agent-a', 'minutes': 600}))
     assert (again['claim']['id'], again['claim']['expires_ts']) == (first['id'], first['expires_ts'])
     assert [warning['code'] for warning in again['warnings']] == ['already_held']
+    on_the_callers_clock = dt.datetime.fromisoformat(first['expires_ts']).astimezone(ZoneInfo('America/Chicago'))
+    assert f'until {on_the_callers_clock:%Y-%m-%d %H:%M %Z}.' in again['warnings'][0]['message']
 
     extended = ok(client.post(f'{CLAIMS}/{bug}/extend', json={'holder': 'agent-a', 'minutes': 600}))['claim']
     assert dt.datetime.fromisoformat(extended['expires_ts']) > dt.datetime.fromisoformat(first['expires_ts'])
