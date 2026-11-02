@@ -109,6 +109,10 @@ A new command takes a noun unless no one noun owns what it reads.
 - **A read answering with a list takes `RowLimit` and `apply_row_limit`** from
   `services/row_limit.py`. A hand-declared `limit: int | None` lets a negative
   reach SQL and reads `limit=0` as every row.
+- **A route that reads or writes one record names it on its span** with
+  `name_record` from `tracing/work_on_span.py`, where it resolves it: in a path
+  dependency, or in the handler for a body, a filter or a create. Never for a
+  record it only references. `docs/tracing.md` gives the rule.
 - **A handler is `def` unless it awaits something.** The session is
   synchronous, and an `async def` handler calling it holds every other request
   on the event loop.
@@ -145,7 +149,9 @@ A new command takes a noun unless no one noun owns what it reads.
 
 structlog writes one JSON object per line to stdout, through the stdlib root
 logger, so uvicorn's and alembic's lines come out the same way.
-`RequestLoggingMiddleware` logs each request once, under its `X-Request-ID`.
+`RequestLoggingMiddleware` logs each request once, under its `X-Request-ID`,
+a handler that raised included. A line written under a span carries its
+`trace_id` and `span_id`.
 A client's 4xx logs at warning and only a 5xx at error.
 
 ## Releases are two tag streams, each moved by its own paths

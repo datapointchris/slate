@@ -25,7 +25,8 @@ is ordered and why some things are not built. `docs/claims.md` explains
 claims, `docs/worklogs.md` worklogs, `docs/sessions.md` the tokens each
 agent session spent and the Claude Code hook that reports them,
 `docs/totals.md` the totals of the work over any record, repo or window,
-`docs/ideas.md` ideas, and `docs/index.md` lists every page.
+`docs/ideas.md` ideas, `docs/tracing.md` the trace each request joins, and
+`docs/index.md` lists every page.
 
 ## Running the API
 
@@ -56,6 +57,11 @@ directory is read first where one exists, and the environment outranks it.
 | `POSTGRES_DB` | required | |
 | `LOG_FORMAT` | `json` | `json` for one object per line, `console` for a terminal |
 | `LOG_LEVEL` | `INFO` | A Python logging level name |
+| `OTEL_TRACES_EXPORTER` | unset | `otlp`, `console` or `none`. Unset, `otlp` where an OTLP endpoint is set, else nothing exports |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | The OTLP/HTTP receiver spans go to. Every other `OTEL_*` variable the SDK reads applies too |
+
+Each request continues the caller's `traceparent`, and its span names the
+record its route is about. `docs/tracing.md` says what each span carries.
 
 ### The image
 
@@ -69,8 +75,8 @@ The `Dockerfile` builds the API's image, the same one `docker compose` runs.
   can overlap during a rollout.
 - SIGTERM stops new connections and drains the ones in flight for up to ten
   seconds before the process exits.
-- Logs go to stdout. Each request is one line carrying its `X-Request-ID`, and
-  `/health` and `/ready` are not logged.
+- Logs go to stdout. Each request is one line carrying its `X-Request-ID` and
+  its trace, and `/health` and `/ready` are not logged.
 
 ### On Kubernetes
 
