@@ -424,23 +424,24 @@ func (c *Client) GetIssueVocabulary(ctx context.Context) (IssueVocabulary, error
 // cover every issue in it. Repos names the repos its issues touch, leaving out
 // canceled issues and keeping completed ones.
 type Initiative struct {
-	ID             string     `json:"id"`
-	Number         int        `json:"number"`
-	Name           string     `json:"name"`
-	Description    *string    `json:"description"`
-	Status         string     `json:"status"`
-	StatusReason   *string    `json:"status_reason"`
-	Priority       int        `json:"priority"`
-	Position       int        `json:"position"`
-	Autofix        bool       `json:"autofix"`
-	CreatedTS      time.Time  `json:"created_ts"`
-	ClosedTS       *time.Time `json:"closed_ts"`
-	IssueCount     int        `json:"issue_count"`
-	OpenCount      int        `json:"open_count"`
-	CompletedCount int        `json:"completed_count"`
-	CanceledCount  int        `json:"canceled_count"`
-	Repos          []string   `json:"repos"`
-	Claim          *Claim     `json:"claim"`
+	ID             string         `json:"id"`
+	Number         int            `json:"number"`
+	Name           string         `json:"name"`
+	Description    *string        `json:"description"`
+	Status         string         `json:"status"`
+	StatusReason   *string        `json:"status_reason"`
+	Priority       int            `json:"priority"`
+	Position       int            `json:"position"`
+	Autofix        bool           `json:"autofix"`
+	CreatedTS      time.Time      `json:"created_ts"`
+	ClosedTS       *time.Time     `json:"closed_ts"`
+	IssueCount     int            `json:"issue_count"`
+	OpenCount      int            `json:"open_count"`
+	CompletedCount int            `json:"completed_count"`
+	CanceledCount  int            `json:"canceled_count"`
+	Repos          []string       `json:"repos"`
+	Claim          *Claim         `json:"claim"`
+	Idea           *RecordSummary `json:"idea"`
 }
 
 // InitiativeCreateInput is the body for POST /issues/initiatives. A nil

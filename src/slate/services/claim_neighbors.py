@@ -5,7 +5,7 @@ conflict that does, in `claims.take`. A neighbor the same holder claims is that 
 so it goes unnamed.
 
 An issue's neighbors are its initiative, its parent, its children, what it depends on and what
-depends on it. An initiative's are its unclosed issues.
+depends on it. An initiative's are its unclosed issues. An idea's is the initiative it became.
 """
 
 from __future__ import annotations
@@ -35,6 +35,8 @@ def warn_about_neighbors(
         warn_about_issue(session, record.number, holder, now, today, effects)
     elif record.kind == models.Initiative.RECORD_KIND:
         warn_about_initiative(session, record.number, holder, now, effects)
+    elif record.kind == models.Idea.RECORD_KIND:
+        warn_about_idea(session, record.number, holder, now, effects)
 
 
 def claimed_by_others(session: Session, numbers: Iterable[int], holder: str, now: dt.datetime) -> dict[int, models.Claim]:
@@ -120,4 +122,21 @@ def warn_about_initiative(session: Session, number: int, holder: str, now: dt.da
             WriteEffectCode.CLAIMED_ISSUE_IN_INITIATIVE,
             f'#{issue_number}, in #{number} {initiative.name!r}, is claimed by {held_by(claimed[issue_number])}.',
             issue_number,
+        )
+
+
+def warn_about_idea(session: Session, number: int, holder: str, now: dt.datetime, effects: WriteEffects) -> None:
+    initiative = session.scalars(select(models.Initiative).join(models.Idea).where(models.Idea.number == number)).one_or_none()
+    if initiative is None:
+        return
+    effects.warn(
+        WriteEffectCode.IDEA_PROMOTED,
+        f'#{number} was promoted to initiative #{initiative.number} {initiative.name!r}, where its work is.',
+        initiative.number,
+    )
+    if (claim := claimed_by_others(session, [initiative.number], holder, now).get(initiative.number)) is not None:
+        effects.warn(
+            WriteEffectCode.CLAIMED_INITIATIVE,
+            f'#{number} became initiative #{initiative.number} {initiative.name!r}, which is claimed by {held_by(claim)}.',
+            initiative.number,
         )

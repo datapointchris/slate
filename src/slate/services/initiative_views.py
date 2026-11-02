@@ -1,10 +1,11 @@
-"""Build the initiative read shape: the initiative, the counts of its issues, and its claim."""
+"""Build the initiative read shape: the initiative, the counts of its issues, its claim and its idea."""
 
 from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Sequence
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import distinct
 from sqlalchemy import func
@@ -31,7 +32,9 @@ def issue_count_columns():
     )
 
 
-def initiative_view(initiative: models.Initiative, counts: Sequence[Any], claim: schemas.Claim | None) -> schemas.Initiative:
+def initiative_view(
+    initiative: models.Initiative, counts: Sequence[Any], claim: schemas.Claim | None, idea: schemas.RecordSummary | None
+) -> schemas.Initiative:
     """`counts` is a row of `issue_count_columns()`."""
     issue_count, open_count, completed_count, canceled_count, repos = counts
     return schemas.Initiative(
@@ -52,15 +55,41 @@ def initiative_view(initiative: models.Initiative, counts: Sequence[Any], claim:
         canceled_count=canceled_count,
         repos=sorted(repos) if repos else [],
         claim=claim,
+        idea=idea,
     )
 
 
 def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, Sequence[Any]]]) -> list[schemas.Initiative]:
-    """Each initiative beside its row of `issue_count_columns()`, with its claim."""
+    """Each initiative beside its row of `issue_count_columns()`, with its claim and the idea it came from."""
     claims = unended_claim_views(session, [initiative.number for initiative, _ in rows], dt.datetime.now(dt.UTC))
-    return [initiative_view(initiative, counts, claims.get(initiative.number)) for initiative, counts in rows]
+    idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
+    ideas = {
+        idea_id: schemas.RecordSummary(number=number, kind=models.Idea.RECORD_KIND, title=title)
+        for idea_id, number, title in session.execute(
+            select(models.Idea.id, models.Idea.number, models.Idea.title).where(models.Idea.id.in_(idea_ids))
+        ).all()
+    }
+    return [
+        initiative_view(initiative, counts, claims.get(initiative.number), ideas.get(initiative.idea_id) if initiative.idea_id else None)
+        for initiative, counts in rows
+    ]
 
 
 def counted(session: Session, initiative: models.Initiative) -> schemas.Initiative:
     counts = session.execute(select(*issue_count_columns()).where(models.Issue.initiative_id == initiative.id)).one()
     return initiative_views(session, [(initiative, counts)])[0]
+
+
+def initiatives_of_ideas(session: Session, idea_ids: Sequence[UUID]) -> dict[UUID, schemas.Initiative]:
+    """The initiative each idea was promoted into, counted, in one query for every idea."""
+    if not idea_ids:
+        return {}
+    query = (
+        select(models.Initiative, *issue_count_columns())
+        .outerjoin(models.Issue, models.Issue.initiative_id == models.Initiative.id)
+        .where(models.Initiative.idea_id.in_(idea_ids))
+        .group_by(models.Initiative.id)
+    )
+    rows = [(row[0], row[1:]) for row in session.execute(query).all()]
+    views = initiative_views(session, rows)
+    return {initiative.idea_id: view for (initiative, _), view in zip(rows, views, strict=True) if initiative.idea_id is not None}

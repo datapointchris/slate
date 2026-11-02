@@ -77,10 +77,10 @@ func NewRootCommand() *cobra.Command {
 	root := goclikit.AsNamespace(&cobra.Command{
 		Use:   "slate",
 		Short: "Work tracker built for coding agents",
-		Long: "slate tracks software work for the agents and people doing it: issues,\n" +
-			"the initiatives that group them, their labels, dependencies and comments,\n" +
-			"and the claims that say who is working what. `slate issues next` is the\n" +
-			"order to take the work in.\n" +
+		Long: "slate tracks software work for the agents and people doing it: the ideas\n" +
+			"nobody has taken on yet, issues, the initiatives that group them, their\n" +
+			"labels, dependencies and comments, and the claims that say who is working\n" +
+			"what. `slate issues next` is the order to take the work in.\n" +
 			"\n" +
 			"The noun comes first and the verb last: `slate issues list` becomes\n" +
 			"`slate issues edit`. Every read and write takes --json. Run any partial command\n" +
@@ -125,7 +125,11 @@ func NewRootCommand() *cobra.Command {
 		&cobra.Group{ID: groupSetup, Title: "Setup commands:"},
 	)
 	root.SetCompletionCommandGroupID(groupSetup)
-	root.AddCommand(inGroup(groupWork, withAPIFlag(newIssuesCommand()), withAPIFlag(newClaimsCommand()))...)
+	root.AddCommand(inGroup(groupWork,
+		withAPIFlag(newIssuesCommand()),
+		withAPIFlag(newIdeasCommand()),
+		withAPIFlag(newClaimsCommand()),
+	)...)
 	root.AddCommand(inGroup(groupSetup, newAuthCommand(), newConfigCommand(), newUpdateCommand())...)
 	return root
 }

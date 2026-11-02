@@ -24,6 +24,10 @@ class WriteEffectCode(enum.StrEnum):
     ANCESTOR_REOPENED = 'ancestor_reopened'
     CLAIM_ENDED = 'claim_ended'
     EXPIRED_CLAIM_ENDED = 'expired_claim_ended'
+    INITIATIVE_CREATED = 'initiative_created'
+
+    # A warning on linking evidence an idea already links.
+    EVIDENCE_ALREADY_LINKED = 'evidence_already_linked'
 
     # Warnings on a claim write that changed nothing, or went through without the lease asked for.
     ALREADY_HELD = 'already_held'
@@ -37,6 +41,7 @@ class WriteEffectCode(enum.StrEnum):
     IN_TRIAGE = 'in_triage'
     DEFERRED = 'deferred'
     SHELVED = 'shelved'
+    IDEA_PROMOTED = 'idea_promoted'
     OPEN_DEPENDENCY = 'open_dependency'
     OPEN_CHILDREN = 'open_children'
     CLAIMED_INITIATIVE = 'claimed_initiative'

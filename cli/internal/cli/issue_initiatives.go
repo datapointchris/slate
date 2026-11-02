@@ -573,6 +573,12 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	_, _ = fmt.Fprintf(out, "  issues:    %d (%d open, %d done, %d canceled)\n",
 		initiative.IssueCount, initiative.OpenCount, initiative.CompletedCount, initiative.CanceledCount)
 	_, _ = fmt.Fprintf(out, "  repos:     %s\n", repoList(initiative.Repos))
+	if initiative.Claim != nil {
+		_, _ = fmt.Fprintf(out, "  claim:     %s\n", claimNote(*initiative.Claim, time.Now()))
+	}
+	if initiative.Idea != nil {
+		_, _ = fmt.Fprintf(out, "  idea:      #%d %s\n", initiative.Idea.Number, initiative.Idea.Title)
+	}
 	if description := strValue(initiative.Description); description != "" {
 		_, _ = fmt.Fprintf(out, "\nDescription:\n%s\n", indent(description, "  "))
 	}

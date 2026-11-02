@@ -5,6 +5,7 @@ from slate.schemas.claim import Claim
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
+from slate.schemas.record import RecordSummary
 from slate.schemas.write_effects import Written
 
 # An initiative answers to its UUID, its number or its name, and the API resolves each.
@@ -47,7 +48,8 @@ class Initiative(RecordModel):
 
     The three counts partition `issue_count`. `repos` is derived from every issue
     not canceled, never stored, so it cannot drift from what the work touches.
-    `claim` is the initiative's unended claim, live or expired.
+    `claim` is the initiative's unended claim, live or expired. `idea` is the
+    idea promoted into it.
     """
 
     id: UUID
@@ -67,6 +69,7 @@ class Initiative(RecordModel):
     canceled_count: int = 0
     repos: list[str] = []
     claim: Claim | None = None
+    idea: RecordSummary | None = None
 
 
 class InitiativeWritten(Written):

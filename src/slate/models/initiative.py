@@ -24,6 +24,7 @@ from slate.models.record import NumberedRecord
 from slate.models.record import record_link
 
 if TYPE_CHECKING:
+    from slate.models.idea import Idea
     from slate.models.issue import Issue
 
 # `someday` holds ideas not yet taken on: its issues wait until the initiative is
@@ -62,8 +63,11 @@ class Initiative(NumberedRecord, Base):
     autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text('true'))
     created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     closed_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The idea promoted into this initiative. One idea becomes at most one initiative.
+    idea_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey('ideas.id', ondelete='SET NULL'), nullable=True, unique=True)
 
     issues: Mapped[list[Issue]] = relationship('Issue', back_populates='initiative')
+    idea: Mapped[Idea | None] = relationship('Idea', back_populates='initiative')
 
     __table_args__ = (
         *record_link(RECORD_KIND),

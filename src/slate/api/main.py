@@ -24,6 +24,7 @@ from starlette.routing import Match
 from slate.api import API_PREFIX
 from slate.api.callers import get_current_caller
 from slate.api.endpoints import claims
+from slate.api.endpoints import ideas
 from slate.api.endpoints import issue_initiatives
 from slate.api.endpoints import issue_labels
 from slate.api.endpoints import issues
@@ -42,6 +43,7 @@ VALIDATION_SCOPES = ('body', 'query', 'path', 'header', 'cookie')
 # routers come ahead of /issues, whose /{id} would otherwise read "initiatives" and "labels" as issues.
 RESOURCE_ROUTERS: tuple[tuple[str, APIRouter], ...] = (
     ('/claims', claims.router),
+    ('/ideas', ideas.router),
     ('/issues/initiatives', issue_initiatives.router),
     ('/issues/labels', issue_labels.router),
     ('/issues', issues.router),

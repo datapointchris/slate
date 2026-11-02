@@ -45,8 +45,8 @@ A write answers an envelope, never the bare record:
 }
 ```
 
-The key holding the record names what was written: `issue`, `initiative`,
-`label`, `comment`. A side effect is a change the write made beyond its
+The key holding the record names what was written: `idea`, `issue`,
+`initiative`, `label`, `comment`, `claim`. A side effect is a change the write made beyond its
 request. A warning is a condition the write went through despite. Each entry
 carries a `code` a client branches on, a `message` for a person, and the
 number of the record it concerns.

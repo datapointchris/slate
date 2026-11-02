@@ -32,6 +32,8 @@ func TestIssues_AUsageRefusalDoesNotWaitOnTheNetwork(t *testing.T) {
 		{"a claim shorter than a minute", []string{"claims", "hold", "--next", "--minutes", "0"}},
 		{"a claim with no holder", []string{"claims", "hold", "--next", "--holder", ""}},
 		{"an unknown claim state", []string{"claims", "list", "--state", "held"}},
+		{"an idea edit changing nothing", []string{"ideas", "edit", "1860"}},
+		{"a promotion into a closed status", []string{"ideas", "promote", "1860", "--status", "completed"}},
 		{"a cancel with no reason", []string{"issues", "cancel", "412"}},
 		{"a comment given twice", []string{"issues", "add-comment", "412", "shipped", "--body", "shipped"}},
 		{"an edit changing nothing", []string{"issues", "edit", "412"}},

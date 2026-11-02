@@ -33,10 +33,10 @@ func newClaimsCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "claims",
 		Short: "Hold, extend, release and list the claims that say who is working a record",
-		Long: "A claim is a lease on one record of any kind, an issue or an initiative.\n" +
-			"It says who is working the record and until when. It holds no work: the\n" +
-			"record keeps that. Every claim is kept after it ends, so a record's claims\n" +
-			"are its history of who worked it.\n" +
+		Long: "A claim is a lease on one record of any kind: an idea, an initiative or an\n" +
+			"issue. It says who is working the record and until when. It holds no work:\n" +
+			"the record keeps that. Every claim is kept after it ends, so a record's\n" +
+			"claims are its history of who worked it.\n" +
 			"\n" +
 			"Another holder's live claim refuses a hold, and that is the only refusal.\n" +
 			"Every other conflict a hold finds goes through with a warning. Nothing\n" +

@@ -1,7 +1,9 @@
 # slate
 
-A work tracker built for coding agents. Issues carry their dependencies,
-labels, comments and the initiative they ship toward. `slate issues next` is
+A work tracker built for coding agents. Ideas hold the work nobody has taken
+on, with their priority and evidence, until promotion makes each an
+initiative. Issues carry their dependencies, labels, comments and the
+initiative they ship toward. `slate issues next` is
 the ready queue, ordered by priority. A claim is a lease on a record that
 expires, so two agents never hold the same issue and a dead one never holds it
 for long. Every claim is kept after it ends, as the record's history.
@@ -15,7 +17,8 @@ Two parts share this repository:
   the request, and each warning it went through despite.
 
 `docs/issues.md` explains the model: what makes an issue ready, how the queue
-is ordered and why some things are not built. `docs/claims.md` explains claims.
+is ordered and why some things are not built. `docs/claims.md` explains
+claims, `docs/ideas.md` ideas, and `docs/index.md` lists every page.
 
 ## Running the API
 
@@ -84,8 +87,8 @@ reaches only the routes its scopes list:
 | `slate.issues.close` | commenting on an issue, and closing an open one |
 | `slate.issues.plan` | filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
 
-No scope deletes anything. `src/slate/api/client_scopes.py` holds the exact
-routes.
+No scope deletes anything, and none reaches ideas.
+`src/slate/api/client_scopes.py` holds the exact routes.
 
 `--repo` takes a repository name. Where a registry of names exists, the CLI
 refuses one it does not hold, so a typo cannot file work under a repo nobody

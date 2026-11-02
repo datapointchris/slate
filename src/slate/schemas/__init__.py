@@ -6,6 +6,14 @@ from slate.schemas.claim import ClaimLease
 from slate.schemas.claim import ClaimOnRecord
 from slate.schemas.claim import ClaimRelease
 from slate.schemas.claim import ClaimWritten
+from slate.schemas.idea import Idea
+from slate.schemas.idea import IdeaCreate
+from slate.schemas.idea import IdeaDetail
+from slate.schemas.idea import IdeaEvidence
+from slate.schemas.idea import IdeaEvidenceLink
+from slate.schemas.idea import IdeaPromote
+from slate.schemas.idea import IdeaUpdate
+from slate.schemas.idea import IdeaWritten
 from slate.schemas.initiative import Initiative
 from slate.schemas.initiative import InitiativeCreate
 from slate.schemas.initiative import InitiativeSummary
@@ -41,6 +49,14 @@ __all__ = [
     'ClaimOnRecord',
     'ClaimRelease',
     'ClaimWritten',
+    'Idea',
+    'IdeaCreate',
+    'IdeaDetail',
+    'IdeaEvidence',
+    'IdeaEvidenceLink',
+    'IdeaPromote',
+    'IdeaUpdate',
+    'IdeaWritten',
     'Initiative',
     'InitiativeCreate',
     'InitiativeSummary',

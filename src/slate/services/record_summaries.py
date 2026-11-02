@@ -1,4 +1,4 @@
-"""One line for each record of any kind, read from its kind's table by number."""
+"""One line for each record of any kind, read from its kind's table by number. An idea has no status."""
 
 from __future__ import annotations
 
@@ -24,4 +24,7 @@ def record_summaries(session: Session, numbers: Iterable[int]) -> dict[int, sche
     )
     for number, name, status in session.execute(initiatives).all():
         summaries[number] = schemas.RecordSummary(number=number, kind=models.Initiative.RECORD_KIND, title=name, status=status)
+    ideas = select(models.Idea.number, models.Idea.title).where(models.Idea.number.in_(wanted))
+    for number, title in session.execute(ideas).all():
+        summaries[number] = schemas.RecordSummary(number=number, kind=models.Idea.RECORD_KIND, title=title)
     return summaries

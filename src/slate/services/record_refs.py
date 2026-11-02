@@ -1,7 +1,7 @@
 """Resolve the references a person or an agent types for records and labels.
 
-A record of any kind answers to its number, as `N` or `#N`. An issue also answers to its
-UUID, an initiative to its UUID or its name, and a label to its slug. Each endpoint resolves
+A record of any kind answers to its number, as `N` or `#N`. An issue or an idea also answers
+to its UUID, an initiative to its UUID or its name, and a label to its slug. Each endpoint resolves
 what it was given inside the request that was going to reach the database anyway.
 """
 
@@ -71,6 +71,24 @@ def resolve_issue(session: Session, ref: str | UUID | int) -> models.Issue:
     if issue is None:
         raise NotFoundException('issue', str(ref), logger)
     return issue
+
+
+def resolve_idea(session: Session, ref: str | UUID | int) -> models.Idea:
+    """Fetch an idea by its UUID or its number."""
+    idea: models.Idea | None
+    if isinstance(ref, int):
+        idea = session.scalar(select(models.Idea).where(models.Idea.number == ref))
+    elif isinstance(ref, UUID):
+        idea = session.get(models.Idea, ref)
+    elif (idea_id := parse_uuid(ref)) is not None:
+        idea = session.get(models.Idea, idea_id)
+    elif (number := record_number(ref)) is not None:
+        idea = session.scalar(select(models.Idea).where(models.Idea.number == number))
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f'{ref!r} is not an idea UUID or number')
+    if idea is None:
+        raise NotFoundException('idea', str(ref), logger)
+    return idea
 
 
 def initiative_by_name(session: Session, name: str) -> models.Initiative | None:

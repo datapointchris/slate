@@ -142,8 +142,8 @@ def read_many(
     return initiative_views(session, [(row[0], row[1:]) for row in rows])
 
 
-@router.post('', response_model=schemas.InitiativeWritten, status_code=status.HTTP_201_CREATED)
-def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Effects):
+def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea: models.Idea | None = None) -> models.Initiative:
+    """Add an initiative after every check a create makes, last in the board unless placed."""
     refuse_number_shaped_name(initiative.name)
     validate_status(initiative.status, session)
     require_reason_when_dropped(initiative.status, initiative.status_reason)
@@ -161,10 +161,18 @@ def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Ef
         priority=initiative.priority,
         position=position,
         autofix=initiative.autofix,
+        idea=idea,
     )
     if db_obj.status in TERMINAL_INITIATIVE_STATUSES:
         db_obj.closed_ts = dt.datetime.now(dt.UTC)
     session.add(db_obj)
+    session.flush()
+    return db_obj
+
+
+@router.post('', response_model=schemas.InitiativeWritten, status_code=status.HTTP_201_CREATED)
+def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Effects):
+    db_obj = new_initiative(session, initiative)
     session.commit()
     session.refresh(db_obj)
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, db_obj))
