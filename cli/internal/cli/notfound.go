@@ -10,8 +10,9 @@ import (
 // the line naming which one.
 //
 // The subject is the API's, not one built from the arguments, because only the
-// API knows which id was missing: `slate issues remove-comment 598 4` can 404
-// on either number and the message names the one that did.
+// API knows which was missing: `slate documents show 598 plan --version 4` can
+// 404 on the document or on its version, and the message names the one that
+// did.
 //
 // The "API request failed (404 Not Found)" prefix goes with it. That reports how
 // the answer arrived, and a 404 is an answer rather than a failure to get one.
