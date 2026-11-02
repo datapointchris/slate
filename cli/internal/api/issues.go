@@ -102,22 +102,14 @@ type Issue struct {
 	ClosedBy       *string            `json:"closed_by"`
 }
 
-// IssueComment is a note on an issue: progress, a handoff, or what closing it shipped.
-type IssueComment struct {
-	ID        string    `json:"id"`
-	IssueID   string    `json:"issue_id"`
-	Body      string    `json:"body"`
-	Author    *string   `json:"author"`
-	CreatedTS time.Time `json:"created_ts"`
-}
-
-// IssueDetail is one issue with its children, its whole comment thread and
-// every claim it has had, oldest first.
+// IssueDetail is one issue with its children, the comments on it and every
+// claim it has had, oldest first, and its documents.
 type IssueDetail struct {
 	Issue
-	Children []IssueSummary `json:"children"`
-	Comments []IssueComment `json:"comments"`
-	Claims   []Claim        `json:"claims"`
+	Children  []IssueSummary    `json:"children"`
+	Comments  []Comment         `json:"comments"`
+	Documents []DocumentSummary `json:"documents"`
+	Claims    []Claim           `json:"claims"`
 }
 
 // IssueCreateInput is the body for POST /issues. Only Title is required. The
@@ -292,7 +284,8 @@ func (c *Client) ListReadyIssues(ctx context.Context, filter ReadyFilter, zone D
 	return issues, nil
 }
 
-// GetIssue returns one issue by number or UUID, with its children and comments.
+// GetIssue returns one issue by number or UUID, with its children, comments
+// and documents.
 func (c *Client) GetIssue(ctx context.Context, ref string, zone DayZone) (IssueDetail, error) {
 	var issue IssueDetail
 	if err := c.get(ctx, withQuery(issuePath(ref), zoneQuery(zone)), &issue); err != nil {
@@ -324,9 +317,9 @@ func (c *Client) UpdateIssue(ctx context.Context, ref string, in IssueUpdateInpu
 	return written, nil
 }
 
-// DeleteIssue removes an issue, its comments, its edges and its claims. The
-// answer names each claim it took and each issue that lost its link to it,
-// giving each time in zone.
+// DeleteIssue removes an issue, its edges, claims, worklogs, documents and
+// comments. The answer names what it took and each issue that lost its link to
+// it, giving each time in zone.
 func (c *Client) DeleteIssue(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {
 	var deleted RecordDeleted
 	if err := c.send(ctx, http.MethodDelete, withQuery(issuePath(ref), zoneQuery(zone)), nil, &deleted); err != nil {
@@ -342,33 +335,4 @@ func (c *Client) RankIssue(ctx context.Context, ref string, move IssueRankMove, 
 		return IssueWritten{}, err
 	}
 	return written, nil
-}
-
-// ListIssueComments returns an issue's comments, oldest first.
-func (c *Client) ListIssueComments(ctx context.Context, ref string, limit *int) ([]IssueComment, error) {
-	query := url.Values{}
-	applyLimit(query, limit)
-	var comments []IssueComment
-	if err := c.get(ctx, withQuery(issuePath(ref, "comments"), query), &comments); err != nil {
-		return nil, err
-	}
-	return comments, nil
-}
-
-// AddIssueComment leaves a comment on an issue. A nil author leaves it unsigned.
-func (c *Client) AddIssueComment(ctx context.Context, ref, body string, author *string) (IssueCommentWritten, error) {
-	in := struct {
-		Body   string  `json:"body"`
-		Author *string `json:"author,omitempty"`
-	}{body, author}
-	var written IssueCommentWritten
-	if err := c.send(ctx, http.MethodPost, issuePath(ref, "comments"), in, &written); err != nil {
-		return IssueCommentWritten{}, err
-	}
-	return written, nil
-}
-
-// RemoveIssueComment deletes one comment from an issue.
-func (c *Client) RemoveIssueComment(ctx context.Context, ref, commentID string) error {
-	return c.send(ctx, http.MethodDelete, issuePath(ref, "comments", commentID), nil, nil)
 }

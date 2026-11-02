@@ -41,6 +41,7 @@ const (
 	recordsPlanScope   = "slate.records.plan"
 	worklogsWriteScope = "slate.worklogs.write"
 	sessionsWriteScope = "slate.sessions.write"
+	commentsWriteScope = "slate.comments.write"
 )
 
 // ClientSecretEnv selects the client-credentials grant, for the client the
@@ -116,5 +117,5 @@ func IsService() bool { return ClientSecret() != "" }
 // grant. Nothing it obtains is stored, so it names no keyring or state
 // directory.
 func Service(d goclilogin.Deployment) goclilogin.ServiceClient {
-	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: []string{recordsReadScope, claimsHoldScope, issuesCloseScope, recordsPlanScope, worklogsWriteScope, sessionsWriteScope}}
+	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: []string{recordsReadScope, claimsHoldScope, issuesCloseScope, recordsPlanScope, worklogsWriteScope, sessionsWriteScope, commentsWriteScope}}
 }

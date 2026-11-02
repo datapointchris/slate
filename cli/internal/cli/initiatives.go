@@ -160,6 +160,7 @@ func printInitiativeShown(cmd *cobra.Command, shown initiativeShown) {
 		_, _ = fmt.Fprintf(out, "\nClaims (%d):\n", len(shown.Claims))
 		printClaimHistory(out, shown.Claims, now)
 	}
+	printRecordDocumentsAndComments(out, shown.Documents, shown.Comments, now)
 	_, _ = fmt.Fprintf(out, "\nUnclosed issues (%d):\n", len(shown.Issues))
 	if len(shown.Issues) == 0 {
 		_, _ = fmt.Fprintln(out, "  (none)")

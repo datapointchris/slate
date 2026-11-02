@@ -262,7 +262,7 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		{[]string{"worklogs", "finish", "412.1"}, wroteWorklog, nil},
 		{[]string{"sessions", "show", fixtureSession, "--json"}, agentSession, nil},
 		{[]string{"sessions", "report", "--transcript", "../transcript/testdata/project/" + fixtureSession + ".jsonl"}, reportedSession, nil},
-		{[]string{"issues", "add-comment", "412", "--body", "Landed: a merged fix"}, `{}`, nil},
+		{[]string{"comments", "add", "412", "--body", "Landed: a merged fix"}, `{"comment":{"id":1,"record_number":412}}`, nil},
 		{[]string{"issues", "complete", "412"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--priority", "none", "--initiative", "Practical help guides"}, openIssue, nil},
 		{[]string{"issues", "reorder", "412", "--after", "398"}, openIssue, nil},
