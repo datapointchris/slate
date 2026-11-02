@@ -18,7 +18,8 @@ Two parts share this repository:
 
 `docs/issues.md` explains the model: what makes an issue ready, how the queue
 is ordered and why some things are not built. `docs/claims.md` explains
-claims, `docs/ideas.md` ideas, and `docs/index.md` lists every page.
+claims, `docs/worklogs.md` worklogs, `docs/ideas.md` ideas, and
+`docs/index.md` lists every page.
 
 ## Running the API
 
@@ -128,13 +129,17 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading any record by number, listing, searching and showing issues, initiatives and ideas, the ready queue, and who holds which claim |
-| `slate.claims.hold` | holding a claim on a record or on the head of the ready queue, and extending and releasing one, under the service's own client id |
+| `slate.records.read` | reading any record by number, listing, searching and showing issues, initiatives and ideas, the ready queue, who holds which claim, and worklogs |
+| `slate.claims.hold` | holding a claim on a record or on the head of the ready queue, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.issues.close` | commenting on an issue, and closing an open one |
 | `slate.issues.plan` | filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
+| `slate.worklogs.write` | starting, joining, linking and editing a worklog under the service's own client id, and finishing one it opened |
 
 No scope deletes anything, and none files or changes an idea.
 `src/slate/api/client_scopes.py` holds the exact routes.
+
+The CLI requests every scope in the table, so register each on every service
+client. A provider that finds one missing may refuse the token outright.
 
 `--repo` takes a repository name. Where a registry of names exists, the CLI
 refuses one it does not hold, so a typo cannot file work under a repo nobody

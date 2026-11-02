@@ -30,6 +30,7 @@ def claim_state(claim: models.Claim, now: dt.datetime) -> ClaimState:
 
 
 def claim_view(claim: models.Claim, now: dt.datetime) -> schemas.Claim:
+    wait = claim.open_wait
     return schemas.Claim(
         id=claim.id,
         record_number=claim.record_number,
@@ -43,6 +44,8 @@ def claim_view(claim: models.Claim, now: dt.datetime) -> schemas.Claim:
         ending=claim.ending,
         ended_by=claim.ended_by,
         state=claim_state(claim, now),
+        worklog=claim.worklog.name if claim.worklog is not None else None,
+        waiting=schemas.ClaimWait.model_validate(wait) if wait is not None else None,
     )
 
 

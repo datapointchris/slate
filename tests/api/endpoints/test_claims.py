@@ -83,24 +83,29 @@ def test_holding_again_changes_nothing_and_only_an_extend_moves_the_expiry(clien
     assert dt.datetime.fromisoformat(extended['expires_ts']) > dt.datetime.fromisoformat(first['expires_ts'])
 
 
-def test_an_expired_claim_frees_the_issue_and_ends_as_expired_once_taken_over(seeded):
+def test_an_expired_claim_frees_the_issue_and_ends_as_expired_once_taken_over_with_its_worklog(seeded):
     client, session = seeded
     bug = number(client, 'Ready bug with high priority')
-    gone = hold(client, bug, 'agent-gone')['claim']
+    gone = hold(client, bug, 'agent-gone', session='session-gone')['claim']
     assert 'Ready bug with high priority' not in ready_titles(client)
 
     lapsed = dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)
-    session.execute(
-        update(models.Claim).where(models.Claim.id == gone['id']).values(started_ts=lapsed - dt.timedelta(hours=1), expires_ts=lapsed)
-    )
+    held_from = lapsed - dt.timedelta(hours=1)
+    session.execute(update(models.Claim).where(models.Claim.id == gone['id']).values(started_ts=held_from, expires_ts=lapsed))
+    session.execute(update(models.Worklog).where(models.Worklog.claim_id == gone['id']).values(started_ts=held_from))
+    session.execute(update(models.WorklogSpan).where(models.WorklogSpan.session_id == 'session-gone').values(started_ts=held_from))
     session.flush()
     assert ready_titles(client)[0] == 'Ready bug with high priority'
 
     taken = hold(client, bug, 'agent-next')
-    assert codes(taken['side_effects']) == [('expired_claim_ended', bug)]
+    assert codes(taken['side_effects']) == [('expired_claim_ended', bug), ('worklog_ended', bug), ('worklog_opened', bug)]
     first, second = ok(client.get(f'{ISSUES}/{bug}'))['claims']
     assert (first['holder'], first['ending'], first['state'], first['ended_ts']) == ('agent-gone', 'expired', 'ended', first['expires_ts'])
-    assert (second['holder'], second['state']) == ('agent-next', 'live')
+    assert (second['holder'], second['state'], second['worklog']) == ('agent-next', 'live', f'{bug}.2')
+
+    lapsed_worklog = ok(client.get(f'/worklogs/{first["worklog"]}'))
+    assert (lapsed_worklog['outcome'], lapsed_worklog['ended_ts'], lapsed_worklog['state']) == ('expired', first['expires_ts'], 'ended')
+    assert [(span['session'], span['ended_ts']) for span in lapsed_worklog['spans']] == [('session-gone', first['expires_ts'])]
 
 
 def test_an_issue_claimed_released_and_claimed_again_shows_both_claims(client):
@@ -179,15 +184,37 @@ def test_deleting_an_issue_another_session_holds_warns_and_names_each_record_it_
     answer = ok(client.delete(f'{ISSUES}/{parent}'))
     assert (answer['deleted']['number'], answer['deleted']['kind']) == (parent, 'issue')
     assert codes(answer['warnings']) == [('deleted_anothers_claim', parent)]
-    assert codes(answer['side_effects']) == [('claims_deleted', parent), ('child_detached', child), ('dependency_removed', dependent)]
+    assert codes(answer['side_effects']) == [
+        ('claims_deleted', parent),
+        ('worklogs_deleted', parent),
+        ('child_detached', child),
+        ('dependency_removed', dependent),
+    ]
 
 
 def test_completing_an_initiative_ends_its_claim_naming_it(client):
     initiative = initiative_number(client, 'Retire the old capture path')
     hold(client, initiative, 'claude-code/lead')
     answer = ok(client.patch(f'{INITIATIVES}/{initiative}', json={'status': 'completed'}))
-    assert codes(answer['side_effects']) == [('claim_ended', initiative)]
+    assert codes(answer['side_effects']) == [('claim_ended', initiative), ('worklog_ended', initiative)]
     assert answer['initiative']['claim'] is None
+
+
+def test_a_waiting_claim_lists_where_its_holder_works_and_what_it_waits_on_until_the_holder_resumes(client):
+    bug = number(client, 'Ready bug with high priority')
+    hold(client, bug, 'claude-code/s3', session='s3', host='laptop', directory='/home/dev/slate')
+    waited = ok(client.post(f'{CLAIMS}/{bug}/wait', json={'holder': 'claude-code/s3', 'waiting_on': 'slate#3 to merge'}))
+    assert waited['claim']['waiting']['waiting_on'] == 'slate#3 to merge'
+
+    (listed,) = ok(client.get(CLAIMS, params={'holder': 'claude-code/s3'}))
+    assert (listed['host'], listed['directory'], listed['session'], listed['state']) == ('laptop', '/home/dev/slate', 's3', 'live')
+    assert listed['waiting']['waiting_on'] == 'slate#3 to merge'
+
+    ok(client.post(f'{CLAIMS}/{bug}/resume', json={'holder': 'claude-code/s3'}))
+    (listed,) = ok(client.get(CLAIMS, params={'holder': 'claude-code/s3'}))
+    assert listed['waiting'] is None
+    (wait,) = ok(client.get(f'/worklogs/{listed["worklog"]}'))['waits']
+    assert (wait['waiting_on'], wait['ended_by']) == ('slate#3 to merge', 'claude-code/s3')
 
 
 def test_the_list_reads_who_holds_what_by_holder_prefix_and_state(client):

@@ -3,7 +3,9 @@
     "POST /api/v1/claims",
     "POST /api/v1/claims/next",
     "POST /api/v1/claims/{record}/extend",
-    "POST /api/v1/claims/{record}/release"
+    "POST /api/v1/claims/{record}/release",
+    "POST /api/v1/claims/{record}/resume",
+    "POST /api/v1/claims/{record}/wait"
   ],
   "slate.issues.close": [
     "PATCH /api/v1/issues/{id}",
@@ -26,6 +28,16 @@
     "GET /api/v1/issues/initiatives/{id:path}",
     "GET /api/v1/issues/ready",
     "GET /api/v1/issues/{id}",
-    "GET /api/v1/records/{number}"
+    "GET /api/v1/records/{number}",
+    "GET /api/v1/worklogs",
+    "GET /api/v1/worklogs/current",
+    "GET /api/v1/worklogs/{name}"
+  ],
+  "slate.worklogs.write": [
+    "PATCH /api/v1/worklogs/{name}",
+    "POST /api/v1/worklogs",
+    "POST /api/v1/worklogs/{name}/finish",
+    "POST /api/v1/worklogs/{name}/join",
+    "POST /api/v1/worklogs/{name}/links"
   ]
 }

@@ -21,11 +21,13 @@ class Refusal(enum.StrEnum):
 
     INVALID_CREDENTIALS = 'Invalid credentials'
     OUTSIDE_CLIENT_SCOPES = "Route is outside this client's scopes"
-    SCOPED_CLIENT_CLAIMS_AS_ITSELF = 'A service client may only hold, extend or release a claim under its own client id'
+    SCOPED_CLIENT_CLAIMS_AS_ITSELF = 'A service client may only hold, extend, release, wait on or resume a claim under its own client id'
+    SCOPED_CLIENT_FINISHES_ITS_OWN = 'A service client may only finish a worklog it opened'
     SCOPED_CLIENT_FILES_ONLY_INTO_TRIAGE = 'A service client may only file an issue into triage, under no parent'
     SCOPED_CLIENT_ONLY_CLOSES = 'A service client may only close an open issue'
     SCOPED_CLIENT_ONLY_SETS_PRIORITY_AND_INITIATIVE = "A service client's edit may only set an issue's priority and initiative"
     SCOPED_CLIENT_RELEASES_ITS_OWN = 'A service client may only release a claim it holds'
+    SCOPED_CLIENT_WRITES_WORKLOGS_AS_ITSELF = 'A service client may only start, finish or link a worklog under its own client id'
 
 
 class NotFoundException(HTTPException):

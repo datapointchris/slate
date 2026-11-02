@@ -1,6 +1,6 @@
 """Name everything a record's delete takes or changes, read before the delete runs.
 
-Deleting a record cascades to its claims and edges, and clears every other record's link to it.
+Deleting a record cascades to its claims, worklogs and edges, and clears every other record's link to it.
 None of that is in the request, so each is named in the answer.
 """
 
@@ -33,8 +33,21 @@ def name_claims_deleted(session: Session, number: int, deleted_by: str, now: dt.
     effects.did(WriteEffectCode.CLAIMS_DELETED, f'Deleted the {len(claims)} {noun} #{number} had, its whole claim history.', number)
 
 
+def name_worklogs_deleted(session: Session, number: int, effects: WriteEffects) -> None:
+    """Name the worklogs the record takes with it, and with them their spans and links."""
+    sequences = session.scalars(
+        select(models.Worklog.sequence).where(models.Worklog.record_number == number).order_by(models.Worklog.sequence)
+    ).all()
+    if not sequences:
+        return
+    names = ', '.join(f'{number}.{sequence}' for sequence in sequences)
+    noun = 'worklog' if len(sequences) == 1 else 'worklogs'
+    effects.did(WriteEffectCode.WORKLOGS_DELETED, f'Deleted {noun} {names}, with their spans and links.', number)
+
+
 def name_issue_delete(session: Session, issue: models.Issue, deleted_by: str, now: dt.datetime, effects: WriteEffects) -> None:
     name_claims_deleted(session, issue.number, deleted_by, now, effects)
+    name_worklogs_deleted(session, issue.number, effects)
     children = session.scalars(select(models.Issue.number).where(models.Issue.parent_id == issue.id).order_by(models.Issue.number))
     for child in children:
         effects.did(WriteEffectCode.CHILD_DETACHED, f'#{child} had #{issue.number} as its parent, and has none now.', child)
@@ -52,6 +65,7 @@ def name_initiative_delete(
     session: Session, initiative: models.Initiative, deleted_by: str, now: dt.datetime, effects: WriteEffects
 ) -> None:
     name_claims_deleted(session, initiative.number, deleted_by, now, effects)
+    name_worklogs_deleted(session, initiative.number, effects)
     issues = session.scalars(select(models.Issue.number).where(models.Issue.initiative_id == initiative.id).order_by(models.Issue.number))
     for issue in issues:
         effects.did(

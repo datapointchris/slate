@@ -16,6 +16,10 @@ initiative are claimed the same way. A row carries:
 | `started_ts`, `expires_ts` | when the lease began, and when it runs out |
 | `ended_ts`, `ending`, `ended_by` | when and how it stopped, and who stopped it |
 
+`session` references `agent_sessions`, the table of every agent session slate
+has seen. A hold names it from `CLAUDE_CODE_SESSION_ID` when the CLI runs under
+one, and the same row joins the session to its worklogs.
+
 `ending` is a row of `claim_endings`. `released` is a holder or a person
 letting go, `expired` is the lease running out first, and `promoted` is an idea
 becoming its initiative. The rest name the closing status the record reached.
@@ -28,6 +32,33 @@ an issue has no `in_progress` status.
 Ending a claim keeps its row. A record's claims are then its history of who
 worked it. `GET /issues/{n}` answers them as `claims`, oldest first, and an
 issue's `claim` is the one not yet ended.
+
+## A hold opens a worklog, and the claim's ending ends it
+
+Each hold opens a worklog on the record, named `<record>.<sequence>`, and the
+answer names it as `worklog_opened`. The holder's session joins it. A claim's
+`worklog` field carries the name. Every way a claim ends also ends its
+worklog, at the same moment and with the same outcome, and the answer names it
+as `worklog_ended`. An expired claim's worklog ends at the claim's
+`expires_ts`. [worklogs.md](worklogs.md) covers the worklog itself.
+
+## A waiting claim still holds its record
+
+A holder parks its claim with `slate claims wait <record> --on <what>`, and
+`slate claims resume <record>` clears it. Each wait is a row of `claim_waits`:
+what the claim waits on, and when the wait began and ended. A claim answers its
+open wait as `waiting`, and `slate claims list` prints it under the claim until
+it clears.
+
+Waiting changes nothing about holding. Readiness still reads the claim as live,
+and a second holder is still refused. So a session starting cold tells parked
+work from live work by `waiting`, never by a missing claim.
+
+Only the holder waits or resumes, on a claim still live. A record holding no
+claim, another holder's claim, or a lapsed one answers 409. Waiting on
+something new ends the wait before it and names it as `wait_ended`. Waiting on
+the same thing again warns `already_waiting`. Resuming a claim that waits on
+nothing warns `not_waiting`. Ending the claim ends its open wait with it.
 
 ## Only another holder's live claim refuses a hold
 
@@ -79,6 +110,10 @@ A write that ends a claim beyond the one it was asked about names it in
   ends it as `expired` rather than `released`.
 - `expired_claim_ended` when a hold finds another holder's claim run out and
   ends it before starting its own.
+- `worklog_ended` for the worklog of every claim a write ends, a plain
+  release included.
+- `session_left_worklog` when a hold moves the holder's session out of the
+  worklog it was in. That worklog stays open under its own claim.
 
 Deleting an issue or an initiative deletes every claim it has had, live or
 ended. The answer names them as `claims_deleted`, and warns
@@ -108,8 +143,8 @@ answer warns `claim_had_expired`.
 
 ## A service claims under its own client id
 
-`slate.claims.hold` reaches the hold, extend and release routes, and the hold
-of the ready queue's head. A scoped client holds, extends and releases only
+`slate.claims.hold` reaches the hold, extend, release, wait and resume routes,
+and the hold of the ready queue's head. A scoped client acts on claims only
 under its own client id, because its token says which service it is and
 nothing says which of its workers acted. It releases only a claim that id
 holds. `slate.records.read` reaches the claims list, so a service finds what it

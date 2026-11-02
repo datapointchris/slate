@@ -20,8 +20,18 @@ const (
 // ClaimStates is what `claims list --state` accepts.
 var ClaimStates = []string{ClaimStateLive, ClaimStateExpired, ClaimStateEnded, ClaimStateAll}
 
+// ClaimWait is a stretch the holder spent waiting while its claim still held
+// the record. EndedTS is nil while it still waits.
+type ClaimWait struct {
+	WaitingOn string     `json:"waiting_on"`
+	StartedTS time.Time  `json:"started_ts"`
+	EndedTS   *time.Time `json:"ended_ts"`
+	EndedBy   *string    `json:"ended_by"`
+}
+
 // Claim is one lease on a record of any kind. Ending and EndedTS are set
-// together, once it ends.
+// together, once it ends. Worklog names the worklog the hold opened, and
+// Waiting is what the holder waits on now, nil while it works.
 type Claim struct {
 	ID           int64      `json:"id"`
 	RecordNumber int        `json:"record_number"`
@@ -35,6 +45,8 @@ type Claim struct {
 	Ending       *string    `json:"ending"`
 	EndedBy      *string    `json:"ended_by"`
 	State        string     `json:"state"`
+	Worklog      *string    `json:"worklog"`
+	Waiting      *ClaimWait `json:"waiting"`
 }
 
 // RecordSummary names a record of any kind on one line. Title is an
@@ -137,6 +149,32 @@ func (c *Client) ExtendClaim(ctx context.Context, record, holder string, minutes
 	}{holder, minutes}
 	var written ClaimWritten
 	if err := c.send(ctx, http.MethodPost, withQuery(claimPath(record, "extend"), zoneQuery(zone)), body, &written); err != nil {
+		return ClaimWritten{}, err
+	}
+	return written, nil
+}
+
+// WaitOnClaim marks the holder's claim on record as waiting on waitingOn. The
+// claim still holds its record.
+func (c *Client) WaitOnClaim(ctx context.Context, record, holder, waitingOn string, zone DayZone) (ClaimWritten, error) {
+	body := struct {
+		Holder    string `json:"holder"`
+		WaitingOn string `json:"waiting_on"`
+	}{holder, waitingOn}
+	var written ClaimWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(claimPath(record, "wait"), zoneQuery(zone)), body, &written); err != nil {
+		return ClaimWritten{}, err
+	}
+	return written, nil
+}
+
+// ResumeClaim ends the wait on the holder's claim on record.
+func (c *Client) ResumeClaim(ctx context.Context, record, holder string, zone DayZone) (ClaimWritten, error) {
+	body := struct {
+		Holder string `json:"holder"`
+	}{holder}
+	var written ClaimWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(claimPath(record, "resume"), zoneQuery(zone)), body, &written); err != nil {
 		return ClaimWritten{}, err
 	}
 	return written, nil

@@ -30,8 +30,15 @@ class WriteEffectCode(enum.StrEnum):
     EXPIRED_CLAIM_ENDED = 'expired_claim_ended'
     INITIATIVE_CREATED = 'initiative_created'
 
+    # Side effects on worklogs and a claim's waits.
+    WORKLOG_OPENED = 'worklog_opened'
+    WORKLOG_ENDED = 'worklog_ended'
+    SESSION_LEFT_WORKLOG = 'session_left_worklog'
+    WAIT_ENDED = 'wait_ended'
+
     # Side effects of deleting a record: what went with it, and each other record it changed.
     CLAIMS_DELETED = 'claims_deleted'
+    WORKLOGS_DELETED = 'worklogs_deleted'
     CHILD_DETACHED = 'child_detached'
     DEPENDENCY_REMOVED = 'dependency_removed'
     ISSUE_DETACHED = 'issue_detached'
@@ -48,6 +55,15 @@ class WriteEffectCode(enum.StrEnum):
     NOTHING_READY = 'nothing_ready'
     NOTHING_TO_RELEASE = 'nothing_to_release'
     RELEASED_ANOTHERS_CLAIM = 'released_anothers_claim'
+    ALREADY_WAITING = 'already_waiting'
+    NOT_WAITING = 'not_waiting'
+
+    # Warnings on a worklog write that changed nothing, or went through beside something open.
+    ALREADY_JOINED = 'already_joined'
+    ALREADY_LINKED = 'already_linked'
+    WORKLOG_ALREADY_ENDED = 'worklog_already_ended'
+    CLAIM_STILL_HELD = 'claim_still_held'
+    OPEN_WORKLOG = 'open_worklog'
 
     # Warnings on a hold, about the record held and its neighbors.
     RECORD_CLOSED = 'record_closed'

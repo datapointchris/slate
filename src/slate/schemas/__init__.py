@@ -5,6 +5,9 @@ from slate.schemas.claim import ClaimHoldNext
 from slate.schemas.claim import ClaimLease
 from slate.schemas.claim import ClaimOnRecord
 from slate.schemas.claim import ClaimRelease
+from slate.schemas.claim import ClaimResume
+from slate.schemas.claim import ClaimWait
+from slate.schemas.claim import ClaimWaitStart
 from slate.schemas.claim import ClaimWritten
 from slate.schemas.idea import Idea
 from slate.schemas.idea import IdeaCreate
@@ -38,6 +41,15 @@ from slate.schemas.issue import IssueUpdate
 from slate.schemas.issue import IssueVocabulary
 from slate.schemas.issue import IssueWritten
 from slate.schemas.record import RecordSummary
+from slate.schemas.worklog import Worklog
+from slate.schemas.worklog import WorklogFinish
+from slate.schemas.worklog import WorklogJoin
+from slate.schemas.worklog import WorklogLink
+from slate.schemas.worklog import WorklogLinkAdd
+from slate.schemas.worklog import WorklogSpan
+from slate.schemas.worklog import WorklogStart
+from slate.schemas.worklog import WorklogUpdate
+from slate.schemas.worklog import WorklogWritten
 from slate.schemas.write_effects import RecordDeleted
 from slate.schemas.write_effects import WriteEffect
 from slate.schemas.write_effects import Written
@@ -50,6 +62,9 @@ __all__ = [
     'ClaimLease',
     'ClaimOnRecord',
     'ClaimRelease',
+    'ClaimResume',
+    'ClaimWait',
+    'ClaimWaitStart',
     'ClaimWritten',
     'Idea',
     'IdeaCreate',
@@ -84,6 +99,15 @@ __all__ = [
     'IssueWritten',
     'RecordDeleted',
     'RecordSummary',
+    'Worklog',
+    'WorklogFinish',
+    'WorklogJoin',
+    'WorklogLink',
+    'WorklogLinkAdd',
+    'WorklogSpan',
+    'WorklogStart',
+    'WorklogUpdate',
+    'WorklogWritten',
     'WriteEffect',
     'Written',
 ]

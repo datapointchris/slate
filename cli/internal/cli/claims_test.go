@@ -3,11 +3,46 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+// A session starting blind on another box reads from the list where each
+// holder works, its worklog, and whether it is parked, so live work and
+// parked work read differently.
+func TestClaimsList_PrintsWhereEachHolderWorksAndWhatItWaitsOn(t *testing.T) {
+	claim := func(number int, holder, session, waiting string) string {
+		return fmt.Sprintf(`{"id":%d,"record_number":%d,"holder":%q,"session":%q,"host":"desk","directory":"/work/%d",`+
+			`"started_ts":"2026-10-19T09:00:00Z","expires_ts":"2099-10-20T09:00:00Z","state":"live","worklog":"%d.1",`+
+			`"waiting":%s,"record":{"number":%d,"kind":"issue","title":"Issue %d","status":"open"}}`,
+			number, number, holder, session, number, number, waiting, number, number)
+	}
+	answer := "[" + claim(412, serviceClientID, "pod-7", `{"waiting_on":"slate#3 to merge","started_ts":"2026-10-19T10:00:00Z"}`) +
+		"," + claim(398, "claude-code/a1b2", "a1b2", "null") + "]"
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(answer))
+	}))
+	t.Cleanup(api.Close)
+	asService(t, serviceIDP(t).URL, api.URL, serviceSecret)
+
+	out, err := runService(t, "claims", "list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parked, live, _ := strings.Cut(out, "\n\n")
+	for _, want := range []string{"#412 issue  Issue 412", "in desk:/work/412, session pod-7, worklog 412.1", "waiting on slate#3 to merge since "} {
+		if !strings.Contains(parked, want) {
+			t.Errorf("the waiting claim printed %q, want %q in it", parked, want)
+		}
+	}
+	if !strings.Contains(live, "in desk:/work/398, worklog 398.1") || strings.Contains(live, "waiting") || strings.Contains(live, "session a1b2") {
+		t.Errorf("the working claim printed %q, want where it works, its session left in its holder, and no wait", live)
+	}
+}
 
 // A hold that goes through despite a claimed neighbor says so on stderr, under
 // --json too, and names what else it did under the line naming the hold.

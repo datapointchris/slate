@@ -1,8 +1,11 @@
-"""Hold, extend, release and end claims. `claim_views` reads them back.
+"""Hold, extend, release, wait on and end claims. `claim_views` reads them back.
 
 Another holder's live claim refuses a hold, and nothing else does. A hold names everything else
 worth a look through `claim_neighbors.warn_about_neighbors`. Each write here also names every
 claim it ends beyond the one it was asked about.
+
+A hold opens a worklog, and `end_claim` is the one way a claim ends, so its worklog and its open
+wait end with it at the same moment.
 
 A claim whose lease ran out before any write ended it ends as `expired`, at its expiry, whichever
 write finds it. So a claim's history says when it stopped holding, not when someone noticed.
@@ -22,6 +25,7 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.models.claim import ONE_UNENDED_CLAIM_PER_RECORD
+from slate.services import worklogs
 from slate.services.claim_neighbors import warn_about_neighbors
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
@@ -39,26 +43,37 @@ class ClaimRefused(HTTPException):
         super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
-def end_claim(claim: models.Claim, ending: str, now: dt.datetime, ended_by: str | None) -> bool:
-    """End the claim as `ending`, or as expired at its expiry when its lease ran out first. True when it had."""
+def end_claim(claim: models.Claim, ending: str, now: dt.datetime, ended_by: str | None, effects: WriteEffects) -> None:
+    """End the claim as `ending`, or as expired at its expiry when its lease ran out first.
+
+    Its open wait and its worklog end at the same moment, and the worklog's ending is named. The
+    caller names the claim's own ending, because only it knows why the claim ended.
+    """
+    ended_ts = now
     if claim.is_expired(now):
-        claim.ending, claim.ended_ts, claim.ended_by = 'expired', claim.expires_ts, None
-        return True
-    claim.ending, claim.ended_ts, claim.ended_by = ending, now, ended_by
-    return False
+        ending, ended_ts, ended_by = 'expired', claim.expires_ts, None
+    claim.ending, claim.ended_ts, claim.ended_by = ending, ended_ts, ended_by
+    wait = claim.open_wait
+    if wait is not None:
+        wait.ended_ts, wait.ended_by = ended_ts, ended_by
+    worklog = claim.worklog
+    if worklog is not None and worklog.ended_ts is None:
+        worklogs.end_worklog(worklog, ending, ended_ts, ended_by)
+        worklogs.name_worklog_ended(worklog, effects)
 
 
 def end_with_record(session: Session, number: int, ending: str, now: dt.datetime, ended_by: str | None, effects: WriteEffects) -> None:
-    """End the record's claim because the record reached `ending`, a closing status or `promoted`, and name it."""
+    """End the record's claim and its open worklogs because the record reached `ending`, a closing status or `promoted`, and name each."""
     claim = unended_claims(session, [number]).get(number)
-    if claim is None:
-        return
-    if end_claim(claim, ending, now, ended_by):
-        message = f"Ended {claim.holder}'s claim on #{number}, which had expired at {effects.moment(claim.expires_ts)}."
-    else:
-        message = f"Ended {claim.holder}'s claim on #{number}, because #{number} is {ending}."
-    effects.did(WriteEffectCode.CLAIM_ENDED, message, number)
-    logger.info('claim_ended', record=number, holder=claim.holder, ending=claim.ending)
+    if claim is not None:
+        if claim.is_expired(now):
+            message = f"Ended {claim.holder}'s claim on #{number}, which had expired at {effects.moment(claim.expires_ts)}."
+        else:
+            message = f"Ended {claim.holder}'s claim on #{number}, because #{number} is {ending}."
+        effects.did(WriteEffectCode.CLAIM_ENDED, message, number)
+        end_claim(claim, ending, now, ended_by, effects)
+        logger.info('claim_ended', record=number, holder=claim.holder, ending=claim.ending)
+    worklogs.end_with_record(session, number, ending, now, ended_by, effects)
 
 
 def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datetime, effects: WriteEffects) -> models.Claim:
@@ -75,13 +90,15 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
             return current
         if live:
             raise ClaimRefused(f'#{number} is claimed by {held_by(current, effects)}.')
-        end_claim(current, 'expired', now, None)
         effects.did(
             WriteEffectCode.EXPIRED_CLAIM_ENDED,
             f"Ended {current.holder}'s claim on #{number} as expired at {effects.moment(current.expires_ts)}, before this one started.",
             number,
         )
+        end_claim(current, 'expired', now, None, effects)
         session.flush()
+    if lease.session is not None:
+        worklogs.record_session(session, lease.session, lease.host)
     claim = models.Claim(
         record_number=number,
         holder=lease.holder,
@@ -94,6 +111,12 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
     session.add(claim)
     session.flush()
     logger.info('claim_held', record=number, holder=lease.holder, expires_ts=claim.expires_ts.isoformat())
+    worklog = worklogs.open_worklog(session, number, lease.holder, now, claim=claim)
+    if lease.session is None:
+        effects.did(WriteEffectCode.WORKLOG_OPENED, f'Opened worklog {worklog.name}.', number)
+        return claim
+    effects.did(WriteEffectCode.WORKLOG_OPENED, f'Opened worklog {worklog.name}, with session {lease.session} in it.', number)
+    worklogs.join(session, worklog, lease.session, lease.host, lease.directory, now, effects)
     return claim
 
 
@@ -171,11 +194,65 @@ def release(session: Session, number: int, released_by: str, now: dt.datetime, e
             f"Released {current.holder}'s claim on #{number}, which {released_by} did not hold.",
             number,
         )
-    if end_claim(current, 'released', now, released_by):
+    if current.is_expired(now):
         effects.did(
             WriteEffectCode.CLAIM_ENDED,
             f'The claim on #{number} had expired at {effects.moment(current.expires_ts)}, so it ended as expired rather than released.',
             number,
         )
+    end_claim(current, 'released', now, released_by, effects)
     logger.info('claim_released', record=number, holder=current.holder, released_by=released_by, ending=current.ending)
+    return current
+
+
+def holders_claim(session: Session, number: int, holder: str, effects: WriteEffects) -> models.Claim:
+    """The holder's unended claim on the record, refused with 409 when the record has none or another holds it."""
+    current = unended_claims(session, [number]).get(number)
+    if current is None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} holds no claim. Hold it first.')
+    if current.holder != holder:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f'#{number} is claimed by {held_by(current, effects)}, not {holder}.'
+        )
+    return current
+
+
+def wait(session: Session, number: int, holder: str, waiting_on: str, now: dt.datetime, effects: WriteEffects) -> models.Claim:
+    """Mark the holder's claim as waiting on something. The claim still holds its record while it waits."""
+    current = holders_claim(session, number, holder, effects)
+    if current.is_expired(now):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f'The claim on #{number} ran out at {effects.moment(current.expires_ts)}. Extend it, then wait.',
+        )
+    waiting = current.open_wait
+    if waiting is not None and waiting.waiting_on == waiting_on:
+        effects.warn(
+            WriteEffectCode.ALREADY_WAITING,
+            f'The claim on #{number} waits on {waiting_on!r} since {effects.moment(waiting.started_ts)}. Nothing changed.',
+            number,
+        )
+        return current
+    if waiting is not None:
+        waiting.ended_ts, waiting.ended_by = now, holder
+        effects.did(
+            WriteEffectCode.WAIT_ENDED,
+            f'Ended the wait on {waiting.waiting_on!r}, which began at {effects.moment(waiting.started_ts)}.',
+            number,
+        )
+        session.flush()
+    current.waits.append(models.ClaimWait(waiting_on=waiting_on, started_ts=now))
+    logger.info('claim_waiting', record=number, holder=holder, waiting_on=waiting_on)
+    return current
+
+
+def resume(session: Session, number: int, holder: str, now: dt.datetime, effects: WriteEffects) -> models.Claim:
+    """End the wait on the holder's claim, which reads as worked again."""
+    current = holders_claim(session, number, holder, effects)
+    waiting = current.open_wait
+    if waiting is None:
+        effects.warn(WriteEffectCode.NOT_WAITING, f'The claim on #{number} waits on nothing. Nothing changed.', number)
+        return current
+    waiting.ended_ts, waiting.ended_by = now, holder
+    logger.info('claim_resumed', record=number, holder=holder, waited_on=waiting.waiting_on)
     return current
