@@ -97,9 +97,10 @@ A new command takes a noun unless no one noun owns what it reads.
   id, set per transaction by `bind_actor`. `message_tokens` opts out, because
   its rows mirror a transcript, and each report that changes them is audited
   on `agent_sessions`.
-- **A new table hanging off a record goes in `services/record_history.py`**,
-  by the column naming its parent. The history read finds rows only through
-  those lists, so a table left out never prints in `slate show`.
+- **A record's changes reach a new table through its single-column `ON DELETE
+  CASCADE` key** onto the record or a row hanging off it. `slate show` reads
+  that list from the models. A table linked any other way is added by hand in
+  `services/record_changes.py`, or its writes never print there.
 - **A write answers an envelope that names everything else it did.** The
   handler takes `Effects` from `services/write_effects.py`, calls `did()` for
   each change beyond the request and `warn()` for each condition it went
