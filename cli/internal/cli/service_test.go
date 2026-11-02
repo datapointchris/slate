@@ -222,7 +222,7 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		`"opened_by":"` + serviceClientID + `","started_ts":"2026-10-19T00:00:00Z","state":"live","stage":"started"}`
 	wroteWorklog := `{"worklog":` + worklog + `,"side_effects":[],"warnings":[]}`
 	const fixtureSession = "0f6e2a4c-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
-	agentSession := `{"id":"` + fixtureSession + `","first_seen_ts":"2026-11-02T10:00:00Z","messages":5,"tokens":{},"tokens_outside_worklogs":{},"spans":[]}`
+	agentSession := `{"id":"` + fixtureSession + `","first_seen_ts":"2026-11-02T10:00:00Z","message_count":5,"tokens":{},"tokens_outside_worklogs":null,"spans":[]}`
 	reportedSession := `{"session":` + agentSession + `,"side_effects":[],"warnings":[]}`
 	for _, call := range []struct {
 		args []string

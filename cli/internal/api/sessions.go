@@ -15,11 +15,9 @@ type Tokens struct {
 	Output        int `json:"output"`
 }
 
-// IsZero reports whether no tokens of any kind were counted.
-func (t Tokens) IsZero() bool { return t == Tokens{} }
-
 // MessageTokens is one model message a session spent tokens on. Key is the
-// provider's message id, or where the message was read when it carries none.
+// provider's message id, or where the message was read when it carries none,
+// and is unique across sessions.
 type MessageTokens struct {
 	Key       string    `json:"key"`
 	WrittenTS time.Time `json:"written_ts"`
@@ -36,25 +34,26 @@ type SessionUsageReport struct {
 }
 
 // SessionSpan is a session's time in one worklog, and the tokens it spent
-// there.
+// there: nil while no message it reported landed there.
 type SessionSpan struct {
 	Worklog      string     `json:"worklog"`
 	RecordNumber int        `json:"record_number"`
 	StartedTS    time.Time  `json:"started_ts"`
 	EndedTS      *time.Time `json:"ended_ts"`
-	Tokens       Tokens     `json:"tokens"`
+	Tokens       *Tokens    `json:"tokens"`
 }
 
 // AgentSession is a session slate has seen, with its tokens by kind in all,
 // in each worklog span, and outside every worklog, as it last reported them.
+// Each sum is nil while no message it covers was reported.
 type AgentSession struct {
 	ID                    string        `json:"id"`
 	Host                  *string       `json:"host"`
 	FirstSeenTS           time.Time     `json:"first_seen_ts"`
 	UsageReportedTS       *time.Time    `json:"usage_reported_ts"`
-	Messages              int           `json:"messages"`
-	Tokens                Tokens        `json:"tokens"`
-	TokensOutsideWorklogs Tokens        `json:"tokens_outside_worklogs"`
+	MessageCount          int           `json:"message_count"`
+	Tokens                *Tokens       `json:"tokens"`
+	TokensOutsideWorklogs *Tokens       `json:"tokens_outside_worklogs"`
 	Spans                 []SessionSpan `json:"spans"`
 }
 

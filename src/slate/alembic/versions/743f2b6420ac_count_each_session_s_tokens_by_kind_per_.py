@@ -5,7 +5,8 @@ Revises: 8e4628bfb751
 Create Date: 2026-11-02 08:01:00.894662
 
 Each row of `message_tokens` is one model message a session reported: its tokens by kind, when it
-was written, and the worklog span the session was in then. A report replaces a session's rows, and
+was written, and the worklog span the session was in then. It is keyed by the message alone, so a
+message two sessions' transcripts repeat counts once. A report replaces a session's rows, and
 `agent_sessions.usage_reported_ts` says when one last changed them. The rows mirror a transcript, so
 the table carries no audit trigger.
 """
@@ -23,8 +24,8 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         'message_tokens',
-        sa.Column('session_id', sa.Text(), nullable=False),
         sa.Column('key', sa.Text(), nullable=False),
+        sa.Column('session_id', sa.Text(), nullable=False),
         sa.Column('written_ts', sa.DateTime(timezone=True), nullable=False),
         sa.Column('model', sa.Text(), nullable=True),
         sa.Column('subagent', sa.Text(), nullable=True),
@@ -43,15 +44,17 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ['span_id'], ['worklog_spans.id'], name=op.f('fk_message_tokens_span_id_worklog_spans'), ondelete='SET NULL'
         ),
-        sa.PrimaryKeyConstraint('session_id', 'key', name=op.f('pk_message_tokens')),
+        sa.PrimaryKeyConstraint('key', name=op.f('pk_message_tokens')),
     )
     op.create_index('idx_message_tokens_written_ts', 'message_tokens', ['written_ts'], unique=False)
     op.create_index('idx_message_tokens_span_id', 'message_tokens', ['span_id'], unique=False)
+    op.create_index('idx_message_tokens_session_id', 'message_tokens', ['session_id'], unique=False)
     op.add_column('agent_sessions', sa.Column('usage_reported_ts', sa.DateTime(timezone=True), nullable=True))
 
 
 def downgrade() -> None:
     op.drop_column('agent_sessions', 'usage_reported_ts')
+    op.drop_index('idx_message_tokens_session_id', table_name='message_tokens')
     op.drop_index('idx_message_tokens_span_id', table_name='message_tokens')
     op.drop_index('idx_message_tokens_written_ts', table_name='message_tokens')
     op.drop_table('message_tokens')

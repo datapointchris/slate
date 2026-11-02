@@ -158,6 +158,18 @@ class WorklogSpan(Base):
 
     worklog: Mapped[Worklog] = relationship(back_populates='spans')
 
+    def held_until(self, now: dt.datetime) -> dt.datetime | None:
+        """When the span stopped holding the session's time, as of `now`, or None while it still holds it.
+
+        A span outliving its worklog's claim stopped where the claim stopped holding, though no write has ended it yet.
+        """
+        if self.ended_ts is not None:
+            return self.ended_ts
+        claim = self.worklog.claim
+        if claim is None or claim.is_live(now):
+            return None
+        return claim.ended_ts or claim.held_until(now)
+
     __table_args__ = (
         CheckConstraint('ended_ts IS NULL OR ended_ts >= started_ts', name='span_ends_after_it_starts'),
         Index(ONE_OPEN_SPAN_PER_SESSION, 'session_id', unique=True, postgresql_where=text('ended_ts IS NULL')),

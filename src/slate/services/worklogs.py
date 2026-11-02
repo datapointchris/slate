@@ -94,7 +94,7 @@ def leave(span: models.WorklogSpan, now: dt.datetime, effects: WriteEffects) -> 
     """End the session's span in its worklog, and name it. A worklog whose claim ran out holds the span until the expiry."""
     worklog = span.worklog
     claim = worklog.claim
-    span.ended_ts = now if claim is None else claim.held_until(now)
+    span.ended_ts = span.held_until(now) or now
     message = f'Session {span.session_id} left worklog {worklog.name}.'
     if claim is not None and claim.is_expired(now):
         message = (

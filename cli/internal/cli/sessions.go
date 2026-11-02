@@ -21,7 +21,7 @@ import (
 	"github.com/datapointchris/slate/cli/internal/transcript"
 )
 
-const usageUnchanged = "usage_unchanged"
+var usageNotReplaced = []string{"usage_unchanged", "usage_stale"}
 
 var sessionHints = []string{
 	"A session slate has not seen appears once it reports: slate sessions report --transcript <path>",
@@ -105,8 +105,8 @@ func newSessionsReportCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			summary := fmt.Sprintf("Session %s spent %s over %d messages", session, tokensLine(written.Session.Tokens), written.Session.Messages)
-			if slices.ContainsFunc(written.Warnings, func(w api.WriteEffect) bool { return w.Code == usageUnchanged }) {
+			summary := fmt.Sprintf("Session %s spent %s over %d messages", session, reportedTokens(written.Session.Tokens), written.Session.MessageCount)
+			if slices.ContainsFunc(written.Warnings, func(w api.WriteEffect) bool { return slices.Contains(usageNotReplaced, w.Code) }) {
 				summary = ""
 			}
 			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
@@ -175,15 +175,24 @@ func printSessionDetail(out io.Writer, session api.AgentSession, now time.Time) 
 		_, _ = fmt.Fprintln(out, "  reported:  never")
 		return
 	}
-	_, _ = fmt.Fprintf(out, "  reported:  %s, %d messages\n", localClock(*session.UsageReportedTS, now), session.Messages)
-	_, _ = fmt.Fprintf(out, "  tokens:    %s\n", tokensLine(session.Tokens))
-	_, _ = fmt.Fprintf(out, "  outside:   %s\n", tokensLine(session.TokensOutsideWorklogs))
+	_, _ = fmt.Fprintf(out, "  reported:  %s, %d messages\n", localClock(*session.UsageReportedTS, now), session.MessageCount)
+	_, _ = fmt.Fprintf(out, "  tokens:    %s\n", reportedTokens(session.Tokens))
+	_, _ = fmt.Fprintf(out, "  outside:   %s\n", reportedTokens(session.TokensOutsideWorklogs))
 	if len(session.Spans) > 0 {
 		_, _ = fmt.Fprintf(out, "\nWorklogs (%d):\n", len(session.Spans))
 		for _, span := range session.Spans {
-			_, _ = fmt.Fprintf(out, "  %s  %s\n    %s\n", span.Worklog, spanTimes(span.StartedTS, span.EndedTS, now, "still in it"), tokensLine(span.Tokens))
+			_, _ = fmt.Fprintf(out, "  %s  %s\n    %s\n", span.Worklog, spanTimes(span.StartedTS, span.EndedTS, now, "still in it"), reportedTokens(span.Tokens))
 		}
 	}
+}
+
+// reportedTokens is tokensLine for a sum the API leaves null while no
+// message it covers was reported.
+func reportedTokens(t *api.Tokens) string {
+	if t == nil {
+		return "none reported"
+	}
+	return tokensLine(*t)
 }
 
 // tokensLine names each kind's count, never a total across them.

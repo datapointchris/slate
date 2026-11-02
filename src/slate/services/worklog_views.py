@@ -21,7 +21,7 @@ from slate.models.worklog import WorklogStage
 from slate.schemas.worklog import WorklogState
 from slate.services.claim_views import claim_view
 from slate.services.record_summaries import record_summaries
-from slate.services.session_usage import plus
+from slate.services.session_usage import summed
 from slate.services.session_usage import tokens_by_span
 from slate.services.worklogs import open_span
 
@@ -54,14 +54,11 @@ def worklog_view(
             session=span.session_id,
             directory=span.directory,
             started_ts=span.started_ts,
-            ended_ts=span.ended_ts,
-            tokens=span_tokens.get(span.id, schemas.TokensByKind()),
+            ended_ts=span.held_until(now),
+            tokens=span_tokens.get(span.id),
         )
         for span in worklog.spans
     ]
-    tokens = schemas.TokensByKind()
-    for span in spans:
-        tokens = plus(tokens, span.tokens)
     return schemas.Worklog(
         name=worklog.name,
         record_number=worklog.record_number,
@@ -77,7 +74,7 @@ def worklog_view(
         stage=worklog_stage(worklog),
         claim=claim_view(claim, now) if claim is not None else None,
         waits=[schemas.ClaimWait.model_validate(wait) for wait in claim.waits] if claim is not None else [],
-        tokens=tokens,
+        tokens=summed(span.tokens for span in spans),
         spans=spans,
         links=[
             schemas.WorklogLink(

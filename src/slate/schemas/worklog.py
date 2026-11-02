@@ -27,13 +27,17 @@ NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)
 
 
 class WorklogSpan(RecordModel):
-    """One session's time in the worklog, and the tokens it spent there. `ended_ts` is null while the session is still in it."""
+    """One session's time in the worklog, and the tokens it spent there.
+
+    `ended_ts` is null while the session is still in it. `tokens` is null while no message the
+    session reported landed in it.
+    """
 
     session: str
     directory: str | None = None
     started_ts: dt.datetime
     ended_ts: dt.datetime | None = None
-    tokens: TokensByKind = TokensByKind()
+    tokens: TokensByKind | None = None
 
 
 class WorklogLink(RecordModel):
@@ -50,7 +54,7 @@ class Worklog(RecordModel):
 
     `state`, `stage` and `tokens` are derived on every read. `claim` is the claim whose hold opened
     it, and `waits` every stretch that claim's holder spent waiting. `tokens` sums its spans', as
-    each session last reported them.
+    each session last reported them, and is null while none of its spans holds a reported message.
     """
 
     name: str
@@ -67,7 +71,7 @@ class Worklog(RecordModel):
     stage: WorklogStage
     claim: Claim | None = None
     waits: list[ClaimWait] = []
-    tokens: TokensByKind = TokensByKind()
+    tokens: TokensByKind | None = None
     spans: list[WorklogSpan] = []
     links: list[WorklogLink] = []
 

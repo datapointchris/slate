@@ -56,10 +56,41 @@ def test_a_session_in_two_worklogs_reports_once_each_worklog_sums_its_span_and_r
         f'{chore}.1': {'uncached_input': 5, 'cache_write': 9_600, 'cache_read': 33_000, 'output': 375},
     }
     held = reported['session']
-    assert held['messages'] == 4
+    assert held['message_count'] == 4
     assert held['tokens_outside_worklogs'] == {'uncached_input': 3, 'cache_write': 30_000, 'cache_read': 0, 'output': 120}
     assert held['tokens'] == {'uncached_input': 10, 'cache_write': 40_000, 'cache_read': 64_000, 'output': 585}
 
     again = ok(client.put('/sessions/s1/usage', json=report))
     assert [warning['code'] for warning in again['warnings']] == ['usage_unchanged']
     assert again['session'] == held
+
+
+def test_a_session_continued_under_a_new_id_counts_the_messages_its_transcript_copied_from_its_parent_once(client):
+    """Claude Code can continue a session under a new id, its transcript repeating the parent's messages and their ids."""
+    now = dt.datetime.now(dt.UTC)
+    parent = [
+        message('msg_a', now - dt.timedelta(minutes=9), 1, 10, 100, 5),
+        message('msg_b', now - dt.timedelta(minutes=8), 1, 20, 200, 6),
+    ]
+    ok(client.put('/sessions/parent/usage', json={'messages': parent}))
+
+    own = message('msg_c', now - dt.timedelta(minutes=1), 2, 30, 300, 7)
+    child = ok(client.put('/sessions/child/usage', json={'messages': [*parent, own]}))
+    assert [warning['code'] for warning in child['warnings']] == ['messages_held_by_another_session']
+    assert child['session']['message_count'] == 1
+    assert child['session']['tokens'] == own['tokens']
+    assert ok(client.get('/sessions/parent'))['message_count'] == 2
+
+
+def test_an_empty_or_cut_transcript_read_after_a_full_report_keeps_the_full_one(client):
+    """A hook reading a transcript that came back empty or short sends fewer messages than slate holds."""
+    now = dt.datetime.now(dt.UTC)
+    earlier = message('msg_1', now - dt.timedelta(minutes=3), 1, 10, 100, 5)
+    latest = message('msg_2', now - dt.timedelta(minutes=2), 1, 20, 200, 300)
+    subagent = {**message('msg_3', now - dt.timedelta(minutes=1), 1, 30, 300, 7), 'subagent': 'a1'}
+    held = ok(client.put('/sessions/s2/usage', json={'messages': [earlier, latest, subagent]}))['session']
+
+    for short in ([], [earlier, subagent], [earlier, latest]):
+        answer = ok(client.put('/sessions/s2/usage', json={'messages': short}))
+        assert [warning['code'] for warning in answer['warnings']] == ['usage_stale']
+        assert answer['session'] == held

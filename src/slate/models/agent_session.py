@@ -38,16 +38,18 @@ class AgentSession(Base):
 class MessageTokens(Base):
     """One model message's tokens by kind, as the session reported it, and the span it was spent in.
 
-    A row mirrors one message in the session's transcript, so its key is the session and the
-    message, with no surrogate. Each report replaces the session's rows: it upserts every message it
+    A row mirrors one message in a transcript, so its key is the message, with no surrogate. A
+    session continued under a new id repeats its parent's messages, so the session that reports a
+    message first holds it. Each report replaces its session's rows: it upserts every message it
     names and deletes the rest. The transcript is their record, and `agent_sessions` audits each
-    report, so these rows opt out of the audit trail rather than copy every message into it twice.
+    report that changes them, so these rows opt out of the audit trail rather than copy every
+    message into it twice.
     """
 
     __tablename__ = 'message_tokens'
-    session_id: Mapped[str] = mapped_column(Text, ForeignKey('agent_sessions.id', ondelete='CASCADE'), primary_key=True)
-    # The provider's message id, or where the message was read when it carries none.
+    # The provider's message id, or where the message was read when it carries none, unique across sessions.
     key: Mapped[str] = mapped_column(Text, primary_key=True)
+    session_id: Mapped[str] = mapped_column(Text, ForeignKey('agent_sessions.id', ondelete='CASCADE'), nullable=False)
     # When the message was written, on the agent's clock. Placing it in a span compares it with the API's.
     written_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     model: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -65,6 +67,7 @@ class MessageTokens(Base):
             'uncached_input_tokens >= 0 AND cache_write_tokens >= 0 AND cache_read_tokens >= 0 AND output_tokens >= 0',
             name='token_counts_are_not_negative',
         ),
+        Index('idx_message_tokens_session_id', 'session_id'),
         Index('idx_message_tokens_span_id', 'span_id'),
         Index('idx_message_tokens_written_ts', 'written_ts'),
         {'info': {RECORDED: False}},
