@@ -99,9 +99,9 @@ func ClientSecret() string { return os.Getenv(ClientSecretEnv) }
 // rather than as the person who logged in on this machine.
 func IsService() bool { return ClientSecret() != "" }
 
-// Service is the goclilogin view of a deployment for the client-credentials
-// grant of scopes, which the running command declares. Nothing it obtains is
-// stored, so it names no keyring or state directory.
+// Service is the goclilogin view of a deployment for a client-credentials grant
+// of scopes. Nothing it obtains is stored, so it names no keyring or state
+// directory.
 func Service(d goclilogin.Deployment, scopes []string) goclilogin.ServiceClient {
 	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: scopes}
 }

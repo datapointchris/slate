@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -28,7 +27,7 @@ const (
 	scopeSessionsWrite = "slate.sessions.write"
 )
 
-// serviceScopes is every scope the API lists, in the order help and status print them.
+// serviceScopes is every scope the API lists, in the order auth status answers for them.
 var serviceScopes = []string{
 	scopeRecordsRead, scopeRecordsPlan, scopeClaimsHold, scopeIssuesClose,
 	scopeCommentsWrite, scopeWorklogsWrite, scopeSessionsWrite,
@@ -98,22 +97,53 @@ func showServiceScopesInHelp(root *cobra.Command) {
 
 // serviceTokenSource is the client-credentials grant for the scopes cmd declares.
 func serviceTokenSource(cmd *cobra.Command, d goclilogin.Deployment, grant serviceGrant) (oauth2.TokenSource, error) {
-	scopes := grant.scopes
-	if grant.held {
-		held, _, err := heldScopes(cmd.Context(), d)
-		if err != nil {
-			return nil, err
-		}
-		scopes = held
-	}
-	if len(scopes) == 0 {
+	switch {
+	case grant.held:
+		return heldTokenSource(cmd, d)
+	case len(grant.scopes) == 0:
 		return nil, fmt.Errorf("no service scope reaches %#q, so only a person can run it", cmd.CommandPath())
 	}
+	return scopedTokenSource(cmd, d, grant.scopes)
+}
+
+func scopedTokenSource(cmd *cobra.Command, d goclilogin.Deployment, scopes []string) (oauth2.TokenSource, error) {
 	source, err := goclilogin.ClientCredentialsTokenSource(cmd.Context(), config.Service(d, scopes), config.ClientSecret())
 	if err != nil {
 		return nil, err
 	}
 	return scopesNamedOnRefusal{source: source, clientID: d.ClientID.Value, issuer: d.Issuer.Value, command: cmd.CommandPath(), scopes: scopes}, nil
+}
+
+// heldTokenSource is a grant for every scope the probe finds the client holds.
+// Where it holds one, the probe's own token is the answer. A scope the provider
+// gave no answer for is left out, and named on stderr.
+func heldTokenSource(cmd *cobra.Command, d goclilogin.Deployment) (oauth2.TokenSource, error) {
+	answers := probeScopes(cmd.Context(), d)
+	held := scopesAnswered(answers, answerGranted)
+	if len(held) == 0 {
+		return nil, probeFailure(d, answers)
+	}
+	if unknown := scopesAnswered(answers, answerUnknown); len(unknown) > 0 {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: the token leaves out %s, which %s gave no answer for (%s)\n",
+			strings.Join(unknown, " "), d.Issuer.Value, answers[slices.IndexFunc(answers, isUnknown)].reason())
+	}
+	if len(held) == 1 {
+		return oauth2.StaticTokenSource(answers[slices.IndexFunc(answers, isGranted)].token), nil
+	}
+	return scopedTokenSource(cmd, d, held)
+}
+
+// probeFailure is why a probe found no scope the client holds: the provider's
+// answer about the client or itself where one came, else every scope refused.
+func probeFailure(d goclilogin.Deployment, answers []scopeAnswer) error {
+	i := slices.IndexFunc(answers, isUnknown)
+	switch {
+	case i < 0:
+		return &scopesRefused{clientID: d.ClientID.Value, issuer: d.Issuer.Value, scopes: serviceScopes, cause: answers[0].err}
+	case goclilogin.IsSessionRejected(answers[i].err):
+		return fmt.Errorf("%w (%w)", refusedServiceClient(d), answers[i].err)
+	}
+	return fmt.Errorf("obtain a token for service client %s from %s: %w", d.ClientID.Value, d.Issuer.Value, answers[i].err)
 }
 
 // scopesNamedOnRefusal turns the provider refusing or narrowing the scopes a
@@ -129,8 +159,7 @@ type scopesNamedOnRefusal struct {
 
 func (s scopesNamedOnRefusal) Token() (*oauth2.Token, error) {
 	token, err := s.source.Token()
-	var retrieve *oauth2.RetrieveError
-	if errors.As(err, &retrieve) && retrieve.ErrorCode == "invalid_scope" {
+	if isScopeRefusal(err) {
 		return nil, &scopesRefused{clientID: s.clientID, issuer: s.issuer, command: s.command, scopes: s.scopes, cause: err}
 	}
 	if err != nil {
@@ -188,49 +217,98 @@ func (e *scopesRefused) Error() string {
 
 func (e *scopesRefused) Unwrap() error { return e.cause }
 
-// heldScopes asks the provider for each of slate's scopes in a grant of its own,
-// and returns the ones it granted with one of the tokens granting them. One
-// grant could not say which: a provider refuses a whole request naming a scope
-// the client lacks, as Authelia does, or narrows the token and names what it
-// granted. A refusal that is not invalid_scope is about the client or the
-// provider rather than a scope, and comes back as the error.
-func heldScopes(ctx context.Context, d goclilogin.Deployment) ([]string, *oauth2.Token, error) {
-	type answer struct {
-		token *oauth2.Token
-		err   error
-	}
-	answers := make([]answer, len(serviceScopes))
-	var wg sync.WaitGroup
-	for i, scope := range serviceScopes {
-		wg.Go(func() {
-			source, err := goclilogin.ClientCredentialsTokenSource(ctx, config.Service(d, []string{scope}), config.ClientSecret())
-			if err == nil {
-				answers[i].token, err = source.Token()
-			}
-			answers[i].err = err
-		})
-	}
-	wg.Wait()
+func isScopeRefusal(err error) bool {
+	var retrieve *oauth2.RetrieveError
+	return errors.As(err, &retrieve) && retrieve.ErrorCode == "invalid_scope"
+}
 
-	var (
-		held    []string
-		granted *oauth2.Token
-		refusal error
-	)
-	for i, a := range answers {
-		var retrieve *oauth2.RetrieveError
-		switch {
-		case errors.As(a.err, &retrieve) && retrieve.ErrorCode == "invalid_scope":
-			refusal = cmp.Or(refusal, a.err)
-		case a.err != nil:
-			return nil, nil, a.err
-		case len(scopesNotGranted(a.token, serviceScopes[i:i+1])) == 0:
-			held = append(held, serviceScopes[i])
-			granted = cmp.Or(granted, a.token)
+// grantAnswer is whether the client holds one scope, as its probe found.
+type grantAnswer string
+
+const (
+	// answerGranted is a token carrying the scope.
+	answerGranted grantAnswer = "granted"
+	// answerRefused is the scope refused with invalid_scope, or a token
+	// granted without it.
+	answerRefused grantAnswer = "refused"
+	// answerUnknown is an answer about the client or the provider rather than
+	// the scope, such as a refused secret or a 5xx, or no answer at all.
+	answerUnknown grantAnswer = "unknown"
+)
+
+// scopeAnswer is the provider's answer to the client asking for one scope
+// alone. Session reads the request as goclilogin reads any grant, so a refused
+// secret and a refused scope are both rejected, and Grant tells them apart.
+type scopeAnswer struct {
+	Scope   string                  `json:"scope"`
+	Grant   grantAnswer             `json:"grant"`
+	Session goclilogin.SessionState `json:"session"`
+	// Error is what the provider answered where it granted no token carrying
+	// the scope.
+	Error string `json:"error,omitempty"`
+
+	token *oauth2.Token
+	err   error
+}
+
+// reason is Error's first line. x/oauth2 follows a status with no error code
+// by the response body, which would break a row.
+func (a scopeAnswer) reason() string {
+	line, _, _ := strings.Cut(a.Error, "\n")
+	return line
+}
+
+func isGranted(a scopeAnswer) bool { return a.Grant == answerGranted }
+func isUnknown(a scopeAnswer) bool { return a.Grant == answerUnknown }
+
+// scopesAnswered is the scopes whose probe answered grant, in answers' order.
+func scopesAnswered(answers []scopeAnswer, grant grantAnswer) []string {
+	var scopes []string
+	for _, a := range answers {
+		if a.Grant == grant {
+			scopes = append(scopes, a.Scope)
 		}
 	}
-	if len(held) == 0 {
-		return nil, nil, &scopesRefused{clientID: d.ClientID.Value, issuer: d.Issuer.Value, scopes: serviceScopes, cause: refusal}
+	return scopes
+}
+
+// probeScopes asks the provider for each of slate's scopes in a grant of its
+// own, concurrently. One grant could not say which the client holds: a provider
+// refuses a whole request naming a scope the client lacks, as Authelia does,
+// or narrows the token and names what it granted. Each probe is a discovery
+// read and a token request, each bounded by goclilogin's request timeout, and
+// one failing leaves the others' answers standing.
+func probeScopes(ctx context.Context, d goclilogin.Deployment) []scopeAnswer {
+	answers := make([]scopeAnswer, len(serviceScopes))
+	var wg sync.WaitGroup
+	for i, scope := range serviceScopes {
+		wg.Go(func() { answers[i] = probeScope(ctx, d, scope) })
 	}
-	return held, granted, nil
+	wg.Wait()
+	return answers
+}
+
+func probeScope(ctx context.Context, d goclilogin.Deployment, scope string) scopeAnswer {
+	source, err := goclilogin.ClientCredentialsTokenSource(ctx, config.Service(d, []string{scope}), config.ClientSecret())
+	var token *oauth2.Token
+	if err == nil {
+		token, err = source.Token()
+	}
+	answer := scopeAnswer{Scope: scope, err: err}
+	switch {
+	case isScopeRefusal(err):
+		answer.Grant, answer.Session = answerRefused, goclilogin.SessionRejected
+	case err != nil:
+		answer.Grant = answerUnknown
+		answer.Session, _ = goclilogin.ClassifySession(nil, err)
+	case len(scopesNotGranted(token, []string{scope})) > 0:
+		answer.Grant, answer.Session = answerRefused, goclilogin.SessionRejected
+		answer.err = fmt.Errorf("granted a token for %q instead", token.Extra("scope"))
+	default:
+		answer.Grant, answer.Session, answer.token = answerGranted, goclilogin.SessionLive, token
+	}
+	if answer.err != nil {
+		answer.Error = answer.err.Error()
+	}
+	return answer
 }

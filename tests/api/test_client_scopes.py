@@ -17,10 +17,13 @@ from sqlalchemy import select
 from slate import models
 from slate.api import API_PREFIX
 from slate.api.client_scopes import SCOPE_ROUTES
+from slate.api.endpoints.issues import SCOPED_CLOSE_FIELDS
+from slate.api.endpoints.issues import SCOPED_PLAN_FIELDS
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import OIDCIdentity
 from slate.api.oidc_auth import ScopedClient
 from slate.api.oidc_auth import get_oidc_identity
+from slate.models.issue import CLOSED_ISSUE_STATUSES
 from tests.util import show_status_and_response
 
 READ = 'slate.records.read'
@@ -35,6 +38,7 @@ CLOSER = 'worker/close-job@service-box'
 SERVICE = 'slate-svc-worker'
 PERSON = OIDCIdentity(subject='person-subject', client_id='slate-cli-laptop')
 SCOPES_DOCUMENT = Path(__file__).parent / 'testdata' / 'client-scopes.json'
+SCOPED_BODIES_DOCUMENT = Path(__file__).parent / 'testdata' / 'scoped-bodies.json'
 
 # One request per read any scope lists, keyed by its template. Search names its words, and show
 # names the issue by number, as the CLI sends them.
@@ -411,16 +415,27 @@ def test_no_credentials_is_401(as_caller):
     assert response.status_code == status.HTTP_401_UNAUTHORIZED, show_status_and_response(response)
 
 
-def test_the_document_the_cli_reads_holds_the_scope_table():
-    """The CLI's suite holds the scope it requests, and every request it sends, against this file.
+def test_the_documents_the_cli_reads_hold_what_each_scope_reaches():
+    """The CLI's suite holds the scopes each command declares, and every request it sends, against these files.
 
-    Its fake provider grants the scope the CLI spells, so a scope renamed here would otherwise pass
-    both suites and answer 403 to every scheduled run. A stale file is rewritten here and the test
-    fails, so the change is committed beside the table.
+    The first is the routes each scope reaches. The second is the body each scope may send to a
+    route whose handler narrows it, which `refuse_a_scoped_update` reads. Its fake provider grants
+    the scope the CLI spells, so a scope renamed here would otherwise pass both suites and answer
+    403 to every scheduled run. A stale file is rewritten here and the test fails, so the change is
+    committed beside the table.
     """
     table = {scope: sorted(f'{method} {template}' for method, template in SCOPE_ROUTES[scope]) for scope in sorted(SCOPE_ROUTES)}
-    document = json.dumps(table, indent=2) + '\n'
-    if not SCOPES_DOCUMENT.exists() or SCOPES_DOCUMENT.read_text() != document:
-        SCOPES_DOCUMENT.parent.mkdir(exist_ok=True)
-        SCOPES_DOCUMENT.write_text(document)
-        pytest.fail(f'{SCOPES_DOCUMENT} did not hold SCOPE_ROUTES and has been rewritten; commit it')
+    bodies = {
+        f'PATCH {API_PREFIX}/issues/{{id}}': {
+            CLOSE: {'fields': sorted(SCOPED_CLOSE_FIELDS), 'statuses': sorted(CLOSED_ISSUE_STATUSES)},
+            PLAN: {'fields': sorted(SCOPED_PLAN_FIELDS)},
+        },
+    }
+    stale = []
+    for path, content in ((SCOPES_DOCUMENT, table), (SCOPED_BODIES_DOCUMENT, bodies)):
+        document = json.dumps(content, indent=2) + '\n'
+        if not path.exists() or path.read_text() != document:
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(document)
+            stale.append(path.name)
+    assert not stale, f'{", ".join(stale)} did not hold what the API narrows to each scope and has been rewritten; commit it'

@@ -116,7 +116,7 @@ func handleAPIError(err error) error {
 		case errors.As(err, &refused):
 			return refused
 		case goclilogin.IsSessionRejected(err):
-			return fmt.Errorf("%s refused service client %s — check client_id in %s, and %s", d.Issuer.Value, d.ClientID.Value, d.Path, config.ClientSecretEnv)
+			return refusedServiceClient(d)
 		case errors.As(err, &apiErr) && apiErr.Unauthorized():
 			return fmt.Errorf("%s rejected the token issued to service client %s", d.API.Value, d.ClientID.Value)
 		case errors.As(err, &apiErr) && apiErr.Forbidden() && apiErr.Message != "":
@@ -136,6 +136,12 @@ func handleAPIError(err error) error {
 		return refusal{apiErr}
 	}
 	return err
+}
+
+// refusedServiceClient is the provider refusing the service client itself,
+// which its id and secret fix rather than any scope.
+func refusedServiceClient(d goclilogin.Deployment) error {
+	return fmt.Errorf("%s refused service client %s — check client_id in %s, and %s", d.Issuer.Value, d.ClientID.Value, d.Path, config.ClientSecretEnv)
 }
 
 // refusal is a 409 the API explained. Its sentence is the whole error, printed

@@ -52,17 +52,17 @@ dependency the router-local path (`/{id}`), not the full template, so
 `create_api` builds a `(method, endpoint) → template` table from that list. The
 scope gate reads it. A router left out answers every scoped client with 403.
 
-`tests/api/test_client_scopes.py` writes `tests/api/testdata/client-scopes.json`,
-and the CLI's service tests read it to check each call a service makes lands on
-a route its scopes reach. Commit the file when the scopes change.
+`tests/api/test_client_scopes.py` writes two files to `tests/api/testdata/`.
+`client-scopes.json` is the routes each scope reaches. `scoped-bodies.json` is
+the body each scope may send where a handler narrows it. Commit both when the
+scopes change.
 
 **A CLI command declares the scopes its routes need**, as its literal's
 `Annotations`: `scopesForService(...)`, or `personOnly()` where a route it
 sends is in no scope or the API refuses every scoped client its body. A service
 grant asks for those alone, and `newAPIClient(cmd)` refuses a command that
-declares neither. `TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach`
-runs each declaring command as a service. It fails on a route the declared
-scopes miss, a declared scope no route needs, or a command with no run there.
+declares neither. The CLI's service tests run every declaring command against
+both files, so a declaration either file contradicts fails there.
 
 ## A command names its noun first, unless no one noun owns it
 
