@@ -41,12 +41,13 @@ func newInitiativesProgressCommand() *cobra.Command {
 		Example: "  slate initiatives progress\n" +
 			"  slate initiatives progress 2072 \"Ship the tracker\"\n" +
 			"  slate initiatives progress 2072 --since 2026-10-26 --json",
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			window, err := readWindow(cmd)
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
