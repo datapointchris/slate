@@ -231,7 +231,7 @@ def test_the_close_scope_signs_with_its_client_id_and_closes_an_issue_once(as_ca
     url = as_caller.url('/issues/{issue}')
     closed = client.patch(url, json={'status': 'completed'})
     assert closed.status_code == status.HTTP_200_OK, show_status_and_response(closed)
-    assert closed.json()['closed_by'] == SERVICE
+    assert closed.json()['issue']['closed_by'] == SERVICE
 
     moved = client.patch(url, json={'status': 'canceled'})
     assert moved.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(moved)

@@ -10,7 +10,8 @@ Two parts share this repository:
 - **The API**, in `src/slate/`: FastAPI over PostgreSQL, with Alembic
   migrations. It trusts bearer tokens from one OpenID Connect provider.
 - **The CLI**, in `cli/`: a Go client over the API, `slate <noun> <verb>`, with
-  `--json` on every read.
+  `--json` on every read and write. A write prints everything it did beyond
+  the request, and each warning it went through despite.
 
 `docs/issues.md` explains the model: what makes an issue ready, how the queue
 is ordered, how claims work and why some things are not built.

@@ -29,6 +29,7 @@ from slate.services.record_refs import record_number
 from slate.services.record_refs import resolve_initiative
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
+from slate.services.write_effects import Effects
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -175,8 +176,8 @@ def read_many(
     return [initiative_view(*row) for row in session.execute(apply_row_limit(query, limit)).all()]
 
 
-@router.post('', response_model=schemas.Initiative, status_code=status.HTTP_201_CREATED)
-def create(initiative: schemas.InitiativeCreate, session: DbSession):
+@router.post('', response_model=schemas.InitiativeWritten, status_code=status.HTTP_201_CREATED)
+def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Effects):
     refuse_number_shaped_name(initiative.name)
     validate_status(initiative.status, session)
     require_reason_when_dropped(initiative.status, initiative.status_reason)
@@ -200,7 +201,7 @@ def create(initiative: schemas.InitiativeCreate, session: DbSession):
     session.add(db_obj)
     session.commit()
     session.refresh(db_obj)
-    return counted(session, db_obj)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, db_obj))
 
 
 @router.get('/{id:path}', response_model=schemas.Initiative, status_code=status.HTTP_200_OK)
@@ -227,8 +228,8 @@ def apply_status_transition(initiative: models.Initiative, update_data: dict, se
         update_data['closed_ts'] = dt.datetime.now(dt.UTC)
 
 
-@router.patch('/{id:path}', response_model=schemas.Initiative, status_code=status.HTTP_200_OK)
-def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, session: DbSession):
+@router.patch('/{id:path}', response_model=schemas.InitiativeWritten, status_code=status.HTTP_200_OK)
+def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, session: DbSession, effects: Effects):
     update_data = update.model_dump(exclude_unset=True)
     if 'name' in update_data:
         refuse_number_shaped_name(update_data['name'])
@@ -241,7 +242,7 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
         setattr(initiative, attr, value)
     session.commit()
     session.refresh(initiative)
-    return counted(session, initiative)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
 
 
 @router.delete('/{id:path}', status_code=status.HTTP_204_NO_CONTENT)

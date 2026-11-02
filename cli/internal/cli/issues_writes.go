@@ -276,15 +276,12 @@ func newIssuesCreateCommand() *cobra.Command {
 				in.Autofix = &autofix
 			}
 
-			issue, err := client.CreateIssue(cmd.Context(), in, issueZone())
+			written, err := client.CreateIssue(cmd.Context(), in, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Filed #%d %s (%s)\n", issue.Number, issue.Title, issue.Status)
-			return nil
+			issue := written.Issue
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Filed #%d %s (%s)", issue.Number, issue.Title, issue.Status))
 		},
 	}
 	f := cmd.Flags()
@@ -302,7 +299,7 @@ func newIssuesCreateCommand() *cobra.Command {
 	f.StringArrayVar(&dependsOn, "depends-on", nil, "Issue this waits on (repeatable)")
 	f.StringVar(&deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD")
 	f.BoolVar(&autofix, "autofix", true, autofixSetHelp)
-	f.BoolVar(&asJSON, "json", false, "Output the filed issue as JSON to stdout")
+	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -361,7 +358,7 @@ func newIssuesEditCommand() *cobra.Command {
 		},
 	}
 	v.register(cmd)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -455,15 +452,16 @@ func runIssueUpdate(cmd *cobra.Command, ref string, in api.IssueUpdateInput, cle
 	if err != nil {
 		return handleAPIError(err)
 	}
-	issue, err := client.UpdateIssue(cmd.Context(), ref, in, clear, issueZone())
+	written, err := client.UpdateIssue(cmd.Context(), ref, in, clear, issueZone())
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	if asJSON {
-		return encodeJSON(cmd.OutOrStdout(), issue)
-	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s #%d %s (%s)\n", verb, issue.Number, issue.Title, issue.Status)
-	return nil
+	return reportIssueWrite(cmd, asJSON, written, verb)
+}
+
+func reportIssueWrite(cmd *cobra.Command, asJSON bool, written api.IssueWritten, verb string) error {
+	issue := written.Issue
+	return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("%s #%d %s (%s)", verb, issue.Number, issue.Title, issue.Status))
 }
 
 func newIssuesDeleteCommand() *cobra.Command {
@@ -525,15 +523,11 @@ func runIssueTransition(cmd *cobra.Command, ref string, from []string, in api.Is
 		return fmt.Errorf("#%d is %s — %s applies to an issue that is %s",
 			current.Number, current.Status, cmd.Name(), strings.Join(from, " or "))
 	}
-	issue, err := client.UpdateIssue(cmd.Context(), current.ID, in, nil, issueZone())
+	written, err := client.UpdateIssue(cmd.Context(), current.ID, in, nil, issueZone())
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	if asJSON {
-		return encodeJSON(cmd.OutOrStdout(), issue)
-	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s #%d %s (%s)\n", verb, issue.Number, issue.Title, issue.Status)
-	return nil
+	return reportIssueWrite(cmd, asJSON, written, verb)
 }
 
 func newIssuesAcceptCommand() *cobra.Command {
@@ -549,7 +543,7 @@ func newIssuesAcceptCommand() *cobra.Command {
 			return runIssueTransition(cmd, args[0], []string{api.IssueStatusTriage}, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -587,7 +581,7 @@ func newIssuesCompleteCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&closedBy, "closed-by", actorIdentity(), closedByHelp)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -624,16 +618,18 @@ func newIssuesCancelCommand() *cobra.Command {
 	cmd.Flags().StringVar(&reason, "reason", "", "Why it will not be done")
 	cmd.Flags().StringVar(&duplicateOf, "duplicate-of", "", "The issue this one duplicates")
 	cmd.Flags().StringVar(&closedBy, "closed-by", actorIdentity(), closedByHelp)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
 func newIssuesReopenCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "reopen <issue>",
-		Short:   "Return a completed or canceled issue to the queue",
-		Long:    "Clears when and by whom it closed, the cancel reason, and the duplicate link.",
+		Use:   "reopen <issue>",
+		Short: "Return a completed or canceled issue to the queue",
+		Long: "Clears when and by whom it closed, the cancel reason, and the duplicate link.\n" +
+			"A completed issue holds no open work, so each completed ancestor reopens\n" +
+			"with it, and each one reopened prints under the issue.",
 		Example: "  slate issues reopen 412",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -642,7 +638,7 @@ func newIssuesReopenCommand() *cobra.Command {
 			return runIssueTransition(cmd, args[0], closed, api.IssueUpdateInput{Status: &open}, asJSON, "Reopened")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -818,24 +814,21 @@ func newIssuesReorderCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			issue, err := client.RankIssue(cmd.Context(), args[0], api.IssueRankMove{Before: before, After: after}, issueZone())
+			written, err := client.RankIssue(cmd.Context(), args[0], api.IssueRankMove{Before: before, After: after}, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
 			}
 			where := "before " + issueRefLabel(before)
 			if after != "" {
 				where = "after " + issueRefLabel(after)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Moved #%d %s %s\n", issue.Number, issue.Title, where)
-			return nil
+			issue := written.Issue
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Moved #%d %s %s", issue.Number, issue.Title, where))
 		},
 	}
 	cmd.Flags().StringVar(&before, "before", "", "Issue to place it directly ahead of")
 	cmd.Flags().StringVar(&after, "after", "", "Issue to place it directly behind")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the moved issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -869,19 +862,17 @@ func newIssuesAddDependencyCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			issue, err := client.AddIssueDependency(cmd.Context(), args[0], dependsOn, issueZone())
+			written, err := client.AddIssueDependency(cmd.Context(), args[0], dependsOn, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "#%d %s now waits on %s\n", issue.Number, issue.Title, strings.Join(dependencyNumbers(issue.DependsOn), ", "))
-			return nil
+			issue := written.Issue
+			summary := fmt.Sprintf("#%d %s now waits on %s", issue.Number, issue.Title, strings.Join(dependencyNumbers(issue.DependsOn), ", "))
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
 		},
 	}
 	cmd.Flags().StringVar(&dependsOn, "depends-on", "", "Issue it waits on (required)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -971,20 +962,17 @@ func newIssuesAddCommentCommand() *cobra.Command {
 			if readFlagIntent(cmd.Flags(), "author") == flagClears {
 				signedBy = nil
 			}
-			comment, err := client.AddIssueComment(cmd.Context(), args[0], body, signedBy)
+			written, err := client.AddIssueComment(cmd.Context(), args[0], body, signedBy)
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), comment)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Commented on %s as %s\n", args[0], orDash(strValue(comment.Author)))
-			return nil
+			summary := fmt.Sprintf("Commented on %s as %s", args[0], orDash(strValue(written.Comment.Author)))
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
 		},
 	}
 	cmd.Flags().StringVar(&body, "body", "", "The comment, as markdown, in place of the text after the issue")
 	cmd.Flags().StringVar(&author, "author", actorIdentity(), "Who wrote it (empty leaves it unsigned)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the comment as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	// A comment that opens with a bullet parses as a group of short flags.
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		var unknown *pflag.NotExistError

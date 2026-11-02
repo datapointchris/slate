@@ -177,15 +177,12 @@ func newInitiativesCreateCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			initiative, err := client.CreateInitiative(cmd.Context(), in)
+			written, err := client.CreateInitiative(cmd.Context(), in)
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), initiative)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Started initiative #%d %q\n", initiative.Number, initiative.Name)
-			return nil
+			initiative := written.Initiative
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Started initiative #%d %q", initiative.Number, initiative.Name))
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "Initiative name, unique among active ones (required)")
@@ -193,7 +190,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
 	cmd.Flags().IntVar(&position, "position", 0, "Place among initiatives of its priority (default last)")
 	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -251,7 +248,7 @@ func newInitiativesEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
 	cmd.Flags().IntVar(&position, "position", 0, "New place among initiatives of its priority")
 	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -262,15 +259,13 @@ func runInitiativeUpdate(cmd *cobra.Command, ref string, in api.InitiativeUpdate
 	if err != nil {
 		return handleAPIError(err)
 	}
-	initiative, err := client.UpdateInitiative(cmd.Context(), ref, in, clear)
+	written, err := client.UpdateInitiative(cmd.Context(), ref, in, clear)
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	if asJSON {
-		return encodeJSON(cmd.OutOrStdout(), initiative)
-	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s initiative #%d %q (%s)\n", verb, initiative.Number, initiative.Name, initiative.Status)
-	return nil
+	initiative := written.Initiative
+	summary := fmt.Sprintf("%s initiative #%d %q (%s)", verb, initiative.Number, initiative.Name, initiative.Status)
+	return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
 }
 
 func newInitiativesCompleteCommand() *cobra.Command {
@@ -286,7 +281,7 @@ func newInitiativesCompleteCommand() *cobra.Command {
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &completed}, nil, asJSON, "Completed")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -310,7 +305,7 @@ func newInitiativesDropCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Why it is dropped (required)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -332,7 +327,7 @@ func newInitiativesShelveCommand() *cobra.Command {
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &someday}, nil, asJSON, "Shelved")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -349,7 +344,7 @@ func newInitiativesReopenCommand() *cobra.Command {
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &active}, nil, asJSON, "Reopened")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 

@@ -52,6 +52,9 @@ from slate.services.record_refs import resolve_label
 from slate.services.record_refs import resolve_labels
 from slate.services.row_limit import RowLimit
 from slate.services.time_window import apply_time_window
+from slate.services.write_effects import Effects
+from slate.services.write_effects import WriteEffectCode
+from slate.services.write_effects import WriteEffects
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -163,7 +166,7 @@ def ensure_parent_open(parent: models.Issue) -> None:
         )
 
 
-def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime) -> None:
+def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime, effects: WriteEffects) -> None:
     """Return each completed ancestor to open, because a completed issue never holds open work."""
     parent = issue.parent
     while parent is not None and parent.status == 'completed':
@@ -171,7 +174,11 @@ def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime) -> None:
         parent.closed_ts = None
         parent.closed_by = None
         parent.updated_ts = now
-        logger.info('issue_reopened_by_child', number=parent.number, child=issue.number)
+        effects.did(
+            WriteEffectCode.ANCESTOR_REOPENED,
+            f'Reopened #{parent.number}, because its descendant #{issue.number} reopened and a completed issue holds no open work.',
+            parent.number,
+        )
         parent = parent.parent
 
 
@@ -213,16 +220,19 @@ def resulting_reason(issue: models.Issue, update_data: dict, target: str) -> str
     return reason
 
 
-def apply_status_transition(session: Session, issue: models.Issue, update_data: dict, now: dt.datetime, *, signed_in: str) -> None:
+def apply_status_transition(
+    session: Session, issue: models.Issue, update_data: dict, now: dt.datetime, effects: WriteEffects, *, signed_in: str
+) -> None:
     """Validate a status change and apply everything it implies, in one place.
 
     Closing stamps `closed_ts` and `closed_by` and drops the claim. `closed_by`
     is the actor the caller named, else `signed_in`, because a token is the
     user's whichever session or worker holds it. A move between two closed
     statuses keeps both stamps. Reopening clears them, the reason and any
-    duplicate link, and reopens a completed parent. Leaving `in_progress` for
-    anything but a close releases the claim. The CHECK constraints refuse each
-    of these states too; this exists so a caller gets a 4xx naming the problem.
+    duplicate link, and reopens each completed ancestor, naming each in
+    `effects`. Leaving `in_progress` for anything but a close releases the
+    claim. The CHECK constraints refuse each of these states too; this exists
+    so a caller gets a 4xx naming the problem.
     """
     new_status = update_data.pop('status', None)
     if new_status is not None:
@@ -254,7 +264,7 @@ def apply_status_transition(session: Session, issue: models.Issue, update_data: 
         clear_claim(issue)
     else:
         if issue.is_closed:
-            reopen_completed_ancestors(issue, now)
+            reopen_completed_ancestors(issue, now, effects)
         issue.closed_ts = None
         issue.closed_by = None
         if target != 'in_progress':
@@ -496,8 +506,8 @@ def refuse_all_but_a_triage_filing(issue: schemas.IssueCreate) -> None:
         raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_FILES_ONLY_INTO_TRIAGE}; this filing starts as {issue.status}', logger)
 
 
-@router.post('', response_model=schemas.IssueDetail, status_code=status.HTTP_201_CREATED)
-def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, caller: CurrentCaller):
+@router.post('', response_model=schemas.IssueWritten, status_code=status.HTTP_201_CREATED)
+def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects):
     if isinstance(caller, ScopedClient):
         refuse_all_but_a_triage_filing(issue)
     if issue.status not in CREATE_STATUSES:
@@ -541,7 +551,7 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
         session.flush()
     session.commit()
     logger.info('issue_created', number=db_issue.number, repo=db_issue.repo)
-    return fresh_issue_detail(session, db_issue, zone)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, db_issue, zone))
 
 
 @router.get('/{id}', response_model=schemas.IssueDetail, status_code=status.HTTP_200_OK)
@@ -581,8 +591,10 @@ def refuse_a_scoped_update(issue: models.Issue, update_data: dict, scopes: froze
         refuse_all_but_a_close(issue, update_data)
 
 
-@router.patch('/{id}', response_model=schemas.IssueDetail, status_code=status.HTTP_200_OK)
-def update(issue: IssueFromPath, update: schemas.IssueUpdate, session: DbSession, zone: RequestZone, caller: CurrentCaller):
+@router.patch('/{id}', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def update(
+    issue: IssueFromPath, update: schemas.IssueUpdate, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects
+):
     update_data = update.model_dump(exclude_unset=True)
     logger.debug('issue_update', number=issue.number, fields=sorted(update_data))
     now = dt.datetime.now(dt.UTC)
@@ -622,13 +634,13 @@ def update(issue: IssueFromPath, update: schemas.IssueUpdate, session: DbSession
     if 'labels' in update_data:
         set_labels(session, issue, update_data.pop('labels'))
 
-    apply_status_transition(session, issue, update_data, now, signed_in=signed_in)
+    apply_status_transition(session, issue, update_data, now, effects, signed_in=signed_in)
 
     for attr, value in update_data.items():
         setattr(issue, attr, value)
     issue.updated_ts = now
     session.commit()
-    return fresh_issue_detail(session, issue, zone)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
 @router.delete('/{id}', status_code=status.HTTP_204_NO_CONTENT)
@@ -746,8 +758,8 @@ def ensure_same_priority(issue: models.Issue, neighbor: models.Issue, readiness:
         )
 
 
-@router.post('/{id}/rank', response_model=schemas.Issue, status_code=status.HTTP_200_OK)
-def rank(issue: IssueFromPath, move: schemas.IssueRankMove, session: DbSession, zone: RequestZone):
+@router.post('/{id}/rank', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def rank(issue: IssueFromPath, move: schemas.IssueRankMove, session: DbSession, zone: RequestZone, effects: Effects):
     """Place this issue directly before or after another of the same effective priority.
 
     Rank orders issues within one priority. Beside an issue of another priority,
@@ -764,11 +776,13 @@ def rank(issue: IssueFromPath, move: schemas.IssueRankMove, session: DbSession, 
         ensure_same_priority(issue, neighbor, readiness)
     move_issue(session, issue, before=before, after=after)
     session.commit()
-    return single_view(session, issue, zone)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
-@router.post('/{id}/dependencies', response_model=schemas.IssueDetail, status_code=status.HTTP_201_CREATED)
-def add_dependency(issue: IssueFromPath, dependency: schemas.IssueDependencyCreate, session: DbSession, zone: RequestZone):
+@router.post('/{id}/dependencies', response_model=schemas.IssueWritten, status_code=status.HTTP_201_CREATED)
+def add_dependency(
+    issue: IssueFromPath, dependency: schemas.IssueDependencyCreate, session: DbSession, zone: RequestZone, effects: Effects
+):
     depends_on = resolve_issue(session, dependency.depends_on)
     if depends_on.id == issue.id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail='An issue cannot depend on itself')
@@ -781,7 +795,7 @@ def add_dependency(issue: IssueFromPath, dependency: schemas.IssueDependencyCrea
     session.add(models.IssueDependency(issue_id=issue.id, depends_on_id=depends_on.id))
     issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
-    return fresh_issue_detail(session, issue, zone)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
 def path_dependency(dep_id: str, session: DbSession) -> models.Issue:
@@ -815,14 +829,14 @@ def read_comments(issue: IssueFromPath, session: DbSession, limit: RowLimit = No
     return list(session.scalars(query).all())
 
 
-@router.post('/{id}/comments', response_model=schemas.IssueComment, status_code=status.HTTP_201_CREATED)
-def create_comment(issue: IssueFromPath, comment: schemas.IssueCommentCreate, session: DbSession):
+@router.post('/{id}/comments', response_model=schemas.IssueCommentWritten, status_code=status.HTTP_201_CREATED)
+def create_comment(issue: IssueFromPath, comment: schemas.IssueCommentCreate, session: DbSession, effects: Effects):
     db_comment = models.IssueComment(issue_id=issue.id, body=comment.body, author=comment.author)
     session.add(db_comment)
     issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
     session.refresh(db_comment)
-    return db_comment
+    return effects.answer(schemas.IssueCommentWritten, comment=schemas.IssueComment.model_validate(db_comment))
 
 
 @router.delete('/{id}/comments/{comment_id}', status_code=status.HTTP_204_NO_CONTENT)

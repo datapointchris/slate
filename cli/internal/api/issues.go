@@ -342,26 +342,26 @@ func (c *Client) GetIssue(ctx context.Context, ref string, zone DayZone) (IssueD
 }
 
 // CreateIssue files an issue and returns it.
-func (c *Client) CreateIssue(ctx context.Context, in IssueCreateInput, zone DayZone) (IssueDetail, error) {
-	var issue IssueDetail
-	if err := c.send(ctx, http.MethodPost, withQuery("/issues", zoneQuery(zone)), in, &issue); err != nil {
-		return IssueDetail{}, err
+func (c *Client) CreateIssue(ctx context.Context, in IssueCreateInput, zone DayZone) (IssueWritten, error) {
+	var written IssueWritten
+	if err := c.send(ctx, http.MethodPost, withQuery("/issues", zoneQuery(zone)), in, &written); err != nil {
+		return IssueWritten{}, err
 	}
-	return issue, nil
+	return written, nil
 }
 
 // UpdateIssue applies a partial update. Each field named in clear (API JSON
 // keys) is sent as an explicit null, which is the only way to empty it.
-func (c *Client) UpdateIssue(ctx context.Context, ref string, in IssueUpdateInput, clear []string, zone DayZone) (IssueDetail, error) {
+func (c *Client) UpdateIssue(ctx context.Context, ref string, in IssueUpdateInput, clear []string, zone DayZone) (IssueWritten, error) {
 	body, err := mergeClearNulls(in, clear)
 	if err != nil {
-		return IssueDetail{}, err
+		return IssueWritten{}, err
 	}
-	var issue IssueDetail
-	if err := c.send(ctx, http.MethodPatch, withQuery(issuePath(ref), zoneQuery(zone)), body, &issue); err != nil {
-		return IssueDetail{}, err
+	var written IssueWritten
+	if err := c.send(ctx, http.MethodPatch, withQuery(issuePath(ref), zoneQuery(zone)), body, &written); err != nil {
+		return IssueWritten{}, err
 	}
-	return issue, nil
+	return written, nil
 }
 
 // DeleteIssue removes an issue, its comments and its edges.
@@ -388,23 +388,23 @@ func (c *Client) ReleaseIssue(ctx context.Context, ref string, zone DayZone) (Is
 }
 
 // RankIssue places an issue directly before or after another.
-func (c *Client) RankIssue(ctx context.Context, ref string, move IssueRankMove, zone DayZone) (Issue, error) {
-	var issue Issue
-	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "rank"), zoneQuery(zone)), move, &issue); err != nil {
-		return Issue{}, err
+func (c *Client) RankIssue(ctx context.Context, ref string, move IssueRankMove, zone DayZone) (IssueWritten, error) {
+	var written IssueWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "rank"), zoneQuery(zone)), move, &written); err != nil {
+		return IssueWritten{}, err
 	}
-	return issue, nil
+	return written, nil
 }
 
 // AddIssueDependency records that ref waits on dependsOn. The API refuses an
 // edge that would leave an issue waiting on itself.
-func (c *Client) AddIssueDependency(ctx context.Context, ref, dependsOn string, zone DayZone) (IssueDetail, error) {
-	var issue IssueDetail
+func (c *Client) AddIssueDependency(ctx context.Context, ref, dependsOn string, zone DayZone) (IssueWritten, error) {
+	var written IssueWritten
 	body := map[string]string{"depends_on": dependsOn}
-	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "dependencies"), zoneQuery(zone)), body, &issue); err != nil {
-		return IssueDetail{}, err
+	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "dependencies"), zoneQuery(zone)), body, &written); err != nil {
+		return IssueWritten{}, err
 	}
-	return issue, nil
+	return written, nil
 }
 
 // RemoveIssueDependency removes the edge from ref to dependsOn.
@@ -424,16 +424,16 @@ func (c *Client) ListIssueComments(ctx context.Context, ref string, limit *int) 
 }
 
 // AddIssueComment leaves a comment on an issue. A nil author leaves it unsigned.
-func (c *Client) AddIssueComment(ctx context.Context, ref, body string, author *string) (IssueComment, error) {
+func (c *Client) AddIssueComment(ctx context.Context, ref, body string, author *string) (IssueCommentWritten, error) {
 	in := struct {
 		Body   string  `json:"body"`
 		Author *string `json:"author,omitempty"`
 	}{body, author}
-	var comment IssueComment
-	if err := c.send(ctx, http.MethodPost, issuePath(ref, "comments"), in, &comment); err != nil {
-		return IssueComment{}, err
+	var written IssueCommentWritten
+	if err := c.send(ctx, http.MethodPost, issuePath(ref, "comments"), in, &written); err != nil {
+		return IssueCommentWritten{}, err
 	}
-	return comment, nil
+	return written, nil
 }
 
 // RemoveIssueComment deletes one comment from an issue.
@@ -542,25 +542,25 @@ func (c *Client) GetInitiative(ctx context.Context, ref string) (Initiative, err
 }
 
 // CreateInitiative starts an initiative.
-func (c *Client) CreateInitiative(ctx context.Context, in InitiativeCreateInput) (Initiative, error) {
-	var initiative Initiative
-	if err := c.send(ctx, http.MethodPost, "/issues/initiatives", in, &initiative); err != nil {
-		return Initiative{}, err
+func (c *Client) CreateInitiative(ctx context.Context, in InitiativeCreateInput) (InitiativeWritten, error) {
+	var written InitiativeWritten
+	if err := c.send(ctx, http.MethodPost, "/issues/initiatives", in, &written); err != nil {
+		return InitiativeWritten{}, err
 	}
-	return initiative, nil
+	return written, nil
 }
 
 // UpdateInitiative applies a partial update, sending each field in clear as null.
-func (c *Client) UpdateInitiative(ctx context.Context, ref string, in InitiativeUpdateInput, clear []string) (Initiative, error) {
+func (c *Client) UpdateInitiative(ctx context.Context, ref string, in InitiativeUpdateInput, clear []string) (InitiativeWritten, error) {
 	body, err := mergeClearNulls(in, clear)
 	if err != nil {
-		return Initiative{}, err
+		return InitiativeWritten{}, err
 	}
-	var initiative Initiative
-	if err := c.send(ctx, http.MethodPatch, initiativePath(ref), body, &initiative); err != nil {
-		return Initiative{}, err
+	var written InitiativeWritten
+	if err := c.send(ctx, http.MethodPatch, initiativePath(ref), body, &written); err != nil {
+		return InitiativeWritten{}, err
 	}
-	return initiative, nil
+	return written, nil
 }
 
 // DeleteInitiative removes an initiative. Its issues stay, belonging to none.
@@ -614,25 +614,25 @@ func (c *Client) GetIssueLabel(ctx context.Context, slug string) (IssueLabel, er
 }
 
 // CreateIssueLabel adds a label to the vocabulary.
-func (c *Client) CreateIssueLabel(ctx context.Context, in IssueLabelCreateInput) (IssueLabel, error) {
-	var label IssueLabel
-	if err := c.send(ctx, http.MethodPost, "/issues/labels", in, &label); err != nil {
-		return IssueLabel{}, err
+func (c *Client) CreateIssueLabel(ctx context.Context, in IssueLabelCreateInput) (IssueLabelWritten, error) {
+	var written IssueLabelWritten
+	if err := c.send(ctx, http.MethodPost, "/issues/labels", in, &written); err != nil {
+		return IssueLabelWritten{}, err
 	}
-	return label, nil
+	return written, nil
 }
 
 // UpdateIssueLabel applies a partial update, sending each field in clear as null.
-func (c *Client) UpdateIssueLabel(ctx context.Context, slug string, in IssueLabelUpdateInput, clear []string) (IssueLabel, error) {
+func (c *Client) UpdateIssueLabel(ctx context.Context, slug string, in IssueLabelUpdateInput, clear []string) (IssueLabelWritten, error) {
 	body, err := mergeClearNulls(in, clear)
 	if err != nil {
-		return IssueLabel{}, err
+		return IssueLabelWritten{}, err
 	}
-	var label IssueLabel
-	if err := c.send(ctx, http.MethodPatch, labelPath(slug), body, &label); err != nil {
-		return IssueLabel{}, err
+	var written IssueLabelWritten
+	if err := c.send(ctx, http.MethodPatch, labelPath(slug), body, &written); err != nil {
+		return IssueLabelWritten{}, err
 	}
-	return label, nil
+	return written, nil
 }
 
 // DeleteIssueLabel removes a label from the vocabulary and from every issue.

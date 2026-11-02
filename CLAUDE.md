@@ -60,6 +60,11 @@ a route its scopes reach. Commit the file when the scopes change.
   trigger, and `test_every_table_is_audited_but_what_opts_out` names the
   statement when one is missing. The actor is the caller's subject or client
   id, set per transaction by `bind_actor`.
+- **A write answers an envelope that names everything else it did.** The
+  handler takes `Effects` from `services/write_effects.py`, calls `did()` for
+  each change beyond the request and `warn()` for each condition it went
+  through despite, and returns `effects.answer(schemas.<Kind>Written, ...)`.
+  `docs/records.md` gives the shape. The CLI prints it through `reportWrite`.
 - **A read answering with a list takes `RowLimit` and `apply_row_limit`** from
   `services/row_limit.py`. A hand-declared `limit: int | None` lets a negative
   reach SQL and reads `limit=0` as every row.
