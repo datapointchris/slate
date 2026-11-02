@@ -16,6 +16,7 @@ from slate.schemas.idea import IdeaUpdate
 from slate.schemas.idea import IdeaWritten
 from slate.schemas.initiative import Initiative
 from slate.schemas.initiative import InitiativeCreate
+from slate.schemas.initiative import InitiativeDetail
 from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.initiative import InitiativeUpdate
 from slate.schemas.initiative import InitiativeWritten
@@ -59,6 +60,7 @@ __all__ = [
     'IdeaWritten',
     'Initiative',
     'InitiativeCreate',
+    'InitiativeDetail',
     'InitiativeSummary',
     'InitiativeUpdate',
     'InitiativeWritten',

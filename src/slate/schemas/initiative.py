@@ -72,5 +72,11 @@ class Initiative(RecordModel):
     idea: RecordSummary | None = None
 
 
+class InitiativeDetail(Initiative):
+    """An initiative with every claim ever held on it, oldest first."""
+
+    claims: list[Claim] = []
+
+
 class InitiativeWritten(Written):
     initiative: Initiative

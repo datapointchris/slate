@@ -31,6 +31,21 @@ Each kind keeps its own UUID `id` as its key, which its own edges use: an
 issue's parent, its dependencies, its comments. The number is the handle a
 person or an agent types.
 
+## A number reads as its kind's whole record
+
+`GET /records/{number}` answers `{kind, number, record}`, where `record` is
+the read the kind's own route gives, with every claim the record has had:
+
+| `kind` | `record` is what this answers |
+| --- | --- |
+| `idea` | `GET /ideas/{number}` |
+| `initiative` | `GET /issues/initiatives/{number}`, plus `claims` |
+| `issue` | `GET /issues/{number}` |
+
+`kind` discriminates the union in the OpenAPI schema, so a typed client
+decodes `record` into the right shape before reading it. A number nobody
+holds answers 404.
+
 ## Every write answers what it wrote and what else it did
 
 A write answers an envelope, never the bare record:
