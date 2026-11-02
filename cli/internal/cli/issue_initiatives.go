@@ -271,9 +271,10 @@ func runInitiativeUpdate(cmd *cobra.Command, ref string, in api.InitiativeUpdate
 func newInitiativesCompleteCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "complete <initiative>",
-		Short:   "Mark an initiative's outcome reached, which hides it",
-		Long:    "Its issues keep their status, so one still open stays in the queue.",
+		Use:   "complete <initiative>",
+		Short: "Mark an initiative's outcome reached, which hides it",
+		Long: "Its issues keep their status, so one still open stays in the queue. It ends\n" +
+			"the initiative's claim as completed, and prints whose claim it ended.",
 		Example: "  slate issues initiatives complete \"Ship the tracker\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -291,9 +292,11 @@ func newInitiativesDropCommand() *cobra.Command {
 		asJSON bool
 	)
 	cmd := &cobra.Command{
-		Use:     "drop <initiative> --reason <why>",
-		Short:   "Close an initiative whose outcome you no longer want",
-		Long:    "--reason is required. A drop with its reason closes the question, and a bare\ndrop invites it back.",
+		Use:   "drop <initiative> --reason <why>",
+		Short: "Close an initiative whose outcome you no longer want",
+		Long: "--reason is required. A drop with its reason closes the question, and a bare\n" +
+			"drop invites it back. It ends the initiative's claim as dropped, and prints\n" +
+			"whose claim it ended.",
 		Example: "  slate issues initiatives drop \"Rewrite the router\" --reason \"Traefik covers it\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -352,7 +355,7 @@ func newInitiativesDeleteCommand() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:     "delete <initiative>",
-		Short:   "Delete an initiative, leaving its issues in none",
+		Short:   "Delete an initiative and its claims, leaving its issues in none",
 		Example: "  slate issues initiatives delete \"Ship the tracker\" --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -467,11 +467,11 @@ func newIssuesDeleteCommand() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "delete <issue>",
-		Short: "Delete an issue, its comments and its edges",
+		Short: "Delete an issue, its comments, its edges and its claims",
 		Long: "For an issue filed by mistake. Work that will not be done is canceled\n" +
-			"instead, which keeps the reason. Its children, the issues found during its\n" +
-			"work and the issues canceled as its duplicates stay, with the link to it\n" +
-			"removed. Prompts unless --yes.",
+			"instead, which keeps the reason. Every claim it has had goes with it, live or\n" +
+			"ended. Its children, the issues found during its work and the issues canceled\n" +
+			"as its duplicates stay, with the link to it removed. Prompts unless --yes.",
 		Example: "  slate issues delete 412 --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

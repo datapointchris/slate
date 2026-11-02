@@ -578,7 +578,7 @@ def update(
 
 @router.delete('/{id}', status_code=status.HTTP_204_NO_CONTENT)
 def delete(issue: IssueFromPath, session: DbSession):
-    """Delete the issue's record, which takes the issue, its comments and its edges with it."""
+    """Delete the issue's record, which takes the issue, its comments, its edges and its claims with it."""
     session.execute(sql_delete(models.Record).where(models.Record.number == issue.number))
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

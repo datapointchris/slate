@@ -227,7 +227,7 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
 
 @router.delete('/{id:path}', status_code=status.HTTP_204_NO_CONTENT)
 def delete(initiative: InitiativeFromPath, session: DbSession):
-    """Delete the initiative's record and the initiative with it. Its issues stay, and stop inheriting its priority."""
+    """Delete the initiative's record, and the initiative and its claims with it. Its issues stay, and stop inheriting its priority."""
     session.execute(sql_delete(models.Record).where(models.Record.number == initiative.number))
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
