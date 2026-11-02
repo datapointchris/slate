@@ -206,10 +206,17 @@ jobs:
       # The run for a newer push resolves from the same previous tag, so it
       # releases these commits too. GitHub also answers 403 to tagging an older
       # commit once a newer push changed a workflow file, because GITHUB_TOKEN
-      # holds no workflows permission.
+      # holds no workflows permission. A tag already on this commit was left by
+      # a publish GitHub failed partway, and the newer run refuses to version
+      # past it, so this run publishes it whatever the tip.
       - name: Leave the release to a newer push
         id: tip
         run: |
+          tagged=$(git ls-remote origin "refs/tags/$TAG" | tail -n 1 | cut -f1)
+          if [ "$tagged" = "$GITHUB_SHA" ]; then
+            echo "$TAG already names ${GITHUB_SHA} with no release, so this run publishes it"
+            exit 0
+          fi
           tip=$(git ls-remote --exit-code origin "$GITHUB_REF" | cut -f1)
           [ -n "$tip" ] || { echo "origin names no commit for $GITHUB_REF" >&2; exit 1; }
           if [ "$tip" != "$GITHUB_SHA" ]; then
@@ -217,11 +224,11 @@ jobs:
             echo "superseded=true" >>"$GITHUB_OUTPUT"
           fi
 
-      # gh uploads every asset to a draft and publishes it last, and GitHub
-      # creates a draft's tag only when it is published. So a run that fails
-      # mid-upload leaves no tag, and the next run cuts the same version again.
-      # Latest marks the CLI's newest release, since the API is pulled from
-      # ghcr rather than downloaded from here.
+      # gh uploads every asset to a draft and publishes it last. A failed upload
+      # leaves no tag, so the next run cuts the same version again. GitHub can
+      # also create the tag and then fail the publish, and a re-run of this run
+      # finishes that release. Latest marks the CLI's newest release, since the
+      # API is pulled from ghcr rather than downloaded from here.
       - name: Publish the release
         if: steps.tip.outputs.superseded != 'true'
         run: |
