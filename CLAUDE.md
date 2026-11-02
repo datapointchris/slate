@@ -20,9 +20,11 @@ it and its settings. `docs/index.md` lists the design pages, and
 ## Commands
 
 ```bash
-uv run pytest                      # needs Docker: starts a throwaway Postgres
-cd cli && go test ./...
-OIDC_ISSUER=https://auth.example.com docker compose up --build
+task setup                         # uv sync and the Go modules
+task test                          # needs Docker: pytest starts a throwaway Postgres
+task lint                          # ruff, mypy, gofumpt, go vet, golangci-lint; writes nothing
+task format                        # ruff format and autofixes, gofumpt
+OIDC_ISSUER=https://auth.example.com task dev   # Postgres, migration and API on :8000
 ```
 
 ## Auth has one strategy: an OIDC bearer token

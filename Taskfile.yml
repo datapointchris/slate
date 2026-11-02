@@ -1,0 +1,133 @@
+version: '3'
+
+vars:
+  # The CLI is tagged cli/v1.2.3, so only those tags describe its version.
+  CLI_VERSION:
+    sh: git describe --tags --match 'cli/v*' --always --dirty 2>/dev/null || echo dev
+  CLI_LDFLAGS: -s -w -X github.com/datapointchris/slate/cli/internal/cli.version={{.CLI_VERSION}}
+  INSTALL_DIR: '{{.HOME}}/.local/bin'
+
+tasks:
+  default:
+    desc: Show available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # A worktree is a clean checkout, so everything gitignored is absent.
+  setup:
+    desc: Make a fresh checkout runnable
+    cmds:
+      - uv sync
+      - go -C cli mod download
+
+  build:
+    desc: Build the API image and the CLI
+    cmds:
+      - task: api:build
+      - task: cli:build
+
+  install:
+    desc: Build the slate CLI into ~/.local/bin, replacing the installed release
+    cmds:
+      - task: cli:install
+
+  test:
+    desc: Test every subsystem
+    cmds:
+      - task: api:test
+      - task: cli:test
+
+  lint:
+    desc: Lint every subsystem without writing a file
+    cmds:
+      - task: api:lint
+      - task: cli:lint
+
+  format:
+    desc: Format every subsystem and apply the linters' autofixes
+    cmds:
+      - task: api:format
+      - task: cli:format
+
+  typecheck:
+    desc: Type-check the API with mypy
+    cmds:
+      - uv run mypy .
+
+  clean:
+    desc: Remove the CLI build and the test and lint caches
+    cmds:
+      - rm -rf cli/slate .test-reports .pytest_cache .mypy_cache .ruff_cache
+
+  # The API trusts the identity provider OIDC_ISSUER names, and compose refuses to start without it.
+  dev:
+    desc: Run Postgres, the migration and the API from source in the foreground
+    cmds:
+      - docker compose up --build
+
+  # ---------------------------------------------------------------------------
+  # API, the Python package under src/slate
+  # ---------------------------------------------------------------------------
+
+  api:build:
+    desc: Build the API image as slate:local
+    cmds:
+      - docker build -t slate:local .
+
+  api:test:
+    desc: Run the API test suite, which starts its own Postgres in Docker
+    cmds:
+      - uv run pytest
+
+  api:lint:
+    desc: Check the API's formatting, then lint and type-check it
+    cmds:
+      - uv run ruff format --check .
+      - uv run ruff check .
+      - task: typecheck
+
+  api:format:
+    desc: Format the API with ruff and apply its lint autofixes
+    cmds:
+      - uv run ruff format .
+      - uv run ruff check --fix .
+
+  # ---------------------------------------------------------------------------
+  # CLI, module github.com/datapointchris/slate/cli
+  # ---------------------------------------------------------------------------
+
+  cli:build:
+    desc: Build the CLI to cli/slate
+    dir: cli
+    cmds:
+      - go build -ldflags "{{.CLI_LDFLAGS}}" -o slate .
+
+  cli:install:
+    desc: Build the slate CLI into ~/.local/bin
+    dir: cli
+    cmds:
+      - mkdir -p {{.INSTALL_DIR}}
+      - go build -ldflags "{{.CLI_LDFLAGS}}" -o {{.INSTALL_DIR}}/slate .
+      - 'echo "installed slate {{.CLI_VERSION}} -> {{.INSTALL_DIR}}/slate"'
+
+  cli:test:
+    desc: Run the CLI test suite
+    dir: cli
+    cmds:
+      - go test ./...
+
+  # gofumpt -l exits 0 whatever it lists, so an empty listing is the pass.
+  cli:lint:
+    desc: Check the CLI's formatting, then vet and lint it
+    dir: cli
+    cmds:
+      - test -z "$(gofumpt -l . | tee /dev/stderr)"
+      - go vet ./...
+      - golangci-lint run
+
+  cli:format:
+    desc: Format the CLI with gofumpt
+    dir: cli
+    cmds:
+      - gofumpt -w .

@@ -94,10 +94,12 @@ registry, any name passes.
 ## Development
 
 ```bash
-uv sync
-uv run pytest            # starts a throwaway Postgres in Docker
-cd cli && go test ./...
+task setup
+task test     # pytest starts a throwaway Postgres in Docker
+task lint
 ```
+
+`task` lists the rest.
 
 ## License
 
