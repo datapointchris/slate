@@ -125,6 +125,9 @@ type RecordChange struct {
 	Actor     *string                 `json:"actor"`
 	RequestID *string                 `json:"request_id"`
 	JobRunID  *string                 `json:"job_run_id"`
+	// Traceparent and Baggage are the W3C headers of the span that wrote it.
+	Traceparent *string `json:"traceparent"`
+	Baggage     *string `json:"baggage"`
 	// IsOwnRow is a write to the record's own row, as the API decides it.
 	IsOwnRow bool `json:"is_own_row"`
 }

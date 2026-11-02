@@ -22,6 +22,7 @@ var errNeedsLogin = errors.New("not logged in")
 // newAPIClient builds an authenticated API client for the running command. The
 // oauth2 client injects (and refreshes) the bearer token on every request via
 // goclilogin's token source, so resource commands never touch tokens directly.
+// Each request also carries the trace slate was started under.
 //
 // Every error after the deployment loads carries it, so handleAPIError words
 // a credential failure from what the client was built from.
@@ -39,7 +40,9 @@ func newAPIClient(cmd *cobra.Command) (*api.Client, error) {
 	if err != nil {
 		return nil, carry(fmt.Errorf("prepare API client: %w", err))
 	}
-	return api.New(deployment.API.Value, oauth2.NewClient(cmd.Context(), source), api.WrapErrors(carry)), nil
+	httpClient := oauth2.NewClient(cmd.Context(), source)
+	httpClient.Transport = carryingTrace(httpClient.Transport)
+	return api.New(deployment.API.Value, httpClient, api.WrapErrors(carry)), nil
 }
 
 // builtFrom is an error from building or using an API client, carrying the
