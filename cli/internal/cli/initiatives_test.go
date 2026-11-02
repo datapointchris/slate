@@ -102,7 +102,7 @@ const initiativeProgressAnswer = `{
 }`
 
 // `slate initiatives progress 2072` prints every part of the view, and its
-// --json carries each of them, so fleet's summary and a TUI read one call.
+// --json carries each of them, so a summary or a TUI reads it in one call.
 func TestInitiativesProgressPrintsEveryPartAndItsJSONCarriesThem(t *testing.T) {
 	var asked []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
