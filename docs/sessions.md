@@ -37,7 +37,8 @@ first holds it, and a later report naming it warns
 A message is the grain any window can split at. A seven-day window, or one
 day in any time zone, may cut through a span. A message has one moment, so it
 falls on one side of every edge. Any sum, over any grouping or window, reads
-these same rows.
+these same rows. `slate totals` sums them over any record, worklog, repo or
+window ([totals.md](totals.md)).
 
 - *Rejected:* one row per span with its sums. A window whose edge cuts the
   span would need the sum split by time, which the row cannot give.
@@ -108,7 +109,10 @@ same way. `GET /sessions/{id}` reads the session back: its message count, and
 its tokens in all, in each span, and outside every worklog. A worklog's read
 sums its spans', and `slate worklogs show` prints that line. A sum over no
 reported message is null, never zero, so a span nobody reported for never
-reads as having spent nothing.
+reads as having spent nothing. The part outside every worklog is a count once
+the session has reported any message, and zero when every one fell in a
+worklog. A session that works only inside worklogs is common, and null there
+would say it never reported.
 
 ## `slate sessions report` counts each message in a Claude Code transcript once
 

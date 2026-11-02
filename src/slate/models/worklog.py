@@ -23,9 +23,11 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import Identity
 from sqlalchemy import Index
 from sqlalchemy import Integer
+from sqlalchemy import Select
 from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
 from sqlalchemy import and_
+from sqlalchemy import func
 from sqlalchemy import or_
 from sqlalchemy import text
 from sqlalchemy.ext.hybrid import hybrid_method
@@ -142,6 +144,18 @@ class Worklog(Base):
     def _is_ended_expression(cls) -> ColumnElement[bool]:
         return or_(cls.ended_ts.is_not(None), Claim.ended_ts.is_not(None))
 
+    @hybrid_method
+    def held_until(self, now: dt.datetime) -> dt.datetime | None:
+        """When it stopped being under way, as of `now`: its end, else where its claim stopped holding. None while under way."""
+        if self.ended_ts is not None:
+            return self.ended_ts
+        return None if self.claim is None else self.claim.stopped_holding_at(now)
+
+    @held_until.expression
+    @classmethod
+    def _held_until_expression(cls, now: dt.datetime) -> ColumnElement[dt.datetime | None]:
+        return func.coalesce(cls.ended_ts, Claim.stopped_holding_at(now))
+
     def __repr__(self) -> str:
         return f'Worklog(name={self.name!r}, outcome={self.outcome!r})'
 
@@ -160,17 +174,23 @@ class WorklogSpan(Base):
 
     worklog: Mapped[Worklog] = relationship(back_populates='spans')
 
+    @hybrid_method
     def held_until(self, now: dt.datetime) -> dt.datetime | None:
         """When the span stopped holding the session's time, as of `now`, or None while it still holds it.
 
-        A span outliving its worklog's claim stopped where the claim stopped holding, though no write has ended it yet.
+        A span outliving its worklog's claim stopped where the claim stopped holding, though no write
+        has ended it yet. The SQL form reads `claims`, so a query on it joins the span's worklog and
+        outer-joins that worklog's claim.
         """
         if self.ended_ts is not None:
             return self.ended_ts
         claim = self.worklog.claim
-        if claim is None or claim.is_live(now):
-            return None
-        return claim.ended_ts or claim.held_until(now)
+        return None if claim is None else claim.stopped_holding_at(now)
+
+    @held_until.expression
+    @classmethod
+    def _held_until_expression(cls, now: dt.datetime) -> ColumnElement[dt.datetime | None]:
+        return func.coalesce(cls.ended_ts, Claim.stopped_holding_at(now))
 
     __table_args__ = (
         CheckConstraint('ended_ts IS NULL OR ended_ts >= started_ts', name='span_ends_after_it_starts'),
@@ -198,3 +218,8 @@ class WorklogLink(Base):
     worklog: Mapped[Worklog] = relationship(back_populates='links')
 
     __table_args__ = (UniqueConstraint('worklog_id', 'kind', 'ref', name='uq_worklog_links_one_per_ref'),)
+
+
+def with_worklog_claim[*Columns](query: Select[*Columns]) -> Select[*Columns]:
+    """Outer-join the claim of the worklog `query` already reads, which each SQL form of a worklog's or span's state reads."""
+    return query.outerjoin(Claim, Worklog.claim_id == Claim.id)

@@ -40,6 +40,8 @@ func TestResolveWindow(t *testing.T) {
 		},
 		{name: "both ends together", since: "1w", until: "1d", want: api.Window{Since: at(time.March, 1, 9, 0), Until: at(time.March, 7, 9, 0)}},
 		{name: "a malformed day", until: "10/01", refused: true},
+		{name: "a span longer than a Duration holds is refused", since: "3000000h", refused: true},
+		{name: "a window with nothing between its ends is refused", since: "2026-03-08T09:00:00Z", until: "2026-03-08T09:00:00Z", refused: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := resolveWindow(tc.since, tc.until, now, ny)

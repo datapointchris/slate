@@ -30,6 +30,7 @@ from slate.api.exceptions import ForbiddenException
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import OIDCIdentity
 from slate.api.oidc_auth import ScopedClient
+from slate.models.worklog import with_worklog_claim
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
@@ -100,8 +101,7 @@ def read_many(
     """Worklogs, latest started first. The default reads the live ones: what is under way now."""
     now = dt.datetime.now(dt.UTC)
     query = (
-        select(models.Worklog)
-        .outerjoin(models.Claim, models.Claim.id == models.Worklog.claim_id)
+        with_worklog_claim(select(models.Worklog))
         .options(*WORKLOG_LOAD_OPTIONS)
         .order_by(models.Worklog.started_ts.desc(), models.Worklog.id.desc())
     )

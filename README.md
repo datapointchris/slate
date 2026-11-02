@@ -22,6 +22,7 @@ Two parts share this repository:
 is ordered and why some things are not built. `docs/claims.md` explains
 claims, `docs/worklogs.md` worklogs, `docs/sessions.md` the tokens each
 agent session spent and the Claude Code hook that reports them,
+`docs/totals.md` the totals of the work over any record, repo or window,
 `docs/ideas.md` ideas, and `docs/index.md` lists every page.
 
 ## Running the API
@@ -132,7 +133,7 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, and a session's tokens |
+| `slate.records.read` | reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, a session's tokens, and the work's totals |
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready issues, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.comments.write` | commenting on any record, or on one line of its document, under the service's own client id |
 | `slate.issues.close` | closing an open issue |

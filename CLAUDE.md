@@ -70,6 +70,9 @@ at the root instead:
 - **`vocabulary` is one read of the values every noun's flags accept**, so it
   has no second verb to grow. Each list in it is named for the noun whose flag
   takes it.
+- **`totals` sums the work over any record, worklog, repo or window.** A
+  window's total counts tokens no worklog held, and a repo is no record, so no
+  one noun owns the read.
 
 A new command takes a noun unless no one noun owns what it reads.
 

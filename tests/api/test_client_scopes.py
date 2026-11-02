@@ -54,6 +54,7 @@ SCOPED_URLS = {
     f'{API_PREFIX}/initiatives': '/initiatives',
     f'{API_PREFIX}/initiatives/{{id:path}}': '/initiatives/{initiative}',
     f'{API_PREFIX}/sessions/{{id}}': f'/sessions/{RUN_POD_SESSION}',
+    f'{API_PREFIX}/totals': '/totals?record={issue}',
     f'{API_PREFIX}/worklogs': '/worklogs?state=all',
     f'{API_PREFIX}/worklogs/current': '/worklogs/current?session=run-pod-session',
     f'{API_PREFIX}/worklogs/{{name}}': '/worklogs/{worklog}',

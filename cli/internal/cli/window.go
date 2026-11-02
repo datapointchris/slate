@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"time"
@@ -18,10 +19,14 @@ const windowForms = "a span back from now (30m, 12h, 7d, 2w), a day (2026-10-01)
 var (
 	windowSpan      = regexp.MustCompile(`^(\d+)([smhdw])$`)
 	windowMonthSpan = regexp.MustCompile(`^\d+(mo|M|y|Y)$`)
+	// windowUnits bounds a span to what a Duration holds. Days and weeks still
+	// step the calendar rather than adding these.
+	windowUnits = map[string]time.Duration{"s": time.Second, "m": time.Minute, "h": time.Hour, "d": 24 * time.Hour, "w": 7 * 24 * time.Hour}
 )
 
 // addWindowFlags registers --since and --until on a read bounded by time.
-// rows names what the window narrows, such as "books finished".
+// rows names what the window narrows, as a plural phrase the help completes
+// with "at or after this".
 func addWindowFlags(cmd *cobra.Command, rows string) {
 	cmd.Flags().String("since", "", fmt.Sprintf("Only %s at or after this: %s", rows, windowForms))
 	cmd.Flags().String("until", "", fmt.Sprintf("Only %s before this; a day includes all of it", rows))
@@ -53,6 +58,9 @@ func resolveWindow(since, until string, now time.Time, loc *time.Location) (api.
 			return api.Window{}, fmt.Errorf("--until %q: %w", until, err)
 		}
 	}
+	if !window.Since.IsZero() && !window.Until.IsZero() && !window.Since.Before(window.Until) {
+		return api.Window{}, fmt.Errorf("--since %s does not start before --until %s, so nothing is between them", since, until)
+	}
 	return window, nil
 }
 
@@ -65,8 +73,8 @@ func resolveWindow(since, until string, now time.Time, loc *time.Location) (api.
 func resolveBound(value string, until bool, now time.Time, loc *time.Location) (time.Time, error) {
 	if m := windowSpan.FindStringSubmatch(value); m != nil {
 		n, err := strconv.Atoi(m[1])
-		if err != nil {
-			return time.Time{}, err
+		if err != nil || int64(n) > math.MaxInt64/int64(windowUnits[m[2]]) {
+			return time.Time{}, fmt.Errorf("longer than a span can count; write a day instead")
 		}
 		switch m[2] {
 		case "s":
