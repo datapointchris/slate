@@ -1,0 +1,25 @@
+{
+  "slate.issues.claim": [
+    "DELETE /api/v1/issues/{id}/claim",
+    "POST /api/v1/issues/{id}/claim"
+  ],
+  "slate.issues.close": [
+    "PATCH /api/v1/issues/{id}",
+    "POST /api/v1/issues/{id}/comments"
+  ],
+  "slate.issues.plan": [
+    "GET /api/v1/issues/vocabulary",
+    "PATCH /api/v1/issues/initiatives/{id:path}",
+    "PATCH /api/v1/issues/{id}",
+    "POST /api/v1/issues",
+    "POST /api/v1/issues/initiatives",
+    "POST /api/v1/issues/{id}/rank"
+  ],
+  "slate.issues.read": [
+    "GET /api/v1/issues",
+    "GET /api/v1/issues/initiatives",
+    "GET /api/v1/issues/initiatives/{id:path}",
+    "GET /api/v1/issues/ready",
+    "GET /api/v1/issues/{id}"
+  ]
+}

@@ -1,0 +1,48 @@
+# Postgres and the API for running slate on a workstation. The tests start Postgres from this image too.
+#   OIDC_ISSUER=https://auth.example.com docker compose up --build
+# The API then answers at http://localhost:8000, trusting the issuer OIDC_ISSUER names.
+# Postgres publishes no port, so it never collides with one already on the machine:
+#   docker compose exec postgres psql -U slate
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: slate
+      POSTGRES_PASSWORD: slate
+      POSTGRES_DB: slate
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "slate"]
+      interval: 2s
+      retries: 30
+
+  migrate:
+    build: .
+    image: slate:local
+    command: ["alembic", "upgrade", "head"]
+    environment: &api-environment
+      POSTGRES_HOST: postgres
+      POSTGRES_USERNAME: slate
+      POSTGRES_PASSWORD: slate
+      POSTGRES_DB: slate
+      OIDC_ISSUER: ${OIDC_ISSUER:?set OIDC_ISSUER to the identity provider the API trusts}
+      OIDC_CLI_CLIENT_ID_PREFIX: ${OIDC_CLI_CLIENT_ID_PREFIX:-}
+      OIDC_SERVICE_CLIENT_ID_PREFIX: ${OIDC_SERVICE_CLIENT_ID_PREFIX:-}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8000}
+      LOG_FORMAT: ${LOG_FORMAT:-console}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: slate:local
+    environment: *api-environment
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
