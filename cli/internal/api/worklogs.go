@@ -33,13 +33,14 @@ const (
 // WorklogLinkKinds is every kind `worklogs link` sends.
 var WorklogLinkKinds = []string{WorklogLinkCommit, WorklogLinkPullRequest, WorklogLinkLanding}
 
-// WorklogSpan is one agent session's time in a worklog. EndedTS is nil while
-// the session is still in it.
+// WorklogSpan is one agent session's time in a worklog, and the tokens it
+// spent there. EndedTS is nil while the session is still in it.
 type WorklogSpan struct {
 	Session   string     `json:"session"`
 	Directory *string    `json:"directory"`
 	StartedTS time.Time  `json:"started_ts"`
 	EndedTS   *time.Time `json:"ended_ts"`
+	Tokens    Tokens     `json:"tokens"`
 }
 
 // WorklogLink is a commit, pull request or landing a worklog produced, as given.
@@ -52,9 +53,10 @@ type WorklogLink struct {
 	LinkedBy string    `json:"linked_by"`
 }
 
-// Worklog is one go at one record, named <record>.<sequence>. State and Stage
-// are derived by the API on every read. Claim is the claim whose hold opened
-// it, and Waits every stretch its holder spent waiting.
+// Worklog is one go at one record, named <record>.<sequence>. State, Stage
+// and Tokens are derived by the API on every read. Claim is the claim whose
+// hold opened it, and Waits every stretch its holder spent waiting. Tokens
+// sums its spans', as each session last reported them.
 type Worklog struct {
 	Name         string        `json:"name"`
 	RecordNumber int           `json:"record_number"`
@@ -70,6 +72,7 @@ type Worklog struct {
 	Stage        string        `json:"stage"`
 	Claim        *Claim        `json:"claim"`
 	Waits        []ClaimWait   `json:"waits"`
+	Tokens       Tokens        `json:"tokens"`
 	Spans        []WorklogSpan `json:"spans"`
 	Links        []WorklogLink `json:"links"`
 }
