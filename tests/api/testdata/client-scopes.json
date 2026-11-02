@@ -1,7 +1,8 @@
 {
-  "slate.issues.claim": [
-    "DELETE /api/v1/issues/{id}/claim",
-    "POST /api/v1/issues/{id}/claim"
+  "slate.claims.hold": [
+    "POST /api/v1/claims",
+    "POST /api/v1/claims/{record}/extend",
+    "POST /api/v1/claims/{record}/release"
   ],
   "slate.issues.close": [
     "PATCH /api/v1/issues/{id}",

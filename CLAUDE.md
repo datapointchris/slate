@@ -3,7 +3,8 @@
 slate is a work tracker built for coding agents: a FastAPI API over PostgreSQL in
 `src/slate/`, and a Go CLI over that API in `cli/`. `README.md` covers running
 it and its settings. `docs/index.md` lists the design pages, and
-`docs/issues.md` is the model: readiness, order, claims and closing.
+`docs/issues.md` is the model: readiness, order and closing, and
+`docs/claims.md` covers claims.
 
 ## Layout
 

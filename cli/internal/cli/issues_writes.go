@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/datapointchris/slate/cli/internal/api"
-	"github.com/datapointchris/slate/cli/internal/config"
 	"github.com/datapointchris/slate/cli/internal/prompt"
 	"github.com/datapointchris/slate/cli/internal/repos"
 )
@@ -24,7 +23,7 @@ import (
 var createStatuses = []string{api.IssueStatusOpen, api.IssueStatusTriage}
 
 // unclosedStatuses are the states complete and cancel act on.
-var unclosedStatuses = []string{api.IssueStatusTriage, api.IssueStatusOpen, api.IssueStatusInProgress}
+var unclosedStatuses = []string{api.IssueStatusTriage, api.IssueStatusOpen}
 
 // --- Create ---
 
@@ -568,10 +567,11 @@ func newIssuesCompleteCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "complete <issue>",
 		Short: "Mark an issue done",
-		Long: "Records when it closed and who closed it, and lets go of any claim. A parent\n" +
-			"is refused while a child is still open. Say what shipped with add-comment, so\n" +
-			"the thread holds it. --closed-by defaults to who is running slate: the Claude\n" +
-			"Code session, the worker $" + actorWorkerEnv + " names, or user@host.",
+		Long: "Records when it closed and who closed it, and ends its claim as completed,\n" +
+			"printing whose claim it ended. A parent is refused while a child is still\n" +
+			"open. Say what shipped with add-comment, so the thread holds it. --closed-by\n" +
+			"defaults to who is running slate: the Claude Code session, the worker\n" +
+			"$" + actorWorkerEnv + " names, or user@host.",
 		Example: "  slate issues complete 412",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -596,8 +596,9 @@ func newIssuesCancelCommand() *cobra.Command {
 		Use:   "cancel <issue> --reason <why> | --duplicate-of <issue>",
 		Short: "Close an issue that will not be done",
 		Long: "Canceling needs a reason, the issue this one duplicates, or both. A bare\n" +
-			"cancel invites the same issue back next month. --closed-by defaults to who\n" +
-			"is running slate, as it does for complete.",
+			"cancel invites the same issue back next month. It ends the issue's claim as\n" +
+			"canceled, printing whose. --closed-by defaults to who is running slate, as it\n" +
+			"does for complete.",
 		Example: "  slate issues cancel 412 --reason \"the router rewrite removed the path\"\n" +
 			"  slate issues cancel 413 --duplicate-of 412",
 		Args: cobra.ExactArgs(1),
@@ -639,153 +640,6 @@ func newIssuesReopenCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
-	return cmd
-}
-
-// --- Claims ---
-
-// defaultClaimMinutes is a day, so a session paused overnight on a question
-// still holds its issue. A claim whose holder died is freed by `release`.
-const defaultClaimMinutes = 1440
-
-func newIssuesClaimCommand() *cobra.Command {
-	var (
-		asJSON   bool
-		queue    readyQueueFlags
-		claimant string
-		minutes  int
-	)
-	cmd := &cobra.Command{
-		Use:   "claim [<issue>]",
-		Short: "Take the next ready issue, or the one named",
-		Long: "With no issue, takes the head of the ready queue in one request, so two\n" +
-			"agents asking at once never hold the same one. `next` under the same flags\n" +
-			"shows what it would take. --repo, --type, --label and --initiative narrow\n" +
-			"that queue. Decisions are left out unless --type decision asks for them.\n" +
-			"\n" +
-			"Naming an issue takes that one, a decision included. It is refused while\n" +
-			"someone else holds it, while it is in triage or closed, while it waits on an\n" +
-			"open dependency or an open child, before its deferral day, and while its\n" +
-			"initiative is someday. The refusal names which. Claiming one you already\n" +
-			"hold extends the claim.\n" +
-			"\n" +
-			"A claim sets the issue in progress for --minutes. One that runs out returns\n" +
-			"the issue to the queue. `complete` lets go of it, and `release` hands it back\n" +
-			"unfinished. --claimant defaults to the config file's client_id when\n" +
-			"SLATE_CLIENT_SECRET is set or token_command hands the token, since the API\n" +
-			"takes no other claimant from a service.\n" +
-			"Otherwise it is the Claude Code session when run inside one, else user@host.\n" +
-			"\n" +
-			"An empty queue prints nothing to claim, or null under --json, and exits 0.",
-		Example: "  slate issues claim\n" +
-			"  slate issues claim --repo webapp --json\n" +
-			"  slate issues claim 412 --minutes 60",
-		Args: cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			f := cmd.Flags()
-			if minutes < 1 || minutes > 10080 {
-				return goclikit.UsageError(fmt.Errorf("--minutes %d: a claim lasts 1 to 10080 minutes", minutes))
-			}
-			if !f.Changed("claimant") {
-				if deployment, err := config.Load(cmd.Context(), apiOverride); config.IsService() || deployment.HandsTokens() {
-					if err != nil {
-						return handleAPIError(err)
-					}
-					claimant = deployment.ClientID.Value
-				}
-			}
-			if strings.TrimSpace(claimant) == "" {
-				return goclikit.UsageError(errors.New("--claimant cannot be empty — a claim names who holds it"))
-			}
-			in := api.IssueClaimInput{Claimant: claimant, Minutes: minutes}
-			if len(args) == 1 {
-				for _, name := range readyQueueFlagNames() {
-					if f.Changed(name) {
-						return goclikit.UsageError(fmt.Errorf("--%s narrows the queue an unnamed claim takes from — a named issue is not taken from it", name))
-					}
-				}
-			}
-			filter, err := queue.filter(cmd)
-			if err != nil {
-				return err
-			}
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			var claimed *api.Issue
-			if len(args) == 1 {
-				issue, err := client.ClaimIssue(cmd.Context(), args[0], in, issueZone())
-				if err != nil {
-					return handleArgumentAPIError(err)
-				}
-				claimed = &issue
-			} else {
-				result, err := client.ClaimNextIssue(cmd.Context(), in, filter, issueZone())
-				if err != nil {
-					return handleArgumentAPIError(err)
-				}
-				claimed = result.Issue
-				if claimed != nil {
-					if err := honoredAutofixable(filter.Autofixable, []api.Issue{*claimed}); err != nil {
-						if _, releaseErr := client.ReleaseIssue(cmd.Context(), strconv.Itoa(claimed.Number), issueZone()); releaseErr != nil {
-							return fmt.Errorf("%w; releasing #%d failed too: %w", err, claimed.Number, releaseErr)
-						}
-						return err
-					}
-				}
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), claimed)
-			}
-			if claimed == nil {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Nothing to claim: no issue is ready.")
-				return nil
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Claimed #%d %s as %s until %s\n",
-				claimed.Number, claimed.Title, claimant, claimUntil(*claimed, time.Now()))
-			return nil
-		},
-	}
-	queue.register(cmd)
-	cmd.Flags().StringVar(&claimant, "claimant", actorIdentity(), "Who holds the claim")
-	cmd.Flags().IntVar(&minutes, "minutes", defaultClaimMinutes, "How long the claim holds, 1 to 10080")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the claimed issue as JSON to stdout")
-	return cmd
-}
-
-func claimUntil(issue api.Issue, now time.Time) string {
-	if issue.ClaimExpiresTS == nil {
-		return "released"
-	}
-	return localClock(*issue.ClaimExpiresTS, now)
-}
-
-func newIssuesReleaseCommand() *cobra.Command {
-	var asJSON bool
-	cmd := &cobra.Command{
-		Use:     "release <issue>",
-		Short:   "Let go of a claim, returning the issue to the queue",
-		Long:    "Releases whoever holds it, so a claim left by a session that died is freed now\nrather than when it runs out.",
-		Example: "  slate issues release 412",
-		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			issue, err := client.ReleaseIssue(cmd.Context(), args[0], issueZone())
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Released #%d %s (%s)\n", issue.Number, issue.Title, issue.Status)
-			return nil
-		},
-	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the released issue as JSON to stdout")
 	return cmd
 }
 

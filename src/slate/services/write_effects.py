@@ -22,6 +22,28 @@ class WriteEffectCode(enum.StrEnum):
 
     # Side effects: a change the request did not name.
     ANCESTOR_REOPENED = 'ancestor_reopened'
+    CLAIM_ENDED = 'claim_ended'
+    EXPIRED_CLAIM_ENDED = 'expired_claim_ended'
+
+    # Warnings on a claim write that changed nothing, or went through without the lease asked for.
+    ALREADY_HELD = 'already_held'
+    CLAIM_HAD_EXPIRED = 'claim_had_expired'
+    NOTHING_READY = 'nothing_ready'
+    NOTHING_TO_RELEASE = 'nothing_to_release'
+    RELEASED_ANOTHERS_CLAIM = 'released_anothers_claim'
+
+    # Warnings on a hold, about the record held and its neighbors.
+    RECORD_CLOSED = 'record_closed'
+    IN_TRIAGE = 'in_triage'
+    DEFERRED = 'deferred'
+    SHELVED = 'shelved'
+    OPEN_DEPENDENCY = 'open_dependency'
+    OPEN_CHILDREN = 'open_children'
+    CLAIMED_INITIATIVE = 'claimed_initiative'
+    CLAIMED_ISSUE_IN_INITIATIVE = 'claimed_issue_in_initiative'
+    CLAIMED_PARENT = 'claimed_parent'
+    CLAIMED_CHILD = 'claimed_child'
+    CLAIMED_DEPENDENT = 'claimed_dependent'
 
 
 class WriteEffects:
@@ -38,6 +60,11 @@ class WriteEffects:
     def warn(self, code: WriteEffectCode, message: str, record: int | None = None) -> None:
         self.warnings.append(WriteEffect(code=code, message=message, record=record))
         logger.info('write_warning', code=code, record=record)
+
+    def merge(self, other: WriteEffects) -> None:
+        """Take on what an attempt gathered once it succeeds, so a rolled-back attempt reports nothing."""
+        self.side_effects.extend(other.side_effects)
+        self.warnings.extend(other.warnings)
 
     def answer[W: Written](self, schema: type[W], **written: object) -> W:
         return schema(side_effects=self.side_effects, warnings=self.warnings, **written)

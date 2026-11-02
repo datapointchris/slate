@@ -78,16 +78,17 @@ func NewRootCommand() *cobra.Command {
 		Use:   "slate",
 		Short: "Work tracker built for coding agents",
 		Long: "slate tracks software work for the agents and people doing it: issues,\n" +
-			"the initiatives that group them, their labels, dependencies, comments and\n" +
-			"claims. `slate issues next` is the order to take the work in.\n" +
+			"the initiatives that group them, their labels, dependencies and comments,\n" +
+			"and the claims that say who is working what. `slate issues next` is the\n" +
+			"order to take the work in.\n" +
 			"\n" +
 			"The noun comes first and the verb last: `slate issues list` becomes\n" +
-			"`slate issues edit`. Every read verb takes --json. Run any partial command\n" +
+			"`slate issues edit`. Every read and write takes --json. Run any partial command\n" +
 			"bare to see what comes next. Authenticate once with `slate auth login <url>`;\n" +
 			"`slate auth status` shows where slate is pointed.",
 		Example: "  slate issues next --limit 1\n" +
 			"  slate issues show 42\n" +
-			"  slate issues claim 42\n" +
+			"  slate claims hold 42\n" +
 			"  slate issues create --title \"Retry the upload on a 503\" --type bug",
 		Version:       version,
 		SilenceUsage:  true, // usage is shown deliberately, not on every runtime error
@@ -124,7 +125,7 @@ func NewRootCommand() *cobra.Command {
 		&cobra.Group{ID: groupSetup, Title: "Setup commands:"},
 	)
 	root.SetCompletionCommandGroupID(groupSetup)
-	root.AddCommand(inGroup(groupWork, withAPIFlag(newIssuesCommand()))...)
+	root.AddCommand(inGroup(groupWork, withAPIFlag(newIssuesCommand()), withAPIFlag(newClaimsCommand()))...)
 	root.AddCommand(inGroup(groupSetup, newAuthCommand(), newConfigCommand(), newUpdateCommand())...)
 	return root
 }

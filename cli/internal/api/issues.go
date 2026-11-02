@@ -9,20 +9,18 @@ import (
 )
 
 // The issue statuses, in lifecycle order. `triage` holds what a machine filed
-// until someone accepts it, and `in_progress` is what a claim sets.
+// until someone accepts it. Whether anyone works an open issue is its claim.
 const (
-	IssueStatusTriage     = "triage"
-	IssueStatusOpen       = "open"
-	IssueStatusInProgress = "in_progress"
-	IssueStatusCompleted  = "completed"
-	IssueStatusCanceled   = "canceled"
-	IssueStatusAll        = "all"
+	IssueStatusTriage    = "triage"
+	IssueStatusOpen      = "open"
+	IssueStatusCompleted = "completed"
+	IssueStatusCanceled  = "canceled"
+	IssueStatusAll       = "all"
 )
 
 // IssueStatuses is what --status accepts, in the order help lists them.
 var IssueStatuses = []string{
-	IssueStatusTriage, IssueStatusOpen, IssueStatusInProgress,
-	IssueStatusCompleted, IssueStatusCanceled, IssueStatusAll,
+	IssueStatusTriage, IssueStatusOpen, IssueStatusCompleted, IssueStatusCanceled, IssueStatusAll,
 }
 
 // IssueTypeDecision is the one type that changes what happens to an issue: it
@@ -88,9 +86,10 @@ type Issue struct {
 	Rank              float64 `json:"rank"`
 	// DeferredUntilDate is a day, so it decodes as the string the API sends. A
 	// time.Time would refuse the bare YYYY-MM-DD and fail the whole list.
-	DeferredUntilDate *string    `json:"deferred_until_date"`
-	ClaimedBy         *string    `json:"claimed_by"`
-	ClaimExpiresTS    *time.Time `json:"claim_expires_ts"`
+	DeferredUntilDate *string `json:"deferred_until_date"`
+	// Claim is the issue's unended claim, live or expired, and nil when nobody
+	// holds it.
+	Claim *Claim `json:"claim"`
 	// Autofix is the issue's own setting. IsAutofixable is false when it, its
 	// initiative's or an unclosed parent's is false, and nil from an API that
 	// predates the field.
@@ -123,11 +122,13 @@ type IssueComment struct {
 	CreatedTS time.Time `json:"created_ts"`
 }
 
-// IssueDetail is one issue with its children and its whole comment thread.
+// IssueDetail is one issue with its children, its whole comment thread and
+// every claim it has had, oldest first.
 type IssueDetail struct {
 	Issue
 	Children []IssueSummary `json:"children"`
 	Comments []IssueComment `json:"comments"`
+	Claims   []Claim        `json:"claims"`
 }
 
 // IssueCreateInput is the body for POST /issues. Only Title is required. The
@@ -153,7 +154,7 @@ type IssueCreateInput struct {
 // IssueUpdateInput is a partial update. A field left nil is not sent. A field
 // to empty goes in the clear list UpdateIssue takes, which sends it as an
 // explicit null. Status changes through here too, and the server stamps
-// closed_ts and drops the claim as the new status requires. ClosedBy names who
+// closed_ts and ends the claim as the new status requires. ClosedBy names who
 // is closing it, and only goes with a closed status; left nil, the server
 // records the signed-in user.
 type IssueUpdateInput struct {
@@ -188,7 +189,6 @@ type IssueFilter struct {
 	Priority    *int
 	Blocked     *bool
 	Autofixable *bool
-	ClaimedBy   string
 	ClosedBy    string
 	Search      string
 }
@@ -201,7 +201,6 @@ func (f IssueFilter) query() url.Values {
 		"label":      f.Label,
 		"initiative": f.Initiative,
 		"parent":     f.Parent,
-		"claimed_by": f.ClaimedBy,
 		"closed_by":  f.ClosedBy,
 		"search":     f.Search,
 	} {
@@ -242,23 +241,6 @@ func (f ReadyFilter) query() url.Values {
 		query.Set("autofixable", strconv.FormatBool(*f.Autofixable))
 	}
 	return query
-}
-
-// IssueClaimInput takes an issue for Minutes. A zero Minutes takes the API's
-// default.
-type IssueClaimInput struct {
-	Claimant string `json:"claimant"`
-	Minutes  int    `json:"minutes,omitempty"`
-}
-
-type readyClaimInput struct {
-	IssueClaimInput
-	ReadyFilter
-}
-
-// IssueClaimResult holds the claimed issue, or nil when nothing was ready.
-type IssueClaimResult struct {
-	Issue *Issue `json:"issue"`
 }
 
 // IssueRankMove places an issue directly before or after another. Exactly one
@@ -321,17 +303,6 @@ func (c *Client) ListReadyIssues(ctx context.Context, filter ReadyFilter, zone D
 	return issues, nil
 }
 
-// ClaimNextIssue takes the head of the ready queue in one request, so two
-// agents asking at once never hold the same issue.
-func (c *Client) ClaimNextIssue(ctx context.Context, claim IssueClaimInput, filter ReadyFilter, zone DayZone) (IssueClaimResult, error) {
-	var result IssueClaimResult
-	path := withQuery("/issues/ready/claim", zoneQuery(zone))
-	if err := c.send(ctx, http.MethodPost, path, readyClaimInput{claim, filter}, &result); err != nil {
-		return IssueClaimResult{}, err
-	}
-	return result, nil
-}
-
 // GetIssue returns one issue by number or UUID, with its children and comments.
 func (c *Client) GetIssue(ctx context.Context, ref string, zone DayZone) (IssueDetail, error) {
 	var issue IssueDetail
@@ -367,24 +338,6 @@ func (c *Client) UpdateIssue(ctx context.Context, ref string, in IssueUpdateInpu
 // DeleteIssue removes an issue, its comments and its edges.
 func (c *Client) DeleteIssue(ctx context.Context, ref string) error {
 	return c.send(ctx, http.MethodDelete, issuePath(ref), nil, nil)
-}
-
-// ClaimIssue takes one named issue, or extends the claim held under the same name.
-func (c *Client) ClaimIssue(ctx context.Context, ref string, claim IssueClaimInput, zone DayZone) (Issue, error) {
-	var issue Issue
-	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "claim"), zoneQuery(zone)), claim, &issue); err != nil {
-		return Issue{}, err
-	}
-	return issue, nil
-}
-
-// ReleaseIssue returns an in-progress issue to the ready queue.
-func (c *Client) ReleaseIssue(ctx context.Context, ref string, zone DayZone) (Issue, error) {
-	var issue Issue
-	if err := c.send(ctx, http.MethodDelete, withQuery(issuePath(ref, "claim"), zoneQuery(zone)), nil, &issue); err != nil {
-		return Issue{}, err
-	}
-	return issue, nil
 }
 
 // RankIssue places an issue directly before or after another.
@@ -487,6 +440,7 @@ type Initiative struct {
 	CompletedCount int        `json:"completed_count"`
 	CanceledCount  int        `json:"canceled_count"`
 	Repos          []string   `json:"repos"`
+	Claim          *Claim     `json:"claim"`
 }
 
 // InitiativeCreateInput is the body for POST /issues/initiatives. A nil

@@ -10,11 +10,9 @@ from fastapi import HTTPException
 from fastapi import Query
 from fastapi import Response
 from fastapi import status
-from sqlalchemy import and_
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import or_
 from sqlalchemy import select
-from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
@@ -36,6 +34,7 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
 from slate.models.record import PRIORITIES
+from slate.services.claims import end_with_record
 from slate.services.issue_rank import move_issue
 from slate.services.issue_rank import rank_at_end
 from slate.services.issue_readiness import IssueReadiness
@@ -182,11 +181,6 @@ def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime, effects: W
         parent = parent.parent
 
 
-def clear_claim(issue: models.Issue) -> None:
-    issue.claimed_by = None
-    issue.claim_expires_ts = None
-
-
 def numbered(issues: list[models.Issue]) -> str:
     return ', '.join(f'#{issue.number}' for issue in sorted(issues, key=lambda issue: issue.number))
 
@@ -225,14 +219,14 @@ def apply_status_transition(
 ) -> None:
     """Validate a status change and apply everything it implies, in one place.
 
-    Closing stamps `closed_ts` and `closed_by` and drops the claim. `closed_by`
-    is the actor the caller named, else `signed_in`, because a token is the
-    user's whichever session or worker holds it. A move between two closed
-    statuses keeps both stamps. Reopening clears them, the reason and any
-    duplicate link, and reopens each completed ancestor, naming each in
-    `effects`. Leaving `in_progress` for anything but a close releases the
-    claim. The CHECK constraints refuse each of these states too; this exists
-    so a caller gets a 4xx naming the problem.
+    Closing stamps `closed_ts` and `closed_by`, and ends the issue's claim as
+    the status it reached. `closed_by` is the actor the caller named, else
+    `signed_in`, because a token is the user's whichever session or worker
+    holds it. A move between two closed statuses keeps both stamps. Reopening
+    clears them, the reason and any duplicate link, and reopens each completed
+    ancestor. Each ended claim and reopened ancestor is named in `effects`. The
+    CHECK constraints refuse each of these states too; this exists so a caller
+    gets a 4xx naming the problem.
     """
     new_status = update_data.pop('status', None)
     if new_status is not None:
@@ -261,17 +255,17 @@ def apply_status_transition(
         if closing:
             issue.closed_ts = now
             issue.closed_by = closer or signed_in
-        clear_claim(issue)
     else:
         if issue.is_closed:
             reopen_completed_ancestors(issue, now, effects)
         issue.closed_ts = None
         issue.closed_by = None
-        if target != 'in_progress':
-            clear_claim(issue)
     issue.status = target
     issue.status_reason = reason
     issue.duplicate_of_id = duplicate_id
+    # After the row is whole, because reading the claim flushes it.
+    if closing:
+        end_with_record(session, issue.number, target, now, issue.closed_by, effects)
 
 
 def load_issue(session: Session, issue_id: UUID) -> models.Issue:
@@ -282,11 +276,6 @@ def load_issue(session: Session, issue_id: UUID) -> models.Issue:
 def fresh_issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.IssueDetail:
     session.expire_all()
     return issue_detail(session, load_issue(session, issue.id), zone)
-
-
-def single_view(session: Session, issue: models.Issue, zone: str) -> schemas.Issue:
-    session.expire_all()
-    return issue_views(session, [load_issue(session, issue.id)], zone)[0]
 
 
 # `/ready` and `/vocabulary` are declared ahead of `/{id}`, which would
@@ -311,7 +300,6 @@ def read_many(
     initiative: str | None = Query(None, description='An initiative, by any reference GET /issues/initiatives/{id} accepts'),
     parent: str | None = Query(None, description='A parent issue number or UUID: its children'),
     priority: int | None = Query(None, ge=0, le=4, description="The issue's own priority"),
-    claimed_by: str | None = Query(None, description='Issues held by this claimant'),
     closed_by: str | None = Query(None, description="Issues whose closer starts with this, such as 'claude-code/'"),
     search: str | None = Query(None, description='Words that must each appear in the title or description, in any order'),
     blocked: bool | None = Query(None, description='True for issues waiting on an unclosed dependency, false for the rest'),
@@ -343,8 +331,6 @@ def read_many(
         query = query.where(models.Issue.parent_id == resolve_issue(session, parent).id)
     if priority is not None:
         query = query.where(models.Issue.priority == priority)
-    if claimed_by is not None:
-        query = query.where(models.Issue.claimed_by == claimed_by)
     if closed_by:
         query = query.where(models.Issue.closed_by.startswith(closed_by, autoescape=True))
     for word in (search or '').split():
@@ -419,59 +405,6 @@ def read_ready(
     if limit is not None:
         issues = issues[:limit]
     return issue_views(session, issues, zone, readiness)
-
-
-def claim_values(claimant: str, minutes: int, now: dt.datetime) -> dict:
-    return {
-        'status': 'in_progress',
-        'claimed_by': claimant,
-        'claim_expires_ts': now + dt.timedelta(minutes=minutes),
-        'updated_ts': now,
-    }
-
-
-def claimable(now: dt.datetime, claimant: str | None = None):
-    """The compare half of the claim's compare-and-set: no live claim by anyone else."""
-    free = or_(
-        models.Issue.status == 'open',
-        and_(models.Issue.status == 'in_progress', models.Issue.claim_expires_ts.is_not(None), models.Issue.claim_expires_ts <= now),
-    )
-    if claimant is None:
-        return free
-    return or_(free, and_(models.Issue.status == 'in_progress', models.Issue.claimed_by == claimant))
-
-
-@router.post('/ready/claim', response_model=schemas.IssueClaimResult, status_code=status.HTTP_200_OK)
-def claim_next(request: schemas.IssueReadyClaimRequest, session: DbSession, zone: RequestZone):
-    """Take the head of the ready queue in one step.
-
-    Each candidate is taken with a compare-and-set, so two agents asking at once
-    never hold the same issue: the loser's update matches no row and it moves on
-    to the next candidate.
-    """
-    issues, _ = ready_issues(
-        session,
-        zone,
-        repo=request.repo,
-        type=request.type,
-        label=request.label,
-        initiative=request.initiative,
-        autofixable=request.autofixable,
-    )
-    now = dt.datetime.now(dt.UTC)
-    for candidate in issues:
-        taken = session.execute(
-            sql_update(models.Issue)
-            .where(models.Issue.id == candidate.id, claimable(now))
-            .values(**claim_values(request.claimant, request.minutes, now))
-            .returning(models.Issue.id),
-            execution_options={'synchronize_session': False},
-        ).scalar_one_or_none()
-        if taken is not None:
-            session.commit()
-            logger.info('issue_claimed', number=candidate.number, claimant=request.claimant)
-            return schemas.IssueClaimResult(issue=single_view(session, candidate, zone))
-    return schemas.IssueClaimResult(issue=None)
 
 
 @router.get('/vocabulary', response_model=schemas.IssueVocabulary, status_code=status.HTTP_200_OK)
@@ -649,96 +582,6 @@ def delete(issue: IssueFromPath, session: DbSession):
     session.execute(sql_delete(models.Record).where(models.Record.number == issue.number))
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-def claim_conflict(issue: models.Issue) -> str:
-    """Name who holds the issue, so the refused agent can tell whether to wait or move on."""
-    if issue.claimed_by is None or issue.claim_expires_ts is None:
-        # Moved to in_progress by hand, which is a person working it.
-        return f'#{issue.number} is in progress without a claim. Release it to open before claiming it.'
-    until = issue.claim_expires_ts.astimezone(dt.UTC)
-    return f'#{issue.number} is claimed by {issue.claimed_by} until {until:%Y-%m-%d %H:%M} UTC'
-
-
-def unready_reasons(issue: models.Issue, readiness: IssueReadiness) -> list[str]:
-    """Why the ready queue leaves the issue out, a sentence for each reason that holds.
-
-    An issue meeting every condition here and still left out is held: in
-    progress under a live claim, or by a person. That reason is `claim_conflict`.
-    """
-    if issue.is_closed:
-        return [f'#{issue.number} is {issue.status}.']
-    if issue.status == 'triage':
-        return [f'#{issue.number} is in triage. Accept it as open before claiming it.']
-    reasons = []
-    if issue.id in readiness.blocked:
-        blockers = [edge.depends_on for edge in issue.dependencies if not edge.depends_on.is_closed]
-        reasons.append(f'#{issue.number} is blocked by {numbered(blockers)}.')
-    if readiness.open_child_count.get(issue.id):
-        children = [child for child in issue.children if not child.is_closed]
-        reasons.append(f'#{issue.number} waits on its open children: {numbered(children)}.')
-    if issue.id in readiness.deferred:
-        reasons.append(f'#{issue.number} is deferred until {issue.deferred_until_date}.')
-    if issue.id in readiness.shelved and issue.initiative is not None:
-        reasons.append(
-            f'#{issue.number} is in the someday initiative {issue.initiative.name!r}, and nothing outside someday depends on it. '
-            'Reopen the initiative, or make active work depend on it.'
-        )
-    return reasons
-
-
-@router.post('/{id}/claim', response_model=schemas.Issue, status_code=status.HTTP_200_OK)
-def claim(issue: IssueFromPath, request: schemas.IssueClaimRequest, session: DbSession, zone: RequestZone, caller: CurrentCaller):
-    """Take this issue, or extend the claim already held under the same name.
-
-    A named issue is taken only when it is ready, a decision included, so an
-    agent never holds work it could not finish. Only extending a claim skips
-    the readiness check. A scoped client claims under its own client id, which
-    is what lets its release be limited to its own claims.
-    """
-    if isinstance(caller, ScopedClient) and request.claimant != caller.client_id:
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_CLAIMS_AS_ITSELF}, {caller.client_id}, not {request.claimant}', logger)
-    extending = issue.status == 'in_progress' and issue.claimed_by == request.claimant
-    today, now = calendar_now(zone)
-    if not extending:
-        readiness = measure_readiness(session, today, now)
-        if issue.id not in readiness.ready:
-            detail = ' '.join(unready_reasons(issue, readiness)) or claim_conflict(issue)
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
-
-    taken = session.execute(
-        sql_update(models.Issue)
-        .where(models.Issue.id == issue.id, claimable(now, request.claimant))
-        .values(**claim_values(request.claimant, request.minutes, now))
-        .returning(models.Issue.id),
-        execution_options={'synchronize_session': False},
-    ).scalar_one_or_none()
-    if taken is None:
-        session.rollback()
-        session.refresh(issue)
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=claim_conflict(issue))
-    session.commit()
-    logger.info('issue_claimed', number=issue.number, claimant=request.claimant)
-    return single_view(session, issue, zone)
-
-
-@router.delete('/{id}/claim', response_model=schemas.Issue, status_code=status.HTTP_200_OK)
-def release(issue: IssueFromPath, session: DbSession, zone: RequestZone, caller: CurrentCaller):
-    """Give the issue back to the ready queue. Releasing an issue not in progress changes nothing.
-
-    A claim sits only on an in-progress issue, so this one test covers both a
-    claim and work a person moved to in progress by hand. A scoped client lets
-    go only of a claim its own client id holds.
-    """
-    if isinstance(caller, ScopedClient) and issue.status == 'in_progress' and issue.claimed_by != caller.client_id:
-        held = f'claimed by {issue.claimed_by}' if issue.claimed_by else 'in progress by hand'
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_RELEASES_ITS_OWN}; #{issue.number} is {held}', logger)
-    if issue.status == 'in_progress':
-        clear_claim(issue)
-        issue.status = 'open'
-        issue.updated_ts = dt.datetime.now(dt.UTC)
-        session.commit()
-    return single_view(session, issue, zone)
 
 
 def priority_phrase(priority: int) -> str:

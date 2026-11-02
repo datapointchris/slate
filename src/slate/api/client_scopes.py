@@ -26,13 +26,14 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
         }
     ),
-    # What `slate issues claim <issue>` and `release` send, for a job holding an issue while an
-    # agent carries it. The handlers let a scoped client claim only under its own client id and
-    # release only a claim that id holds.
-    'slate.issues.claim': frozenset(
+    # What `slate claims hold <record>`, `extend` and `release` send, for a job holding a record
+    # while an agent carries it. The handlers let a scoped client act only under its own client id
+    # and release only a claim that id holds.
+    'slate.claims.hold': frozenset(
         {
-            ('POST', f'{API_PREFIX}/issues/{{id}}/claim'),
-            ('DELETE', f'{API_PREFIX}/issues/{{id}}/claim'),
+            ('POST', f'{API_PREFIX}/claims'),
+            ('POST', f'{API_PREFIX}/claims/{{record}}/extend'),
+            ('POST', f'{API_PREFIX}/claims/{{record}}/release'),
         }
     ),
     # What `slate issues add-comment` and `complete` send, for a job closing an issue whose fix

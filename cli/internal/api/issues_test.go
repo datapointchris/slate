@@ -12,7 +12,7 @@ import (
 const issueRow = `{"id":"019a0000-0000-7000-8000-000000000001","number":412,"title":"Route the new paths",` +
 	`"description":null,"acceptance":"curl answers 200","repo":"webapp","type":"bug","status":"open",` +
 	`"status_reason":null,"priority":0,"effective_priority":2,"rank":3.5,"deferred_until_date":"2026-10-09",` +
-	`"claimed_by":null,"claim_expires_ts":null,` +
+	`"claim":null,` +
 	`"initiative":{"id":"019a0000-0000-7000-8000-0000000000aa","name":"Ship the tracker","status":"active","priority":2},` +
 	`"parent":null,"discovered_from":{"id":"019a0000-0000-7000-8000-000000000002","number":400,"title":"Found it","status":"completed"},` +
 	`"duplicate_of":null,"labels":["area-api"],` +
@@ -71,15 +71,15 @@ func TestGetIssue_SendsTheZone(t *testing.T) {
 	}
 }
 
-// The API reads the claim and the queue filter from one flat object.
-func TestClaimNextIssue_FlattensTheClaimAndTheFilter(t *testing.T) {
-	client, _, _, body := recordRequest(t, `{"issue":null}`)
-	claim := IssueClaimInput{Claimant: "session-7", Minutes: 30}
-	result, err := client.ClaimNextIssue(context.Background(), claim, ReadyFilter{Repo: strptr(""), Label: "area-cli"}, "")
+// The API reads the lease and the queue filter from one flat object.
+func TestHoldNextClaim_FlattensTheLeaseAndTheFilter(t *testing.T) {
+	client, _, _, body := recordRequest(t, `{"claim":null,"side_effects":[],"warnings":[]}`)
+	lease := ClaimLease{Holder: "session-7", Minutes: 30, Host: strptr("desk")}
+	result, err := client.HoldNextClaim(context.Background(), lease, ReadyFilter{Repo: strptr(""), Label: "area-cli"}, "")
 	if err != nil {
-		t.Fatalf("ClaimNextIssue: %v", err)
+		t.Fatalf("HoldNextClaim: %v", err)
 	}
-	want := map[string]any{"claimant": "session-7", "minutes": float64(30), "repo": "", "label": "area-cli"}
+	want := map[string]any{"holder": "session-7", "minutes": float64(30), "host": "desk", "repo": "", "label": "area-cli"}
 	if len(*body) != len(want) {
 		t.Fatalf("body = %v, want %v", *body, want)
 	}
@@ -88,8 +88,8 @@ func TestClaimNextIssue_FlattensTheClaimAndTheFilter(t *testing.T) {
 			t.Errorf("body[%s] = %v, want %v", key, (*body)[key], value)
 		}
 	}
-	if result.Issue != nil {
-		t.Errorf("an empty queue decoded as %+v, want nil", result.Issue)
+	if result.Claim != nil {
+		t.Errorf("an empty queue decoded as %+v, want nil", result.Claim)
 	}
 }
 

@@ -2,10 +2,10 @@ import datetime as dt
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field
 from pydantic import StringConstraints
 from pydantic import model_validator
 
+from slate.schemas.claim import Claim
 from slate.schemas.initiative import InitiativeRef
 from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.not_null import NotNull
@@ -19,10 +19,6 @@ from slate.schemas.write_effects import Written
 IssueRef = UUID | int | str
 
 Slug = Annotated[str, StringConstraints(pattern=r'^[a-z0-9]+(-[a-z0-9]+)*$')]
-Claimant = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-ClaimMinutes = Annotated[int, Field(ge=1, le=10080, description='How long the claim holds before the issue is ready again')]
-
-DEFAULT_CLAIM_MINUTES = 240
 
 
 class IssueSummary(RecordModel):
@@ -56,8 +52,8 @@ class IssueCreate(RecordModel):
 class IssueUpdate(RecordModel):
     """Status moves through here, and the server stamps what a transition implies.
 
-    `closed_ts` and the claim are never sent: closing stamps the one and clears
-    the other. `closed_by` names who is closing it and is accepted only with the
+    `closed_ts` is never sent: closing stamps it, and ends the issue's claim as
+    a side effect the answer names. `closed_by` names who is closing it and is accepted only with the
     status that closes an open issue; the server stamps the signed-in user's
     email when it is left out. `duplicate_of` is accepted only alongside
     `status: canceled`, and `labels` replaces the issue's whole set.
@@ -89,7 +85,8 @@ class Issue(RecordModel):
     anything it blocks. `is_ready` says whether an agent could take it
     now, whatever its type; the ready queue leaves decisions out separately.
     `autofix` is the issue's own setting, and `is_autofixable` is false when it,
-    its initiative's or an unclosed parent's is false.
+    its initiative's or an unclosed parent's is false. `claim` is the issue's
+    unended claim, live or expired, and null when nobody holds it.
     """
 
     id: UUID
@@ -105,8 +102,7 @@ class Issue(RecordModel):
     effective_priority: int
     rank: float
     deferred_until_date: dt.date | None = None
-    claimed_by: str | None = None
-    claim_expires_ts: dt.datetime | None = None
+    claim: Claim | None = None
     autofix: bool
     initiative: InitiativeSummary | None = None
     parent: IssueSummary | None = None
@@ -141,33 +137,15 @@ class IssueComment(RecordModel):
 
 
 class IssueDetail(Issue):
+    """`claims` is every claim the issue has had, ended ones included, oldest first."""
+
     children: list[IssueSummary] = []
     comments: list[IssueComment] = []
+    claims: list[Claim] = []
 
 
 class IssueDependencyCreate(RecordModel):
     depends_on: IssueRef
-
-
-class IssueClaimRequest(RecordModel):
-    claimant: Claimant
-    minutes: ClaimMinutes = DEFAULT_CLAIM_MINUTES
-
-
-class IssueReadyClaimRequest(IssueClaimRequest):
-    """Take the head of the ready queue, narrowed by the same filters the queue reads."""
-
-    repo: str | None = None
-    type: str | None = None
-    label: Slug | None = None
-    initiative: InitiativeRef | None = None
-    autofixable: bool | None = None
-
-
-class IssueClaimResult(RecordModel):
-    """`issue` is null when nothing was ready to claim, which is not an error."""
-
-    issue: Issue | None = None
 
 
 class IssueRankMove(RecordModel):

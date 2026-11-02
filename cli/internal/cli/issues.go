@@ -46,21 +46,21 @@ func newIssuesCommand() *cobra.Command {
 			"its repo, labels and dependencies place it, and an optional initiative groups\n" +
 			"the issues that ship together.\n" +
 			"\n" +
-			"An issue is ready when it is open or its claim has run out, everything it\n" +
-			"depends on is closed, its deferral day has come, none of its children is\n" +
-			"still open, and it is not shelved in a someday initiative. A someday issue\n" +
-			"that work outside someday depends on is not shelved. `next` lists the ready\n" +
-			"issues in the order to take them: priority first, then rank. An issue sorts\n" +
-			"by the most urgent of its own priority, its parent's, its initiative's, and\n" +
-			"that of anything it blocks. Its own priority can raise it, never lower it.\n" +
+			"An issue is ready when it is open, nobody holds a live claim on it,\n" +
+			"everything it depends on is closed, its deferral day has come, none of its\n" +
+			"children is still open, and it is not shelved in a someday initiative. A\n" +
+			"someday issue that work outside someday depends on is not shelved. `next`\n" +
+			"lists the ready issues in the order to take them: priority first, then rank.\n" +
+			"An issue sorts by the most urgent of its own priority, its parent's, its\n" +
+			"initiative's, and that of anything it blocks. Its own priority can raise it,\n" +
+			"never lower it.\n" +
 			"\n" +
-			"Working an issue starts with a claim and ends with a close. Before the\n" +
-			"first edit, `claim <issue>` takes it, or `claim` alone takes the head of\n" +
-			"`next`. A change that carries several issues claims each one. A claimed\n" +
-			"issue is in progress and `next` leaves it out, so no other session takes\n" +
-			"it. `complete` lets go of the claim, `release` hands the issue back\n" +
-			"unfinished, and claiming it again extends the claim. `list --status\n" +
-			"in_progress` shows every claim held.\n" +
+			"Working an issue starts with a claim and ends with a close. Before the first\n" +
+			"edit, `slate claims hold <issue>` takes it, or `slate claims hold --next`\n" +
+			"takes the head of `next`. A change that carries several issues holds each\n" +
+			"one. `complete` and `cancel` end the claim and say so. `slate claims\n" +
+			"release` hands an issue back unfinished, and `slate claims list` shows every\n" +
+			"claim held.\n" +
 			"\n" +
 			"Decisions wait on a person, so the queue leaves them out.\n" +
 			"`slate issues list --type decision` lists them.",
@@ -90,8 +90,6 @@ func newIssuesCommand() *cobra.Command {
 	)
 	add(issueGroupWork,
 		newIssuesNextCommand(),
-		goclikit.WithRecoveryHints(newIssuesClaimCommand(), issueHints...),
-		goclikit.WithRecoveryHints(newIssuesReleaseCommand(), issueHints...),
 	)
 	add(issueGroupFile,
 		goclikit.WithRecoveryHints(newIssuesCreateCommand(), append(slices.Clone(issueHints), initiativeHints...)...),
@@ -130,7 +128,6 @@ type issueFilterFlags struct {
 	initiative  string
 	parent      string
 	priority    string
-	claimedBy   string
 	closedBy    string
 	blocked     bool
 	autofixable bool
@@ -145,7 +142,6 @@ func (v *issueFilterFlags) register(cmd *cobra.Command, statusDefault string) {
 	f.StringVar(&v.initiative, "initiative", "", "Only issues in this initiative, by number, name or id")
 	f.StringVar(&v.parent, "parent", "", "Only the children of this issue")
 	f.StringVar(&v.priority, "priority", "", "Only issues whose own priority is this: "+priorityChoices())
-	f.StringVar(&v.claimedBy, "claimed-by", "", "Only issues held by this claimant")
 	f.StringVar(&v.closedBy, "closed-by", "", "Only issues whose closer starts with this, such as claude-code/")
 	f.BoolVar(&v.blocked, "blocked", false, "Only issues waiting on an unclosed dependency (--blocked=false for the rest)")
 	f.BoolVar(&v.autofixable, "autofixable", false, autofixableFilterHelp)
@@ -173,7 +169,6 @@ func (v *issueFilterFlags) filter(cmd *cobra.Command) (api.IssueFilter, error) {
 		Label:      v.label,
 		Initiative: v.initiative,
 		Parent:     v.parent,
-		ClaimedBy:  v.claimedBy,
 		ClosedBy:   v.closedBy,
 	}
 	if f.Changed("priority") {
@@ -252,8 +247,8 @@ func newIssuesListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List issues, open work first in queue order",
-		Long: "Unclosed issues by default: triage, open and in progress. Completed and\n" +
-			"canceled ones accumulate without end, so --status asks for them.\n" +
+		Long: "Unclosed issues by default: triage and open. Completed and canceled ones\n" +
+			"accumulate without end, so --status asks for them.\n" +
 			"\n" +
 			"Open work comes first in the order `next` takes it, then closed work, latest\n" +
 			"first. The priority column is the one the queue sorts by, and a * marks one\n" +
@@ -399,11 +394,11 @@ func newIssuesNextCommand() *cobra.Command {
 		Use:   "next",
 		Short: "The ready issues, in the order to take them",
 		Long: "Open, unblocked, not deferred past today, with no open children, and not held\n" +
-			"by a live claim. The first row is what `slate issues claim` with no issue would\n" +
-			"take, under the same flags. Decisions wait on a person and are left out unless\n" +
+			"by a live claim. The first row is what `slate claims hold --next` would take,\n" +
+			"under the same flags. Decisions wait on a person and are left out unless\n" +
 			"--type decision asks for them. --autofixable keeps only the issues whose own,\n" +
 			"initiative's and parents' autofix are all on, the queue an unattended fix reads.\n" +
-			"Reading the queue holds nothing, so claim the issue you take before working it.\n" +
+			"Reading the queue holds nothing, so hold the issue you take before working it.\n" +
 			"\n" +
 			"The priority column is the one the queue sorts by, and a * marks one inherited\n" +
 			"from what the issue blocks, its parent, or its initiative.",
@@ -452,7 +447,7 @@ func newIssuesNextCommand() *cobra.Command {
 	return cmd
 }
 
-// readyQueueFlags narrow the ready queue, on `next` and on `claim` with no issue.
+// readyQueueFlags narrow the ready queue, on `issues next` and `claims hold --next`.
 type readyQueueFlags struct {
 	repo        string
 	issueType   string
@@ -461,7 +456,7 @@ type readyQueueFlags struct {
 	autofixable bool
 }
 
-// readyQueueFlagNames are refused by a claim that names its issue.
+// readyQueueFlagNames are refused by a hold that names its record.
 func readyQueueFlagNames() []string {
 	probe := &cobra.Command{}
 	new(readyQueueFlags).register(probe)
@@ -598,8 +593,8 @@ func newIssuesVocabularyCommand() *cobra.Command {
 const actorWorkerEnv = "SLATE_ACTOR"
 
 // actorIdentity names who acts when a claim, a comment or a close does not say.
-// Two sessions on one machine must not share a name, because a claimant
-// extends its own claim. The prefix is the kind of actor, so a reader can
+// Two sessions on one machine must not share a name, because a hold under a
+// name that already holds the record answers that it is held. The prefix is the kind of actor, so a reader can
 // filter on it. docs/issues.md lists the kinds.
 func actorIdentity() string {
 	worker := os.Getenv(actorWorkerEnv)
@@ -708,8 +703,8 @@ func issueStateNotes(issue api.Issue, now time.Time) []string {
 		return nil
 	}
 	var notes []string
-	if claim := claimNote(issue, now); claim != "" {
-		notes = append(notes, claim)
+	if issue.Claim != nil {
+		notes = append(notes, claimNote(*issue.Claim, now))
 	}
 	if blockers := openNumbers(issue.DependsOn); len(blockers) > 0 {
 		notes = append(notes, "blocked by "+strings.Join(blockers, ", "))
@@ -723,17 +718,11 @@ func issueStateNotes(issue api.Issue, now time.Time) []string {
 	return notes
 }
 
-func claimNote(issue api.Issue, now time.Time) string {
-	if issue.Status != api.IssueStatusInProgress {
-		return ""
+func claimNote(claim api.Claim, now time.Time) string {
+	if claim.State != api.ClaimStateLive {
+		return "claim by " + claim.Holder + " expired"
 	}
-	if issue.ClaimExpiresTS == nil || issue.ClaimedBy == nil {
-		return "in progress with no claim"
-	}
-	if !issue.ClaimExpiresTS.After(now) {
-		return "claim by " + *issue.ClaimedBy + " expired"
-	}
-	return "claimed by " + *issue.ClaimedBy + " until " + localClock(*issue.ClaimExpiresTS, now)
+	return "claimed by " + claim.Holder + " until " + localClock(claim.ExpiresTS, now)
 }
 
 // closedNote says when the issue closed and who closed it, where each is known.
@@ -852,6 +841,11 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 	edges("Depends on", issue.DependsOn)
 	edges("Blocks", issue.Blocks)
 	edges("Children", issue.Children)
+
+	if len(issue.Claims) > 0 {
+		_, _ = fmt.Fprintf(out, "\nClaims (%d):\n", len(issue.Claims))
+		printClaimHistory(out, issue.Claims, now)
+	}
 
 	if len(issue.Comments) > 0 {
 		_, _ = fmt.Fprintf(out, "\nComments (%d):\n", len(issue.Comments))

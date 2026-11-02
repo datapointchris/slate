@@ -1,6 +1,7 @@
 import datetime as dt
 from uuid import UUID
 
+from slate.schemas.claim import Claim
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
@@ -46,6 +47,7 @@ class Initiative(RecordModel):
 
     The three counts partition `issue_count`. `repos` is derived from every issue
     not canceled, never stored, so it cannot drift from what the work touches.
+    `claim` is the initiative's unended claim, live or expired.
     """
 
     id: UUID
@@ -64,6 +66,7 @@ class Initiative(RecordModel):
     completed_count: int = 0
     canceled_count: int = 0
     repos: list[str] = []
+    claim: Claim | None = None
 
 
 class InitiativeWritten(Written):

@@ -29,8 +29,8 @@ from slate.models.record import record_link
 if TYPE_CHECKING:
     from slate.models.initiative import Initiative
 
-# `in_progress` is what a claim sets, and the only status a claim may sit on.
-ISSUE_STATUSES = ['triage', 'open', 'in_progress', 'completed', 'canceled']
+# Whether anyone is working an open issue is its live claim, never a status.
+ISSUE_STATUSES = ['triage', 'open', 'completed', 'canceled']
 CLOSED_ISSUE_STATUSES = ['completed', 'canceled']
 
 # `decision` is the one type that changes what happens to an issue: it waits on
@@ -58,10 +58,7 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
     `services/issue_readiness.py` derives the effective priority, and
     `services/issue_rank.py` places `rank`.
 
-    A claim is how an agent takes an issue: one compare-and-set writes
-    `claimed_by`, `claim_expires_ts` and `in_progress` together. An agent that
-    dies holding work loses the claim when it expires, and the issue returns to
-    the ready queue with nobody releasing it.
+    Who is working it is its claim, a row in `claims` on its number.
     """
 
     RECORD_KIND = 'issue'
@@ -84,8 +81,6 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
     # A calendar day. The issue stays out of the ready queue until the day
     # arrives in the reader's zone, and does not count as blocked meanwhile.
     deferred_until_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
-    claimed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
-    claim_expires_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # False keeps the issue from an unattended fix. Its initiative's false does too.
     autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text('true'))
     initiative_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey('initiatives.id', ondelete='SET NULL'), nullable=True, index=True)
@@ -137,8 +132,6 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
             name='issue_canceled_requires_reason',
         ),
         CheckConstraint("status_reason IS NULL OR status = 'canceled'", name='issue_reason_only_when_canceled'),
-        CheckConstraint('(claimed_by IS NULL) = (claim_expires_ts IS NULL)', name='issue_claim_is_whole'),
-        CheckConstraint("claimed_by IS NULL OR status = 'in_progress'", name='issue_claim_only_in_progress'),
         CheckConstraint("closed_ts IS NULL OR status IN ('completed', 'canceled')", name='issue_closed_ts_only_when_closed'),
         CheckConstraint("closed_by IS NULL OR status IN ('completed', 'canceled')", name='issue_closed_by_only_when_closed'),
         CheckConstraint("duplicate_of_id IS NULL OR status = 'canceled'", name='issue_duplicate_only_when_canceled'),

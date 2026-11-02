@@ -1,3 +1,5 @@
+from slate.models.claim import Claim
+from slate.models.claim import ClaimEnding
 from slate.models.initiative import Initiative
 from slate.models.initiative import InitiativeStatus
 from slate.models.issue import Issue
@@ -12,6 +14,8 @@ from slate.models.record import RecordKind
 from slate.models.record_change import RecordChange
 
 __all__ = [
+    'Claim',
+    'ClaimEnding',
     'Initiative',
     'InitiativeStatus',
     'Issue',

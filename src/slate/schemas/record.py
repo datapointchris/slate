@@ -19,3 +19,12 @@ class RecordModel(BaseModel):
     """A schema read from a model row's attributes, which every schema of a record is."""
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RecordSummary(RecordModel):
+    """Enough of a record of any kind to print it on one line. `title` is an initiative's name."""
+
+    number: int
+    kind: str
+    title: str
+    status: str | None = None
