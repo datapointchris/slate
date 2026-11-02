@@ -53,5 +53,14 @@
     "priority",
     "open",
     "newest"
+  ],
+  "initiative_statuses_closed": [
+    "completed",
+    "dropped"
+  ],
+  "record_kinds": [
+    "idea",
+    "initiative",
+    "issue"
   ]
 }
