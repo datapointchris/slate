@@ -97,6 +97,9 @@ A new command takes a noun unless no one noun owns what it reads.
   id, set per transaction by `bind_actor`. `message_tokens` opts out, because
   its rows mirror a transcript, and each report that changes them is audited
   on `agent_sessions`.
+- **A new table hanging off a record goes in `services/record_history.py`**,
+  by the column naming its parent. The history read finds rows only through
+  those lists, so a table left out never prints in `slate show`.
 - **A write answers an envelope that names everything else it did.** The
   handler takes `Effects` from `services/write_effects.py`, calls `did()` for
   each change beyond the request and `warn()` for each condition it went
