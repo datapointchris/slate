@@ -50,6 +50,7 @@ func TestDocumentsShow_PrintsALineCommentUnderItsLineAndOneWhoseLineChangedAfter
 		Version: api.DocumentVersion{
 			DocumentVersionSummary: api.DocumentVersionSummary{Version: 2, WrittenBy: "s", WrittenTS: now, LineCount: 3},
 			Body:                   "a\nb\nc moved\n",
+			Lines:                  []string{"a", "b", "c moved"},
 		},
 		Versions: []api.DocumentVersionSummary{{Version: 1}, {Version: 2}},
 		Comments: []api.PlacedComment{comment(1, 2, "b", &two), comment(2, 3, "c", nil)},
@@ -62,7 +63,7 @@ func TestDocumentsShow_PrintsALineCommentUnderItsLineAndOneWhoseLineChangedAfter
 	if line2, line3 := strings.Index(printed, "  2  b"), strings.Index(printed, "  3  c moved"); line2 < 0 || under < line2 || under > line3 {
 		t.Errorf("want the comment on b printed between lines 2 and 3:\n%s", printed)
 	}
-	if changed := strings.Index(printed, "Comments on lines version 2 changed (1)"); changed < strings.Index(printed, "  3  c moved") ||
+	if changed := strings.Index(printed, "Comments on lines not in version 2 (1)"); changed < strings.Index(printed, "  3  c moved") ||
 		!strings.Contains(printed[changed:], "it was on: c") {
 		t.Errorf("want the comment on c after the document, quoting its line:\n%s", printed)
 	}

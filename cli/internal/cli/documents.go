@@ -26,17 +26,17 @@ var documentHints = []string{
 func newDocumentsCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "documents",
-		Short: "Read and write a record's research, design and plan documents, a version at a time",
-		Long: "A record of any kind keeps documents of three kinds: research, design and plan.\n" +
+		Short: "Read and write a record's documents, a version at a time",
+		Long: "A record of any kind keeps documents, each of one kind: " + strings.Join(api.DocumentKinds, ", ") + ".\n" +
 			"Each is named on its record, as 412/plan, and every write adds a version. A\n" +
 			"version names who wrote it, the agent session that did, and the worklog that\n" +
 			"session was in, so a later go at the record reads which go wrote what. A plan\n" +
 			"written in a worklog brings it to its planned stage.\n" +
 			"\n" +
 			"`show` numbers a version's lines and prints each line comment under its line.\n" +
-			"A comment written on another version follows its line while the line stays\n" +
-			"unchanged, and is printed after the document once a version changed it.\n" +
-			"`slate comments add --document --line` comments on a line.",
+			"A comment written on another version follows its line into this one while the\n" +
+			"line is unchanged. One whose line this version does not hold is printed after\n" +
+			"the document. `slate comments add --document --line` comments on a line.",
 	})
 	goclikit.WithRecoveryHints(cmd, documentHints...)
 	splitReadingFromChanging(cmd)
@@ -100,9 +100,9 @@ func newDocumentsShowCommand() *cobra.Command {
 		Use:   "show <record> <name>",
 		Short: "Show a document's latest version, or --version, with its line comments",
 		Long: "Lines are numbered as `slate comments add --line` takes them. Each line comment\n" +
-			"is printed under its line. One whose line this version changed or removed is\n" +
-			"printed after the document with the line it was written on. Every version is\n" +
-			"listed last, with who wrote it and the worklog it was written in.",
+			"is printed under its line. One whose line this version does not hold unchanged\n" +
+			"is printed after the document, with the line it was written on. Every version\n" +
+			"is listed last, with who wrote it and the worklog it was written in.",
 		Example: "  slate documents show 412 plan\n" +
 			"  slate documents show 412 plan --version 1 --json",
 		Args: cobra.ExactArgs(2),
@@ -146,7 +146,7 @@ func newDocumentsWriteCommand() *cobra.Command {
 			"nothing and warns.\n" +
 			"\n" +
 			"--kind is one of " + strings.Join(api.DocumentKinds, ", ") + ", and the write that creates a\n" +
-			"document needs it. A name that is a kind is that kind's document, so\n" +
+			"document needs it. A name that is a kind holds only that kind, so\n" +
 			"`write 412 plan` needs no --kind. A second document of one kind takes another\n" +
 			"name, as `write 412 cli-plan --kind plan`.\n" +
 			"\n" +
@@ -167,6 +167,9 @@ func newDocumentsWriteCommand() *cobra.Command {
 			body, err := readDocumentBody(cmd, file)
 			if err != nil {
 				return err
+			}
+			if strings.TrimSpace(body) == "" {
+				return goclikit.UsageError(errors.New("the body is blank; a document version holds text"))
 			}
 			place := agentPlace(session)
 			in := api.DocumentWriteInput{Body: body, Kind: nonEmpty(kind), Session: place.Session, Host: place.Host}
@@ -267,7 +270,7 @@ func printDocument(out io.Writer, document api.Document, now time.Time) {
 		}
 		under[*comment.ShownLine] = append(under[*comment.ShownLine], comment)
 	}
-	lines := documentLines(shown.Body)
+	lines := shown.Lines
 	width := len(strconv.Itoa(len(lines)))
 	pad := strings.Repeat(" ", width+4)
 	for i, text := range lines {
@@ -277,7 +280,7 @@ func printDocument(out io.Writer, document api.Document, now time.Time) {
 		}
 	}
 	if len(changed) > 0 {
-		_, _ = fmt.Fprintf(out, "\nComments on lines version %d changed (%d):\n", shown.Version, len(changed))
+		_, _ = fmt.Fprintf(out, "\nComments on lines not in version %d (%d):\n", shown.Version, len(changed))
 		for _, comment := range changed {
 			printPlacedComment(out, comment, shown.Version, "  ", now)
 			_, _ = fmt.Fprintf(out, "      it was on: %s\n", comment.On.Text)
@@ -288,16 +291,6 @@ func printDocument(out io.Writer, document api.Document, now time.Time) {
 		_, _ = fmt.Fprintf(out, "  %d  %s, %d %s\n", version.Version, versionByline(version, now), version.LineCount,
 			plural(version.LineCount, "line", "lines"))
 	}
-}
-
-// documentLines splits a body as the API numbers it: at each newline alone,
-// with a final newline ending the last line rather than starting another.
-func documentLines(body string) []string {
-	lines := strings.Split(body, "\n")
-	if lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-	return lines
 }
 
 // printPlacedComment prints a line comment indented under its line, naming the

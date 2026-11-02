@@ -22,10 +22,12 @@ type DocumentVersionSummary struct {
 	LineCount int       `json:"line_count"`
 }
 
-// DocumentVersion is one version with its body.
+// DocumentVersion is one version with its body, and the body's lines as the
+// API numbers them, which `slate comments add --line` takes.
 type DocumentVersion struct {
 	DocumentVersionSummary
-	Body string `json:"body"`
+	Body  string   `json:"body"`
+	Lines []string `json:"lines"`
 }
 
 // DocumentSummary is a document as a record's read and a list carry it: its
