@@ -6,14 +6,13 @@ from pydantic import StringConstraints
 from pydantic import model_validator
 
 from slate.schemas.claim import Claim
-from slate.schemas.comment import Comment
-from slate.schemas.document import DocumentSummary
 from slate.schemas.initiative import InitiativeRef
 from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
+from slate.schemas.record_parts import RecordParts
 from slate.schemas.write_effects import Written
 
 # An issue answers to its UUID or its number, and the API resolves either. `str`
@@ -125,13 +124,10 @@ class Issue(RecordModel):
     closed_by: str | None = None
 
 
-class IssueDetail(Issue):
-    """`claims` is every claim the issue has had, ended ones included, and `comments` every comment on it, each oldest first."""
+class IssueDetail(Issue, RecordParts):
+    """An issue with its children, claims, comments and documents."""
 
     children: list[IssueSummary] = []
-    comments: list[Comment] = []
-    documents: list[DocumentSummary] = []
-    claims: list[Claim] = []
 
 
 class IssueDependencyCreate(RecordModel):

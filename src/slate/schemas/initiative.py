@@ -2,12 +2,11 @@ import datetime as dt
 from uuid import UUID
 
 from slate.schemas.claim import Claim
-from slate.schemas.comment import Comment
-from slate.schemas.document import DocumentSummary
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
+from slate.schemas.record_parts import RecordParts
 from slate.schemas.write_effects import Written
 
 # An initiative answers to its UUID, its number or its name, and the API resolves each.
@@ -74,12 +73,8 @@ class Initiative(RecordModel):
     idea: RecordSummary | None = None
 
 
-class InitiativeDetail(Initiative):
-    """An initiative with every claim ever held on it and every comment on it, oldest first, and its documents."""
-
-    claims: list[Claim] = []
-    comments: list[Comment] = []
-    documents: list[DocumentSummary] = []
+class InitiativeDetail(Initiative, RecordParts):
+    """An initiative with its claims, comments and documents."""
 
 
 class InitiativeWritten(Written):

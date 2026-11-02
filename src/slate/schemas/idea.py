@@ -7,13 +7,12 @@ from pydantic import Field
 from pydantic import StringConstraints
 
 from slate.schemas.claim import Claim
-from slate.schemas.comment import Comment
-from slate.schemas.document import DocumentSummary
 from slate.schemas.initiative import Initiative
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
+from slate.schemas.record_parts import RecordParts
 from slate.schemas.write_effects import Written
 
 # An idea answers to its UUID or its number.
@@ -86,12 +85,8 @@ class Idea(RecordModel):
     claim: Claim | None = None
 
 
-class IdeaDetail(Idea):
-    """An idea with every claim ever held on it and every comment on it, oldest first, and its documents."""
-
-    claims: list[Claim] = []
-    comments: list[Comment] = []
-    documents: list[DocumentSummary] = []
+class IdeaDetail(Idea, RecordParts):
+    """An idea with its claims, comments and documents."""
 
 
 class IdeaWritten(Written):

@@ -56,6 +56,7 @@ from slate.schemas.issue import IssueUpdate
 from slate.schemas.issue import IssueWritten
 from slate.schemas.record import RecordListed
 from slate.schemas.record import RecordSummary
+from slate.schemas.record_parts import RecordParts
 from slate.schemas.tokens import TokensByKind
 from slate.schemas.vocabulary import PriorityName
 from slate.schemas.vocabulary import Vocabulary
@@ -129,6 +130,7 @@ __all__ = [
     'PriorityName',
     'RecordDeleted',
     'RecordListed',
+    'RecordParts',
     'RecordSummary',
     'SessionSpan',
     'SessionUsageReport',

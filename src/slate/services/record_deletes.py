@@ -62,10 +62,15 @@ def name_documents_and_comments_deleted(session: Session, number: int, effects: 
         effects.did(WriteEffectCode.COMMENTS_DELETED, f'Deleted the {comments} {noun} on #{number} and its documents.', number)
 
 
+def name_record_parts_deleted(session: Session, number: int, deleted_by: str, now: dt.datetime, effects: WriteEffects) -> None:
+    """Name what hangs off the record's number and goes with it, whatever the kind."""
+    name_claims_deleted(session, number, deleted_by, now, effects)
+    name_worklogs_deleted(session, number, effects)
+    name_documents_and_comments_deleted(session, number, effects)
+
+
 def name_issue_delete(session: Session, issue: models.Issue, deleted_by: str, now: dt.datetime, effects: WriteEffects) -> None:
-    name_claims_deleted(session, issue.number, deleted_by, now, effects)
-    name_worklogs_deleted(session, issue.number, effects)
-    name_documents_and_comments_deleted(session, issue.number, effects)
+    name_record_parts_deleted(session, issue.number, deleted_by, now, effects)
     children = session.scalars(select(models.Issue.number).where(models.Issue.parent_id == issue.id).order_by(models.Issue.number))
     for child in children:
         effects.did(WriteEffectCode.CHILD_DETACHED, f'#{child} had #{issue.number} as its parent, and has none now.', child)
@@ -82,9 +87,7 @@ def name_issue_delete(session: Session, issue: models.Issue, deleted_by: str, no
 def name_initiative_delete(
     session: Session, initiative: models.Initiative, deleted_by: str, now: dt.datetime, effects: WriteEffects
 ) -> None:
-    name_claims_deleted(session, initiative.number, deleted_by, now, effects)
-    name_worklogs_deleted(session, initiative.number, effects)
-    name_documents_and_comments_deleted(session, initiative.number, effects)
+    name_record_parts_deleted(session, initiative.number, deleted_by, now, effects)
     issues = session.scalars(select(models.Issue.number).where(models.Issue.initiative_id == initiative.id).order_by(models.Issue.number))
     for issue in issues:
         effects.did(

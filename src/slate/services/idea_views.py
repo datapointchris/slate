@@ -12,11 +12,9 @@ from sqlalchemy.orm import selectinload
 from slate import models
 from slate import schemas
 from slate.schemas.idea import EvidenceKind
-from slate.services.claim_views import claim_history
 from slate.services.claim_views import unended_claim_views
-from slate.services.comment_views import record_comments
-from slate.services.document_views import record_documents
 from slate.services.initiative_views import initiatives_of_ideas
+from slate.services.record_parts import record_parts
 
 IDEA_LOAD_OPTIONS = (selectinload(models.Idea.evidence),)
 
@@ -63,7 +61,5 @@ def idea_view(session: Session, idea: models.Idea) -> schemas.Idea:
 def idea_detail(session: Session, idea: models.Idea) -> schemas.IdeaDetail:
     return schemas.IdeaDetail(
         **idea_view(session, idea).model_dump(),
-        claims=claim_history(session, idea.number, dt.datetime.now(dt.UTC)),
-        comments=record_comments(session, idea.number),
-        documents=record_documents(session, idea.number),
+        **record_parts(session, idea.number, dt.datetime.now(dt.UTC)).model_dump(),
     )

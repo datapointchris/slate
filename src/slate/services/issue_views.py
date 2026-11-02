@@ -22,13 +22,11 @@ from sqlalchemy.orm import selectinload
 from slate import models
 from slate import schemas
 from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.services.claim_views import claim_history
 from slate.services.claim_views import unended_claim_views
-from slate.services.comment_views import record_comments
-from slate.services.document_views import record_documents
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_readiness import urgency
+from slate.services.record_parts import record_parts
 
 ISSUE_LOAD_OPTIONS = (
     selectinload(models.Issue.initiative),
@@ -166,10 +164,8 @@ def issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.Is
     children = session.scalars(select(models.Issue).where(models.Issue.parent_id == issue.id).order_by(models.Issue.rank)).all()
     return schemas.IssueDetail(
         **view.model_dump(),
+        **record_parts(session, issue.number, dt.datetime.now(dt.UTC)).model_dump(),
         children=[schemas.IssueSummary(id=c.id, number=c.number, title=c.title, status=c.status) for c in children],
-        comments=record_comments(session, issue.number),
-        documents=record_documents(session, issue.number),
-        claims=claim_history(session, issue.number, dt.datetime.now(dt.UTC)),
     )
 
 
