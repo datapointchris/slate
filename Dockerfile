@@ -16,9 +16,14 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
+# The release names the version it builds, and the package carries it, so every span reads it as
+# service.version. A build that names none, such as a pull request's, keeps the tree's version.
+ARG SLATE_VERSION=""
 # Non-editable, so the package lands in the venv and the runtime stage needs no source tree.
+# Frozen, because the stamp edits pyproject.toml after the layer above checked the lock against it.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-editable
+    if [ -n "$SLATE_VERSION" ]; then uv version --frozen "$SLATE_VERSION"; fi && \
+    uv sync --frozen --no-dev --no-editable
 
 
 FROM python:3.14-slim-bookworm
@@ -36,14 +41,9 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY alembic.ini ./
 
-# The release names the version it builds, and every span carries it as service.version. A build
-# that names none, such as a pull request's, leaves it empty, and the spans carry no version.
-ARG SLATE_VERSION=""
-
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    SLATE_VERSION=${SLATE_VERSION}
+    PYTHONDONTWRITEBYTECODE=1
 
 USER 10400:10400
 EXPOSE 8000

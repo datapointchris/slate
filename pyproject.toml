@@ -1,6 +1,7 @@
 [project]
 name = "slate"
-# Not a released version. The deployed artifact is the image, named by its tag, and nothing reads this field.
+# The source tree's version, never a release. The image build stamps the release it builds here,
+# and the API reads it from the installed package as service.version.
 version = "0.0.0"
 description = "Work tracker built for coding agents: the API and its Postgres schema."
 authors = [{ name = "Chris Birch", email = "chrisbirch@fastmail.com" }]

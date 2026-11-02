@@ -8,6 +8,7 @@ audit row carries the caller's trace. `OTEL_SDK_DISABLED=true` turns the SDK off
 """
 
 import functools
+import importlib.metadata
 import os
 from collections.abc import Callable
 from collections.abc import Iterable
@@ -39,6 +40,9 @@ SPAN_EXPORTERS: dict[str, Callable[[], SpanExporter]] = {
     'console': lambda: ConsoleSpanExporter(formatter=lambda span: span.to_json(indent=None) + os.linesep),
 }
 
+# pyproject.toml's version for the source tree, which no release stamped.
+UNRELEASED_VERSION = '0.0.0'
+
 
 def exporter_names() -> list[str]:
     """The exporters `OTEL_TRACES_EXPORTER` names, else `otlp` where an OTLP endpoint is set, else none."""
@@ -49,9 +53,13 @@ def exporter_names() -> list[str]:
 
 
 def service_resource() -> Resource:
-    """`service.name` slate and the image's version, under whatever `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` set."""
+    """`service.name` slate and the installed package's release, under what `OTEL_SERVICE_NAME` and `OTEL_RESOURCE_ATTRIBUTES` set.
+
+    The image build stamps the release it builds into the package's version. A tree no release
+    built keeps `UNRELEASED_VERSION`, and its spans carry no `service.version`.
+    """
     defaults: dict[str, str] = {SERVICE_NAME: 'slate'}
-    if version := os.environ.get('SLATE_VERSION'):
+    if (version := importlib.metadata.version('slate')) != UNRELEASED_VERSION:
         defaults[SERVICE_VERSION] = version
     return Resource.create(defaults).merge(OTELResourceDetector().detect())
 
