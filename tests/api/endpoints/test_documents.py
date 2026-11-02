@@ -76,3 +76,9 @@ def test_a_line_comment_follows_its_line_into_a_later_version_and_sits_on_none_o
 
     unchanged = ok(client.put(f'/documents/{record}/plan', json={'body': revised}))
     assert ([each['code'] for each in unchanged['warnings']], len(unchanged['document']['versions'])) == (['document_unchanged'], 2)
+
+
+def test_slate_documents_write_design_kind_plan_is_refused_so_record_design_is_always_a_design(client):
+    record = bug(client)
+    ok(client.put(f'/documents/{record}/design', json={'kind': 'plan', 'body': PLAN}), status.HTTP_422_UNPROCESSABLE_CONTENT)
+    assert ok(client.get('/documents', params={'record': record})) == []

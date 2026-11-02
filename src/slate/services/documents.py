@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.api.exceptions import NotFoundException
+from slate.models.document import DOCUMENT_KINDS
 from slate.services.worklog_views import current_worklog
 from slate.services.worklogs import record_session
 from slate.services.write_effects import WriteEffectCode
@@ -85,6 +86,11 @@ def write_version(
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f'#{number} has no document {name!r} yet, so the write that creates it names its kind',
+            )
+        if name in DOCUMENT_KINDS and request.kind != name:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f'a document named {name} is the {name} document; name a {request.kind} otherwise, as {name}-{request.kind}',
             )
         document = models.Document(record_number=number, name=name, kind=request.kind, created_ts=now)
         session.add(document)
