@@ -80,9 +80,15 @@ def configured_exporters() -> list[SpanExporter]:
 def initialize_tracing() -> TracerProvider:
     """Install the process's tracer provider, and a child span for each statement sent to Postgres.
 
-    The statements are traced at the psycopg driver. OpenTelemetry's SQLAlchemy instrumentation
-    declares no support for SQLAlchemy 2.1 and instruments nothing under it.
+    The stable HTTP and database conventions are the default, so a server span carries
+    `http.request.method` and a statement's span `db.query.text`. A deployment's own
+    `OTEL_SEMCONV_STABILITY_OPT_IN` outranks it. The default is set before any instrumentor runs,
+    because the first one to run reads the variable once for the whole process.
+
+    The statements are traced at the psycopg driver. OpenTelemetry's SQLAlchemy instrumentation, at
+    0.66b2, declares support below SQLAlchemy 2.1 only, and instruments nothing on the 2.1 slate runs.
     """
+    os.environ.setdefault('OTEL_SEMCONV_STABILITY_OPT_IN', 'http,database')
     provider = new_tracer_provider(configured_exporters())
     trace.set_tracer_provider(provider)
     PsycopgInstrumentor().instrument(tracer_provider=provider)
@@ -91,11 +97,5 @@ def initialize_tracing() -> TracerProvider:
 
 
 def instrument_api(api: FastAPI, tracer_provider: TracerProvider | None) -> None:
-    """A server span per request, continuing the caller's `traceparent` and named by the route's template.
-
-    The stable HTTP conventions are the default, so a span carries `http.request.method` and
-    `http.response.status_code` rather than the names they replaced. A deployment's own
-    `OTEL_SEMCONV_STABILITY_OPT_IN` outranks it.
-    """
-    os.environ.setdefault('OTEL_SEMCONV_STABILITY_OPT_IN', 'http')
+    """A server span per request, continuing the caller's `traceparent` and named by the route's template."""
     FastAPIInstrumentor.instrument_app(api, tracer_provider=tracer_provider, exclude_spans=['receive', 'send'])
