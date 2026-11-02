@@ -718,13 +718,6 @@ func issueStateNotes(issue api.Issue, now time.Time) []string {
 	return notes
 }
 
-func claimNote(claim api.Claim, now time.Time) string {
-	if claim.State != api.ClaimStateLive {
-		return "claim by " + claim.Holder + " expired"
-	}
-	return "claimed by " + claim.Holder + " until " + localClock(claim.ExpiresTS, now)
-}
-
 // closedNote says when the issue closed and who closed it, where each is known.
 func closedNote(issue api.Issue, now time.Time) string {
 	if issue.ClosedTS == nil {

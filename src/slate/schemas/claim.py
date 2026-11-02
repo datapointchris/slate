@@ -3,6 +3,7 @@ from typing import Annotated
 from typing import Literal
 
 from pydantic import Field
+from pydantic import StringConstraints
 
 from slate.schemas.ready_filter import ReadyFilter
 from slate.schemas.record import Actor
@@ -47,10 +48,34 @@ class ClaimRelease(RecordModel):
     released_by: Actor
 
 
+class ClaimWaitStart(RecordModel):
+    holder: Actor
+    waiting_on: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1), Field(description='What the holder waits on')]
+
+
+class ClaimResume(RecordModel):
+    """End the wait. A `session` named here goes back into the claim's worklog."""
+
+    holder: Actor
+    session: str | None = None
+    host: str | None = None
+    directory: str | None = None
+
+
+class ClaimWait(RecordModel):
+    """A stretch the holder spent waiting while the claim still held its record."""
+
+    waiting_on: str
+    started_ts: dt.datetime
+    ended_ts: dt.datetime | None = None
+    ended_by: str | None = None
+
+
 class Claim(RecordModel):
     """One lease on a record. `ending` and `ended_ts` are set together, once it ends.
 
-    `state` is derived on every read from `expires_ts` and `ended_ts`.
+    `state` is derived on every read from `expires_ts` and `ended_ts`. `worklog` names the worklog
+    the hold opened, and `waiting` is what the holder waits on now, or null while it works.
     """
 
     id: int
@@ -65,6 +90,8 @@ class Claim(RecordModel):
     ending: str | None = None
     ended_by: str | None = None
     state: ClaimState
+    worklog: str | None = None
+    waiting: ClaimWait | None = None
 
 
 class ClaimOnRecord(Claim):

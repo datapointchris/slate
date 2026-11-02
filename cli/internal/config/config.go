@@ -35,10 +35,11 @@ const keyringService = "slate-cli"
 // refuses the whole request when one names a scope the client does not hold.
 // src/slate/api/client_scopes.py lists the routes each one reaches.
 const (
-	recordsReadScope = "slate.records.read"
-	claimsHoldScope  = "slate.claims.hold"
-	issuesCloseScope = "slate.issues.close"
-	issuesPlanScope  = "slate.issues.plan"
+	recordsReadScope   = "slate.records.read"
+	claimsHoldScope    = "slate.claims.hold"
+	issuesCloseScope   = "slate.issues.close"
+	issuesPlanScope    = "slate.issues.plan"
+	worklogsWriteScope = "slate.worklogs.write"
 )
 
 // ClientSecretEnv selects the client-credentials grant, for the client the
@@ -114,5 +115,5 @@ func IsService() bool { return ClientSecret() != "" }
 // grant. Nothing it obtains is stored, so it names no keyring or state
 // directory.
 func Service(d goclilogin.Deployment) goclilogin.ServiceClient {
-	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: []string{recordsReadScope, claimsHoldScope, issuesCloseScope, issuesPlanScope}}
+	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: []string{recordsReadScope, claimsHoldScope, issuesCloseScope, issuesPlanScope, worklogsWriteScope}}
 }

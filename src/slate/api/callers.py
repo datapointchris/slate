@@ -51,5 +51,11 @@ def caller_actor(caller: OIDCIdentity | ScopedClient) -> str:
     return caller.client_id if isinstance(caller, ScopedClient) else caller.subject
 
 
+def refuse_acting_for_another(caller: OIDCIdentity | ScopedClient, named: str, refusal: Refusal) -> None:
+    """Refuse a scoped client naming anyone but itself, since its token says which service it is and nothing says which worker acted."""
+    if isinstance(caller, ScopedClient) and named != caller.client_id:
+        raise ForbiddenException(f'{refusal}, {caller.client_id}, not {named}', logger)
+
+
 DbSession = Annotated[Session, Depends(get_sqlalchemy_session)]
 CurrentCaller = Annotated[OIDCIdentity | ScopedClient, Depends(get_current_caller)]

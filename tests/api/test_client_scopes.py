@@ -27,6 +27,7 @@ READ = 'slate.records.read'
 CLAIM = 'slate.claims.hold'
 CLOSE = 'slate.issues.close'
 PLAN = 'slate.issues.plan'
+WORKLOGS = 'slate.worklogs.write'
 CLOSER = 'worker/close-job@service-box'
 SERVICE = 'slate-svc-worker'
 PERSON = OIDCIdentity(subject='person-subject', client_id='slate-cli-laptop')
@@ -45,16 +46,42 @@ SCOPED_URLS = {
     f'{API_PREFIX}/issues/{{id}}': '/issues/{issue}',
     f'{API_PREFIX}/issues/initiatives': '/issues/initiatives',
     f'{API_PREFIX}/issues/initiatives/{{id:path}}': '/issues/initiatives/{initiative}',
+    f'{API_PREFIX}/worklogs': '/worklogs?state=all',
+    f'{API_PREFIX}/worklogs/current': '/worklogs/current?session=run-pod-session',
+    f'{API_PREFIX}/worklogs/{{name}}': '/worklogs/{worklog}',
 }
 
 # Each write a scope lists, as the CLI sends it: the claim holding the issue for the fix agent, the
-# hold of the queue's head, the extend and release of the claim the fixture seeds, the comment saying
-# what landed, the update that completes the issue and names the job closing it, and each edit a
-# planning job makes to the queue.
+# hold of the queue's head, the extend, wait, resume and release of the claim the fixture seeds, each
+# write on the worklog the fixture seeds, the comment saying what landed, the update that completes
+# the issue and names the job closing it, and each edit a planning job makes to the queue.
 SCOPED_WRITES = {
     (CLAIM, 'POST', f'{API_PREFIX}/claims'): ('/claims', {'record': '{issue}', 'holder': SERVICE, 'minutes': 60}, status.HTTP_200_OK),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/next'): ('/claims/next', {'holder': SERVICE}, status.HTTP_200_OK),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/extend'): ('/claims/{neighbor}/extend', {'holder': SERVICE}, status.HTTP_200_OK),
+    (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/wait'): (
+        '/claims/{neighbor}/wait',
+        {'holder': SERVICE, 'waiting_on': 'the review round'},
+        status.HTTP_200_OK,
+    ),
+    (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/resume'): ('/claims/{neighbor}/resume', {'holder': SERVICE}, status.HTTP_200_OK),
+    (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs'): ('/worklogs', {'record': '{issue}', 'opened_by': SERVICE}, status.HTTP_201_CREATED),
+    (WORKLOGS, 'PATCH', f'{API_PREFIX}/worklogs/{{name}}'): ('/worklogs/{worklog}', {'workflow': 'oneshot'}, status.HTTP_200_OK),
+    (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs/{{name}}/join'): (
+        '/worklogs/{worklog}/join',
+        {'session': 'run-pod-session'},
+        status.HTTP_200_OK,
+    ),
+    (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs/{{name}}/links'): (
+        '/worklogs/{worklog}/links',
+        {'kind': 'pull_request', 'ref': 'https://github.com/example/repo/pull/3', 'linked_by': SERVICE},
+        status.HTTP_200_OK,
+    ),
+    (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs/{{name}}/finish'): (
+        '/worklogs/{worklog}/finish',
+        {'finished_by': SERVICE},
+        status.HTTP_200_OK,
+    ),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/release'): (
         '/claims/{neighbor}/release',
         {'released_by': SERVICE},
@@ -101,7 +128,7 @@ def scoped(scope: str) -> ScopedClient:
 
 @pytest.fixture
 def as_caller(txn_api):
-    """Seed two issues of one priority, one initiative, one idea, and the service's claim on the neighbor.
+    """Seed two issues of one priority, one initiative, one idea, the service's claim on the neighbor, and a worklog it opened.
 
     `caller(identity)` sets who the token says is calling and returns the client, and `url(template)`
     fills a template with the seeded rows. The initiative is named, as the CLI names one.
@@ -115,6 +142,7 @@ def as_caller(txn_api):
     session.flush()
     now = dt.datetime.now(dt.UTC)
     session.add(models.Claim(record_number=neighbor.number, holder=SERVICE, started_ts=now, expires_ts=now + dt.timedelta(hours=1)))
+    session.add(models.Worklog(record_number=issue.number, sequence=1, opened_by=SERVICE, started_ts=now))
     session.flush()
 
     def caller(identity):
@@ -122,7 +150,9 @@ def as_caller(txn_api):
         return client
 
     def url(template):
-        return template.format(issue=issue.number, neighbor=neighbor.number, initiative=initiative.name, idea=idea.number)
+        return template.format(
+            issue=issue.number, neighbor=neighbor.number, initiative=initiative.name, idea=idea.number, worklog=f'{issue.number}.1'
+        )
 
     return SimpleNamespace(caller=caller, url=url, issue=issue, session=session)
 
@@ -161,8 +191,12 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (CLOSE, 'PATCH', '/issues/initiatives/{initiative}'),
         (CLAIM, 'GET', '/claims'),
         (CLAIM, 'PATCH', '/issues/{issue}'),
+        (CLAIM, 'POST', '/worklogs/{worklog}/links'),
         (PLAN, 'DELETE', '/issues/{issue}'),
         (PLAN, 'DELETE', '/issues/initiatives/{initiative}'),
+        (READ, 'POST', '/worklogs'),
+        (WORKLOGS, 'POST', '/claims'),
+        (WORKLOGS, 'GET', '/worklogs/{worklog}'),
     ],
     ids=[
         'read-create',
@@ -185,8 +219,12 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         'close-initiative-update',
         'hold-list',
         'hold-update',
+        'hold-link',
         'plan-delete',
         'plan-initiative-delete',
+        'read-worklog-start',
+        'worklogs-hold',
+        'worklogs-read',
     ],
 )
 def test_a_scoped_client_is_refused_off_its_scopes(as_caller, scope, method, url):
@@ -278,6 +316,27 @@ def test_the_hold_scope_holds_under_its_own_id_and_releases_only_that(as_caller)
     released = service.post(release, json={'released_by': SERVICE})
     assert released.status_code == status.HTTP_200_OK, show_status_and_response(released)
     assert released.json()['claim']['ending'] == 'released'
+
+
+@pytest.mark.parametrize(
+    ('method', 'path', 'body'),
+    [
+        ('POST', '/finish', {'finished_by': SERVICE}),
+        ('POST', '/join', {'session': 'peer-session'}),
+        ('PATCH', '', {'workflow': 'oneshot'}),
+    ],
+    ids=['finish', 'join', 'edit'],
+)
+def test_the_worklogs_scope_joins_edits_and_finishes_only_a_worklog_its_client_opened(as_caller, method, path, body):
+    """A job joining a session into another's worklog stamps that session's commits onto it, and finishing one ends its spans."""
+    opened = as_caller.caller(PERSON).post('/worklogs', json={'record': as_caller.url('{issue}'), 'opened_by': 'claude-code/peer'})
+    assert opened.status_code == status.HTTP_201_CREATED, show_status_and_response(opened)
+
+    url = f'/worklogs/{opened.json()["worklog"]["name"]}{path}'
+    refused = as_caller.caller(scoped(WORKLOGS)).request(method, url, json=body)
+    assert refused.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(refused)
+    assert Refusal.SCOPED_CLIENT_WRITES_ITS_OWN_WORKLOGS in refused.json()['message']
+    assert 'claude-code/peer' in refused.json()['message']
 
 
 def test_a_scope_the_table_does_not_name_reaches_nothing(as_caller):

@@ -12,8 +12,8 @@ comes from the Postgres sequence `record_numbers`. Each kind's table,
 
 That is class table inheritance: a supertype table with what every kind
 shares, and a table per kind with what is its own. Anything that attaches to
-"a record" holds one foreign key to `records`, whatever the kind. A claim does,
-and so will a worklog, a document and a comment.
+"a record" holds one foreign key to `records`, whatever the kind. A claim and
+a worklog do, and so will a document and a comment.
 
 Each kind's table carries its kind beside the number, and the reference is on
 the pair. So the database refuses an issue whose number `records` holds as an
@@ -95,6 +95,7 @@ Its side effects name what went with it and each other record it changed:
 | Code | When |
 | --- | --- |
 | `claims_deleted` | the record had claims, live or ended; they go with it |
+| `worklogs_deleted` | the record had worklogs; they go with their spans and links |
 | `child_detached` | an issue's child loses its parent |
 | `dependency_removed` | an issue that depended on the deleted one no longer does |
 | `issue_detached` | an initiative's issue is left in no initiative |

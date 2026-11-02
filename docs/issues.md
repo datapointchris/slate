@@ -159,8 +159,8 @@ Closing is deliberate in both directions:
 - **Reopen** returns an issue to `open`, and clears when and by whom it closed,
   the reason and the duplicate link.
 
-Completing or canceling an issue ends its claim, and the answer names whose
-claim it ended.
+Completing or canceling an issue ends its claim and every worklog still open
+on it, and the answer names each.
 
 A close records `closed_by` beside `closed_ts`: the actor the client names,
 else the token's subject. A token is the person's whichever session or worker

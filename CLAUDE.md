@@ -76,6 +76,9 @@ a route its scopes reach. Commit the file when the scopes change.
 - **A handler is `def` unless it awaits something.** The session is
   synchronous, and an `async def` handler calling it holds every other request
   on the event loop.
+- **The session never autoflushes**, in production and under test. A query
+  reading rows the same request already changed flushes first, or it reads
+  them as they stood.
 
 ## Schema rules
 

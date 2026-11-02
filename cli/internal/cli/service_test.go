@@ -186,11 +186,13 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		t.Fatalf("decode the API's scope table: %v", err)
 	}
 
-	// A {name} in these templates is a UUID, or for an issue its number. Matched
-	// as any segment, /issues/{id} would also take /issues/search and
-	// /issues/vocabulary, both of which FastAPI routes to another handler. A {name:path} is FastAPI's path converter, which
-	// takes any segments, and an initiative is named by its name.
-	reference := `(?:[0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`
+	// A {name} in these templates is a UUID, a record's number, or a worklog's
+	// <number>.<sequence>. Matched as any segment, /issues/{id} would also take
+	// /issues/search and /issues/vocabulary, and /worklogs/{name} would take
+	// /worklogs/current, each of which FastAPI routes to another handler. A
+	// {name:path} is FastAPI's path converter, which takes any segments, and an
+	// initiative is named by its name.
+	reference := `(?:[0-9]+(?:\.[0-9]+)?|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`
 	wildcard := regexp.MustCompile(`\{[^}]*\}`)
 	scopes := config.Service(goclilogin.Deployment{}).Scopes
 	var listed []*regexp.Regexp
@@ -217,6 +219,9 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 	heldClaim := `{"claim":{"id":1,"record_number":412,"holder":"` + serviceClientID + `","started_ts":"2026-10-19T00:00:00Z",` +
 		`"expires_ts":"2026-10-20T00:00:00Z","state":"live","record":{"number":412,"kind":"issue","title":"t","status":"open"}},` +
 		`"side_effects":[],"warnings":[]}`
+	worklog := `{"name":"412.1","record_number":412,"sequence":1,"record":{"number":412,"kind":"issue","title":"t","status":"open"},` +
+		`"opened_by":"` + serviceClientID + `","started_ts":"2026-10-19T00:00:00Z","state":"live","stage":"started"}`
+	wroteWorklog := `{"worklog":` + worklog + `,"side_effects":[],"warnings":[]}`
 	for _, call := range []struct {
 		args []string
 		body string
@@ -241,7 +246,17 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		{[]string{"claims", "hold", "412", "--minutes", "2880"}, heldClaim, nil},
 		{[]string{"claims", "hold", "--next"}, heldClaim, nil},
 		{[]string{"claims", "extend", "412"}, heldClaim, nil},
+		{[]string{"claims", "wait", "412", "--on", "the review round"}, heldClaim, nil},
+		{[]string{"claims", "resume", "412"}, heldClaim, nil},
 		{[]string{"claims", "release", "412"}, `{"claim":null,"side_effects":[],"warnings":[]}`, nil},
+		{[]string{"worklogs", "list", "--record", "412", "--json"}, `[]`, nil},
+		{[]string{"worklogs", "show", "412.1", "--json"}, worklog, nil},
+		{[]string{"worklogs", "current", "--session", "run-pod-session"}, worklog, nil},
+		{[]string{"worklogs", "start", "412", "--session", "run-pod-session"}, wroteWorklog, nil},
+		{[]string{"worklogs", "join", "412.1", "--session", "run-pod-session"}, wroteWorklog, nil},
+		{[]string{"worklogs", "link", "412.1", "--pr", "https://github.com/example/repo/pull/3"}, wroteWorklog, nil},
+		{[]string{"worklogs", "edit", "412.1", "--workflow", "oneshot"}, wroteWorklog, nil},
+		{[]string{"worklogs", "finish", "412.1"}, wroteWorklog, nil},
 		{[]string{"issues", "add-comment", "412", "--body", "Landed: a merged fix"}, `{}`, nil},
 		{[]string{"issues", "complete", "412"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--priority", "none", "--initiative", "Practical help guides"}, openIssue, nil},
@@ -258,15 +273,20 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 			var sent []string
 			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				sent = append(sent, r.Method+" "+r.URL.Path)
-				// The API refuses a scoped client any holder but its own id.
-				if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/v1/claims") {
-					var claim struct {
+				// The API refuses a scoped client any actor on a claim or
+				// worklog write but its own id. A join names a session alone.
+				signed := strings.HasPrefix(r.URL.Path, "/api/v1/claims") || strings.HasPrefix(r.URL.Path, "/api/v1/worklogs")
+				if r.Method == http.MethodPost && signed && !strings.HasSuffix(r.URL.Path, "/join") {
+					var write struct {
 						Holder     string `json:"holder"`
 						ReleasedBy string `json:"released_by"`
+						OpenedBy   string `json:"opened_by"`
+						LinkedBy   string `json:"linked_by"`
+						FinishedBy string `json:"finished_by"`
 					}
-					err := json.NewDecoder(r.Body).Decode(&claim)
-					if named := claim.Holder + claim.ReleasedBy; err != nil || named != serviceClientID {
-						t.Errorf("a service wrote a claim as %q (%v), want its client id %s", named, err, serviceClientID)
+					err := json.NewDecoder(r.Body).Decode(&write)
+					if named := write.Holder + write.ReleasedBy + write.OpenedBy + write.LinkedBy + write.FinishedBy; err != nil || named != serviceClientID {
+						t.Errorf("a service wrote %s as %q (%v), want its client id %s", r.URL.Path, named, err, serviceClientID)
 					}
 				}
 				w.Header().Set("Content-Type", "application/json")

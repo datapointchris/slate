@@ -47,6 +47,7 @@ def test_promoting_an_idea_a_session_researched_under_a_claim_creates_its_initia
     assert [(effect['code'], effect['record']) for effect in promoted['side_effects']] == [
         ('initiative_created', initiative['number']),
         ('claim_ended', idea['number']),
+        ('worklog_ended', idea['number']),
     ]
     assert promoted['idea']['claim'] is None
     assert (initiative['name'], initiative['priority'], initiative['status']) == ('Run review rounds on a schedule', 2, 'active')

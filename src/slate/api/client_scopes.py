@@ -27,17 +27,34 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/issues/initiatives/{{id:path}}'),
             ('GET', f'{API_PREFIX}/issues/ready'),
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
+            ('GET', f'{API_PREFIX}/worklogs'),
+            ('GET', f'{API_PREFIX}/worklogs/current'),
+            ('GET', f'{API_PREFIX}/worklogs/{{name}}'),
         }
     ),
-    # Holding, extending and releasing a claim, for a job holding a record while an agent carries
-    # it. The handlers let a scoped client act only under its own client id and release only a
-    # claim that id holds.
+    # Holding, extending, waiting on and releasing a claim, for a job holding a record while an
+    # agent carries it. A hold opens the claim's worklog. The handlers let a scoped client act only
+    # under its own client id and release only a claim that id holds.
     'slate.claims.hold': frozenset(
         {
             ('POST', f'{API_PREFIX}/claims'),
             ('POST', f'{API_PREFIX}/claims/next'),
             ('POST', f'{API_PREFIX}/claims/{{record}}/extend'),
+            ('POST', f'{API_PREFIX}/claims/{{record}}/wait'),
+            ('POST', f'{API_PREFIX}/claims/{{record}}/resume'),
             ('POST', f'{API_PREFIX}/claims/{{record}}/release'),
+        }
+    ),
+    # Starting, joining, linking, editing and finishing a worklog, for a job recording what its
+    # agent did: the pull request it opened, the commit that landed. The handlers let a scoped client
+    # act only under its own client id and finish only a worklog it opened.
+    'slate.worklogs.write': frozenset(
+        {
+            ('POST', f'{API_PREFIX}/worklogs'),
+            ('PATCH', f'{API_PREFIX}/worklogs/{{name}}'),
+            ('POST', f'{API_PREFIX}/worklogs/{{name}}/join'),
+            ('POST', f'{API_PREFIX}/worklogs/{{name}}/links'),
+            ('POST', f'{API_PREFIX}/worklogs/{{name}}/finish'),
         }
     ),
     # Commenting on an issue and closing it, for a job closing an issue whose fix merged. The

@@ -252,15 +252,20 @@ class TestReadyQueue:
 
 
 class TestStatusTransitions:
-    def test_completing_stamps_the_close_and_ends_the_claim_naming_it(self, client):
+    def test_completing_stamps_the_close_and_ends_the_claim_and_its_worklog_naming_both(self, client):
         bug = issue(client, 'Ready bug with high priority')
         ok(client.post('/claims', json={'record': bug['number'], 'holder': 'agent'}))
         answer = ok(patch(client, bug['number'], status='completed', closed_by='claude-code/a1b2'))
         done = answer['issue']
         assert done['closed_ts'] is not None
-        assert [(effect['code'], effect['record']) for effect in answer['side_effects']] == [('claim_ended', bug['number'])]
+        assert [(effect['code'], effect['record']) for effect in answer['side_effects']] == [
+            ('claim_ended', bug['number']),
+            ('worklog_ended', bug['number']),
+        ]
         assert done['claim'] is None
         assert [(claim['ending'], claim['ended_by']) for claim in done['claims']] == [('completed', 'claude-code/a1b2')]
+        worklog = ok(client.get(f'/worklogs/{done["claims"][0]["worklog"]}'))
+        assert (worklog['outcome'], worklog['ended_by']) == ('completed', 'claude-code/a1b2')
 
     def test_a_close_records_the_actor_the_caller_names(self, client):
         bug = issue(client, 'Ready bug with high priority')
