@@ -54,7 +54,12 @@ class ClaimWaitStart(RecordModel):
 
 
 class ClaimResume(RecordModel):
+    """End the wait. A `session` named here goes back into the claim's worklog."""
+
     holder: Actor
+    session: str | None = None
+    host: str | None = None
+    directory: str | None = None
 
 
 class ClaimWait(RecordModel):

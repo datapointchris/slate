@@ -91,18 +91,16 @@ def open_span(session: Session, session_id: str) -> models.WorklogSpan | None:
 
 
 def leave(span: models.WorklogSpan, now: dt.datetime, effects: WriteEffects) -> None:
-    """End the session's span in its worklog, which stays open, and name it."""
+    """End the session's span in its worklog, and name it. A worklog whose claim ran out holds the span until the expiry."""
     worklog = span.worklog
     claim = worklog.claim
+    span.ended_ts = now if claim is None else claim.held_until(now)
+    message = f'Session {span.session_id} left worklog {worklog.name}.'
     if claim is not None and claim.is_expired(now):
-        span.ended_ts = claim.expires_ts
         message = (
-            f'Session {span.session_id} left worklog {worklog.name}, whose claim had run out at '
-            f'{effects.moment(claim.expires_ts)}, so its span ends there.'
+            f'Session {span.session_id} left worklog {worklog.name}, whose claim ran out at '
+            f'{effects.moment(span.ended_ts)}, so its span ends there.'
         )
-    else:
-        span.ended_ts = now
-        message = f'Session {span.session_id} left worklog {worklog.name}, which stays open.'
     effects.did(WriteEffectCode.SESSION_LEFT_WORKLOG, message, worklog.record_number)
     logger.info('session_left_worklog', session_id=span.session_id, worklog=worklog.name)
 
@@ -134,6 +132,25 @@ def join(
     session.flush()
     logger.info('session_joined_worklog', session_id=session_id, worklog=worklog.name)
     return span
+
+
+def return_to(
+    session: Session,
+    worklog: models.Worklog,
+    session_id: str,
+    host: str | None,
+    directory: str | None,
+    now: dt.datetime,
+    effects: WriteEffects,
+) -> None:
+    """Put the session back in a live worklog it left, and name the move. A session already in it stays put."""
+    if not worklog.is_live(now):
+        return
+    current = open_span(session, session_id)
+    if current is not None and current.worklog_id == worklog.id:
+        return
+    join(session, worklog, session_id, host, directory, now, effects)
+    effects.did(WriteEffectCode.SESSION_REJOINED_WORKLOG, f'Session {session_id} is back in worklog {worklog.name}.', worklog.record_number)
 
 
 def end_worklog(worklog: models.Worklog, outcome: str, ended_ts: dt.datetime, ended_by: str | None) -> None:

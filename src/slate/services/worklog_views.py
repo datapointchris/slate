@@ -1,26 +1,27 @@
 """Read worklogs back, with each one's state and stage derived from the moment of the read.
 
-Neither is stored. A worklog is `ended` once `ended_ts` is set, `expired` while the claim that opened
-it has run out unended, and `open` otherwise. Its stage is the furthest its links reached.
+Neither is stored. `models.Worklog` decides the state, and its stage is the furthest its links
+reached.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+from typing import cast
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 
 from slate import models
 from slate import schemas
-from slate.schemas.worklog import WorklogStage
+from slate.models.worklog import STAGE_OF_LINK
+from slate.models.worklog import WORKLOG_STAGES
+from slate.models.worklog import LinkKindName
+from slate.models.worklog import WorklogStage
 from slate.schemas.worklog import WorklogState
 from slate.services.claim_views import claim_view
 from slate.services.record_summaries import record_summaries
 from slate.services.worklogs import open_span
-
-WORKLOG_STAGES: tuple[WorklogStage, ...] = ('started', 'committed', 'pull_request', 'landed')
-STAGE_OF_LINK: dict[str, WorklogStage] = {'commit': 'committed', 'pull_request': 'pull_request', 'landing': 'landed'}
 
 WORKLOG_LOAD_OPTIONS = (
     selectinload(models.Worklog.spans),
@@ -30,15 +31,16 @@ WORKLOG_LOAD_OPTIONS = (
 
 
 def worklog_state(worklog: models.Worklog, now: dt.datetime) -> WorklogState:
-    if worklog.ended_ts is not None:
-        return 'ended'
-    if worklog.claim is not None and worklog.claim.is_expired(now):
+    if worklog.is_live(now):
+        return 'live'
+    if worklog.is_expired(now):
         return 'expired'
-    return 'open'
+    return 'ended'
 
 
 def worklog_stage(worklog: models.Worklog) -> WorklogStage:
-    return max((STAGE_OF_LINK[link.kind] for link in worklog.links), key=WORKLOG_STAGES.index, default='started')
+    stages = (STAGE_OF_LINK[cast(LinkKindName, link.kind)] for link in worklog.links)
+    return max(stages, key=WORKLOG_STAGES.index, default='started')
 
 
 def worklog_view(worklog: models.Worklog, record: schemas.RecordSummary, now: dt.datetime) -> schemas.Worklog:
@@ -77,8 +79,8 @@ def worklog_views(session: Session, worklogs: list[models.Worklog], now: dt.date
 
 
 def current_worklog(session: Session, session_id: str, now: dt.datetime) -> models.Worklog | None:
-    """The open worklog the session is in now, or None when it is in none, or in one whose claim ran out."""
+    """The live worklog the session is in now, or None when it is in none, or in one whose claim ran out or ended."""
     span = open_span(session, session_id)
-    if span is None or worklog_state(span.worklog, now) != 'open':
+    if span is None or not span.worklog.is_live(now):
         return None
     return span.worklog

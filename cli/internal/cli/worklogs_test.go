@@ -23,7 +23,7 @@ func TestWorklogsCurrent_PrintsTheNameAloneOrNothing(t *testing.T) {
 	asService(t, serviceIDP(t).URL, api.URL, serviceSecret)
 
 	for _, c := range []struct{ answer, session, want string }{
-		{`{"name":"1991.2","record_number":1991,"sequence":2,"state":"open","stage":"committed"}`, "s1", "1991.2\n"},
+		{`{"name":"1991.2","record_number":1991,"sequence":2,"state":"live","stage":"committed"}`, "s1", "1991.2\n"},
 		{`null`, "s1", ""},
 		{`unreached`, "", ""},
 	} {

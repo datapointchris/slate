@@ -54,11 +54,16 @@ Waiting changes nothing about holding. Readiness still reads the claim as live,
 and a second holder is still refused. So a session starting cold tells parked
 work from live work by `waiting`, never by a missing claim.
 
-Only the holder waits or resumes, on a claim still live. A record holding no
-claim, another holder's claim, or a lapsed one answers 409. Waiting on
-something new ends the wait before it and names it as `wait_ended`. Waiting on
-the same thing again warns `already_waiting`. Resuming a claim that waits on
-nothing warns `not_waiting`. Ending the claim ends its open wait with it.
+Only the holder waits or resumes. A record holding no claim, or another
+holder's claim, answers 409, and so does waiting on a claim that ran out.
+Waiting on something new ends the wait before it and names it as `wait_ended`.
+Waiting on the same thing again warns `already_waiting`. Resuming a claim that
+waits on nothing warns `not_waiting`. Ending the claim ends its open wait with
+it.
+
+Resuming puts the holder's session back in the claim's worklog, and so does
+holding the record again. A session parks one claim and holds the next, so its
+commits go to the second. Coming back sends them to the first again.
 
 ## Only another holder's live claim refuses a hold
 
@@ -72,7 +77,7 @@ the answer carries a warning for each thing:
 
 | Code | When |
 | --- | --- |
-| `already_held` | the holder already holds the record; nothing changed |
+| `already_held` | the holder already holds the record; the claim stays as it was |
 | `record_closed` | the record is closed |
 | `in_triage` | the issue waits on triage |
 | `deferred` | the issue's deferral day has not come |
@@ -96,8 +101,8 @@ is not: two sessions editing one record collide.
 
 ## Nothing extends or ends a claim silently
 
-Holding a record already held under the same name changes nothing, and warns
-`already_held`. Only `POST /claims/{record}/extend` moves an expiry. A hold that
+Holding a record already held under the same name leaves the claim as it was,
+and warns `already_held`. Only `POST /claims/{record}/extend` moves an expiry. A hold that
 quietly extended would hide a second session running under the same name.
 
 A write that ends a claim beyond the one it was asked about names it in
@@ -112,8 +117,11 @@ A write that ends a claim beyond the one it was asked about names it in
   ends it before starting its own.
 - `worklog_ended` for the worklog of every claim a write ends, a plain
   release included.
-- `session_left_worklog` when a hold moves the holder's session out of the
-  worklog it was in. That worklog stays open under its own claim.
+- `session_left_worklog` when a hold or a resume moves the holder's session out
+  of the worklog it was in. That worklog keeps its state, and its claim, if it
+  has one, keeps holding.
+- `session_rejoined_worklog` when a resume, or a hold of a record the holder
+  already holds, puts the session back in the claim's worklog.
 
 Deleting an issue or an initiative deletes every claim it has had, live or
 ended. The answer names them as `claims_deleted`, and warns

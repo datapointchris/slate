@@ -49,9 +49,9 @@ def end_claim(claim: models.Claim, ending: str, now: dt.datetime, ended_by: str 
     Its open wait and its worklog end at the same moment, and the worklog's ending is named. The
     caller names the claim's own ending, because only it knows why the claim ended.
     """
-    ended_ts = now
+    ended_ts = claim.held_until(now)
     if claim.is_expired(now):
-        ending, ended_ts, ended_by = 'expired', claim.expires_ts, None
+        ending, ended_by = 'expired', None
     claim.ending, claim.ended_ts, claim.ended_by = ending, ended_ts, ended_by
     wait = claim.open_wait
     if wait is not None:
@@ -84,9 +84,11 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
             effects.warn(
                 WriteEffectCode.ALREADY_HELD,
                 f'{lease.holder} already holds #{number} until {effects.moment(current.expires_ts)}. '
-                'Holding it again changed nothing. Extend the claim to keep it longer.',
+                'Holding it again left the claim as it was. Extend the claim to keep it longer.',
                 number,
             )
+            if lease.session is not None and current.worklog is not None:
+                worklogs.return_to(session, current.worklog, lease.session, lease.host, lease.directory, now, effects)
             return current
         if live:
             raise ClaimRefused(f'#{number} is claimed by {held_by(current, effects)}.')
@@ -246,13 +248,15 @@ def wait(session: Session, number: int, holder: str, waiting_on: str, now: dt.da
     return current
 
 
-def resume(session: Session, number: int, holder: str, now: dt.datetime, effects: WriteEffects) -> models.Claim:
-    """End the wait on the holder's claim, which reads as worked again."""
-    current = holders_claim(session, number, holder, effects)
+def resume(session: Session, number: int, request: schemas.ClaimResume, now: dt.datetime, effects: WriteEffects) -> models.Claim:
+    """End the wait on the holder's claim, which reads as worked again, and put the holder's session back in its worklog."""
+    current = holders_claim(session, number, request.holder, effects)
     waiting = current.open_wait
     if waiting is None:
-        effects.warn(WriteEffectCode.NOT_WAITING, f'The claim on #{number} waits on nothing. Nothing changed.', number)
-        return current
-    waiting.ended_ts, waiting.ended_by = now, holder
-    logger.info('claim_resumed', record=number, holder=holder, waited_on=waiting.waiting_on)
+        effects.warn(WriteEffectCode.NOT_WAITING, f'The claim on #{number} waits on nothing, so no wait ended.', number)
+    else:
+        waiting.ended_ts, waiting.ended_by = now, request.holder
+        logger.info('claim_resumed', record=number, holder=request.holder, waited_on=waiting.waiting_on)
+    if request.session is not None and current.worklog is not None:
+        worklogs.return_to(session, current.worklog, request.session, request.host, request.directory, now, effects)
     return current

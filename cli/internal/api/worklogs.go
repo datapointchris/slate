@@ -7,18 +7,18 @@ import (
 	"time"
 )
 
-// The states a worklog reads as, derived by the API on every read. An open
-// one is under way, an expired one's claim ran out and no write has ended it
-// yet, and an ended one is history.
+// The states a worklog reads as, the same three a claim does, derived by the
+// API on every read. A live one is under way, an expired one's claim ran out
+// and no write has ended it yet, and an ended one is history.
 const (
-	WorklogStateOpen    = "open"
+	WorklogStateLive    = "live"
 	WorklogStateExpired = "expired"
 	WorklogStateEnded   = "ended"
 	WorklogStateAll     = "all"
 )
 
 // WorklogStates is what `worklogs list --state` accepts.
-var WorklogStates = []string{WorklogStateOpen, WorklogStateExpired, WorklogStateEnded, WorklogStateAll}
+var WorklogStates = []string{WorklogStateLive, WorklogStateExpired, WorklogStateEnded, WorklogStateAll}
 
 // WorklogWorkflows are the ways a worklog's work was approached.
 var WorklogWorkflows = []string{"oneshot", "plan-first", "design-first"}
@@ -29,6 +29,9 @@ const (
 	WorklogLinkPullRequest = "pull_request"
 	WorklogLinkLanding     = "landing"
 )
+
+// WorklogLinkKinds is every kind `worklogs link` sends.
+var WorklogLinkKinds = []string{WorklogLinkCommit, WorklogLinkPullRequest, WorklogLinkLanding}
 
 // WorklogSpan is one agent session's time in a worklog. EndedTS is nil while
 // the session is still in it.
@@ -103,7 +106,7 @@ type WorklogLinkInput struct {
 }
 
 // WorklogFilter narrows a list of worklogs. A zero field narrows nothing, and
-// an empty State reads the API's default, the open ones.
+// an empty State reads the API's default, the live ones.
 type WorklogFilter struct {
 	Record  string
 	Session string
@@ -143,7 +146,7 @@ func (c *Client) GetWorklog(ctx context.Context, name string) (Worklog, error) {
 	return worklog, nil
 }
 
-// CurrentWorklog is the open worklog the agent session is in now, or nil when
+// CurrentWorklog is the live worklog the agent session is in now, or nil when
 // it is in none.
 func (c *Client) CurrentWorklog(ctx context.Context, session string) (*Worklog, error) {
 	var worklog *Worklog

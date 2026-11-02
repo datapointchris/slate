@@ -9,6 +9,7 @@ from pydantic import StringConstraints
 
 from slate.models.worklog import LinkKindName
 from slate.models.worklog import WorkflowName
+from slate.models.worklog import WorklogStage
 from slate.schemas.claim import Claim
 from slate.schemas.claim import ClaimWait
 from slate.schemas.record import Actor
@@ -17,13 +18,9 @@ from slate.schemas.record import RecordRef
 from slate.schemas.record import RecordSummary
 from slate.schemas.write_effects import Written
 
-# `open` until it ends. `expired` while the claim that opened it has run out and no write has ended
-# it yet. `ended` is history.
-WorklogState = Literal['open', 'expired', 'ended']
-WORKLOG_STATES: tuple[WorklogState, ...] = ('open', 'expired', 'ended')
-
-# The furthest a worklog's links reached, in order: nothing yet, a commit, a pull request, a landing.
-WorklogStage = Literal['started', 'committed', 'pull_request', 'landed']
+# The same three a claim reads as. `live` is under way. `expired` is under a claim that ran out,
+# which no write has ended yet. `ended` is history.
+WorklogState = Literal['live', 'expired', 'ended']
 
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 

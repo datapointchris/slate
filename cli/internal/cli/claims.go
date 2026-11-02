@@ -243,8 +243,9 @@ func newClaimsResumeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resume <record>",
 		Short: "End your claim's wait, so it reads as worked again",
-		Long: "A claim waiting on nothing changes nothing and warns. Refused unless --holder\n" +
-			"holds the record's claim.\n" +
+		Long: "This session goes back into the claim's worklog, so its commits are stamped\n" +
+			"with it again. A claim waiting on nothing warns, and still takes the session\n" +
+			"back. Refused unless --holder holds the record's claim.\n" +
 			"\n" +
 			"--holder " + narrowedActorHelp,
 		Example: "  slate claims resume 412",
@@ -258,7 +259,7 @@ func newClaimsResumeCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			written, err := client.ResumeClaim(cmd.Context(), args[0], holder, issueZone())
+			written, err := client.ResumeClaim(cmd.Context(), args[0], holder, agentPlace(os.Getenv(claudeCodeSessionEnv)), issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}

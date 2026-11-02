@@ -220,7 +220,7 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		`"expires_ts":"2026-10-20T00:00:00Z","state":"live","record":{"number":412,"kind":"issue","title":"t","status":"open"}},` +
 		`"side_effects":[],"warnings":[]}`
 	worklog := `{"name":"412.1","record_number":412,"sequence":1,"record":{"number":412,"kind":"issue","title":"t","status":"open"},` +
-		`"opened_by":"` + serviceClientID + `","started_ts":"2026-10-19T00:00:00Z","state":"open","stage":"started"}`
+		`"opened_by":"` + serviceClientID + `","started_ts":"2026-10-19T00:00:00Z","state":"live","stage":"started"}`
 	wroteWorklog := `{"worklog":` + worklog + `,"side_effects":[],"warnings":[]}`
 	for _, call := range []struct {
 		args []string

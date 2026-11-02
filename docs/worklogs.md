@@ -41,24 +41,31 @@ Finishing a worklog whose claim still holds goes through with a
 `claim_still_held` warning, and the claim keeps holding. Finishing one that
 already ended changes nothing and warns `worklog_already_ended`.
 
-A worklog's `state` is derived on every read, like a claim's:
+A worklog's `state` is derived on every read, and takes a claim's three names:
 
 | State | Means |
 | --- | --- |
-| `open` | unended, and its claim, if it has one, is live |
-| `expired` | unended, and its claim ran out; the holder extending the claim opens it again, and any other write that finds the claim ends both |
-| `ended` | `ended_ts` is set |
+| `live` | unended, and its claim, if it has one, is live |
+| `expired` | unended, and its claim ran out; the holder extending the claim makes it live again, and any other write that finds the claim ends both |
+| `ended` | `ended_ts` is set, or its claim ended without ending it |
+
+`models.Worklog` holds each as a predicate that reads the same in Python and in
+SQL, so a read and a list filter cannot disagree.
 
 ## A session is in one worklog at a time
 
 A span says an agent session was in a worklog from `started_ts` to `ended_ts`.
 A partial unique index allows one open span per session. Putting a session in
 a worklog ends its open span anywhere else, and the answer names that as
-`session_left_worklog`. The worklog it left stays open under its own claim.
+`session_left_worklog`. The worklog it left keeps its state, and its claim, if
+it has one, keeps holding.
 
 So a session holding a claim on one issue, then another, leaves two worklogs.
 Each lists the session with its own span, and the spans never overlap. The
-second hold moved the session. `slate worklogs join <name>` moves it back.
+second hold moved the session. `slate claims resume` on the first claim, or
+holding its record again, moves it back and names that as
+`session_rejoined_worklog`. `slate worklogs join <name>` moves it into any live
+worklog.
 
 Time a session spends outside any span belongs to the session alone. So
 anything measured over a session, such as its tokens, splits at its span
@@ -85,23 +92,31 @@ with it as a trailer:
 ```sh
 #!/bin/sh
 name=$(slate worklogs current) && [ -n "$name" ] &&
-  git interpret-trailers --in-place --trailer "Worklog: $name" "$1"
+  git interpret-trailers --in-place --if-exists doNothing --trailer "Worklog: $name" "$1"
 exit 0
 ```
 
-A `post-commit` hook records the commit on the worklog. `slate worklogs link`
-with no worklog named links to the session's current one:
+`--if-exists doNothing` keeps an amend from stamping a second trailer.
+
+A `post-commit` hook records the commit on the worklog, named by its full sha
+and the repository its `origin` names. It reads `current` first, so a commit
+made outside any worklog links nothing and prints nothing:
 
 ```sh
 #!/bin/sh
-slate worklogs link --commit "$(git rev-parse --short HEAD)" >/dev/null
+name=$(slate worklogs current) && [ -n "$name" ] || exit 0
+repo=$(basename "$(git remote get-url origin 2>/dev/null)" .git)
+slate worklogs link "$name" --commit "$(git rev-parse HEAD)" ${repo:+--repo "$repo"} >/dev/null
 ```
 
 Both read the session from `CLAUDE_CODE_SESSION_ID`, or `--session`. With no
-session, `current` prints nothing without asking the API. The trailer is the
-commit's own record of its worklog, readable with `git log` and no slate. The
-link is slate's record of the commit, readable with no clone. Gerrit's
-`Change-Id` hook stamps a commit the same way.
+session, `current` prints nothing without asking the API. A repository whose
+hooks a manager such as pre-commit installs adds these two through it, since
+its install replaces `.git/hooks`. A hook declared in git config elsewhere can
+run the same two commands. The trailer is the commit's own record of its
+worklog, readable with `git log` and no slate. The link is slate's record of the
+commit, readable with no clone. Gerrit's `Change-Id` hook stamps a commit the
+same way.
 
 ## Links record what a worklog produced, and are never followed
 
@@ -122,8 +137,10 @@ it, and it may stay unset.
 
 `slate.records.read` reaches every worklog read. `slate.worklogs.write`
 reaches starting, joining, linking, editing and finishing. A scoped client
-starts and links only as its own client id, and finishes only a worklog that
-id opened. A hold's worklog comes with the hold, under `slate.claims.hold`.
+starts and links only as its own client id. It joins, edits and finishes only
+a worklog that id opened, because joining another's would stamp that session's
+commits onto it. A hold's worklog comes with the hold, under
+`slate.claims.hold`.
 
 Deleting a record deletes its worklogs with their spans and links, and the
 answer names them as `worklogs_deleted`.

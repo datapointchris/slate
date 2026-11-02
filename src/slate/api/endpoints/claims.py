@@ -141,10 +141,13 @@ def wait_on_claim(record: RecordFromPath, request: schemas.ClaimWaitStart, sessi
 
 @router.post('/{record}/resume', response_model=schemas.ClaimWritten, status_code=status.HTTP_200_OK)
 def resume_claim(record: RecordFromPath, request: schemas.ClaimResume, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """End the wait on the holder's claim. A claim waiting on nothing answers a warning, not an error."""
+    """End the wait on the holder's claim. A claim waiting on nothing answers a warning, not an error.
+
+    A `session` named goes back into the claim's worklog, ending its span in any other, named in `side_effects`.
+    """
     refuse_claiming_for_another(caller, request.holder)
     now = dt.datetime.now(dt.UTC)
-    return written(session, resume(session, record.number, request.holder, now, effects), now, effects)
+    return written(session, resume(session, record.number, request, now, effects), now, effects)
 
 
 @router.post('/{record}/release', response_model=schemas.ClaimWritten, status_code=status.HTTP_200_OK)

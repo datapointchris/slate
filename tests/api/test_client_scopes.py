@@ -318,14 +318,24 @@ def test_the_hold_scope_holds_under_its_own_id_and_releases_only_that(as_caller)
     assert released.json()['claim']['ending'] == 'released'
 
 
-def test_the_worklogs_scope_finishes_only_a_worklog_its_client_opened(as_caller):
-    """Finishing ends every span in the worklog, so a job finishing a session's would cut the session's record short."""
+@pytest.mark.parametrize(
+    ('method', 'path', 'body'),
+    [
+        ('POST', '/finish', {'finished_by': SERVICE}),
+        ('POST', '/join', {'session': 'peer-session'}),
+        ('PATCH', '', {'workflow': 'oneshot'}),
+    ],
+    ids=['finish', 'join', 'edit'],
+)
+def test_the_worklogs_scope_joins_edits_and_finishes_only_a_worklog_its_client_opened(as_caller, method, path, body):
+    """A job joining a session into another's worklog stamps that session's commits onto it, and finishing one ends its spans."""
     opened = as_caller.caller(PERSON).post('/worklogs', json={'record': as_caller.url('{issue}'), 'opened_by': 'claude-code/peer'})
     assert opened.status_code == status.HTTP_201_CREATED, show_status_and_response(opened)
 
-    refused = as_caller.caller(scoped(WORKLOGS)).post(f'/worklogs/{opened.json()["worklog"]["name"]}/finish', json={'finished_by': SERVICE})
+    url = f'/worklogs/{opened.json()["worklog"]["name"]}{path}'
+    refused = as_caller.caller(scoped(WORKLOGS)).request(method, url, json=body)
     assert refused.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(refused)
-    assert Refusal.SCOPED_CLIENT_FINISHES_ITS_OWN in refused.json()['message']
+    assert Refusal.SCOPED_CLIENT_WRITES_ITS_OWN_WORKLOGS in refused.json()['message']
     assert 'claude-code/peer' in refused.json()['message']
 
 

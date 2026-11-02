@@ -1,0 +1,24 @@
+{
+  "claim_states": [
+    "live",
+    "expired",
+    "ended",
+    "all"
+  ],
+  "worklog_states": [
+    "live",
+    "expired",
+    "ended",
+    "all"
+  ],
+  "worklog_workflows": [
+    "oneshot",
+    "plan-first",
+    "design-first"
+  ],
+  "worklog_link_kinds": [
+    "commit",
+    "pull_request",
+    "landing"
+  ]
+}

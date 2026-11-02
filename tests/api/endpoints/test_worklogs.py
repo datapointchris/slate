@@ -34,7 +34,8 @@ def current(client, session: str) -> str | None:
     return worklog and worklog['name']
 
 
-def test_a_session_holding_one_issue_then_another_leaves_two_worklogs_each_with_its_span_and_the_first_its_commit(client):
+def test_a_session_holding_one_issue_then_another_leaves_two_worklogs_and_resuming_the_first_takes_it_back(client):
+    """Each worklog lists the session with its span, and the first its commit. Resuming the parked first returns the session to it."""
     bug = number(client, 'Ready bug with high priority')
     chore = number(client, 'Ready chore with low priority')
     where = {'holder': 'claude-code/s1', 'session': 's1', 'host': 'desk'}
@@ -57,7 +58,12 @@ def test_a_session_holding_one_issue_then_another_leaves_two_worklogs_each_with_
     assert joined['ended_ts'] is None
     assert dt.datetime.fromisoformat(left['ended_ts']) == dt.datetime.fromisoformat(joined['started_ts'])
     assert [(link['kind'], link['ref'], link['session']) for link in on_bug['links']] == [('commit', '4fca8f1', 's1')]
-    assert (on_bug['state'], on_bug['stage'], on_chore['stage']) == ('open', 'committed', 'started')
+    assert (on_bug['state'], on_bug['stage'], on_chore['stage']) == ('live', 'committed', 'started')
+
+    ok(client.post(f'/claims/{bug}/wait', json={'holder': 'claude-code/s1', 'waiting_on': 'slate#3 to merge'}))
+    resumed = ok(client.post(f'/claims/{bug}/resume', json={'holder': 'claude-code/s1', 'session': 's1'}))
+    assert codes(resumed['side_effects']) == [('session_left_worklog', chore), ('session_rejoined_worklog', bug)]
+    assert current(client, 's1') == f'{bug}.1'
 
 
 def test_a_worklog_started_with_no_claim_warns_of_another_open_one_and_ends_by_hand_or_with_its_record(client):
@@ -65,7 +71,7 @@ def test_a_worklog_started_with_no_claim_warns_of_another_open_one_and_ends_by_h
 
     started = ok(client.post(WORKLOGS, json={'record': idea, 'opened_by': 'claude-code/s2', 'session': 's2'}), status.HTTP_201_CREATED)
     discussion = started['worklog']
-    assert (discussion['name'], discussion['claim'], discussion['state']) == (f'{idea}.1', None, 'open')
+    assert (discussion['name'], discussion['claim'], discussion['state']) == (f'{idea}.1', None, 'live')
     second = ok(client.post(WORKLOGS, json={'record': idea, 'opened_by': 'chris@desk'}), status.HTTP_201_CREATED)
     assert codes(second['warnings']) == [('open_worklog', idea)]
 

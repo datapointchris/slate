@@ -168,11 +168,13 @@ func (c *Client) WaitOnClaim(ctx context.Context, record, holder, waitingOn stri
 	return written, nil
 }
 
-// ResumeClaim ends the wait on the holder's claim on record.
-func (c *Client) ResumeClaim(ctx context.Context, record, holder string, zone DayZone) (ClaimWritten, error) {
+// ResumeClaim ends the wait on the holder's claim on record, and puts the
+// place's session back in the claim's worklog.
+func (c *Client) ResumeClaim(ctx context.Context, record, holder string, place AgentPlace, zone DayZone) (ClaimWritten, error) {
 	body := struct {
 		Holder string `json:"holder"`
-	}{holder}
+		AgentPlace
+	}{holder, place}
 	var written ClaimWritten
 	if err := c.send(ctx, http.MethodPost, withQuery(claimPath(record, "resume"), zoneQuery(zone)), body, &written); err != nil {
 		return ClaimWritten{}, err

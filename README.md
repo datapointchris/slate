@@ -133,7 +133,7 @@ reaches only the routes its scopes list:
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready queue, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.issues.close` | commenting on an issue, and closing an open one |
 | `slate.issues.plan` | filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
-| `slate.worklogs.write` | starting, joining, linking and editing a worklog under the service's own client id, and finishing one it opened |
+| `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 
 No scope deletes anything, and none files or changes an idea.
 `src/slate/api/client_scopes.py` holds the exact routes.

@@ -17,6 +17,7 @@ from typing import get_args
 
 from sqlalchemy import BigInteger
 from sqlalchemy import CheckConstraint
+from sqlalchemy import ColumnElement
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
 from sqlalchemy import Identity
@@ -24,7 +25,11 @@ from sqlalchemy import Index
 from sqlalchemy import Integer
 from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
+from sqlalchemy import and_
+from sqlalchemy import or_
 from sqlalchemy import text
+from sqlalchemy.ext.hybrid import hybrid_method
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
@@ -43,10 +48,13 @@ WORKLOG_OUTCOMES = [WORKLOG_FINISHED, *CLAIM_ENDINGS]
 WorkflowName = Literal['oneshot', 'plan-first', 'design-first']
 WORKLOG_WORKFLOWS: list[str] = list(get_args(WorkflowName))
 
-# What a worklog produced, in the order a change reaches main. A landing is a commit or a pull
-# request reaching the main branch.
+# What a worklog produced, and the stage each brings it to, in the order a change reaches main. A
+# landing is a commit or a pull request reaching the main branch. A worklog with no link is started.
 LinkKindName = Literal['commit', 'pull_request', 'landing']
-WORKLOG_LINK_KINDS: list[str] = list(get_args(LinkKindName))
+WorklogStage = Literal['started', 'committed', 'pull_request', 'landed']
+STAGE_OF_LINK: dict[LinkKindName, WorklogStage] = {'commit': 'committed', 'pull_request': 'pull_request', 'landing': 'landed'}
+WORKLOG_LINK_KINDS: list[str] = list(STAGE_OF_LINK)
+WORKLOG_STAGES: tuple[WorklogStage, ...] = ('started', *STAGE_OF_LINK.values())
 
 # The partial unique index that keeps a session in one worklog at a time.
 ONE_OPEN_SPAN_PER_SESSION = 'uq_worklog_spans_one_open_per_session'
@@ -98,6 +106,39 @@ class Worklog(Base):
     @property
     def name(self) -> str:
         return f'{self.record_number}.{self.sequence}'
+
+    # A worklog is live, expired or ended, one at a time. Each SQL form reads `claims`, so a query
+    # filtering on one outer-joins the worklog's claim.
+
+    @hybrid_method
+    def is_live(self, now: dt.datetime) -> bool:
+        """Under way at `now`: unended, and the claim that opened it, if any, still holding."""
+        return self.ended_ts is None and (self.claim is None or self.claim.is_live(now))
+
+    @is_live.expression
+    @classmethod
+    def _is_live_expression(cls, now: dt.datetime) -> ColumnElement[bool]:
+        return and_(cls.ended_ts.is_(None), or_(cls.claim_id.is_(None), Claim.is_live(now)))
+
+    @hybrid_method
+    def is_expired(self, now: dt.datetime) -> bool:
+        """Unended under a claim that ran out by `now`, which the next write finding the claim ends."""
+        return self.ended_ts is None and self.claim is not None and self.claim.is_expired(now)
+
+    @is_expired.expression
+    @classmethod
+    def _is_expired_expression(cls, now: dt.datetime) -> ColumnElement[bool]:
+        return and_(cls.ended_ts.is_(None), Claim.is_expired(now))
+
+    @hybrid_property
+    def is_ended(self) -> bool:
+        """History: ended itself, or the claim that opened it ended without ending it."""
+        return self.ended_ts is not None or (self.claim is not None and self.claim.ended_ts is not None)
+
+    @is_ended.inplace.expression
+    @classmethod
+    def _is_ended_expression(cls) -> ColumnElement[bool]:
+        return or_(cls.ended_ts.is_not(None), Claim.ended_ts.is_not(None))
 
     def __repr__(self) -> str:
         return f'Worklog(name={self.name!r}, outcome={self.outcome!r})'

@@ -19,7 +19,7 @@ import (
 )
 
 var worklogHints = []string{
-	"List the open worklogs: slate worklogs list",
+	"List the live worklogs: slate worklogs list",
 	"Name the worklog this session is in: slate worklogs current",
 }
 
@@ -35,8 +35,8 @@ func newWorklogsCommand() *cobra.Command {
 			"an initiative, and `finish` ends one by hand.\n" +
 			"\n" +
 			"A session joins worklogs for spans of time, one at a time. Holding a claim,\n" +
-			"starting a worklog or joining one moves it, and the answer names the worklog it\n" +
-			"left, which stays open. `current` prints the worklog the session is in, for a\n" +
+			"resuming one, starting a worklog or joining one moves it, and the answer names\n" +
+			"the worklog it left. `current` prints the worklog the session is in, for a\n" +
 			"commit hook to stamp as the trailer `Worklog: 1991.2`. `link` records the\n" +
 			"commit, pull request or landing it produced.",
 	})
@@ -65,8 +65,8 @@ func newWorklogsListCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List worklogs, latest started first: the open ones by default",
-		Long: "--state open is what is under way now. expired is the worklogs whose claim ran\n" +
+		Short: "List worklogs, latest started first: the live ones by default",
+		Long: "--state live is what is under way now. expired is the worklogs whose claim ran\n" +
 			"out and no write has ended yet. ended is history, and all is every worklog.\n" +
 			"STAGE is the furthest its links reached: started, committed, pull_request or\n" +
 			"landed.",
@@ -96,7 +96,7 @@ func newWorklogsListCommand() *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&filter.Record, "record", "", "Only worklogs on this record, by number")
 	f.StringVar(&filter.Session, "session", "", "Only worklogs this agent session joined")
-	f.StringVar(&filter.State, "state", "", "One of: "+strings.Join(api.WorklogStates, ", ")+" (default open)")
+	f.StringVar(&filter.State, "state", "", "One of: "+strings.Join(api.WorklogStates, ", ")+" (default live)")
 	addLimitFlag(cmd, &limit)
 	f.BoolVar(&asJSON, "json", false, "Output worklogs as JSON to stdout")
 	return cmd
@@ -137,13 +137,13 @@ func newWorklogsCurrentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "current",
 		Short: "Print the name of the worklog this session is in, or nothing",
-		Long: "Prints the open worklog's name alone on a line, for a commit-msg hook to stamp\n" +
+		Long: "Prints the live worklog's name alone on a line, for a commit-msg hook to stamp\n" +
 			"as the trailer `Worklog: <name>`. A session in no worklog, or in one whose claim\n" +
-			"ran out, prints nothing and exits 0. So does a run naming no session. --json\n" +
-			"prints the whole worklog, or null.",
+			"ran out or ended, prints nothing and exits 0. So does a run naming no session.\n" +
+			"--json prints the whole worklog, or null.",
 		Example: "  slate worklogs current\n" +
 			"  name=$(slate worklogs current) && [ -n \"$name\" ] &&\n" +
-			"    git interpret-trailers --in-place --trailer \"Worklog: $name\" \"$1\"",
+			"    git interpret-trailers --in-place --if-exists doNothing --trailer \"Worklog: $name\" \"$1\"",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			var worklog *api.Worklog
@@ -230,9 +230,10 @@ func newWorklogsJoinCommand() *cobra.Command {
 		Use:   "join <worklog>",
 		Short: "Put this session in a worklog, leaving the one it was in",
 		Long: "A session is in one worklog at a time. Joining ends its span in any other,\n" +
-			"which stays open and is printed under the line. Use it to return to a worklog\n" +
-			"after holding another claim, or to work a worklog another session opened.\n" +
-			"Refused when the worklog ended or its claim ran out.",
+			"which is printed under the line. Use it to work a worklog another session\n" +
+			"opened, or one `start` opened. Holding or resuming a claim returns the session\n" +
+			"to that claim's worklog. Refused when the worklog ended, or its claim ran out\n" +
+			"or ended.",
 		Example: "  slate worklogs join 1991.2",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -271,10 +272,14 @@ func newWorklogsLinkCommand() *cobra.Command {
 			"lands after the claim that made it is done.\n" +
 			"\n" +
 			"With no worklog named, it links to the one this session is in, as `current`\n" +
-			"prints it, and a session in none is refused. A post-commit hook runs it bare.\n" +
+			"prints it, and a session in none is refused. A post-commit hook reads `current`\n" +
+			"first and links only when it printed a name, so a commit outside any worklog\n" +
+			"prints nothing.\n" +
 			"\n" +
 			"--linked-by " + narrowedActorHelp,
 		Example: "  slate worklogs link --commit \"$(git rev-parse HEAD)\" --repo slate\n" +
+			"  name=$(slate worklogs current) && [ -n \"$name\" ] &&\n" +
+			"    slate worklogs link \"$name\" --commit \"$(git rev-parse HEAD)\" >/dev/null\n" +
 			"  slate worklogs link 1991.2 --pr https://github.com/datapointchris/slate/pull/3\n" +
 			"  slate worklogs link 1991.2 --landed 4fca8f1 --repo slate",
 		Args: cobra.MaximumNArgs(1),
@@ -340,7 +345,7 @@ func newWorklogsLinkCommand() *cobra.Command {
 	return cmd
 }
 
-// sessionWorklog is the open worklog the session is in, refused when it is in
+// sessionWorklog is the live worklog the session is in, refused when it is in
 // none, since a link with nowhere to go would be dropped.
 func sessionWorklog(cmd *cobra.Command, client *api.Client, session string) (*api.Worklog, error) {
 	if strings.TrimSpace(session) == "" {
