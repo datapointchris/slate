@@ -319,6 +319,55 @@ Only an active initiative lends its priority and groups its issues, so
 completing or dropping one leaves each issue still open inside it standing
 alone.
 
+## An initiative's progress counts each of its issues in one state
+
+`GET /initiatives/{id}/progress` answers how far an initiative has come, and
+`slate initiatives progress` prints it. It is the view Jira's epic progress bar
+and Linear's project view give. Each issue counts in exactly one state, so the
+counts add up to every issue in the initiative, closed ones included. An issue
+takes the first state that holds:
+
+| State | When |
+| --- | --- |
+| `completed`, `canceled` | its closing status |
+| `running` | a live claim holds it |
+| `waiting` | a live claim holds it, and its holder parked it with `slate claims wait` |
+| `triage` | it was filed and nobody has accepted it |
+| `blocked` | it depends on an unclosed issue |
+| `ready` | `next` would hand it out |
+| `deferred` | its not-before day has not come |
+| `shelved` | its initiative is someday, and nothing outside someday depends on it |
+| `open_children` | only its open children hold it back |
+
+A claim outranks every unclosed state. A held issue is being worked, whatever
+else is true of it. Triage outranks blocked, because nobody has accepted the
+work its blockers hold back. No status says an issue is in progress. Its claim
+says that.
+
+The answer lists the issues running, waiting and blocked in queue order. Each
+blocked issue carries what it depends on. `next` is the head of `GET /queue`
+for the initiative, read from the same readiness pass, so the two never
+disagree. `closed` lists the closes inside the `since` and `until` window,
+latest first. `totals` is what `GET /totals` answers for the initiative over its
+whole life, whatever the window.
+
+The window means what it means on every bounded read. A bound left out leaves
+that end open, so the API given no `since` lists every close. "Recently" is the
+CLI's choice: `--since` defaults to 7 days back, and `--since=` lists every
+close. The answer echoes the window as `closed_since` and `closed_until`.
+
+- *Rejected:* a 7-day default in the API. `since` would mean one thing on this
+  route and another on every other.
+- *Rejected:* a CLI composing the initiative, issue, queue and totals reads.
+  That is four calls per initiative, and the states derive from readiness,
+  which only the API derives.
+
+The bar spans the done and open issues and leaves out the canceled ones, as
+the bar in `slate initiatives list` does. Done fills it in green. Its empty
+cells are yellow for the work under way and red for the blocked. So without
+color it still reads as done over done and open. `--json` prints an array,
+one entry per initiative, carrying every figure the text shows.
+
 ## Not built
 
 - **Due dates.** An issue is ordered by priority and rank, never by a date it

@@ -20,8 +20,10 @@ from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
+from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.claims import end_with_record
+from slate.services.initiative_progress import initiative_progress
 from slate.services.initiative_views import counted
 from slate.services.initiative_views import initiative_detail
 from slate.services.initiative_views import initiative_views
@@ -126,6 +128,17 @@ def rank(initiative: InitiativeFromPath, move: schemas.RecordRankMove, session: 
     session.commit()
     session.refresh(initiative)
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
+
+
+# Ahead of `read_one`, whose `{id:path}` would otherwise take `/progress` as part of the name.
+@router.get('/{id:path}/progress', response_model=schemas.InitiativeProgress, status_code=status.HTTP_200_OK)
+def read_progress(initiative: InitiativeFromPath, session: DbSession, zone: RequestZone, window: TimeWindowQuery):
+    """Every issue in the initiative counted in one state, the issues under way and blocked, the queue's head, the closes and the totals.
+
+    The window narrows only the closes, and a bound it leaves out leaves that end open. The totals
+    cover the initiative's whole life.
+    """
+    return initiative_progress(session, initiative, zone, window)
 
 
 @router.get('/{id:path}', response_model=schemas.InitiativeDetail, status_code=status.HTTP_200_OK)

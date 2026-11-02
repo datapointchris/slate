@@ -133,6 +133,54 @@ func (c *Client) DeleteInitiative(ctx context.Context, ref string, zone DayZone)
 	return deleted, nil
 }
 
+// IssueStateCounts is how many of an initiative's issues are in each state the
+// API derives. The counts partition its issue count. Running and Waiting are
+// issues under a live claim, Waiting where the holder parked it. OpenChildren
+// is an open issue nothing else holds back but its open children.
+type IssueStateCounts struct {
+	Completed    int `json:"completed"`
+	Canceled     int `json:"canceled"`
+	Running      int `json:"running"`
+	Waiting      int `json:"waiting"`
+	Ready        int `json:"ready"`
+	Blocked      int `json:"blocked"`
+	Triage       int `json:"triage"`
+	Deferred     int `json:"deferred"`
+	Shelved      int `json:"shelved"`
+	OpenChildren int `json:"open_children"`
+}
+
+// InitiativeProgress is everything a progress view prints for one initiative.
+// Running, Waiting and Blocked hold the issues in that state in queue order,
+// Next is the head of the queue for the initiative, and Closed is every close
+// between ClosedSince and ClosedUntil, latest first, where a nil bound leaves
+// that end open. Totals cover the initiative's whole life.
+type InitiativeProgress struct {
+	Initiative  Initiative       `json:"initiative"`
+	States      IssueStateCounts `json:"states"`
+	Running     []Issue          `json:"running"`
+	Waiting     []Issue          `json:"waiting"`
+	Blocked     []Issue          `json:"blocked"`
+	Next        []QueueRow       `json:"next"`
+	Closed      []Issue          `json:"closed"`
+	ClosedSince *time.Time       `json:"closed_since"`
+	ClosedUntil *time.Time       `json:"closed_until"`
+	Totals      WorkTotals       `json:"totals"`
+}
+
+// GetInitiativeProgress reads an initiative's progress, by any reference the
+// API resolves. The window narrows only its closes, and zone is the calendar
+// its readiness is read in.
+func (c *Client) GetInitiativeProgress(ctx context.Context, ref string, window Window, zone DayZone) (InitiativeProgress, error) {
+	query := zoneQuery(zone)
+	applyWindow(query, window)
+	var progress InitiativeProgress
+	if err := c.get(ctx, withQuery(initiativePath(ref)+"/progress", query), &progress); err != nil {
+		return InitiativeProgress{}, err
+	}
+	return progress, nil
+}
+
 // RankInitiative places an initiative, with its issues, directly before or
 // after another record of its priority.
 func (c *Client) RankInitiative(ctx context.Context, ref string, move RankMove, zone DayZone) (InitiativeWritten, error) {

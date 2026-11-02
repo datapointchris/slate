@@ -1,3 +1,5 @@
+import datetime as dt
+
 import pytest
 from fastapi import status
 
@@ -141,3 +143,60 @@ def test_deleting_an_initiative_keeps_its_issues(client):
     answer = ok(client.delete(f'{INITIATIVES}/Ship the issue tracker'))
     assert [(effect['code'], effect['record']) for effect in answer['side_effects']] == [('issue_detached', created['number'])]
     assert ok(client.get(f'/issues/{created["number"]}'))['initiative'] is None
+
+
+def numbers(rows) -> list[int]:
+    return [row['number'] for row in rows]
+
+
+def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_blocked_comes_next_and_closed(client):
+    """The running issue and the triage issue each depend on an open one, and neither counts as blocked."""
+    initiative = wrote(client.post(INITIATIVES, json={'name': 'Progress', 'priority': 2}), 'initiative', status.HTTP_201_CREATED)['number']
+
+    def filed(title: str, **fields) -> int:
+        issue = {'title': title, 'initiative': initiative, **fields}
+        return wrote(client.post('/issues', json=issue), 'issue', status.HTTP_201_CREATED)['number']
+
+    ready = filed('Ready')
+    completed, canceled, waiting = filed('Completed'), filed('Canceled'), filed('Waiting')
+    running = filed('Running', depends_on=[ready])
+    triage = filed('Triage', status='triage', depends_on=[ready])
+    blocked = filed('Blocked', depends_on=[ready])
+    parent = filed('Parent')
+    filed('Deferred', parent=parent, deferred_until_date='2099-01-01')
+    ok(client.patch(f'/issues/{completed}', json={'status': 'completed'}))
+    ok(client.patch(f'/issues/{canceled}', json={'status': 'canceled', 'status_reason': 'not needed'}))
+    ok(client.post('/claims', json={'record': running, 'holder': 'claude-code/s1', 'session': 's1'}))
+    ok(client.post('/claims', json={'record': waiting, 'holder': 'claude-code/s2'}))
+    ok(client.post(f'/claims/{waiting}/wait', json={'holder': 'claude-code/s2', 'waiting_on': 'a review'}))
+    entered = dt.datetime.fromisoformat(ok(client.get(f'/worklogs/{running}.1'))['spans'][0]['started_ts'])
+    tokens = {'uncached_input': 1, 'cache_write': 10, 'cache_read': 100, 'output': 5}
+    message = {'key': 'm1', 'written_ts': (entered + dt.timedelta(seconds=1)).isoformat(), 'model': 'claude-opus-5-5', 'tokens': tokens}
+    ok(client.put('/sessions/s1/usage', json={'messages': [message]}))
+
+    progress = ok(client.get(f'{INITIATIVES}/Progress/progress'))
+    assert progress['initiative']['number'] == initiative
+    assert progress['states'] == {
+        'completed': 1,
+        'canceled': 1,
+        'running': 1,
+        'waiting': 1,
+        'ready': 1,
+        'blocked': 1,
+        'triage': 1,
+        'deferred': 1,
+        'shelved': 0,
+        'open_children': 1,
+    }
+    assert sum(progress['states'].values()) == progress['initiative']['issue_count']
+    assert (numbers(progress['running']), numbers(progress['waiting']), numbers(progress['blocked'])) == ([running], [waiting], [blocked])
+    assert progress['waiting'][0]['claim']['waiting']['waiting_on'] == 'a review'
+    assert numbers(progress['next']) == [ready]
+    assert numbers(progress['closed']) == [canceled, completed]
+    assert triage not in numbers(progress['blocked'])
+    totals = progress['totals']
+    assert (totals['scope']['record']['number'], totals['worklog_count'], totals['tokens']) == (initiative, 2, tokens)
+
+    later = (dt.datetime.now(dt.UTC) + dt.timedelta(minutes=1)).isoformat()
+    windowed = ok(client.get(f'{INITIATIVES}/{initiative}/progress', params={'since': later}))
+    assert (windowed['closed'], windowed['closed_since'] is not None, windowed['states']) == ([], True, progress['states'])

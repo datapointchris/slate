@@ -32,6 +32,7 @@
     "GET /api/v1/ideas/{id}",
     "GET /api/v1/initiatives",
     "GET /api/v1/initiatives/{id:path}",
+    "GET /api/v1/initiatives/{id:path}/progress",
     "GET /api/v1/issues",
     "GET /api/v1/issues/{id}",
     "GET /api/v1/queue",

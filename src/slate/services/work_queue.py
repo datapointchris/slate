@@ -17,6 +17,7 @@ than at its place in the queue. Held rows are whatever the record is, ready or n
 
 from __future__ import annotations
 
+import datetime as dt
 from collections.abc import Collection
 from typing import Any
 
@@ -91,7 +92,13 @@ def queued_issues(
 
 def read_queue(session: Session, zone: str, filters: schemas.QueueFilter, limit: int | None) -> schemas.Queue:
     today, now = calendar_now(zone)
-    readiness = measure_readiness(session, today, now)
+    return queue_as_measured(session, zone, now, measure_readiness(session, today, now), filters, limit)
+
+
+def queue_as_measured(
+    session: Session, zone: str, now: dt.datetime, readiness: IssueReadiness, filters: schemas.QueueFilter, limit: int | None
+) -> schemas.Queue:
+    """The queue from readiness already measured at `now`, so a read that needs readiness for more shares its pass and its order."""
     held = live_claims_on_every_record(session, now)
     queued: list[tuple[QueueKey, Row]] = []
     claimed: list[tuple[str, QueueKey, Row]] = []
