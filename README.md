@@ -82,13 +82,13 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.issues.read` | listing, searching and showing issues and initiatives, and the ready queue |
+| `slate.records.read` | reading any record by number, listing, searching and showing issues, initiatives and ideas, and the ready queue |
 | `slate.claims.hold` | holding, extending and releasing a claim on a record under the service's own client id |
 | `slate.issues.close` | commenting on an issue, and closing an open one |
 | `slate.issues.plan` | filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
 
-No scope deletes anything, and none reaches ideas or the read of a record by
-number. `src/slate/api/client_scopes.py` holds the exact routes.
+No scope deletes anything, and none files or changes an idea.
+`src/slate/api/client_scopes.py` holds the exact routes.
 
 `--repo` takes a repository name. Where a registry of names exists, the CLI
 refuses one it does not hold, so a typo cannot file work under a repo nobody

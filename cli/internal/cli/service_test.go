@@ -235,6 +235,8 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 			`[]`,
 			map[string]string{"/api/v1/issues/initiatives/Practical help guides": `{}`},
 		},
+		{[]string{"ideas", "list", "--json"}, `[]`, nil},
+		{[]string{"ideas", "show", "412", "--json"}, `{}`, nil},
 		{[]string{"claims", "hold", "412", "--minutes", "2880"}, heldClaim, nil},
 		{[]string{"claims", "extend", "412"}, heldClaim, nil},
 		{[]string{"claims", "release", "412"}, `{"claim":null,"side_effects":[],"warnings":[]}`, nil},

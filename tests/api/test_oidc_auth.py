@@ -35,7 +35,7 @@ CLI_CLIENT_ID_PREFIX = 'slate-cli-'
 CLI_CLIENT_ID = 'slate-cli-macmini'
 SERVICE_CLIENT_ID_PREFIX = 'slate-svc-'
 SERVICE_CLIENT_ID = 'slate-svc-worker'
-SERVICE_SCOPE = 'slate.issues.read'
+SERVICE_SCOPE = 'slate.records.read'
 
 
 class IdentityProviderStub:

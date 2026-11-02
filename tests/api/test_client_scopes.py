@@ -23,7 +23,7 @@ from slate.api.oidc_auth import ScopedClient
 from slate.api.oidc_auth import get_oidc_identity
 from tests.util import show_status_and_response
 
-ISSUES = 'slate.issues.read'
+READ = 'slate.records.read'
 CLAIM = 'slate.claims.hold'
 CLOSE = 'slate.issues.close'
 PLAN = 'slate.issues.plan'
@@ -35,6 +35,9 @@ SCOPES_DOCUMENT = Path(__file__).parent / 'testdata' / 'client-scopes.json'
 # One request per read any scope lists, keyed by its template. Search widens the status to all,
 # and show names the issue by number, as the CLI sends them.
 SCOPED_URLS = {
+    f'{API_PREFIX}/records/{{number}}': '/records/{issue}',
+    f'{API_PREFIX}/ideas': '/ideas',
+    f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
     f'{API_PREFIX}/issues': '/issues?search=scheduler&status=all',
     f'{API_PREFIX}/issues/ready': '/issues/ready',
     f'{API_PREFIX}/issues/vocabulary': '/issues/vocabulary',
@@ -95,7 +98,7 @@ def scoped(scope: str) -> ScopedClient:
 
 @pytest.fixture
 def as_caller(txn_api):
-    """Seed two issues of one priority, one initiative, and the service's claim on the neighbor.
+    """Seed two issues of one priority, one initiative, one idea, and the service's claim on the neighbor.
 
     `caller(identity)` sets who the token says is calling and returns the client, and `url(template)`
     fills a template with the seeded rows. The initiative is named, as the CLI names one.
@@ -104,7 +107,8 @@ def as_caller(txn_api):
     issue = models.Issue(title='scheduler issue', rank=1.0)
     neighbor = models.Issue(title='scheduler neighbor', rank=2.0)
     initiative = models.Initiative(name='scheduler-initiative')
-    session.add_all([issue, neighbor, initiative])
+    idea = models.Idea(title='scheduler idea')
+    session.add_all([issue, neighbor, initiative, idea])
     session.flush()
     now = dt.datetime.now(dt.UTC)
     session.add(models.Claim(record_number=neighbor.number, holder=SERVICE, started_ts=now, expires_ts=now + dt.timedelta(hours=1)))
@@ -115,7 +119,7 @@ def as_caller(txn_api):
         return client
 
     def url(template):
-        return template.format(issue=issue.number, neighbor=neighbor.number, initiative=initiative.name)
+        return template.format(issue=issue.number, neighbor=neighbor.number, initiative=initiative.name, idea=idea.number)
 
     return SimpleNamespace(caller=caller, url=url, issue=issue, session=session)
 
@@ -134,17 +138,19 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
 @pytest.mark.parametrize(
     ('scope', 'method', 'url'),
     [
-        (ISSUES, 'POST', '/issues'),
-        (ISSUES, 'PATCH', '/issues/{issue}'),
-        (ISSUES, 'DELETE', '/issues/{issue}'),
-        (ISSUES, 'POST', '/claims'),
-        (ISSUES, 'POST', '/issues/{issue}/comments'),
-        (ISSUES, 'GET', '/issues/{issue}/comments'),
-        (ISSUES, 'GET', '/issues/vocabulary'),
-        (ISSUES, 'GET', '/issues/labels'),
-        (ISSUES, 'POST', '/issues/initiatives'),
-        (ISSUES, 'PATCH', '/issues/initiatives/{initiative}'),
-        (ISSUES, 'DELETE', '/issues/initiatives/{initiative}'),
+        (READ, 'POST', '/issues'),
+        (READ, 'PATCH', '/issues/{issue}'),
+        (READ, 'DELETE', '/issues/{issue}'),
+        (READ, 'POST', '/claims'),
+        (READ, 'POST', '/issues/{issue}/comments'),
+        (READ, 'GET', '/issues/{issue}/comments'),
+        (READ, 'GET', '/issues/vocabulary'),
+        (READ, 'GET', '/issues/labels'),
+        (READ, 'POST', '/issues/initiatives'),
+        (READ, 'PATCH', '/issues/initiatives/{initiative}'),
+        (READ, 'DELETE', '/issues/initiatives/{initiative}'),
+        (READ, 'POST', '/ideas'),
+        (READ, 'POST', '/ideas/{idea}/promote'),
         (CLOSE, 'GET', '/issues/{issue}'),
         (CLOSE, 'POST', '/issues'),
         (CLOSE, 'DELETE', '/issues/{issue}'),
@@ -156,17 +162,19 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (PLAN, 'DELETE', '/issues/initiatives/{initiative}'),
     ],
     ids=[
-        'issues-create',
-        'issues-update',
-        'issues-delete',
-        'issues-hold',
-        'issues-comment',
-        'issues-unlisted-read',
-        'issues-vocabulary',
-        'issues-labels-router',
-        'issues-initiatives-create',
-        'issues-initiatives-update',
-        'issues-initiatives-delete',
+        'read-create',
+        'read-update',
+        'read-delete',
+        'read-hold',
+        'read-comment',
+        'read-unlisted-read',
+        'read-vocabulary',
+        'read-labels-router',
+        'read-initiatives-create',
+        'read-initiatives-update',
+        'read-initiatives-delete',
+        'read-ideas-create',
+        'read-ideas-promote',
         'close-read',
         'close-create',
         'close-delete',
