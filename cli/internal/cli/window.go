@@ -21,7 +21,7 @@ var (
 )
 
 // addWindowFlags registers --since and --until on a read bounded by time.
-// rows names what the window narrows, such as "books finished".
+// rows names what the window narrows, such as "issues closed" or "work done".
 func addWindowFlags(cmd *cobra.Command, rows string) {
 	cmd.Flags().String("since", "", fmt.Sprintf("Only %s at or after this: %s", rows, windowForms))
 	cmd.Flags().String("until", "", fmt.Sprintf("Only %s before this; a day includes all of it", rows))
