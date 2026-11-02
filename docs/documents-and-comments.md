@@ -44,7 +44,7 @@ Each version and each comment carries:
 
 | Column | What it says |
 | --- | --- |
-| `written_by` | the caller's subject or client id, the actor the audit trail records |
+| `written_by` | the actor the audit trail records: a person's username, else subject, or a service's client id |
 | `session_id` | the agent session that wrote it, a row of `agent_sessions` |
 | `worklog_id` | the worklog that session was in at that moment |
 | `written_ts` | when it was written |

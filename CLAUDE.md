@@ -39,7 +39,8 @@ Every request carries an RFC 9068 access token from the issuer `OIDC_ISSUER`
 names. The client id's prefix decides who is calling:
 
 - `slate-cli-` is a person through the CLI's device login. The caller is an
-  `OIDCIdentity`, and its `subject` signs what it changes.
+  `OIDCIdentity`, and its `actor` signs what it changes: the token's
+  `preferred_username`, else its opaque `sub`.
 - `slate-svc-` is a service through the client-credentials grant. The caller
   is a `ScopedClient`, and reaches only the routes `client_scopes.py` lists for
   its scopes.
@@ -92,7 +93,7 @@ A new command takes a noun unless no one noun owns what it reads.
 - **Every write is audited in `audit_trail`** by a row trigger on each table,
   so no write path does anything for it. A new table's migration creates its
   trigger, and `test_every_table_is_audited_but_what_opts_out` names the
-  statement when one is missing. The actor is the caller's subject or client
+  statement when one is missing. The actor is the person's `actor` or the client
   id, set per transaction by `bind_actor`. `message_tokens` opts out, because
   its rows mirror a transcript, and each report that changes them is audited
   on `agent_sessions`.

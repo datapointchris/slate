@@ -41,14 +41,14 @@ def get_current_caller(
         bind_actor(session, identity.client_id)
         logger.debug('auth_method_scoped_client', client_id=identity.client_id, path=request.url.path)
         return identity
-    bind_actor(session, identity.subject)
-    logger.debug('auth_method_person', subject=identity.subject, client_id=identity.client_id)
+    bind_actor(session, identity.actor)
+    logger.debug('auth_method_person', subject=identity.subject, username=identity.username, client_id=identity.client_id)
     return identity
 
 
 def caller_actor(caller: OIDCIdentity | ScopedClient) -> str:
     """The name a caller's writes are signed with, as `bind_actor` records it."""
-    return caller.client_id if isinstance(caller, ScopedClient) else caller.subject
+    return caller.client_id if isinstance(caller, ScopedClient) else caller.actor
 
 
 def refuse_acting_for_another(caller: OIDCIdentity | ScopedClient, named: str, refusal: Refusal) -> None:

@@ -160,6 +160,11 @@ class TestVerifyAccessToken:
         identity = verifier.verify(idp.sign(idp.valid_claims()))
         assert identity.subject == 'authelia-user-uuid'
         assert identity.client_id == CLI_CLIENT_ID
+        assert identity.actor == 'authelia-user-uuid'
+
+    def test_signs_with_the_username_where_the_token_carries_one(self, idp, verifier):
+        identity = verifier.verify(idp.sign(idp.valid_claims() | {'preferred_username': 'chris'}))
+        assert identity.actor == 'chris'
 
     def test_rejects_an_id_token(self, idp, verifier):
         """An id_token is signed by the same key and carries the same issuer.

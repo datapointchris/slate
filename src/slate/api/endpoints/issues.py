@@ -426,7 +426,7 @@ def update(
         refuse_a_scoped_update(issue, update_data, caller.scopes)
         signed_in = caller.client_id
     else:
-        signed_in = caller.subject
+        signed_in = caller.actor
 
     if (issue_type := update_data.get('type')) is not None:
         validate_lookup(session, models.IssueType, issue_type, 'issue type')

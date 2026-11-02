@@ -29,7 +29,7 @@ class CommentLine(RecordModel):
 class Comment(RecordModel):
     """A comment on a record, or on one line of its document's version when `on` is set.
 
-    `written_by` is the caller's subject or client id, and null on a comment nobody recorded the
+    `written_by` is the caller's actor, as the audit trail records it, and null on a comment nobody recorded the
     writer of. `session` and `worklog` are where an agent session wrote it from.
     """
 

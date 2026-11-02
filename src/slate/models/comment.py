@@ -34,7 +34,7 @@ class Comment(Base):
     version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     line: Mapped[int | None] = mapped_column(Integer, nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    # The caller's subject or client id. Null when nobody recorded who wrote it.
+    # The caller's actor, as `bind_actor` records it. Null when nobody recorded who wrote it.
     written_by: Mapped[str | None] = mapped_column(Text, nullable=True)
     session_id: Mapped[str | None] = mapped_column(Text, ForeignKey('agent_sessions.id'), nullable=True)
     # The worklog the session was in when it wrote the comment.

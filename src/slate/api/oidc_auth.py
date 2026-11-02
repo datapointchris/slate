@@ -65,6 +65,13 @@ class OIDCIdentity(BaseModel):
 
     subject: str
     client_id: str
+    # `preferred_username`, present only where the provider's claims policy for the client adds it.
+    username: str | None = None
+
+    @property
+    def actor(self) -> str:
+        """The name this person's writes are signed with: the username, else the opaque subject."""
+        return self.username or self.subject
 
 
 class ScopedClient(BaseModel):
@@ -165,7 +172,8 @@ class OIDCTokenVerifier:
         subject = claims.get('sub') or ''
         if not subject:
             raise OIDCVerificationError('token carries no subject')
-        return OIDCIdentity(subject=subject, client_id=client_id)
+        username = claims.get('preferred_username')
+        return OIDCIdentity(subject=subject, client_id=client_id, username=username if isinstance(username, str) and username else None)
 
     @staticmethod
     def _scoped_client(claims: dict, client_id: str) -> ScopedClient:

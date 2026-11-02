@@ -76,7 +76,7 @@ class DocumentVersion(Base):
     document_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('documents.id', ondelete='CASCADE'), primary_key=True)
     version: Mapped[int] = mapped_column(Integer, primary_key=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    # The caller's subject or client id, as `bind_actor` records it.
+    # The caller's actor, as `bind_actor` records it.
     written_by: Mapped[str] = mapped_column(Text, nullable=False)
     session_id: Mapped[str | None] = mapped_column(Text, ForeignKey('agent_sessions.id'), nullable=True)
     # The worklog the session was in when it wrote the version. Null when it was in none, or no session wrote it.

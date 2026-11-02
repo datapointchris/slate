@@ -275,7 +275,7 @@ Completing or canceling an issue ends its claim and every worklog still open
 on it, and the answer names each.
 
 A close records `closed_by` beside `closed_ts`: the actor the client names,
-else the token's subject. A token is the person's whichever session or worker
+else the token's username, else its subject. A token is the person's whichever session or worker
 holds it, so only the client can say which one acted. The CLI names whoever
 runs it, with the kind of actor as the prefix:
 
