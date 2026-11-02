@@ -25,26 +25,33 @@ does so outside slate.
 
 `message_tokens` holds one row per model message a session reported: its four
 counts, when it was written, its model, the subagent whose transcript held it,
-and the worklog span the session was in then. The row's key is the session and
-the message, with no surrogate, because the row mirrors a message the
-transcript already names.
+and the worklog span the session was in then. The row's key is the message
+alone, with no surrogate, because the row mirrors a message the transcript
+already names.
+
+Claude Code can continue a session under a new id. The new transcript repeats
+the parent's messages, with their ids. So the session that reports a message
+first holds it, and a later report naming it warns
+`messages_held_by_another_session`. Each message then counts once.
 
 A message is the grain any window can split at. A seven-day window, or one
 day in any time zone, may cut through a span. A message has one moment, so it
-falls on one side of every edge. Sums by worklog, record, initiative, model or
-window all read the same rows.
+falls on one side of every edge. Any sum, over any grouping or window, reads
+these same rows.
 
 - *Rejected:* one row per span with its sums. A window whose edge cuts the
   span would need the sum split by time, which the row cannot give.
 - *Rejected:* the audit trail on these rows. A report replaces a session's
-  rows wholesale, and the transcript is already their record. Each report sets
-  `agent_sessions.usage_reported_ts`, and that row's audit names who reported.
+  rows wholesale, and the transcript is already their record. Each report that
+  changes them sets `agent_sessions.usage_reported_ts`, and that row's audit
+  names who reported. A report that changes nothing is not audited.
 
 ## Each message goes to the span that held its moment
 
 A span holds the moments from its `started_ts` up to its `ended_ts`. A span
 still open in a worklog whose claim ended or ran out stops where the claim
-did. A message no span holds is the session's alone, so a window's total
+did, and every read gives that moment as its `ended_ts`. A message no span
+holds is the session's alone, so a window's total
 includes time outside every worklog. A session is in one worklog at a time
 ([worklogs.md](worklogs.md)), so each message lands in one place.
 
@@ -76,20 +83,32 @@ so far:
 ```
 
 `key` is the provider's message id, or where the message was read when it has
-none. Each message the report names is upserted on its key. A row is written
-only when its counts, model or span changed. Each row the report leaves out is
-deleted. So a resumed session reports its whole transcript again and counts
-nothing twice. A report naming exactly what slate holds writes nothing and
-warns `usage_unchanged`.
+none. Either way it is unique across sessions. Each message the report names
+is upserted on its key. A row is written only when something the report
+carries for it differs from what slate holds. Each row the report leaves out
+is deleted. So a session resumed under its own id reports its whole transcript
+again and counts nothing twice. A report naming exactly what slate holds
+writes nothing and warns `usage_unchanged`.
+
+A report replaces only one it read at least as far as. A transcript only
+grows, so a report that read less is an earlier read, or one that came back
+empty or cut. Its newest message from the session's own transcript must be no
+older than the newest slate holds from it, and the same holds for each
+subagent's transcript slate holds messages from. A report that falls short in
+any of them changes nothing, and warns `usage_stale` naming each one. A
+message's output never shrinks either, so a read that caught a message
+mid-write keeps the figure slate holds.
 
 The session's row is locked while a report replaces its messages. Two reports
 of one session, such as a turn's and the session's last, then apply one after
-the other.
+the other, and whichever read less changes nothing.
 
 The write takes counts, never a transcript, so any agent reports its own the
-same way. `GET /sessions/{id}` reads the session back: its tokens in all, in
-each span, and outside every worklog. A worklog's read sums its spans', and
-`slate worklogs show` prints that line.
+same way. `GET /sessions/{id}` reads the session back: its message count, and
+its tokens in all, in each span, and outside every worklog. A worklog's read
+sums its spans', and `slate worklogs show` prints that line. A sum over no
+reported message is null, never zero, so a span nobody reported for never
+reads as having spent nothing.
 
 ## `slate sessions report` counts each message in a Claude Code transcript once
 
@@ -106,9 +125,9 @@ Code wrote it flat beside the session as `<project>/agent-<id>.jsonl`, which
 names no session. So a flat one counts only where the session's own
 transcript names the subagent's id in a tool result's `agentId`.
 
-`usage.iterations` lists each model call behind a message. Claude Code writes
-one iteration equal to the top-level `usage`, so the report reads the top
-level.
+`usage.iterations` lists each model call behind a message. The report reads
+the top-level `usage`, never the iterations. In Claude Code 2.1.316's
+transcripts, each message held one iteration equal to the top level.
 
 ## A Claude Code hook reports at every turn and at the session's end
 
@@ -131,11 +150,11 @@ or to a repository's `.claude/settings.json` for that repository alone:
 Claude Code hands a hook its event as JSON on stdin, and the report reads
 `session_id` and `transcript_path` from it.
 
-- **SessionEnd gives the final count.** Claude Code runs it when the session
-  exits and when its terminal closes. A killed tmux pane runs it too, whether
-  the session was idle or running a tool. A hook still running after the
-  hangup finishes. The hooks share a 1.5-second budget by default, and
-  `timeout: 30` raises it so a token refresh and the request fit.
+- **SessionEnd gives the final count.** Claude Code 2.1.316 ran it when the
+  session exited, when its terminal closed, and when its tmux pane was killed,
+  idle or mid-tool. A hook still running after the hangup finished. Its
+  default hook budget was 1.5 seconds, too short for a token refresh and the
+  request, so `timeout: 30` raises it.
 - **Stop keeps a long session's count current.** Nothing runs when the agent
   is killed with SIGKILL or its machine goes down. So a report after each turn
   keeps what slate holds no more than a turn behind. `async` keeps the turn
@@ -148,6 +167,7 @@ Run by hand, `slate sessions report --transcript <path>` reports the session
 the file is named for.
 
 In a container, the agent's settings carry the same block. The agent
-authenticates as a service client holding `slate.sessions.write`, which
-reaches the report and nothing else. `slate.records.read` reaches a session's
-read. A report names no actor, so its audit row names the client.
+authenticates as a service client. The CLI asks every grant for every scope
+README's table lists, so that client holds them all. `slate.sessions.write`
+reaches the report, and `slate.records.read` a session's read. A report names
+no actor, so where it changes the session, the audit row names the client.
