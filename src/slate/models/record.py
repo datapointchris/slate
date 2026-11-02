@@ -11,6 +11,7 @@ the database refuses an issue whose number is recorded as an initiative's.
 
 from __future__ import annotations
 
+import enum
 from typing import Any
 from typing import ClassVar
 
@@ -30,7 +31,14 @@ from slate.database.base import Base
 
 RECORD_NUMBER_SEQUENCE = Sequence('record_numbers', metadata=Base.metadata)
 
-RECORD_KINDS = ['idea', 'initiative', 'issue']
+
+class Kind(enum.StrEnum):
+    """Every kind of record, each one table. A dispatch on a kind names each member, so mypy finds the ones a new kind misses."""
+
+    IDEA = 'idea'
+    INITIATIVE = 'initiative'
+    ISSUE = 'issue'
+
 
 # Linear's scale, shared by every kind. 0 is the absence of a priority and sorts after every
 # level, so the smallest non-zero value is the most urgent.
@@ -49,7 +57,7 @@ class Record(Base):
     number: Mapped[int] = mapped_column(
         BigInteger, RECORD_NUMBER_SEQUENCE, primary_key=True, server_default=RECORD_NUMBER_SEQUENCE.next_value()
     )
-    kind: Mapped[str] = mapped_column(Text, ForeignKey('record_kinds.name'), nullable=False)
+    kind: Mapped[Kind] = mapped_column(Text, ForeignKey('record_kinds.name'), nullable=False)
 
     # The pair each kind's table references, so the kind it declares is the kind recorded here.
     __table_args__ = (UniqueConstraint('number', 'kind', name='uq_records_number_kind'),)
@@ -65,7 +73,7 @@ class NumberedRecord:
     unit of work inserts the `records` row first and copies its number across.
     """
 
-    RECORD_KIND: ClassVar[str]
+    RECORD_KIND: ClassVar[Kind]
 
     number: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
 
@@ -83,7 +91,7 @@ class NumberedRecord:
         super().__init__(**kwargs)
 
 
-def record_link(kind: str) -> tuple[CheckConstraint, ForeignKeyConstraint]:
+def record_link(kind: Kind) -> tuple[CheckConstraint, ForeignKeyConstraint]:
     """The constraints a kind's `__table_args__` carries: its declared kind, and the link on both columns."""
     return (
         CheckConstraint(f"record_kind = '{kind}'", name='record_kind_is_declared'),

@@ -169,3 +169,13 @@ def issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.Is
         comments=[schemas.IssueComment.model_validate(comment) for comment in issue.comments],
         claims=claim_history(session, issue.number, dt.datetime.now(dt.UTC)),
     )
+
+
+def load_issue(session: Session, issue_id: UUID) -> models.Issue:
+    return session.scalars(select(models.Issue).options(*ISSUE_LOAD_OPTIONS).where(models.Issue.id == issue_id)).one()
+
+
+def fresh_issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.IssueDetail:
+    """The issue's detail read again from the database, so a write answers what it committed."""
+    session.expire_all()
+    return issue_detail(session, load_issue(session, issue.id), zone)

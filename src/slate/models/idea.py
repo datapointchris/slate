@@ -17,6 +17,7 @@ from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 
 from slate.database.base import Base
+from slate.models.record import Kind
 from slate.models.record import NumberedRecord
 from slate.models.record import record_link
 
@@ -31,7 +32,7 @@ class Idea(NumberedRecord, Base):
     work, which names the idea back. Its priority is its own, set like any other record's.
     """
 
-    RECORD_KIND = 'idea'
+    RECORD_KIND = Kind.IDEA
 
     __tablename__ = 'ideas'
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid7)

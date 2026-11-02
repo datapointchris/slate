@@ -14,7 +14,6 @@ from sqlalchemy import delete as sql_delete
 from sqlalchemy import or_
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import Select
 
 from slate import models
 from slate import schemas
@@ -34,23 +33,29 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
 from slate.models.record import PRIORITIES
+from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
+from slate.schemas.ready_filter import ReadyFilter
 from slate.services.claims import end_with_record
+from slate.services.issue_filters import apply_label_filter
+from slate.services.issue_filters import apply_repo_filter
+from slate.services.issue_filters import autofixable_filtered
 from slate.services.issue_rank import move_issue
 from slate.services.issue_rank import rank_at_end
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_views import ISSUE_LOAD_OPTIONS
 from slate.services.issue_views import calendar_now
-from slate.services.issue_views import issue_detail
+from slate.services.issue_views import fresh_issue_detail
 from slate.services.issue_views import issue_views
 from slate.services.issue_views import label_views
 from slate.services.issue_views import list_order
+from slate.services.ready_queue import ready_issues
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_refs import resolve_issue
-from slate.services.record_refs import resolve_label
 from slate.services.record_refs import resolve_labels
 from slate.services.row_limit import RowLimit
 from slate.services.time_window import apply_time_window
+from slate.services.vocabulary import validate_lookup
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
@@ -72,35 +77,6 @@ def path_issue(id: str, session: DbSession) -> models.Issue:
 
 
 IssueFromPath = Annotated[models.Issue, Depends(path_issue)]
-
-
-def validate_lookup(session: Session, model, value: str, noun: str, extra: tuple[str, ...] = ()) -> None:
-    """Reject an unknown vocabulary value by name rather than letting the foreign key raise."""
-    if value in extra or session.get(model, value) is not None:
-        return
-    known = [*session.scalars(select(model.name).order_by(model.name)).all(), *extra]
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail=f'Unknown {noun} {value!r}. Known: {", ".join(known)}',
-    )
-
-
-def apply_repo_filter(query: Select, repo: str | None) -> Select:
-    """Narrow to one repo; an explicit empty string asks for the issues on no repo."""
-    if repo is None:
-        return query
-    if repo == '':
-        return query.where(models.Issue.repo.is_(None))
-    return query.where(models.Issue.repo == repo)
-
-
-def apply_label_filter(query: Select, label: str | None, session: Session) -> Select:
-    if label is None:
-        return query
-    label_row = resolve_label(session, label)
-    return query.where(
-        models.Issue.id.in_(select(models.IssueLabelAssignment.issue_id).where(models.IssueLabelAssignment.label_id == label_row.id))
-    )
 
 
 def waited_on_by(session: Session, issue_id: UUID) -> list[UUID]:
@@ -268,20 +244,8 @@ def apply_status_transition(
         end_with_record(session, issue.number, target, now, issue.closed_by, effects)
 
 
-def load_issue(session: Session, issue_id: UUID) -> models.Issue:
-    issue = session.scalars(select(models.Issue).options(*ISSUE_LOAD_OPTIONS).where(models.Issue.id == issue_id)).one()
-    return issue
-
-
-def fresh_issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.IssueDetail:
-    session.expire_all()
-    return issue_detail(session, load_issue(session, issue.id), zone)
-
-
 # `/ready` and `/vocabulary` are declared ahead of `/{id}`, which would
 # otherwise take either segment as an issue reference.
-
-AUTOFIXABLE_FILTER = "True for issues whose own, initiative's and parents' autofix are all on, false for the rest"
 
 
 @router.get('', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
@@ -352,56 +316,10 @@ def read_many(
     return issue_views(session, issues, zone, readiness)
 
 
-def autofixable_filtered(issues: list[models.Issue], readiness: IssueReadiness, autofixable: bool | None) -> list[models.Issue]:
-    if autofixable is None:
-        return issues
-    return [issue for issue in issues if (issue.id in readiness.autofixable) == autofixable]
-
-
-def ready_issues(
-    session: Session,
-    zone: str,
-    *,
-    repo: str | None,
-    type: str | None,
-    label: str | None,
-    initiative: str | UUID | int | None,
-    autofixable: bool | None,
-) -> tuple[list[models.Issue], IssueReadiness]:
-    """The ready queue in the order it is taken, and the readiness it was cut from.
-
-    Decisions wait on a person, so the queue leaves them out unless `type` asks
-    for them by name.
-    """
-    today, now = calendar_now(zone)
-    readiness = measure_readiness(session, today, now)
-    query = select(models.Issue).options(*ISSUE_LOAD_OPTIONS).where(models.Issue.id.in_(readiness.ready))
-    if type is not None:
-        validate_lookup(session, models.IssueType, type, 'issue type')
-        query = query.where(models.Issue.type == type)
-    else:
-        query = query.where(models.Issue.type != 'decision')
-    if initiative is not None:
-        query = query.where(models.Issue.initiative_id == resolve_initiative(session, initiative).id)
-    query = apply_repo_filter(query, repo)
-    query = apply_label_filter(query, label, session)
-    issues = sorted(session.scalars(query).all(), key=readiness.sort_key)
-    return autofixable_filtered(issues, readiness, autofixable), readiness
-
-
 @router.get('/ready', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
-def read_ready(
-    session: DbSession,
-    zone: RequestZone,
-    repo: str | None = Query(None, description='A repo name, or an empty string for issues on no repo'),
-    type: str | None = Query(None, description='An issue type. Decisions are left out unless asked for here.'),
-    label: str | None = Query(None, description='A label slug'),
-    initiative: str | None = Query(None, description='An initiative, by any reference GET /issues/initiatives/{id} accepts'),
-    autofixable: bool | None = Query(None, description=AUTOFIXABLE_FILTER),
-    limit: RowLimit = None,
-):
+def read_ready(session: DbSession, zone: RequestZone, filters: Annotated[ReadyFilter, Query()], limit: RowLimit = None):
     """The issues an agent could take now, in the order to take them; the first row is next."""
-    issues, readiness = ready_issues(session, zone, repo=repo, type=type, label=label, initiative=initiative, autofixable=autofixable)
+    issues, readiness = ready_issues(session, zone, filters)
     if limit is not None:
         issues = issues[:limit]
     return issue_views(session, issues, zone, readiness)

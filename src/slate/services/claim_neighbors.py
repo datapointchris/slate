@@ -11,6 +11,7 @@ depends on it. An initiative's are its unclosed issues. An idea's is the initiat
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from collections.abc import Iterable
 
 from sqlalchemy import select
@@ -20,6 +21,7 @@ from sqlalchemy.orm import selectinload
 from slate import models
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.models.record import Kind
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
 from slate.services.issue_readiness import measure_readiness
@@ -27,16 +29,23 @@ from slate.services.issue_views import ISSUE_LOAD_OPTIONS
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
+NeighborWarner = Callable[[Session, int, str, dt.datetime, dt.date, WriteEffects], None]
+
+
+def neighbor_warner(kind: Kind) -> NeighborWarner:
+    match kind:
+        case Kind.ISSUE:
+            return warn_about_issue
+        case Kind.INITIATIVE:
+            return warn_about_initiative
+        case Kind.IDEA:
+            return warn_about_idea
+
 
 def warn_about_neighbors(
     session: Session, record: models.Record, holder: str, now: dt.datetime, today: dt.date, effects: WriteEffects
 ) -> None:
-    if record.kind == models.Issue.RECORD_KIND:
-        warn_about_issue(session, record.number, holder, now, today, effects)
-    elif record.kind == models.Initiative.RECORD_KIND:
-        warn_about_initiative(session, record.number, holder, now, effects)
-    elif record.kind == models.Idea.RECORD_KIND:
-        warn_about_idea(session, record.number, holder, now, effects)
+    neighbor_warner(record.kind)(session, record.number, holder, now, today, effects)
 
 
 def claimed_by_others(session: Session, numbers: Iterable[int], holder: str, now: dt.datetime) -> dict[int, models.Claim]:
@@ -107,7 +116,7 @@ def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetim
         )
 
 
-def warn_about_initiative(session: Session, number: int, holder: str, now: dt.datetime, effects: WriteEffects) -> None:
+def warn_about_initiative(session: Session, number: int, holder: str, now: dt.datetime, today: dt.date, effects: WriteEffects) -> None:
     initiative = session.scalars(select(models.Initiative).where(models.Initiative.number == number)).one()
     if initiative.status in TERMINAL_INITIATIVE_STATUSES:
         effects.warn(WriteEffectCode.RECORD_CLOSED, f'#{number} is {initiative.status}, so a claim on it holds no open work.', number)
@@ -125,7 +134,7 @@ def warn_about_initiative(session: Session, number: int, holder: str, now: dt.da
         )
 
 
-def warn_about_idea(session: Session, number: int, holder: str, now: dt.datetime, effects: WriteEffects) -> None:
+def warn_about_idea(session: Session, number: int, holder: str, now: dt.datetime, today: dt.date, effects: WriteEffects) -> None:
     initiative = session.scalars(select(models.Initiative).join(models.Idea).where(models.Idea.number == number)).one_or_none()
     if initiative is None:
         return

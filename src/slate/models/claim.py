@@ -16,22 +16,27 @@ import datetime as dt
 
 from sqlalchemy import BigInteger
 from sqlalchemy import CheckConstraint
+from sqlalchemy import ColumnElement
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
 from sqlalchemy import Identity
 from sqlalchemy import Index
 from sqlalchemy import Text
+from sqlalchemy import and_
 from sqlalchemy import text
+from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 
 from slate.database.base import Base
+from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
+from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Record
 
 # How a claim ended. `released` is its holder or a person letting go, and `expired` is its lease
-# running out first. The rest are the record closing under it, named for the status it reached.
-CLAIM_ENDINGS = ['released', 'expired', 'completed', 'canceled', 'dropped']
+# running out first. The rest are the record closing under it, named for the closing status it reached.
+CLAIM_ENDINGS = ['released', 'expired', *dict.fromkeys([*CLOSED_ISSUE_STATUSES, *TERMINAL_INITIATIVE_STATUSES])]
 
 
 class ClaimEnding(Base):
@@ -65,6 +70,26 @@ class Claim(Base):
         Index('uq_claims_one_unended_per_record', 'record_number', unique=True, postgresql_where=text('ended_ts IS NULL')),
         Index('idx_claims_record_number', 'record_number'),
     )
+
+    @hybrid_method
+    def is_live(self, now: dt.datetime) -> bool:
+        """Holding its record at `now`: unended, and its lease not yet run out."""
+        return self.ended_ts is None and self.expires_ts > now
+
+    @is_live.expression
+    @classmethod
+    def _is_live_expression(cls, now: dt.datetime) -> ColumnElement[bool]:
+        return and_(cls.ended_ts.is_(None), cls.expires_ts > now)
+
+    @hybrid_method
+    def is_expired(self, now: dt.datetime) -> bool:
+        """Unended, with its lease run out by `now`, so it no longer holds its record."""
+        return self.ended_ts is None and self.expires_ts <= now
+
+    @is_expired.expression
+    @classmethod
+    def _is_expired_expression(cls, now: dt.datetime) -> ColumnElement[bool]:
+        return and_(cls.ended_ts.is_(None), cls.expires_ts <= now)
 
     def __repr__(self):
         return f'Claim(record_number={self.record_number!r}, holder={self.holder!r}, ending={self.ending!r})'

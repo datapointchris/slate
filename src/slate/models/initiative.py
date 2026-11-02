@@ -20,6 +20,7 @@ from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 
 from slate.database.base import Base
+from slate.models.record import Kind
 from slate.models.record import NumberedRecord
 from slate.models.record import record_link
 
@@ -47,7 +48,7 @@ class Initiative(NumberedRecord, Base):
     closing one stops it ranking the issues still open inside it.
     """
 
-    RECORD_KIND = 'initiative'
+    RECORD_KIND = Kind.INITIATIVE
 
     __tablename__ = 'initiatives'
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid7)

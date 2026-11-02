@@ -23,6 +23,7 @@ from sqlalchemy.orm import relationship
 
 from slate.database.base import Base
 from slate.database.fractionally_ranked import FractionallyRanked
+from slate.models.record import Kind
 from slate.models.record import NumberedRecord
 from slate.models.record import record_link
 
@@ -61,7 +62,7 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
     Who is working it is its claim, a row in `claims` on its number.
     """
 
-    RECORD_KIND = 'issue'
+    RECORD_KIND = Kind.ISSUE
 
     __tablename__ = 'issues'
     title: Mapped[str] = mapped_column(Text, nullable=False)

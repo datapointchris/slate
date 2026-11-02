@@ -14,11 +14,11 @@ from sqlalchemy import select
 from slate import models
 from slate import schemas
 from slate.api.callers import DbSession
-from slate.api.endpoints.issue_initiatives import new_initiative
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
 from slate.services.idea_views import idea_views
+from slate.services.initiatives import new_initiative
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.record_refs import resolve_idea
 from slate.services.row_limit import RowLimit

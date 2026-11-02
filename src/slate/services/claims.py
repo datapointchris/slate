@@ -40,7 +40,7 @@ class ClaimRefused(HTTPException):
 
 def end_claim(claim: models.Claim, ending: str, now: dt.datetime, ended_by: str | None) -> bool:
     """End the claim as `ending`, or as expired at its expiry when its lease ran out first. True when it had."""
-    if claim.expires_ts <= now:
+    if claim.is_expired(now):
         claim.ending, claim.ended_ts, claim.ended_by = 'expired', claim.expires_ts, None
         return True
     claim.ending, claim.ended_ts, claim.ended_by = ending, now, ended_by
@@ -63,7 +63,7 @@ def end_with_record(session: Session, number: int, ending: str, now: dt.datetime
 def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datetime, effects: WriteEffects) -> models.Claim:
     current = unended_claims(session, [number]).get(number)
     if current is not None:
-        live = current.expires_ts > now
+        live = current.is_live(now)
         if live and current.holder == lease.holder:
             effects.warn(
                 WriteEffectCode.ALREADY_HELD,
@@ -137,7 +137,7 @@ def extend(session: Session, number: int, holder: str, minutes: int, now: dt.dat
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} holds no claim to extend. Hold it instead.')
     if current.holder != holder:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} is claimed by {held_by(current)}, not {holder}.')
-    if current.expires_ts <= now:
+    if current.is_expired(now):
         effects.warn(
             WriteEffectCode.CLAIM_HAD_EXPIRED,
             f'The claim on #{number} had expired at {utc_minute(current.expires_ts)}. Nobody held #{number} since, so it holds again.',

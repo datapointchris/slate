@@ -29,7 +29,7 @@ def held_by(claim: models.Claim) -> str:
 def claim_state(claim: models.Claim, now: dt.datetime) -> ClaimState:
     if claim.ended_ts is not None:
         return 'ended'
-    return 'live' if claim.expires_ts > now else 'expired'
+    return 'live' if claim.is_live(now) else 'expired'
 
 
 def claim_view(claim: models.Claim, now: dt.datetime) -> schemas.Claim:
@@ -68,11 +68,11 @@ def unended_claim_views(session: Session, numbers: Iterable[int], now: dt.dateti
 
 
 def live_claims(session: Session, numbers: Iterable[int], now: dt.datetime) -> dict[int, models.Claim]:
-    return {number: claim for number, claim in unended_claims(session, numbers).items() if claim.expires_ts > now}
+    return {number: claim for number, claim in unended_claims(session, numbers).items() if claim.is_live(now)}
 
 
 def live_claim_numbers(session: Session, now: dt.datetime) -> frozenset[int]:
-    query = select(models.Claim.record_number).where(models.Claim.ended_ts.is_(None), models.Claim.expires_ts > now)
+    query = select(models.Claim.record_number).where(models.Claim.is_live(now))
     return frozenset(session.scalars(query).all())
 
 

@@ -1,10 +1,10 @@
 import datetime as dt
 from typing import Annotated
 from typing import Literal
-from uuid import UUID
 
 from pydantic import Field
 
+from slate.schemas.ready_filter import ReadyFilter
 from slate.schemas.record import Actor
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordRef
@@ -34,15 +34,8 @@ class ClaimHold(ClaimLease):
     record: RecordRef
 
 
-class ClaimHoldNext(ClaimLease):
+class ClaimHoldNext(ClaimLease, ReadyFilter):
     """Hold the head of the issue ready queue, narrowed by the filters the queue reads."""
-
-    repo: str | None = None
-    type: str | None = None
-    label: str | None = None
-    # Any reference an initiative answers to: its UUID, number or name.
-    initiative: UUID | int | str | None = None
-    autofixable: bool | None = None
 
 
 class ClaimExtend(RecordModel):

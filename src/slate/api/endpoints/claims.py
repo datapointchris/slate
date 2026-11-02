@@ -20,7 +20,6 @@ from slate import models
 from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
-from slate.api.endpoints.issues import ready_issues
 from slate.api.exceptions import ForbiddenException
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import OIDCIdentity
@@ -33,6 +32,7 @@ from slate.services.claims import hold
 from slate.services.claims import hold_next
 from slate.services.claims import release
 from slate.services.issue_views import calendar_now
+from slate.services.ready_queue import ready_issues
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
@@ -78,11 +78,10 @@ def read_many(
         query = query.where(models.Claim.holder.startswith(holder, autoescape=True))
     if record is not None:
         query = query.where(models.Claim.record_number == resolve_record(session, record).number)
-    unended = models.Claim.ended_ts.is_(None)
     if state == 'live':
-        query = query.where(unended, models.Claim.expires_ts > now)
+        query = query.where(models.Claim.is_live(now))
     elif state == 'expired':
-        query = query.where(unended, models.Claim.expires_ts <= now)
+        query = query.where(models.Claim.is_expired(now))
     elif state == 'ended':
         query = query.where(models.Claim.ended_ts.is_not(None))
     return claims_on_records(session, list(session.scalars(apply_row_limit(query, limit)).all()), now)
@@ -113,15 +112,7 @@ def hold_next_claim(request: schemas.ClaimHoldNext, session: DbSession, zone: Re
     warning says so.
     """
     refuse_acting_for_another(caller, request.holder)
-    issues, _ = ready_issues(
-        session,
-        zone,
-        repo=request.repo,
-        type=request.type,
-        label=request.label,
-        initiative=request.initiative,
-        autofixable=request.autofixable,
-    )
+    issues, _ = ready_issues(session, zone, request)
     today, now = calendar_now(zone)
     return written(session, hold_next(session, issues, request, now, today, effects), now, effects)
 
