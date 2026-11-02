@@ -54,7 +54,10 @@ def ensure_active_name_available(session: Session, name: str, exclude_id: UUID |
 
 
 def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea: models.Idea | None = None) -> models.Initiative:
-    """Add an initiative after every check a create makes. Its record goes last in the queue, as every new one does."""
+    """Add an initiative after every check a create makes.
+
+    Promoted from `idea`, it takes the idea's place in the queue. Otherwise its record goes last, as every new one does.
+    """
     refuse_number_shaped_name(initiative.name)
     validate_status(initiative.status, session)
     require_reason_when_dropped(initiative.status, initiative.status_reason)
@@ -69,6 +72,7 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
         priority=initiative.priority,
         autofix=initiative.autofix,
         idea=idea,
+        rank=None if idea is None else idea.rank,
     )
     if db_obj.status in TERMINAL_INITIATIVE_STATUSES:
         db_obj.closed_ts = dt.datetime.now(dt.UTC)

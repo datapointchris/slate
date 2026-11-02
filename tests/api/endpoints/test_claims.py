@@ -62,6 +62,11 @@ def test_holding_the_queue_takes_each_issue_once_then_none(client):
     assert [warning['code'] for warning in held[-1]['warnings']] == ['nothing_ready']
 
 
+def test_claims_hold_next_type_decision_is_refused_as_next_step_build_never_lists_one(client):
+    refused = client.post(f'{CLAIMS}/next', json={'holder': 'agent-a', 'type': 'decision'})
+    assert refused.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, show_status_and_response(refused)
+
+
 def test_another_holders_live_claim_refuses_the_hold_by_name(client):
     bug = number(client, 'Ready bug with high priority')
     hold(client, bug, 'agent-a')

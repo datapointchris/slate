@@ -13,7 +13,7 @@ from slate.schemas.issue import Issue
 from slate.schemas.ready_filter import ReadyFilter
 
 # What a row asks of whoever takes it: discuss an idea, plan an initiative with no issue left in it,
-# decide a decision issue, build any other issue.
+# decide a decision issue, build any other issue. A held initiative whose issues are open is at `build`.
 Step = Literal['discuss', 'plan', 'decide', 'build']
 
 

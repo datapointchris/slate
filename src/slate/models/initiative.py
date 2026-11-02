@@ -10,6 +10,7 @@ from sqlalchemy import CheckConstraint
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
 from sqlalchemy import Index
+from sqlalchemy import Integer
 from sqlalchemy import SmallInteger
 from sqlalchemy import Text
 from sqlalchemy import Uuid
@@ -61,6 +62,9 @@ class Initiative(NumberedRecord, Base):
     # False keeps every issue in it from an unattended fix, so a step of one
     # design is never landed alone.
     autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text('true'))
+    # The order the API release before `records.rank` reads, kept while the two can overlap in a
+    # rollout. Nothing here reads or writes it.
+    previous_release_position: Mapped[int] = mapped_column('position', Integer, nullable=False, server_default='0')
     created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     closed_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # The idea promoted into this initiative. One idea becomes at most one initiative.

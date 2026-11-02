@@ -67,6 +67,20 @@ def test_each_initiatives_issues_run_together_and_move_with_it(client):
     assert [title for title, _, _ in rows(client)] == exporter_first
 
 
+def test_ideas_promote_after_ideas_reorder_keeps_the_place_the_reorder_gave(client):
+    first, _, moved = (
+        ok(client.post('/ideas', json={'title': title, 'priority': 2}), status.HTTP_201_CREATED)['idea']['number']
+        for title in ('Schedule review rounds', 'Mirror the backups', 'Trim the test suite')
+    )
+    ok(client.post(f'/ideas/{moved}/rank', json={'before': first}))
+    ok(client.post(f'/ideas/{moved}/promote', json={}))
+    assert rows(client) == [
+        ('Trim the test suite', 'plan', 2),
+        ('Schedule review rounds', 'discuss', 2),
+        ('Mirror the backups', 'discuss', 2),
+    ]
+
+
 def test_a_decision_the_work_waits_on_is_decided_at_that_works_priority(client):
     decision = issue(client, 'Choose the wire format', type='decision')
     issue(client, 'Ship the sync', priority=2, depends_on=[decision])

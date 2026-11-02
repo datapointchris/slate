@@ -369,6 +369,15 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, db_issue, zone))
 
 
+@router.get('/ready', status_code=status.HTTP_410_GONE, include_in_schema=False)
+def read_ready():
+    """Registered ahead of `/{id}`, so a client from before `GET /queue` is told where the ready issues went."""
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail='GET /issues/ready is gone. GET /queue?step=build lists the ready issues, and `slate update` installs a CLI that reads it.',
+    )
+
+
 @router.get('/{id}', response_model=schemas.IssueDetail, status_code=status.HTTP_200_OK)
 def read_one(issue: IssueFromPath, session: DbSession, zone: RequestZone):
     return fresh_issue_detail(session, issue, zone)

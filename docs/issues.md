@@ -42,11 +42,12 @@ A row is a record and what taking it means:
 | `discuss` | an idea nobody has promoted |
 | `plan` | an active initiative with no unclosed issue |
 | `decide` | a ready `decision` issue |
-| `build` | any other ready issue |
+| `build` | any other ready issue, or a held initiative whose issues are being built |
 
 `step` keeps one step's rows, so `slate next --step build` is the work an agent
 takes. An initiative holding unclosed issues is not a row of its own, because
-its issues are. `repo`, `type`, `label` and `autofixable` read only issues, so
+its issues are. It is listed only when held, in `claimed`, at step `build`, so
+whoever holds it is seen beside the issues it gathers. `repo`, `type`, `label` and `autofixable` read only issues, so
 each leaves the ideas and initiatives out. `initiative` narrows to one
 initiative's rows.
 
@@ -59,13 +60,15 @@ apart in `claimed`, by holder, whatever its readiness. The rest are `queue`,
 first row next. `limit` caps `queue` and never `claimed`.
 
 `POST /claims/next` holds the head of the `build` rows under the same filters.
+One function in `services/work_queue.py` selects and orders the issues for
+both, so the preview and the hold cannot disagree.
 
 ## A decision waits on a person, so it is decided rather than built
 
 The `decision` type is the one type that changes what happens to an issue.
 It needs a person to choose, and an agent that held one could only stall. So
-`next` lists a ready decision at step `decide`, and `POST /claims/next` leaves
-it out unless `type=decision` asks for it.
+`next` lists a ready decision at step `decide`, and `POST /claims/next`
+refuses `type=decision` with 422. A person holds a decision by naming it.
 
 The other types are `bug`, `feature`, `task` and `chore`. They differ only in
 what they say about the work, and `task` is the default.
@@ -195,7 +198,8 @@ high    idea 60
 `rank` lives on `records`, so ideas, initiatives and issues share one space.
 It is a float, the way Linear's `sortOrder` is. A new record goes one past the
 last, placed by the `records_rank_at_end` trigger, so a new issue lands at its
-initiative's tail. A move takes the midpoint of its two new neighbors, so it
+initiative's tail. An initiative promoted from an idea takes the idea's rank,
+so it keeps the place a reorder gave the idea. A move takes the midpoint of its two new neighbors, so it
 writes one row. When a move would leave a gap smaller than `MIN_GAP` in
 `services/fractional_rank.py`, every rank is renumbered to whole numbers in its
 current order. `number` breaks a rank tie, because it is issued in creation
@@ -210,14 +214,17 @@ any kind, through one rule in `services/queue_moves.py`:
 - An issue inside an initiative moves only among that initiative's issues.
 - An issue sorting ahead of what waits on it moves with that, so it is placed
   only beside another issue sorting there.
+- A record the queue holds no place for neither moves nor is moved beside:
+  a closed issue, a someday or finished initiative, a promoted idea. The
+  readiness result is the one place that says which records hold a place.
 
 A move that would land anywhere but beside the record named answers 409,
 saying why. One across priorities names both, because changing the priority is
 what moves a record past another priority's.
 
-- *Rejected:* an initiative `position` beside the issues' rank. No sort read
-  it, so initiatives ordered nothing, and an initiative's issues scattered
-  among every other issue of their priority.
+- *Rejected:* an initiative `position` beside the issues' rank. Ranks in two
+  spaces hold no order between an initiative and an issue or an idea, so
+  neither could place an initiative's work among the rest of its priority.
 
 ## Who is working an issue is its claim, never its status
 

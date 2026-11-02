@@ -204,9 +204,8 @@ func (f IssueFilter) query() url.Values {
 	return query
 }
 
-// ReadyFilter narrows the ready issues. HoldNextClaim takes from them, where
-// an empty Type leaves decisions out because they wait on a person, and
-// QueueFilter carries it beside its step.
+// ReadyFilter narrows the ready issues. HoldNextClaim takes from them at step
+// build, which refuses Type decision, and QueueFilter carries it beside its step.
 type ReadyFilter struct {
 	Repo        *string `json:"repo,omitempty"`
 	Type        string  `json:"type,omitempty"`

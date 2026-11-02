@@ -12,7 +12,6 @@ from dataclasses import dataclass
 
 from sqlalchemy import ColumnElement
 from sqlalchemy import Text
-from sqlalchemy import exists
 from sqlalchemy import func
 from sqlalchemy import literal
 from sqlalchemy import literal_column
@@ -24,9 +23,8 @@ from sqlalchemy.dialects.postgresql import REGCONFIG
 from sqlalchemy.orm import Session
 
 from slate import models
-from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
-from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
+from slate.services.open_records import is_open
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -55,17 +53,16 @@ def dice(a: frozenset[str], b: frozenset[str]) -> float:
     return 2 * len(a & b) / (len(a) + len(b))
 
 
-def open_records():
-    """Every record still open, with its title's stems: unclosed issues, initiatives not finished, and ideas not promoted."""
-    promoted = exists().where(models.Initiative.idea_id == models.Idea.id)
+def open_record_titles():
+    """Every open record of every kind, with its title's stems."""
     return union_all(
         select(models.Issue.number, literal(Kind.ISSUE.value), models.Issue.title, models.Issue.repo, stems(models.Issue.title)).where(
-            models.Issue.status.not_in(CLOSED_ISSUE_STATUSES)
+            is_open(Kind.ISSUE)
         ),
         select(
             models.Initiative.number, literal(Kind.INITIATIVE.value), models.Initiative.name, null(), stems(models.Initiative.name)
-        ).where(models.Initiative.status.not_in(TERMINAL_INITIATIVE_STATUSES)),
-        select(models.Idea.number, literal(Kind.IDEA.value), models.Idea.title, null(), stems(models.Idea.title)).where(~promoted),
+        ).where(is_open(Kind.INITIATIVE)),
+        select(models.Idea.number, literal(Kind.IDEA.value), models.Idea.title, null(), stems(models.Idea.title)).where(is_open(Kind.IDEA)),
     )
 
 
@@ -77,7 +74,7 @@ def likely_duplicates(session: Session, number: int, title: str, repo: str | Non
     """
     filed = frozenset(session.scalar(select(stems(literal(title)))) or ())
     scored = []
-    for row in session.execute(open_records()).all():
+    for row in session.execute(open_record_titles()).all():
         record = OpenRecord(row[0], row[1], row[2], row[3], frozenset(row[4] or ()))
         if record.number == number or (repo is not None and record.repo is not None and record.repo != repo):
             continue

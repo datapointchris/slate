@@ -129,7 +129,7 @@ func (c *Client) HoldClaim(ctx context.Context, record string, lease ClaimLease,
 	return written, nil
 }
 
-// HoldNextClaim holds the head of the issue ready queue in one request, so two
+// HoldNextClaim holds the head of the queue's build step in one request, so two
 // callers asking at once never hold the same issue.
 func (c *Client) HoldNextClaim(ctx context.Context, lease ClaimLease, filter ReadyFilter, zone DayZone) (ClaimWritten, error) {
 	var written ClaimWritten

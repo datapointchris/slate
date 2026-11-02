@@ -91,10 +91,11 @@ func newClaimsHoldCommand() *cobra.Command {
 			"--json gives it as claim.worklog. The Claude Code session joins it, leaving any\n" +
 			"other worklog it was in, which is printed too. `slate worklogs` reads it.\n" +
 			"\n" +
-			"--next holds the head of the ready issues in one request, so two callers\n" +
-			"asking at once never hold the same issue. `slate next --step build` under\n" +
-			"the same flags shows what it would take. Decisions are left out unless --type\n" +
-			"decision asks for them. An empty queue warns and exits 0.\n" +
+			"--next holds the head of `slate next --step build` under the same flags, in\n" +
+			"one request, so two callers asking at once never hold the same issue. A\n" +
+			"decision waits on a person, so --type decision is refused: `slate next --step\n" +
+			"decide` lists them, and a hold naming one takes it. An empty queue warns and\n" +
+			"exits 0.\n" +
 			"\n" +
 			"--holder " + narrowedActorHelp + " The claim also records the Claude Code session\n" +
 			"from $CLAUDE_CODE_SESSION_ID, this host, and the working directory.",
@@ -143,7 +144,7 @@ func newClaimsHoldCommand() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.BoolVar(&next, "next", false, "Hold the head of the issue ready queue instead of a named record")
+	f.BoolVar(&next, "next", false, "Hold the head of slate next --step build instead of a named record")
 	queue.register(cmd)
 	f.StringVar(&holder, "holder", actorIdentity(), "Who holds the claim")
 	addClaimMinutesFlag(cmd, &minutes)

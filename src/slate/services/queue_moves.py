@@ -24,7 +24,6 @@ from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import QueueKey
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_readiness import priority_of
-from slate.services.issue_readiness import urgency
 from slate.services.issue_views import calendar_now
 from slate.services.record_refs import resolve_record
 
@@ -46,25 +45,35 @@ class Standing:
 
 
 def standing(session: Session, readiness: IssueReadiness, record: models.Record) -> Standing:
+    """Where `record` sits, read from the readiness the queue is cut from. One the queue holds no place for is refused."""
     match record.kind:
         case Kind.ISSUE:
             issue = session.scalars(select(models.Issue).where(models.Issue.number == record.number)).one()
             key = readiness.queue_key.get(issue.id)
             if key is None:
-                return Standing(record, record.number, urgency(issue.priority))
+                raise outside_the_queue(record, f'a {issue.status} issue')
             slot = readiness.slot_of[issue.id]
             inside = issue.initiative.name if slot != record.number and issue.initiative is not None else None
             return Standing(record, slot, readiness.home_key[issue.id].urgency, key, inside, readiness.raised_by.get(issue.id))
         case Kind.INITIATIVE:
-            initiative = session.scalars(select(models.Initiative).where(models.Initiative.number == record.number)).one()
-            return Standing(record, record.number, urgency(initiative.priority))
+            if (key := readiness.slot_key_by_number.get(record.number)) is None:
+                initiative = session.scalars(select(models.Initiative).where(models.Initiative.number == record.number)).one()
+                raise outside_the_queue(record, f'a {initiative.status} initiative')
+            return Standing(record, record.number, key.urgency, key)
         case Kind.IDEA:
-            idea = session.scalars(select(models.Idea).where(models.Idea.number == record.number)).one()
-            return Standing(record, record.number, urgency(idea.priority))
+            if (key := readiness.slot_key_by_number.get(record.number)) is None:
+                idea = session.scalars(select(models.Idea).where(models.Idea.number == record.number)).one()
+                promoted_to = f'#{idea.initiative.number}' if idea.initiative is not None else 'an initiative'
+                raise outside_the_queue(record, f'an idea promoted to {promoted_to}')
+            return Standing(record, record.number, key.urgency, key)
 
 
 def conflict(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+
+def outside_the_queue(record: models.Record, what: str) -> HTTPException:
+    return conflict(f'#{record.number} is {what}, so the queue holds no place for it to move to or beside.')
 
 
 def priority_phrase(urgency_value: int) -> str:

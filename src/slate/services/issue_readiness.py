@@ -45,7 +45,9 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.models.record import Kind
 from slate.services.claim_views import live_claim_numbers
+from slate.services.open_records import is_open
 
 # The urgency of "no priority": after every real level, which run 1 (urgent)
 # to 4 (low).
@@ -112,10 +114,17 @@ class IssueReadiness:
     home_key: dict[UUID, QueueKey]
     slot_of: dict[UUID, int]
     raised_by: dict[UUID, int]
+    # Each idea and initiative the queue holds as a slot, by number: an active initiative, with
+    # its issues or alone, and an idea nobody has promoted.
+    slot_key_by_number: dict[int, QueueKey]
 
     def sort_key(self, issue: models.Issue) -> QueueKey:
         """A closed issue stands alone at its own priority, which the queue never reads."""
         return self.queue_key.get(issue.id) or slot_key(urgency(issue.priority), issue.rank, issue.number)
+
+    def record_sort_key(self, number: int, priority: int, rank: float) -> QueueKey:
+        """An idea or an initiative the queue holds no slot for, such as a held someday one, stands alone at its own priority."""
+        return self.slot_key_by_number.get(number) or slot_key(urgency(priority), rank, number)
 
 
 def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> IssueReadiness:
@@ -145,6 +154,15 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
             .where(models.Initiative.status == 'active')
         ).all()
     }
+    slot_key_by_number = {
+        initiative.number: slot_key(initiative.urgency, initiative.rank, initiative.number) for initiative in active_initiatives.values()
+    }
+    for number, priority, rank in session.execute(
+        select(models.Idea.number, models.Idea.priority, models.Record.rank)
+        .join(models.Record, models.Record.number == models.Idea.number)
+        .where(is_open(Kind.IDEA))
+    ).all():
+        slot_key_by_number[number] = slot_key(urgency(priority), rank, number)
     someday_initiatives = set(session.scalars(select(models.Initiative.id).where(models.Initiative.status == 'someday')).all())
     no_autofix_initiatives = set(session.scalars(select(models.Initiative.id).where(models.Initiative.autofix.is_(False))).all())
     edges = session.execute(select(models.IssueDependency.issue_id, models.IssueDependency.depends_on_id)).all()
@@ -272,4 +290,5 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
         home_key=home_key,
         slot_of=slot_of,
         raised_by=raised_by,
+        slot_key_by_number=slot_key_by_number,
     )

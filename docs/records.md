@@ -106,19 +106,21 @@ kubectl prints from the API server.
 
 Creating an issue, an initiative or an idea compares its title with every
 open record's: unclosed issues, initiatives not finished, and ideas not
-promoted. Each match warns `possible_duplicate`, most alike first, at most
-three. The record is filed whatever the warning says, because a refusal would
+promoted. Each match warns `possible_duplicate`, most alike first, up to
+`MOST_NAMED` of them. The record is filed whatever the warning says, because a refusal would
 make whoever files it ask again to file work they already checked.
 
 Likeness is the Dice coefficient over the stemmed words of two titles: twice
 the stems they share, over the stems the two hold. Postgres' `english` text
 search configuration stems and drops stop words, so `transcripts` meets
-`transcript` and `the` counts for nothing. A pair at 0.45 or above warns. Two
-records on different repos are different work, so they are never compared. An
-idea or an initiative names no repo, so it is compared with everything.
+`transcript` and `the` counts for nothing. A pair at `DUPLICATE_LIKENESS` or
+above warns. `services/likely_duplicates.py` holds both values. Two records on
+different repos are different work, so they are never compared. An idea or an
+initiative names no repo, so it is compared with everything.
 
-The bar was set against a tracker of about 1,900 issues, replaying each filing
-against the issues open when it was filed:
+The bar was set by replaying each filing in a tracker of about 1,900 issues
+against the issues open when it was filed. The figures hold for the stemming
+and the Dice measure above, so a change to either moves them:
 
 - Of four pairs labeled duplicates, two shared their wording and scored 0.48
   and 0.57. The other two were worded apart, at 0.15 and 0.26, so no bar on

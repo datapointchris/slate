@@ -1,5 +1,8 @@
 import datetime as dt
+from typing import Any
 from uuid import UUID
+
+from pydantic import model_validator
 
 from slate.schemas.claim import Claim
 from slate.schemas.not_null import NotNull
@@ -22,7 +25,21 @@ class InitiativeSummary(RecordModel):
     autofix: bool
 
 
-class InitiativeCreate(RecordModel):
+class InitiativeWrite(RecordModel):
+    """A create or an edit. `position` is refused by name, so a client sending it learns what places an initiative now."""
+
+    @model_validator(mode='before')
+    @classmethod
+    def refuse_position(cls, data: Any) -> Any:
+        if isinstance(data, dict) and 'position' in data:
+            raise ValueError(
+                'position is not a field: an initiative is placed in the queue by POST /initiatives/{id}/rank, '
+                'which `slate initiatives reorder` sends'
+            )
+        return data
+
+
+class InitiativeCreate(InitiativeWrite):
     name: str
     description: str | None = None
     status: str = 'active'
@@ -31,7 +48,7 @@ class InitiativeCreate(RecordModel):
     autofix: bool = True
 
 
-class InitiativeUpdate(RecordModel):
+class InitiativeUpdate(InitiativeWrite):
     """`closed_ts` is stamped on the move into a terminal status and cleared on reopen."""
 
     name: NotNull[str] = None

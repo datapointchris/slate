@@ -10,7 +10,7 @@ class ReadyFilter(BaseModel):
     """The filters on ready issues: fields of holding the queue's head, and the base of `GET /queue`'s query."""
 
     repo: str | None = Field(None, description='A repo name, or an empty string for issues on no repo')
-    type: str | None = Field(None, description='An issue type. Decisions are left out unless asked for here.')
+    type: str | None = Field(None, description='An issue type')
     label: str | None = Field(None, description='A label slug')
     initiative: UUID | int | str | None = Field(
         None, description='An initiative, by any reference GET /initiatives/{id} accepts: its UUID, number or name'
