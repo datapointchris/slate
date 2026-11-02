@@ -10,9 +10,10 @@ comments` are the CLI, and the API serves them under `/api/v1/documents` and
 `412/plan` is record 412's document named `plan`. Its kind is `research`,
 `design` or `plan`, a closed vocabulary that `slate vocabulary` lists. A name
 is unique on its record, so a record holds two documents of one kind under two
-names. The CLI takes a name that is a kind as that kind's document. So `slate
-documents write 412 plan` writes 412's plan, and `slate documents write 412
-cli-plan --kind plan` writes a second plan.
+names. A name that is a kind holds only that kind, so `412/design` is always
+a design. Creating it as another kind answers 422. The CLI takes such a name
+as its kind, so `slate documents write 412 plan` writes 412's plan, and `slate
+documents write 412 cli-plan --kind plan` writes a second plan.
 
 - *Rejected:* one document per kind on a record. A record researched on two
   subjects would hold both in one body.
@@ -33,9 +34,9 @@ A version is never edited. So a document's versions are its history, and a
 line comment always names text that still exists.
 
 The body is kept as given. Its lines are what lies between newlines, and a
-final newline ends the last line rather than starting another. The API and the
-CLI split it the same way, so a line number one prints is the one the other
-takes.
+final newline ends the last line rather than starting another. A version's
+read answers them as `lines`, and the CLI prints those. So the number a reader
+sees is the one `POST /comments` takes.
 
 ## A version and a comment name their writer from the token, and where from by reference
 
@@ -54,9 +55,9 @@ a commit made at the same moment is stamped with. A session in no live worklog
 writes a version naming none, and the answer warns `no_worklog`. A person at a
 terminal sends no session, and writes with neither.
 
-A comment's `written_by` is null only on one no slate caller wrote, such as
-one copied in from another tracker. A scoped client writes as its own client
-id, since its token names it.
+A comment's `written_by` is null when its writer was never recorded. A write
+through `POST /comments` always records one, and a scoped client writes as its
+own client id.
 
 - *Rejected:* a free-text author the client sends. The token already says who
   is calling, and the session and worklog are rows a reader can follow.
@@ -90,7 +91,7 @@ sits on its `shown_line`:
 - on the version it was written on, its own line
 - on another version, the line its own became, found by diffing the two
   versions' lines
-- on none, when that version changed or removed its line
+- on none, when that version does not hold its line unchanged
 
 `slate documents show` prints a placed comment under its line, naming the
 version and line it was written on when that is another. It prints a comment
