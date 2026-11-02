@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,20 +22,37 @@ var errNeedsLogin = errors.New("not logged in")
 // newAPIClient builds an authenticated API client for the running command. The
 // oauth2 client injects (and refreshes) the bearer token on every request via
 // goclilogin's token source, so resource commands never touch tokens directly.
+//
+// Every error after the deployment loads carries it, so handleAPIError words
+// a credential failure from what the client was built from.
 func newAPIClient(cmd *cobra.Command) (*api.Client, error) {
 	deployment, err := config.Load(cmd.Context(), apiOverride)
 	if err != nil {
 		return nil, err
 	}
+	service := config.IsService()
+	carry := func(err error) error { return &builtFrom{deployment: deployment, service: service, err: err} }
 	source, err := tokenSource(cmd, deployment)
 	if errors.Is(err, errNeedsLogin) {
-		return nil, err
+		return nil, carry(err)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("prepare API client: %w", err)
+		return nil, carry(fmt.Errorf("prepare API client: %w", err))
 	}
-	return api.New(deployment.API.Value, oauth2.NewClient(cmd.Context(), source)), nil
+	return api.New(deployment.API.Value, oauth2.NewClient(cmd.Context(), source), api.WrapErrors(carry)), nil
 }
+
+// builtFrom is an error from building or using an API client, carrying the
+// deployment it was built from and whether it authenticated as a service.
+type builtFrom struct {
+	deployment goclilogin.Deployment
+	service    bool
+	err        error
+}
+
+func (e *builtFrom) Error() string { return e.err.Error() }
+
+func (e *builtFrom) Unwrap() error { return e.err }
 
 // tokenSource is the config file's token_command where it names one, the
 // client-credentials grant for the scopes cmd declares when SLATE_CLIENT_SECRET
@@ -73,24 +89,28 @@ func handleAPIError(err error) error {
 	if errors.Is(err, errNeedsLogin) {
 		return fmt.Errorf("not logged in — run `slate auth login`")
 	}
-	var apiErr *api.APIError
+	var (
+		apiErr *api.APIError
+		built  *builtFrom
+	)
+	errors.As(err, &built)
 	// A handed token's remedy is whatever handed it, so it names the command.
-	// The file is read without --api, so reporting an error sends nothing.
-	if d, _ := config.Load(context.Background(), ""); d.HandsTokens() {
+	if built != nil && built.deployment.HandsTokens() {
+		d := built.deployment
 		var failed *goclilogin.TokenCommandError
 		switch {
 		case errors.As(err, &failed):
 			return fmt.Errorf("token_command in %s handed no token: %w", d.Path, failed)
 		case errors.As(err, &apiErr) && apiErr.Unauthorized():
-			return fmt.Errorf("the API rejected the token %q handed", d.TokenCommand)
+			return fmt.Errorf("%s rejected the token %q handed", d.API.Value, d.TokenCommand)
 		case errors.As(err, &apiErr) && apiErr.Forbidden() && apiErr.Message != "":
 			return fmt.Errorf("the token %q handed: %s", d.TokenCommand, apiErr.Message)
 		}
 	}
 	// A service has no login to renew, so it is pointed at the scopes it lacks,
 	// or else at its id and secret.
-	if config.IsService() {
-		d, _ := config.Load(context.Background(), "")
+	if built != nil && built.service {
+		d := built.deployment
 		var refused *scopesRefused
 		switch {
 		case errors.As(err, &refused):
@@ -98,7 +118,7 @@ func handleAPIError(err error) error {
 		case goclilogin.IsSessionRejected(err):
 			return fmt.Errorf("%s refused service client %s — check client_id in %s, and %s", d.Issuer.Value, d.ClientID.Value, d.Path, config.ClientSecretEnv)
 		case errors.As(err, &apiErr) && apiErr.Unauthorized():
-			return fmt.Errorf("the API rejected the token issued to service client %s", d.ClientID.Value)
+			return fmt.Errorf("%s rejected the token issued to service client %s", d.API.Value, d.ClientID.Value)
 		case errors.As(err, &apiErr) && apiErr.Forbidden() && apiErr.Message != "":
 			return fmt.Errorf("service client %s: %s", d.ClientID.Value, apiErr.Message)
 		}

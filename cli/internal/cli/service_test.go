@@ -302,6 +302,28 @@ func TestService_ARouteOutsideTheScopeReportsTheAPIsMessage(t *testing.T) {
 	}
 }
 
+// A rejection is worded from the deployment the client was built from, so
+// under --api it names that API rather than the config file's.
+func TestService_ARejectedTokenNamesTheAPIItWasSentTo(t *testing.T) {
+	idp := serviceIDP(t)
+	var api *httptest.Server
+	api = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/.well-known/oauth-protected-resource" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"resource": api.URL, "authorization_servers": []string{idp.URL}})
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(api.Close)
+	asService(t, idp.URL, "http://127.0.0.1:9", serviceSecret)
+
+	_, err := runService(t, "search", "sync", "--api", api.URL)
+	if err == nil || !strings.Contains(err.Error(), api.URL+" rejected the token issued to service client "+serviceClientID) {
+		t.Errorf("got %v, want the --api URL and the client named", err)
+	}
+}
+
 // routePatterns compiles each scope's route templates. A {name} in them is a
 // UUID, a record's number, or a worklog's <number>.<sequence>. Matched as any
 // segment, /worklogs/{name} would also take /worklogs/current, which FastAPI
