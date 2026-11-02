@@ -171,7 +171,7 @@ Run by hand, `slate sessions report --transcript <path>` reports the session
 the file is named for.
 
 In a container, the agent's settings carry the same block. The agent
-authenticates as a service client. The CLI asks every grant for every scope
-README's table lists, so that client holds them all. `slate.sessions.write`
-reaches the report, and `slate.records.read` a session's read. A report names
-no actor, so where it changes the session, the audit row names the client.
+authenticates as a service client. Register that client for the scopes that
+`slate sessions report --help` and `slate sessions show --help` name under
+`Service scopes:`. A report names no actor, so where it changes the session,
+the audit row names the client.

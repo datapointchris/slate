@@ -74,7 +74,8 @@ func newSessionsReportCommand() *cobra.Command {
 		Example: "  slate sessions report --transcript ~/.claude/projects/-home-me-src-app/<session>.jsonl\n" +
 			"  # A SessionEnd or Stop hook in ~/.claude/settings.json:\n" +
 			"  #   {\"type\": \"command\", \"command\": \"slate sessions report >/dev/null\", \"timeout\": 30}",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeSessionsWrite),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			session, transcriptPath, err := sessionToReport(cmd.InOrStdin(), path)
 			if err != nil {
@@ -97,7 +98,7 @@ func newSessionsReportCommand() *cobra.Command {
 					Tokens:    api.Tokens(m.Tokens),
 				})
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -145,9 +146,10 @@ func newSessionsShowCommand() *cobra.Command {
 			"reported shows none.",
 		Example: "  slate sessions show \"$" + claudeCodeSessionEnv + "\"\n" +
 			"  slate sessions show 6b3f0c1e-2d4a-4e8b-9c7d-0a1b2c3d4e51 --json",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

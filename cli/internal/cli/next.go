@@ -53,7 +53,8 @@ func newNextCommand() *cobra.Command {
 			"  slate next --step build --repo webapp --json\n" +
 			"  slate next --step decide\n" +
 			"  slate next --step build --autofixable --json",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filter, err := queue.filter(cmd)
 			if err != nil {
@@ -62,7 +63,7 @@ func newNextCommand() *cobra.Command {
 			if cmd.Flags().Changed("step") && !slices.Contains(api.QueueSteps, step) {
 				return goclikit.UsageError(fmt.Errorf("unknown step %q — one of: %s", step, strings.Join(api.QueueSteps, ", ")))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

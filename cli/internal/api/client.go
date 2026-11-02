@@ -26,15 +26,30 @@ const prefix = "/api/v1"
 type Client struct {
 	baseURL string
 	http    *http.Client
+	wrap    func(error) error
+}
+
+// Option sets how a Client behaves beyond its URL and transport.
+type Option func(*Client)
+
+// WrapErrors passes every error a request returns through wrap, so the caller
+// can attach what it built the client from.
+func WrapErrors(wrap func(error) error) Option {
+	return func(c *Client) { c.wrap = wrap }
 }
 
 // New builds a client for baseURL. Trailing slashes are trimmed so path joining
 // is unambiguous (the API's own routes carry their own trailing slashes).
-func New(baseURL string, httpClient *http.Client) *Client {
-	return &Client{
+func New(baseURL string, httpClient *http.Client, options ...Option) *Client {
+	c := &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		http:    httpClient,
+		wrap:    func(err error) error { return err },
 	}
+	for _, option := range options {
+		option(c)
+	}
+	return c
 }
 
 // APIError is a non-2xx response, carrying the HTTP status and the API's decoded
@@ -74,6 +89,13 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 // response body (for 204 No Content and similar). A non-2xx response becomes an
 // *APIError regardless of out.
 func (c *Client) send(ctx context.Context, method, path string, body, out any) error {
+	if err := c.exchange(ctx, method, path, body, out); err != nil {
+		return c.wrap(err)
+	}
+	return nil
+}
+
+func (c *Client) exchange(ctx context.Context, method, path string, body, out any) error {
 	var reader io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)

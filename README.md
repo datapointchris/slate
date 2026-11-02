@@ -145,8 +145,35 @@ No scope deletes anything, and none files an idea or edits one. A planning
 job only moves one in the queue.
 `src/slate/api/client_scopes.py` holds the exact routes.
 
-The CLI requests every scope in the table, so register each on every service
-client. A provider that finds one missing may refuse the token outright.
+Each command asks the grant for the scopes its own routes need, and no others.
+Its `--help` ends with them under `Service scopes:`, so register a service
+client for the scopes of the commands it runs. A command no scope reaches, such
+as `slate labels list`, says so there, and refuses a service before asking.
+`slate auth status` asks a grant for each scope in the table alone. Its text
+lists the scopes the client holds. `--json` gives each scope's `grant`:
+
+- `granted`, a token carrying it.
+- `refused`, the provider refusing it.
+- `unknown`, an answer about the client or the provider, or none.
+
+So a wrong secret answers every scope `unknown` with `session` `rejected`. A
+client registered for no scope answers every one `refused`. A provider failing
+one probe leaves the others' answers standing.
+
+`slate auth token` asks the same, then one grant for every scope found held.
+It leaves out a scope the provider gave no answer for, with a warning on stderr.
+
+A provider says a scope is missing in one of two ways, and slate reads both:
+
+- **It refuses the whole request with `invalid_scope`**, as Authelia does. A
+  command reports the scopes it asked for. `auth status` answers that scope
+  `refused`.
+- **It grants a narrower token and names what it granted** in the response's
+  `scope`, as RFC 6749 §3.3 and §5.1 allow. A command refuses the token before
+  calling the API, naming the scopes left out. `auth status` answers each one
+  left out `refused`.
+
+A response naming no `scope` granted every scope asked, as §5.1 says.
 
 `--repo` takes a repository name. Where a registry of names exists, the CLI
 refuses one it does not hold, so a typo cannot file work under a repo nobody

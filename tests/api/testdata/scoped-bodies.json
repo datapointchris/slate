@@ -1,0 +1,20 @@
+{
+  "PATCH /api/v1/issues/{id}": {
+    "slate.issues.close": {
+      "fields": [
+        "closed_by",
+        "status"
+      ],
+      "statuses": [
+        "canceled",
+        "completed"
+      ]
+    },
+    "slate.records.plan": {
+      "fields": [
+        "initiative",
+        "priority"
+      ]
+    }
+  }
+}

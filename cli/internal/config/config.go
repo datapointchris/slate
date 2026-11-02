@@ -30,20 +30,6 @@ const product = "slate"
 // independently of the module or binary name.
 const keyringService = "slate-cli"
 
-// The scopes a service client requests. The provider grants only the scopes a
-// request names, so a request naming none gets a token the API refuses. It
-// refuses the whole request when one names a scope the client does not hold.
-// src/slate/api/client_scopes.py lists the routes each one reaches.
-const (
-	recordsReadScope   = "slate.records.read"
-	claimsHoldScope    = "slate.claims.hold"
-	issuesCloseScope   = "slate.issues.close"
-	recordsPlanScope   = "slate.records.plan"
-	worklogsWriteScope = "slate.worklogs.write"
-	sessionsWriteScope = "slate.sessions.write"
-	commentsWriteScope = "slate.comments.write"
-)
-
 // ClientSecretEnv selects the client-credentials grant, for the client the
 // config file names. It is read from the environment alone, so it is never
 // written to the file and no command prints it.
@@ -113,9 +99,9 @@ func ClientSecret() string { return os.Getenv(ClientSecretEnv) }
 // rather than as the person who logged in on this machine.
 func IsService() bool { return ClientSecret() != "" }
 
-// Service is the goclilogin view of a deployment for the client-credentials
-// grant. Nothing it obtains is stored, so it names no keyring or state
+// Service is the goclilogin view of a deployment for a client-credentials grant
+// of scopes. Nothing it obtains is stored, so it names no keyring or state
 // directory.
-func Service(d goclilogin.Deployment) goclilogin.ServiceClient {
-	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: []string{recordsReadScope, claimsHoldScope, issuesCloseScope, recordsPlanScope, worklogsWriteScope, sessionsWriteScope, commentsWriteScope}}
+func Service(d goclilogin.Deployment, scopes []string) goclilogin.ServiceClient {
+	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: scopes}
 }
