@@ -17,7 +17,7 @@ import (
 	"github.com/datapointchris/slate/cli/internal/api"
 )
 
-var ideaHints = []string{"List every idea: slate ideas list"}
+var ideaHints = []string{anyRecordHint, "List every idea: slate ideas list"}
 
 // promoteStatuses are where a promoted idea's initiative may start.
 var promoteStatuses = []string{"active", "someday"}

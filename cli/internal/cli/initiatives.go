@@ -17,19 +17,23 @@ import (
 	"github.com/datapointchris/slate/cli/internal/api"
 )
 
-var initiativeHints = []string{"Finished initiatives are hidden: slate issues initiatives list --status all"}
+var initiativeHints = []string{
+	anyRecordHint,
+	"Someday, completed and dropped initiatives are hidden: slate initiatives list --status all",
+}
 
-func newIssueInitiativesCommand() *cobra.Command {
+func newInitiativesCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "initiatives",
 		Short: "Group the issues that ship one outcome",
 		Long: "An initiative is an outcome that finishes. Most issues belong to none. An\n" +
 			"issue sorts no lower than its active initiative's priority. A finished\n" +
 			"initiative takes no new issues and leaves the ones it holds as they are. A\n" +
-			"someday initiative is an idea not yet taken on, and its issues wait until it\n" +
-			"is reopened, except one that work outside someday depends on. One worked as\n" +
-			"a single design sets --autofix=false, so an unattended fix never lands one of\n" +
-			"its steps alone.",
+			"someday initiative is held back until it is reopened, and so are its issues,\n" +
+			"except one that work outside someday depends on. One worked as a single\n" +
+			"design sets --autofix=false, so an unattended fix never lands one of its\n" +
+			"steps alone. An initiative shares its number sequence with ideas and issues,\n" +
+			"and an idea's promotion creates one.",
 	})
 	goclikit.WithRecoveryHints(cmd, initiativeHints...)
 	splitReadingFromChanging(cmd)
@@ -64,7 +68,7 @@ func newInitiativesListCommand() *cobra.Command {
 			"and come after the active ones, finished ones latest first.\n\n" +
 			"Each row leads with the initiative's number, which every initiative command\n" +
 			"and --initiative flag accepts. The bar is its issues done over done and open.",
-		Example: "  slate issues initiatives list\n  slate issues initiatives list --sort open\n  slate issues initiatives list --status all --json",
+		Example: "  slate initiatives list\n  slate initiatives list --sort open\n  slate initiatives list --status all --json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Flags().Changed("status") && !slices.Contains(api.InitiativeStatuses, initiativeStatus) {
@@ -81,18 +85,20 @@ func newInitiativesListCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
+			if !cmd.Flags().Changed("status") {
+				defer noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
+			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), initiatives)
 			}
 			printInitiativesTable(cmd.OutOrStdout(), initiatives, sort)
-			if !cmd.Flags().Changed("status") {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "\n"+initiativeHints[0])
-			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&initiativeStatus, "status", "", "One of: "+strings.Join(api.InitiativeStatuses, ", ")+" (default active)")
+	withFlagValues(cmd, "status", api.InitiativeStatuses...)
 	cmd.Flags().StringVar(&sort, "sort", "", "One of: "+strings.Join(api.InitiativeSorts, ", ")+" (default priority); open puts the most unclosed issues first")
+	withFlagValues(cmd, "sort", api.InitiativeSorts...)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output initiatives as JSON to stdout")
 	addLimitFlag(cmd, &limit)
 	return cmd
@@ -102,8 +108,8 @@ func newInitiativesShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:     "show <initiative>",
-		Short:   "Show an initiative and its unclosed issues in queue order",
-		Example: "  slate issues initiatives show 1501\n  slate issues initiatives show \"Ship the tracker\"",
+		Short:   "Show an initiative, its claims, and its unclosed issues in queue order",
+		Example: "  slate initiatives show 1501\n  slate initiatives show \"Ship the tracker\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
@@ -114,29 +120,53 @@ func newInitiativesShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			issues, err := client.ListIssues(cmd.Context(), api.IssueFilter{Initiative: initiative.ID}, api.Window{}, issueZone(), nil)
+			shown, err := readInitiativeIssues(cmd, client, initiative)
 			if err != nil {
-				return handleArgumentAPIError(err)
+				return err
 			}
 			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), struct {
-					api.Initiative
-					Issues []api.Issue `json:"issues"`
-				}{initiative, issues})
+				return encodeJSON(cmd.OutOrStdout(), shown)
 			}
-			printInitiativeDetail(cmd.OutOrStdout(), initiative)
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nUnclosed issues (%d):\n", len(issues))
-			if len(issues) == 0 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "  (none)")
-				return nil
-			}
-			printIssuesTable(cmd.OutOrStdout(), issues, time.Now())
-			noteInheritedPriority(cmd, issues)
+			printInitiativeShown(cmd, shown)
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative and its issues as JSON to stdout")
 	return cmd
+}
+
+// initiativeShown is an initiative beside its unclosed issues, as every show of
+// one prints it.
+type initiativeShown struct {
+	api.InitiativeDetail
+	Issues []api.Issue `json:"issues"`
+}
+
+// readInitiativeIssues reads the unclosed issues an initiative's show lists.
+func readInitiativeIssues(cmd *cobra.Command, client *api.Client, initiative api.InitiativeDetail) (initiativeShown, error) {
+	// The filter is the initiative's id from the read before, never the
+	// caller's argument, so a refusal here is not theirs to fix.
+	issues, err := client.ListIssues(cmd.Context(), api.IssueFilter{Initiative: initiative.ID}, api.Window{}, issueZone(), nil)
+	if err != nil {
+		return initiativeShown{}, handleAPIError(err)
+	}
+	return initiativeShown{InitiativeDetail: initiative, Issues: issues}, nil
+}
+
+func printInitiativeShown(cmd *cobra.Command, shown initiativeShown) {
+	out, now := cmd.OutOrStdout(), time.Now()
+	printInitiativeDetail(out, shown.Initiative)
+	if len(shown.Claims) > 0 {
+		_, _ = fmt.Fprintf(out, "\nClaims (%d):\n", len(shown.Claims))
+		printClaimHistory(out, shown.Claims, now)
+	}
+	_, _ = fmt.Fprintf(out, "\nUnclosed issues (%d):\n", len(shown.Issues))
+	if len(shown.Issues) == 0 {
+		_, _ = fmt.Fprintln(out, "  (none)")
+		return
+	}
+	printIssuesTable(out, shown.Issues, now)
+	noteInheritedPriority(cmd, shown.Issues)
 }
 
 func newInitiativesCreateCommand() *cobra.Command {
@@ -151,8 +181,8 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create --name <name> [flags]",
 		Short: "Start an initiative",
-		Example: "  slate issues initiatives create --name \"Ship the tracker\" --priority high\n" +
-			"  slate issues initiatives create --name \"Build day\" --autofix=false",
+		Example: "  slate initiatives create --name \"Ship the tracker\" --priority high\n" +
+			"  slate initiatives create --name \"Build day\" --autofix=false",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if strings.TrimSpace(name) == "" {
@@ -188,6 +218,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Initiative name, unique among active ones (required)")
 	cmd.Flags().StringVar(&description, "description", "", "The outcome, and how you will know it is done")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
+	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	cmd.Flags().IntVar(&position, "position", 0, "Place among initiatives of its priority (default last)")
 	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
@@ -208,8 +239,8 @@ func newInitiativesEditCommand() *cobra.Command {
 		Short: "Change an initiative's fields",
 		Long: "Update only the fields whose flags you pass. --description \"\" clears it.\n" +
 			"Status moves through complete, drop, shelve and reopen.",
-		Example: "  slate issues initiatives edit \"Ship the tracker\" --priority urgent\n" +
-			"  slate issues initiatives edit 1491 --autofix=false",
+		Example: "  slate initiatives edit \"Ship the tracker\" --priority urgent\n" +
+			"  slate initiatives edit 1491 --autofix=false",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
@@ -246,6 +277,7 @@ func newInitiativesEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "New name")
 	cmd.Flags().StringVar(&description, "description", "", "New description (empty clears)")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
+	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	cmd.Flags().IntVar(&position, "position", 0, "New place among initiatives of its priority")
 	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
@@ -275,7 +307,7 @@ func newInitiativesCompleteCommand() *cobra.Command {
 		Short: "Mark an initiative's outcome reached, which hides it",
 		Long: "Its issues keep their status, so one still open stays in the queue. It ends\n" +
 			"the initiative's claim as completed, and prints whose claim it ended.",
-		Example: "  slate issues initiatives complete \"Ship the tracker\"",
+		Example: "  slate initiatives complete \"Ship the tracker\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			completed := "completed"
@@ -297,7 +329,7 @@ func newInitiativesDropCommand() *cobra.Command {
 		Long: "--reason is required. A drop with its reason closes the question, and a bare\n" +
 			"drop invites it back. It ends the initiative's claim as dropped, and prints\n" +
 			"whose claim it ended.",
-		Example: "  slate issues initiatives drop \"Rewrite the router\" --reason \"Traefik covers it\"",
+		Example: "  slate initiatives drop \"Rewrite the router\" --reason \"Traefik covers it\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(reason) == "" {
@@ -319,11 +351,11 @@ func newInitiativesShelveCommand() *cobra.Command {
 		Short: "Set an initiative aside for someday, so none of its issues is ready",
 		Long: "For an idea captured in full but not taken on. It moves to --status someday,\n" +
 			"out of the active list, and no close is recorded. Its issues keep their\n" +
-			"state, but `slate issues next` leaves them out, so no agent takes them. One\n" +
+			"state, but `slate next` leaves them out, so no agent takes them. One\n" +
 			"that work outside someday depends on stays in, at that work's priority.\n" +
 			"It lends no priority, and gives up its name, so a new initiative may take\n" +
-			"it. `slate issues initiatives reopen` makes its issues ready again.",
-		Example: "  slate issues initiatives shelve \"Measure everything\"",
+			"it. `slate initiatives reopen` makes its issues ready again.",
+		Example: "  slate initiatives shelve \"Measure everything\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			someday := "someday"
@@ -340,7 +372,7 @@ func newInitiativesReopenCommand() *cobra.Command {
 		Use:     "reopen <initiative>",
 		Short:   "Return a shelved or finished initiative to the active list",
 		Long:    "Refused if an active initiative has taken the name in the meantime.",
-		Example: "  slate issues initiatives reopen \"Ship the tracker\"",
+		Example: "  slate initiatives reopen \"Ship the tracker\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			active := "active"
@@ -357,12 +389,12 @@ func newInitiativesDeleteCommand() *cobra.Command {
 		asJSON bool
 	)
 	cmd := &cobra.Command{
-		Use:   "delete <initiative>",
+		Use:   "delete <initiative> [--yes]",
 		Short: "Delete an initiative and its claims, leaving its issues in none",
 		Long: "Every claim it has had goes with it, live or ended, with a warning when\n" +
 			"another holder's live claim was one. It prints each claim it took and each\n" +
 			"issue it left in no initiative. Prompts unless --yes.",
-		Example: "  slate issues initiatives delete \"Ship the tracker\" --yes",
+		Example: "  slate initiatives delete \"Ship the tracker\" --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())

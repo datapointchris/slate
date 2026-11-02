@@ -202,17 +202,17 @@ class TestReadyQueue:
     def test_a_someday_initiatives_issues_wait_until_it_is_reopened(self, client):
         task = issue(client, 'Ready task without priority')
         wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
-        ok(client.patch(f'{ISSUES}/initiatives/Ship the issue tracker', json={'status': 'someday'}))
+        ok(client.patch('/initiatives/Ship the issue tracker', json={'status': 'someday'}))
         assert task['title'] not in titles(ok(client.get(f'{ISSUES}/ready')))
 
-        ok(client.patch(f'{ISSUES}/initiatives/Ship the issue tracker', json={'status': 'active'}))
+        ok(client.patch('/initiatives/Ship the issue tracker', json={'status': 'active'}))
         assert task['title'] in titles(ok(client.get(f'{ISSUES}/ready')))
 
     def test_active_work_depending_on_a_someday_issue_brings_it_into_the_queue(self, client):
         task = issue(client, 'Ready task without priority')
         bug = issue(client, 'Ready bug with high priority')
         wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
-        ok(client.patch(f'{ISSUES}/initiatives/Ship the issue tracker', json={'status': 'someday'}))
+        ok(client.patch('/initiatives/Ship the issue tracker', json={'status': 'someday'}))
         ok(client.post(f'{ISSUES}/{bug["number"]}/dependencies', json={'depends_on': task['number']}), status.HTTP_201_CREATED)
 
         queue = ok(client.get(f'{ISSUES}/ready'))
@@ -227,7 +227,7 @@ class TestReadyQueue:
         task = issue(client, 'Ready task without priority')
         wrote(patch(client, bug['number'], autofix=False))
         wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
-        ok(client.patch(f'{ISSUES}/initiatives/Ship the issue tracker', json={'autofix': False}))
+        ok(client.patch('/initiatives/Ship the issue tracker', json={'autofix': False}))
         parent = create(client, title='Parent with autofix off', autofix=False)
         child = create(client, title='Child of that parent', parent=parent['number'])
 
@@ -380,9 +380,8 @@ class TestEdges:
         bug = issue(client, 'Ready bug with high priority')
         task = issue(client, 'Ready task without priority')
         ok(client.post(f'{ISSUES}/{bug["number"]}/dependencies', json={'depends_on': task['number']}), status.HTTP_201_CREATED)
-        response = client.delete(f'{ISSUES}/{bug["number"]}/dependencies/{task["number"]}')
-        assert response.status_code == status.HTTP_204_NO_CONTENT, show_status_and_response(response)
-        assert issue(client, bug['title'])['is_blocked'] is False
+        removed = ok(client.delete(f'{ISSUES}/{bug["number"]}/dependencies/{task["number"]}'))['issue']
+        assert (removed['depends_on'], removed['is_blocked']) == ([], False)
         refused(client.delete(f'{ISSUES}/{bug["number"]}/dependencies/{task["number"]}'), 404)
 
     def test_closing_a_blocker_unblocks(self, client):
@@ -457,7 +456,7 @@ class TestComments:
 
 
 def test_the_vocabulary_lists_values_in_lifecycle_order(client):
-    vocabulary = ok(client.get(f'{ISSUES}/vocabulary'))
-    assert vocabulary['statuses'] == ['triage', 'open', 'completed', 'canceled']
+    vocabulary = ok(client.get('/vocabulary'))
+    assert vocabulary['issue_statuses'] == ['triage', 'open', 'completed', 'canceled']
     assert vocabulary['priorities'][0] == {'value': 0, 'name': 'none'}
     assert [label['slug'] for label in vocabulary['labels']] == ['area-api', 'area-cli', 'needs-design']

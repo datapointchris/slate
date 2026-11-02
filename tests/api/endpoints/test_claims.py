@@ -11,7 +11,7 @@ from tests.util import show_status_and_response
 
 CLAIMS = '/claims'
 ISSUES = '/issues'
-INITIATIVES = '/issues/initiatives'
+INITIATIVES = '/initiatives'
 
 
 @pytest.fixture

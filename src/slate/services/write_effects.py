@@ -44,6 +44,9 @@ class WriteEffectCode(enum.StrEnum):
     DEPENDENCY_REMOVED = 'dependency_removed'
     ISSUE_DETACHED = 'issue_detached'
 
+    # A side effect of deleting a label: each issue it is taken off.
+    LABEL_REMOVED = 'label_removed'
+
     # A warning on deleting a record another holder's live claim was on.
     DELETED_ANOTHERS_CLAIM = 'deleted_anothers_claim'
 

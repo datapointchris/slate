@@ -40,11 +40,23 @@ class NotFoundException(HTTPException):
 
     `near` is for a resource addressed by name: the names the reference most
     likely meant, said on the same line, since a name matches only in full.
+
+    `held_as` is the kind of record that holds a number asked for as another
+    kind, so `issue 1986 not found` says that #1986 is an initiative.
     """
 
-    def __init__(self, resource_type: str, resource_id: str | int | UUID, logger: Any, near: Sequence[str] = ()):
-        logger.warning('resource_not_found', resource_type=resource_type, resource_id=resource_id)
+    def __init__(
+        self,
+        resource_type: str,
+        resource_id: str | int | UUID,
+        logger: Any,
+        near: Sequence[str] = (),
+        held_as: str | None = None,
+    ):
+        logger.warning('resource_not_found', resource_type=resource_type, resource_id=resource_id, held_as=held_as)
         detail = f'{resource_type} {resource_id} not found'
+        if held_as is not None:
+            detail += f': #{str(resource_id).removeprefix("#")} is an {held_as}'
         if near:
             detail += '. A name matches only in full, and these come near it: ' + ', '.join(repr(name) for name in near)
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)

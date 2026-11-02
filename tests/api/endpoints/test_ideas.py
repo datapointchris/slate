@@ -5,7 +5,7 @@ from tests.session_database import insert_test_data_transactional
 from tests.util import show_status_and_response
 
 IDEAS = '/ideas'
-INITIATIVES = '/issues/initiatives'
+INITIATIVES = '/initiatives'
 
 
 @pytest.fixture

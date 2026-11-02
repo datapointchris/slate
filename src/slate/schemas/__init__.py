@@ -32,15 +32,17 @@ from slate.schemas.issue import IssueDependencyCreate
 from slate.schemas.issue import IssueDetail
 from slate.schemas.issue import IssueLabel
 from slate.schemas.issue import IssueLabelCreate
+from slate.schemas.issue import IssueLabelDeleted
 from slate.schemas.issue import IssueLabelUpdate
 from slate.schemas.issue import IssueLabelWritten
-from slate.schemas.issue import IssuePriorityName
 from slate.schemas.issue import IssueRankMove
 from slate.schemas.issue import IssueSummary
 from slate.schemas.issue import IssueUpdate
-from slate.schemas.issue import IssueVocabulary
 from slate.schemas.issue import IssueWritten
+from slate.schemas.record import RecordListed
 from slate.schemas.record import RecordSummary
+from slate.schemas.vocabulary import PriorityName
+from slate.schemas.vocabulary import Vocabulary
 from slate.schemas.worklog import Worklog
 from slate.schemas.worklog import WorklogFinish
 from slate.schemas.worklog import WorklogJoin
@@ -89,16 +91,18 @@ __all__ = [
     'IssueDetail',
     'IssueLabel',
     'IssueLabelCreate',
+    'IssueLabelDeleted',
     'IssueLabelUpdate',
     'IssueLabelWritten',
-    'IssuePriorityName',
     'IssueRankMove',
     'IssueSummary',
     'IssueUpdate',
-    'IssueVocabulary',
     'IssueWritten',
+    'PriorityName',
     'RecordDeleted',
+    'RecordListed',
     'RecordSummary',
+    'Vocabulary',
     'Worklog',
     'WorklogFinish',
     'WorklogJoin',

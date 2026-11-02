@@ -26,26 +26,27 @@ from tests.util import show_status_and_response
 READ = 'slate.records.read'
 CLAIM = 'slate.claims.hold'
 CLOSE = 'slate.issues.close'
-PLAN = 'slate.issues.plan'
+PLAN = 'slate.records.plan'
 WORKLOGS = 'slate.worklogs.write'
 CLOSER = 'worker/close-job@service-box'
 SERVICE = 'slate-svc-worker'
 PERSON = OIDCIdentity(subject='person-subject', client_id='slate-cli-laptop')
 SCOPES_DOCUMENT = Path(__file__).parent / 'testdata' / 'client-scopes.json'
 
-# One request per read any scope lists, keyed by its template. Search widens the status to all,
-# and show names the issue by number, as the CLI sends them.
+# One request per read any scope lists, keyed by its template. Search names its words, and show
+# names the issue by number, as the CLI sends them.
 SCOPED_URLS = {
+    f'{API_PREFIX}/records': '/records?search=scheduler',
     f'{API_PREFIX}/records/{{number}}': '/records/{issue}',
     f'{API_PREFIX}/claims': f'/claims?holder={SERVICE}',
     f'{API_PREFIX}/ideas': '/ideas',
     f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
-    f'{API_PREFIX}/issues': '/issues?search=scheduler&status=all',
+    f'{API_PREFIX}/issues': '/issues?status=all',
     f'{API_PREFIX}/issues/ready': '/issues/ready',
-    f'{API_PREFIX}/issues/vocabulary': '/issues/vocabulary',
+    f'{API_PREFIX}/vocabulary': '/vocabulary',
     f'{API_PREFIX}/issues/{{id}}': '/issues/{issue}',
-    f'{API_PREFIX}/issues/initiatives': '/issues/initiatives',
-    f'{API_PREFIX}/issues/initiatives/{{id:path}}': '/issues/initiatives/{initiative}',
+    f'{API_PREFIX}/initiatives': '/initiatives',
+    f'{API_PREFIX}/initiatives/{{id:path}}': '/initiatives/{initiative}',
     f'{API_PREFIX}/worklogs': '/worklogs?state=all',
     f'{API_PREFIX}/worklogs/current': '/worklogs/current?session=run-pod-session',
     f'{API_PREFIX}/worklogs/{{name}}': '/worklogs/{worklog}',
@@ -100,13 +101,13 @@ SCOPED_WRITES = {
         {'title': 'left of the initiative', 'initiative': '{initiative}', 'status': 'triage'},
         status.HTTP_201_CREATED,
     ),
-    (PLAN, 'POST', f'{API_PREFIX}/issues/initiatives'): (
-        '/issues/initiatives',
+    (PLAN, 'POST', f'{API_PREFIX}/initiatives'): (
+        '/initiatives',
         {'name': 'grouped by a planning job'},
         status.HTTP_201_CREATED,
     ),
-    (PLAN, 'PATCH', f'{API_PREFIX}/issues/initiatives/{{id:path}}'): (
-        '/issues/initiatives/{initiative}',
+    (PLAN, 'PATCH', f'{API_PREFIX}/initiatives/{{id:path}}'): (
+        '/initiatives/{initiative}',
         {'status': 'dropped', 'status_reason': 'merged into another'},
         status.HTTP_200_OK,
     ),
@@ -177,23 +178,23 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (READ, 'POST', '/claims'),
         (READ, 'POST', '/issues/{issue}/comments'),
         (READ, 'GET', '/issues/{issue}/comments'),
-        (READ, 'GET', '/issues/vocabulary'),
-        (READ, 'GET', '/issues/labels'),
-        (READ, 'POST', '/issues/initiatives'),
-        (READ, 'PATCH', '/issues/initiatives/{initiative}'),
-        (READ, 'DELETE', '/issues/initiatives/{initiative}'),
+        (READ, 'GET', '/vocabulary'),
+        (READ, 'GET', '/labels'),
+        (READ, 'POST', '/initiatives'),
+        (READ, 'PATCH', '/initiatives/{initiative}'),
+        (READ, 'DELETE', '/initiatives/{initiative}'),
         (READ, 'POST', '/ideas'),
         (READ, 'POST', '/ideas/{idea}/promote'),
         (CLOSE, 'GET', '/issues/{issue}'),
         (CLOSE, 'POST', '/issues'),
         (CLOSE, 'DELETE', '/issues/{issue}'),
         (CLOSE, 'POST', '/claims'),
-        (CLOSE, 'PATCH', '/issues/initiatives/{initiative}'),
+        (CLOSE, 'PATCH', '/initiatives/{initiative}'),
         (CLAIM, 'GET', '/claims'),
         (CLAIM, 'PATCH', '/issues/{issue}'),
         (CLAIM, 'POST', '/worklogs/{worklog}/links'),
         (PLAN, 'DELETE', '/issues/{issue}'),
-        (PLAN, 'DELETE', '/issues/initiatives/{initiative}'),
+        (PLAN, 'DELETE', '/initiatives/{initiative}'),
         (READ, 'POST', '/worklogs'),
         (WORKLOGS, 'POST', '/claims'),
         (WORKLOGS, 'GET', '/worklogs/{worklog}'),
@@ -346,7 +347,7 @@ def test_a_scope_the_table_does_not_name_reaches_nothing(as_caller):
 
 
 def test_a_person_reaches_a_route_no_scope_lists(as_caller):
-    response = as_caller.caller(PERSON).post('/issues/labels', json={'slug': 'written-by-a-person'})
+    response = as_caller.caller(PERSON).post('/labels', json={'slug': 'written-by-a-person'})
     assert response.status_code == status.HTTP_201_CREATED, show_status_and_response(response)
 
 

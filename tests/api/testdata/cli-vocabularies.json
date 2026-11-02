@@ -20,5 +20,47 @@
     "commit",
     "pull_request",
     "landing"
+  ],
+  "issue_statuses": [
+    "triage",
+    "open",
+    "completed",
+    "canceled",
+    "all"
+  ],
+  "issue_types": [
+    "bug",
+    "feature",
+    "task",
+    "chore",
+    "decision"
+  ],
+  "priority_names": [
+    "none",
+    "urgent",
+    "high",
+    "medium",
+    "low"
+  ],
+  "initiative_statuses": [
+    "active",
+    "someday",
+    "completed",
+    "dropped",
+    "all"
+  ],
+  "initiative_sorts": [
+    "priority",
+    "open",
+    "newest"
+  ],
+  "initiative_statuses_closed": [
+    "completed",
+    "dropped"
+  ],
+  "record_kinds": [
+    "idea",
+    "initiative",
+    "issue"
   ]
 }

@@ -13,6 +13,6 @@ class ReadyFilter(BaseModel):
     type: str | None = Field(None, description='An issue type. Decisions are left out unless asked for here.')
     label: str | None = Field(None, description='A label slug')
     initiative: UUID | int | str | None = Field(
-        None, description='An initiative, by any reference GET /issues/initiatives/{id} accepts: its UUID, number or name'
+        None, description='An initiative, by any reference GET /initiatives/{id} accepts: its UUID, number or name'
     )
     autofixable: bool | None = Field(None, description=AUTOFIXABLE_FILTER)

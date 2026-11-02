@@ -30,7 +30,7 @@ for every issue in one pass on each read. The API returns it as `is_ready`
 and `is_blocked`, and every client filters on those rather than re-deriving
 them.
 
-`GET /issues/ready` is the queue, in the order to take it. `slate issues next`
+`GET /issues/ready` is the queue, in the order to take it. `slate next`
 prints it.
 
 ## A decision waits on a person, so the ready queue leaves it out
@@ -72,7 +72,7 @@ with readiness and returned as `is_autofixable`. So an issue filed later into
 such an initiative, or under such a parent, is covered with nothing set on it.
 
 `autofix` says nothing about whether an issue is ready. A session reads the
-whole queue with `slate issues next`. `slate issues next --autofixable` is the
+whole queue with `slate next`. `slate next --autofixable` is the
 queue for an unattended fix, and is `GET /issues/ready?autofixable=true`. The
 filter is named for `is_autofixable`, the derived fact it reads, the way
 `blocked` reads `is_blocked`. `autofix` stays the stored setting.
@@ -80,7 +80,7 @@ filter is named for `is_autofixable`, the derived fact it reads, the way
 The flag is a veto the reader asks to honor. A hold by number takes an issue
 whatever its flag says, and a fixer narrowing further, by type or repo, does so
 on its own side. An API that does not know the filter ignores it, so `slate
-issues next` refuses any row under `--autofixable` whose `is_autofixable` is
+next` refuses any row under `--autofixable` whose `is_autofixable` is
 missing or does not match. `slate claims hold --next --autofixable` needs no
 such check, because every API serving `/claims/next` reads the filter.
 
@@ -196,7 +196,7 @@ A label must exist before an issue can carry it, so a misspelling is refused
 rather than becoming a second label. Labels sharing a `group_slug` exclude each
 other, and an issue carries at most one label from each group.
 
-`/issues/labels` and `slate issues labels` manage the vocabulary.
+`/labels` and `slate labels` manage the vocabulary.
 
 ## An initiative is a bounded outcome
 

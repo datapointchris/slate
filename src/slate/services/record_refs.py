@@ -46,6 +46,14 @@ def resolve_record(session: Session, ref: str | int) -> models.Record:
     return record
 
 
+def kind_holding(session: Session, number: int | None) -> str | None:
+    """The kind of record holding `number`, so a read asking for it as another kind says which holds it."""
+    if number is None:
+        return None
+    record = session.get(models.Record, number)
+    return None if record is None else record.kind
+
+
 def issue_by_number(session: Session, number: int) -> models.Issue | None:
     return session.scalar(select(models.Issue).where(models.Issue.number == number))
 
@@ -53,7 +61,9 @@ def issue_by_number(session: Session, number: int) -> models.Issue | None:
 def resolve_issue(session: Session, ref: str | UUID | int) -> models.Issue:
     """Fetch an issue by its UUID or its number."""
     issue: models.Issue | None
+    number: int | None = None
     if isinstance(ref, int):
+        number = ref
         issue = issue_by_number(session, ref)
     elif isinstance(ref, UUID):
         issue = session.get(models.Issue, ref)
@@ -69,14 +79,16 @@ def resolve_issue(session: Session, ref: str | UUID | int) -> models.Issue:
             detail=f'{ref!r} is not an issue UUID or number',
         )
     if issue is None:
-        raise NotFoundException('issue', str(ref), logger)
+        raise NotFoundException('issue', str(ref), logger, held_as=kind_holding(session, number))
     return issue
 
 
 def resolve_idea(session: Session, ref: str | UUID | int) -> models.Idea:
     """Fetch an idea by its UUID or its number."""
     idea: models.Idea | None
+    number: int | None = None
     if isinstance(ref, int):
+        number = ref
         idea = session.scalar(select(models.Idea).where(models.Idea.number == ref))
     elif isinstance(ref, UUID):
         idea = session.get(models.Idea, ref)
@@ -87,7 +99,7 @@ def resolve_idea(session: Session, ref: str | UUID | int) -> models.Idea:
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f'{ref!r} is not an idea UUID or number')
     if idea is None:
-        raise NotFoundException('idea', str(ref), logger)
+        raise NotFoundException('idea', str(ref), logger, held_as=kind_holding(session, number))
     return idea
 
 
@@ -115,7 +127,9 @@ def initiative_by_number(session: Session, number: int) -> models.Initiative | N
 def resolve_initiative(session: Session, ref: str | UUID | int) -> models.Initiative:
     """Fetch an initiative by its UUID, its number or its name."""
     initiative: models.Initiative | None
+    number: int | None = None
     if isinstance(ref, int):
+        number = ref
         initiative = initiative_by_number(session, ref)
     elif isinstance(ref, UUID):
         initiative = session.get(models.Initiative, ref)
@@ -128,7 +142,7 @@ def resolve_initiative(session: Session, ref: str | UUID | int) -> models.Initia
         if initiative is None:
             raise NotFoundException('initiative', ref, logger, near=names_near(ref, initiative_names(session)))
     if initiative is None:
-        raise NotFoundException('initiative', str(ref), logger)
+        raise NotFoundException('initiative', str(ref), logger, held_as=kind_holding(session, number))
     return initiative
 
 

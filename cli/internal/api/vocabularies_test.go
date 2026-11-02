@@ -20,10 +20,17 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		t.Fatalf("decode the API's vocabularies: %v", err)
 	}
 	for name, copied := range map[string][]string{
-		"claim_states":       ClaimStates,
-		"worklog_states":     WorklogStates,
-		"worklog_workflows":  WorklogWorkflows,
-		"worklog_link_kinds": WorklogLinkKinds,
+		"claim_states":               ClaimStates,
+		"worklog_states":             WorklogStates,
+		"worklog_workflows":          WorklogWorkflows,
+		"worklog_link_kinds":         WorklogLinkKinds,
+		"issue_statuses":             IssueStatuses,
+		"issue_types":                IssueTypes,
+		"priority_names":             IssuePriorityNames,
+		"initiative_statuses":        InitiativeStatuses,
+		"initiative_sorts":           InitiativeSorts,
+		"initiative_statuses_closed": InitiativeStatusesClosed,
+		"record_kinds":               RecordKinds,
 	} {
 		if !slices.Equal(copied, api[name]) {
 			t.Errorf("%s = %v, the API's are %v", name, copied, api[name])

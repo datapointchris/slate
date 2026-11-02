@@ -26,7 +26,7 @@ func TestProgressBarShowsAnyStartAndHoldsBackFullUntilNothingIsOpen(t *testing.T
 	}
 }
 
-// A number read off `slate issues initiatives list` files an issue into that
+// A number read off `slate initiatives list` files an issue into that
 // initiative, whether it is typed, typed with its #, or picked from the form.
 func TestIssuesCreateTakesTheNumberTheInitiativeListPrints(t *testing.T) {
 	validate := initiativeRef([]api.Initiative{{Number: 1501, Name: "Ship the tracker"}})

@@ -47,9 +47,9 @@ func TestIssues_AUsageRefusalDoesNotWaitOnTheNetwork(t *testing.T) {
 		{"an unknown priority", []string{"issues", "list", "--priority", "extreme"}},
 		{"a reorder with no neighbor", []string{"issues", "reorder", "412"}},
 		{"a reorder with both neighbors", []string{"issues", "reorder", "412", "--before", "1", "--after", "2"}},
-		{"a negative tree depth", []string{"issues", "tree", "--depth", "-1"}},
-		{"an initiative dropped with no reason", []string{"issues", "initiatives", "drop", "Ship it"}},
-		{"a label edit changing nothing", []string{"issues", "labels", "edit", "area-api"}},
+		{"a negative tree depth", []string{"dependencies", "tree", "--depth", "-1"}},
+		{"an initiative dropped with no reason", []string{"initiatives", "drop", "Ship it"}},
+		{"a label edit changing nothing", []string{"labels", "edit", "area-api"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -352,7 +352,7 @@ func TestIssueCreateFields_OffersEveryInitiativeThatTakesIssues(t *testing.T) {
 	t.Setenv("SLATE_REPOS_REGISTRY", filepath.Join(t.TempDir(), "repos.json"))
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path != "/api/v1/issues/initiatives" {
+		if r.URL.Path != "/api/v1/initiatives" {
 			_, _ = w.Write([]byte(`{}`))
 			return
 		}

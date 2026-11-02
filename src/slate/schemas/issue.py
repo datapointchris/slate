@@ -181,21 +181,6 @@ class IssueLabel(RecordModel):
     open_issue_count: int = 0
 
 
-class IssuePriorityName(RecordModel):
-    value: int
-    name: str
-
-
-class IssueVocabulary(RecordModel):
-    """Every value a closed issue field accepts, for a client building its pickers."""
-
-    statuses: list[str]
-    types: list[str]
-    priorities: list[IssuePriorityName]
-    initiative_statuses: list[str]
-    labels: list[IssueLabel]
-
-
 class IssueWritten(Written):
     issue: IssueDetail
 
@@ -206,3 +191,9 @@ class IssueCommentWritten(Written):
 
 class IssueLabelWritten(Written):
     label: IssueLabel
+
+
+class IssueLabelDeleted(Written):
+    """`deleted` is the label as it stood, its count the unclosed issues that carried it."""
+
+    deleted: IssueLabel

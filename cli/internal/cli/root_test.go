@@ -54,10 +54,9 @@ func TestAnUnknownSubcommandNamesTheNearOnes(t *testing.T) {
 		{[]string{"issuez"}, "issues"},
 		{[]string{"issues", "lisy"}, "list"},
 		{[]string{"items", "show", "848"}, "issues"},
-		{[]string{"show", "848", "--json"}, "issues"},
-		{[]string{"search", "golang"}, "issues"},
-		{[]string{"issues", "initiativez", "--json"}, "initiatives"},
-		{[]string{"issues", "labels", "lisz", "--json"}, "list"},
+		{[]string{"view", "848", "--json"}, "show"},
+		{[]string{"initiativez", "--json"}, "initiatives"},
+		{[]string{"labels", "lisz", "--json"}, "list"},
 	} {
 		err := runLine(t, c.args...)
 		if err == nil || !slices.Contains(strings.Fields(err.Error()), c.meant) {
@@ -72,8 +71,8 @@ func TestAFlagAfterAnUnknownWordRefusesTheWord(t *testing.T) {
 	for _, args := range [][]string{
 		{"bogus", "search", "foo", "--json"},
 		{"issues", "bogus", "--json"},
-		{"issues", "initiatives", "bogus", "5", "--json"},
-		{"issues", "labels", "bogus", "--json"},
+		{"initiatives", "bogus", "5", "--json"},
+		{"labels", "bogus", "--json"},
 	} {
 		err := runLine(t, args...)
 		if err == nil || !strings.Contains(err.Error(), `unknown command "bogus"`) {
@@ -91,8 +90,8 @@ func TestAFlagAfterAnUnknownWordRefusesTheWord(t *testing.T) {
 func TestAWordTypedWithHelpIsRefusedAtEveryGroup(t *testing.T) {
 	for _, args := range [][]string{
 		{"issues", "bogus", "--help"},
-		{"issues", "initiatives", "bogus", "--help"},
-		{"issues", "labels", "bogus", "-h"},
+		{"initiatives", "bogus", "--help"},
+		{"labels", "bogus", "-h"},
 	} {
 		err := runLine(t, args...)
 		if err == nil || !strings.Contains(err.Error(), `unknown command "bogus"`) {
@@ -120,8 +119,6 @@ func TestCommandTree_ExitCodes(t *testing.T) {
 		{"bare root shows help (success)", nil, 0},
 		{"bare auth shows help (success)", []string{"auth"}, 0},
 		{"bare issues shows help (success)", []string{"issues"}, 0},
-		{"bare issues initiatives shows help (success)", []string{"issues", "initiatives"}, 0},
-		{"bare issues labels shows help (success)", []string{"issues", "labels"}, 0},
 		{"unknown top-level command is usage error", []string{"nope"}, 2},
 		{"unknown auth subcommand is usage error", []string{"auth", "nope"}, 2},
 		{"unknown issues subcommand is usage error", []string{"issues", "nope"}, 2},

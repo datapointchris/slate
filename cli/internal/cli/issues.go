@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,28 +18,34 @@ import (
 
 // issueHints are the ways to find a valid issue number after a 404.
 var issueHints = []string{
-	"Search issues by title or description: slate issues search <query>",
+	anyRecordHint,
+	searchHint,
 	"Completed and canceled issues are hidden: slate issues list --status all",
 }
 
-// defaultNextIssueLimit caps `next`. The head of the queue is the answer, and
-// the rows after it are context.
-const defaultNextIssueLimit = 10
+// joinedHints is the hints of a command that reads more than one kind, each
+// line once, because every kind's list opens with anyRecordHint.
+func joinedHints(lists ...[]string) []string {
+	var joined []string
+	for _, hint := range slices.Concat(lists...) {
+		if !slices.Contains(joined, hint) {
+			joined = append(joined, hint)
+		}
+	}
+	return joined
+}
 
 const (
 	issueGroupRead      = "read"
-	issueGroupWork      = "work"
 	issueGroupFile      = "file"
 	issueGroupLifecycle = "lifecycle"
 	issueGroupOrder     = "order"
-	issueGroupGrouping  = "grouping"
 )
 
 func newIssuesCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
-		Use: "issues",
-		// Top-level words that mean an issue: `items`, or a verb typed with no noun.
-		SuggestFor: []string{"items", "show", "search"},
+		Use:        "issues",
+		SuggestFor: []string{"items", "item"},
 		Short:      "Track development work: bugs, features, chores, and the decisions they wait on",
 		Long: "Development work, mostly filed and taken by agents. An issue needs no project:\n" +
 			"its repo, labels and dependencies place it, and an optional initiative groups\n" +
@@ -49,16 +54,17 @@ func newIssuesCommand() *cobra.Command {
 			"An issue is ready when it is open, nobody holds a live claim on it,\n" +
 			"everything it depends on is closed, its deferral day has come, none of its\n" +
 			"children is still open, and it is not shelved in a someday initiative. A\n" +
-			"someday issue that work outside someday depends on is not shelved. `next`\n" +
-			"lists the ready issues in the order to take them: priority first, then rank.\n" +
-			"An issue sorts by the most urgent of its own priority, its parent's, its\n" +
-			"initiative's, and that of anything it blocks. Its own priority can raise it,\n" +
-			"never lower it.\n" +
+			"someday issue that work outside someday depends on is not shelved.\n" +
+			"`slate next` lists the ready issues in the order to take them: priority\n" +
+			"first, then rank. An issue sorts by the most urgent of its own priority, its\n" +
+			"parent's, its initiative's, and that of anything it blocks. Its own priority\n" +
+			"can raise it, never lower it. `slate dependencies` adds and draws what an\n" +
+			"issue waits on.\n" +
 			"\n" +
 			"Working an issue starts with a claim and ends with a close. Before the first\n" +
 			"edit, `slate claims hold <issue>` takes it, or `slate claims hold --next`\n" +
-			"takes the head of `next`. A change that carries several issues holds each\n" +
-			"one. `complete` and `cancel` end the claim and say so. `slate claims\n" +
+			"takes the head of `slate next`. A change that carries several issues holds\n" +
+			"each one. `complete` and `cancel` end the claim and say so. `slate claims\n" +
 			"release` hands an issue back unfinished, and `slate claims list` shows every\n" +
 			"claim held.\n" +
 			"\n" +
@@ -68,11 +74,9 @@ func newIssuesCommand() *cobra.Command {
 	goclikit.WithRecoveryHints(cmd, issueHints...)
 	cmd.AddGroup(
 		&cobra.Group{ID: issueGroupRead, Title: "Reading:"},
-		&cobra.Group{ID: issueGroupWork, Title: "Taking work:"},
 		&cobra.Group{ID: issueGroupFile, Title: "Filing:"},
 		&cobra.Group{ID: issueGroupLifecycle, Title: "Lifecycle:"},
-		&cobra.Group{ID: issueGroupOrder, Title: "Order and dependencies:"},
-		&cobra.Group{ID: issueGroupGrouping, Title: "Grouping:"},
+		&cobra.Group{ID: issueGroupOrder, Title: "Order:"},
 	)
 	add := func(group string, commands ...*cobra.Command) {
 		for _, c := range commands {
@@ -82,18 +86,12 @@ func newIssuesCommand() *cobra.Command {
 	}
 	add(issueGroupRead,
 		newIssuesListCommand(),
-		newIssuesSearchCommand(),
 		goclikit.WithRecoveryHints(newIssuesShowCommand(), issueHints...),
 		goclikit.WithRecoveryHints(newIssuesCommentsCommand(), issueHints...),
-		goclikit.WithRecoveryHints(newIssuesTreeCommand(), issueHints...),
-		newIssuesVocabularyCommand(),
-	)
-	add(issueGroupWork,
-		newIssuesNextCommand(),
 	)
 	add(issueGroupFile,
-		goclikit.WithRecoveryHints(newIssuesCreateCommand(), append(slices.Clone(issueHints), initiativeHints...)...),
-		goclikit.WithRecoveryHints(newIssuesEditCommand(), append(slices.Clone(issueHints), initiativeHints...)...),
+		goclikit.WithRecoveryHints(newIssuesCreateCommand(), joinedHints(issueHints, initiativeHints)...),
+		goclikit.WithRecoveryHints(newIssuesEditCommand(), joinedHints(issueHints, initiativeHints)...),
 		goclikit.WithRecoveryHints(newIssuesAddCommentCommand(), issueHints...),
 		goclikit.WithRecoveryHints(newIssuesRemoveCommentCommand(), issueHints...),
 		goclikit.WithRecoveryHints(newIssuesDeleteCommand(), issueHints...),
@@ -106,20 +104,13 @@ func newIssuesCommand() *cobra.Command {
 	)
 	add(issueGroupOrder,
 		goclikit.WithRecoveryHints(newIssuesReorderCommand(), issueHints...),
-		goclikit.WithRecoveryHints(newIssuesAddDependencyCommand(), issueHints...),
-		goclikit.WithRecoveryHints(newIssuesRemoveDependencyCommand(), issueHints...),
-	)
-	add(issueGroupGrouping,
-		newIssueInitiativesCommand(),
-		newIssueLabelsCommand(),
 	)
 	return cmd
 }
 
-// --- Filters shared by list and search ---
+// --- Filters ---
 
-// issueFilterFlags are the questions a list of issues answers, declared once
-// so list and search ask them the same way.
+// issueFilterFlags are the questions a list of issues answers.
 type issueFilterFlags struct {
 	status      string
 	repo        string
@@ -129,20 +120,25 @@ type issueFilterFlags struct {
 	parent      string
 	priority    string
 	closedBy    string
+	search      string
 	blocked     bool
 	autofixable bool
 }
 
-func (v *issueFilterFlags) register(cmd *cobra.Command, statusDefault string) {
+func (v *issueFilterFlags) register(cmd *cobra.Command) {
 	f := cmd.Flags()
-	f.StringVar(&v.status, "status", "", "One of: "+strings.Join(api.IssueStatuses, ", ")+" (default "+statusDefault+")")
+	f.StringVar(&v.status, "status", "", "One of: "+strings.Join(api.IssueStatuses, ", ")+" (default unclosed)")
+	withFlagValues(cmd, "status", api.IssueStatuses...)
 	f.StringVar(&v.repo, "repo", "", "Only issues on this repo (empty string for issues on no repo)")
 	f.StringVar(&v.issueType, "type", "", "One of: "+strings.Join(api.IssueTypes, ", "))
-	f.StringVar(&v.label, "label", "", "Only issues carrying this label (see: slate issues labels list)")
+	withFlagValues(cmd, "type", api.IssueTypes...)
+	f.StringVar(&v.label, "label", "", "Only issues carrying this label (see: slate labels list)")
 	f.StringVar(&v.initiative, "initiative", "", "Only issues in this initiative, by number, name or id")
 	f.StringVar(&v.parent, "parent", "", "Only the children of this issue")
 	f.StringVar(&v.priority, "priority", "", "Only issues whose own priority is this: "+priorityChoices())
+	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	f.StringVar(&v.closedBy, "closed-by", "", "Only issues whose closer starts with this, such as claude-code/")
+	f.StringVar(&v.search, "search", "", "Only issues whose title or description holds every one of these words")
 	f.BoolVar(&v.blocked, "blocked", false, "Only issues waiting on an unclosed dependency (--blocked=false for the rest)")
 	f.BoolVar(&v.autofixable, "autofixable", false, autofixableFilterHelp)
 }
@@ -170,6 +166,7 @@ func (v *issueFilterFlags) filter(cmd *cobra.Command) (api.IssueFilter, error) {
 		Initiative: v.initiative,
 		Parent:     v.parent,
 		ClosedBy:   v.closedBy,
+		Search:     v.search,
 	}
 	if f.Changed("priority") {
 		priority, err := parsePriority(v.priority)
@@ -248,12 +245,14 @@ func newIssuesListCommand() *cobra.Command {
 		Use:   "list",
 		Short: "List issues, open work first in queue order",
 		Long: "Unclosed issues by default: triage and open. Completed and canceled ones\n" +
-			"accumulate without end, so --status asks for them.\n" +
+			"accumulate without end, so --status asks for them. --search keeps the issues\n" +
+			"whose title or description holds every word, beside any other filter.\n" +
+			"`slate search <words>` finds a record of any kind.\n" +
 			"\n" +
-			"Open work comes first in the order `next` takes it, then closed work, latest\n" +
-			"first. The priority column is the one the queue sorts by, and a * marks one\n" +
-			"inherited from what the issue blocks, its parent, or its initiative. --priority\n" +
-			"filters on an issue's own.\n" +
+			"Open work comes first in the order `slate next` takes it, then closed work,\n" +
+			"latest first. The priority column is the one the queue sorts by, and a * marks\n" +
+			"one inherited from what the issue blocks, its parent, or its initiative.\n" +
+			"--priority filters on an issue's own.\n" +
 			"\n" +
 			"--since/--until bound when an issue closed. Pair them with --status\n" +
 			"completed to read a week's finished work.\n" +
@@ -262,6 +261,7 @@ func newIssuesListCommand() *cobra.Command {
 			"every attended Claude Code session. docs/issues.md lists the kinds.",
 		Example: "  slate issues list\n" +
 			"  slate issues list --repo webapp\n" +
+			"  slate issues list --search routing --repo webapp --status all\n" +
 			"  slate issues list --type decision\n" +
 			"  slate issues list --status triage\n" +
 			"  slate issues list --blocked\n" +
@@ -279,219 +279,33 @@ func newIssuesListCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			hidClosed := !cmd.Flags().Changed("status")
-			return runIssuesCollection(cmd, asJSON, hidClosed, func(c *api.Client) ([]api.Issue, error) {
-				issues, err := c.ListIssues(cmd.Context(), filter, window, issueZone(), limitFlag(cmd))
-				if err != nil {
-					return nil, err
-				}
-				return issues, honoredAutofixable(filter.Autofixable, issues)
-			})
-		},
-	}
-	filters.register(cmd, "unclosed")
-	addWindowFlags(cmd, "issues closed")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output issues as JSON to stdout")
-	addLimitFlag(cmd, &limit)
-	return cmd
-}
-
-func newIssuesSearchCommand() *cobra.Command {
-	var (
-		asJSON  bool
-		filters issueFilterFlags
-		limit   int
-	)
-	cmd := &cobra.Command{
-		Use:   "search <query>",
-		Short: "Find issues by title or description, closed ones included",
-		Long: "Every word of the query must appear in the title or the description, in any\n" +
-			"order. Searches every status unless --status narrows it, because the issue you\n" +
-			"remember may be the one that was finished or canceled.",
-		Example: "  slate issues search \"rank renumber\"\n" +
-			"  slate issues search routing --repo webapp --status open",
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			filter, err := filters.filter(cmd)
-			if err != nil {
-				return err
-			}
-			if filter.Status == "" {
-				filter.Status = api.IssueStatusAll
-			}
-			filter.Search = args[0]
-			return runIssuesCollection(cmd, asJSON, false, func(c *api.Client) ([]api.Issue, error) {
-				issues, err := c.ListIssues(cmd.Context(), filter, api.Window{}, issueZone(), limitFlag(cmd))
-				if err != nil {
-					return nil, err
-				}
-				return issues, honoredAutofixable(filter.Autofixable, issues)
-			})
-		},
-	}
-	filters.register(cmd, "all")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output issues as JSON to stdout")
-	addLimitFlag(cmd, &limit)
-	return cmd
-}
-
-// runIssuesCollection renders a read returning issues as JSON or a table. When
-// hidClosed, the read took the default that leaves closed issues out, and says
-// so on stderr with the command that widens it.
-func runIssuesCollection(cmd *cobra.Command, asJSON, hidClosed bool, read func(*api.Client) ([]api.Issue, error)) error {
-	client, err := newAPIClient(cmd.Context())
-	if err != nil {
-		return handleAPIError(err)
-	}
-	issues, err := read(client)
-	if err != nil {
-		return handleArgumentAPIError(err)
-	}
-	if asJSON {
-		return encodeJSON(cmd.OutOrStdout(), issues)
-	}
-	printIssuesTable(cmd.OutOrStdout(), issues, time.Now())
-	noteInheritedPriority(cmd, issues)
-	if hidClosed {
-		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\nCompleted and canceled issues are hidden: %s\n", reinvocation(cmd, "--status all"))
-	}
-	return nil
-}
-
-// reinvocation is the command that was run, flags and all, with extra added: a
-// hint that widens a filtered read must keep the filters it widens.
-func reinvocation(cmd *cobra.Command, extra string) string {
-	parts := []string{cmd.CommandPath()}
-	for _, arg := range cmd.Flags().Args() {
-		parts = append(parts, shellQuote(arg))
-	}
-	cmd.Flags().Visit(func(flag *pflag.Flag) {
-		if flag.Name == "json" {
-			return
-		}
-		if flag.Value.Type() == "bool" {
-			if flag.Value.String() == "true" {
-				parts = append(parts, "--"+flag.Name)
-			} else {
-				parts = append(parts, "--"+flag.Name+"=false")
-			}
-			return
-		}
-		for _, value := range rawFlagValues(flag) {
-			parts = append(parts, "--"+flag.Name, shellQuote(value))
-		}
-	})
-	return strings.Join(append(parts, extra), " ")
-}
-
-func newIssuesNextCommand() *cobra.Command {
-	var (
-		asJSON bool
-		queue  readyQueueFlags
-		limit  int
-	)
-	cmd := &cobra.Command{
-		Use:   "next",
-		Short: "The ready issues, in the order to take them",
-		Long: "Open, unblocked, not deferred past today, with no open children, and not held\n" +
-			"by a live claim. The first row is what `slate claims hold --next` would take,\n" +
-			"under the same flags. Decisions wait on a person and are left out unless\n" +
-			"--type decision asks for them. --autofixable keeps only the issues whose own,\n" +
-			"initiative's and parents' autofix are all on, the queue an unattended fix reads.\n" +
-			"Reading the queue holds nothing, so hold the issue you take before working it.\n" +
-			"\n" +
-			"The priority column is the one the queue sorts by, and a * marks one inherited\n" +
-			"from what the issue blocks, its parent, or its initiative.",
-		Example: "  slate issues next\n" +
-			"  slate issues next --repo webapp --limit 1\n" +
-			"  slate issues next --label area-cli --json\n" +
-			"  slate issues next --autofixable --json\n" +
-			"  slate issues next --type decision",
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			filter, err := queue.filter(cmd)
-			if err != nil {
-				return err
-			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			// Uncapped, so an empty queue is told apart from --limit 0 below.
-			ready, err := client.ListReadyIssues(cmd.Context(), filter, issueZone(), nil)
+			issues, err := client.ListIssues(cmd.Context(), filter, window, issueZone(), limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredAutofixable(filter.Autofixable, ready); err != nil {
+			if err := honoredAutofixable(filter.Autofixable, issues); err != nil {
 				return err
 			}
-			shown := ready[:min(limit, len(ready))]
+			if !cmd.Flags().Changed("status") {
+				defer noteHiddenByStatus(cmd, "Completed and canceled issues")
+			}
 			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), shown)
+				return encodeJSON(cmd.OutOrStdout(), issues)
 			}
-			if len(ready) == 0 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No issue is ready.")
-				return nil
-			}
-			if len(shown) > 0 {
-				printIssuesTable(cmd.OutOrStdout(), shown, time.Now())
-			}
-			noteInheritedPriority(cmd, shown)
-			noteCappedRows(cmd, len(shown), len(ready))
+			printIssuesTable(cmd.OutOrStdout(), issues, time.Now())
+			noteInheritedPriority(cmd, issues)
 			return nil
 		},
 	}
-	queue.register(cmd)
+	filters.register(cmd)
+	addWindowFlags(cmd, "issues closed")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output issues as JSON to stdout")
-	addCapFlag(cmd, &limit, defaultNextIssueLimit, "Maximum number of issues to show")
+	addLimitFlag(cmd, &limit)
 	return cmd
-}
-
-// readyQueueFlags narrow the ready queue, on `issues next` and `claims hold --next`.
-type readyQueueFlags struct {
-	repo        string
-	issueType   string
-	label       string
-	initiative  string
-	autofixable bool
-}
-
-// readyQueueFlagNames are refused by a hold that names its record.
-func readyQueueFlagNames() []string {
-	probe := &cobra.Command{}
-	new(readyQueueFlags).register(probe)
-	var names []string
-	probe.Flags().VisitAll(func(f *pflag.Flag) { names = append(names, f.Name) })
-	return names
-}
-
-func (v *readyQueueFlags) register(cmd *cobra.Command) {
-	f := cmd.Flags()
-	f.StringVar(&v.repo, "repo", "", "Only issues on this repo (empty string for issues on no repo)")
-	f.StringVar(&v.issueType, "type", "", "Only this type: "+strings.Join(api.IssueTypes, ", ")+" (decisions only when named)")
-	f.StringVar(&v.label, "label", "", "Only issues carrying this label")
-	f.StringVar(&v.initiative, "initiative", "", "Only issues in this initiative, by number, name or id")
-	f.BoolVar(&v.autofixable, "autofixable", false, autofixableFilterHelp)
-}
-
-func (v *readyQueueFlags) filter(cmd *cobra.Command) (api.ReadyFilter, error) {
-	if err := validateIssueType(cmd.Flags(), "type", v.issueType); err != nil {
-		return api.ReadyFilter{}, err
-	}
-	repo, err := repoFlagValue(cmd, v.repo)
-	if err != nil {
-		return api.ReadyFilter{}, err
-	}
-	filter := api.ReadyFilter{
-		Repo:       repo,
-		Type:       v.issueType,
-		Label:      v.label,
-		Initiative: v.initiative,
-	}
-	if cmd.Flags().Changed("autofixable") {
-		filter.Autofixable = &v.autofixable
-	}
-	return filter, nil
 }
 
 // --- Reads of one issue ---
@@ -557,69 +371,6 @@ func newIssuesCommentsCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output comments as JSON to stdout")
 	addLimitFlag(cmd, &limit)
 	return cmd
-}
-
-func newIssuesVocabularyCommand() *cobra.Command {
-	var asJSON bool
-	cmd := &cobra.Command{
-		Use:     "vocabulary",
-		Short:   "List the values --status, --type, --priority and --label accept",
-		Example: "  slate issues vocabulary\n  slate issues vocabulary --json",
-		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			vocabulary, err := client.GetIssueVocabulary(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), vocabulary)
-			}
-			printIssueVocabulary(cmd.OutOrStdout(), vocabulary)
-			return nil
-		},
-	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the vocabulary as JSON to stdout")
-	return cmd
-}
-
-// --- Identity ---
-
-// actorWorkerEnv names the variable a scheduler sets to say which of its
-// workers is running, so what the worker does is signed with that name.
-const actorWorkerEnv = "SLATE_ACTOR"
-
-// actorIdentity names who acts when a claim, a comment or a close does not say.
-// Two sessions on one machine must not share a name, because a hold under a
-// name that already holds the record answers that it is held. The prefix is the kind of actor, so a reader can
-// filter on it. docs/issues.md lists the kinds.
-func actorIdentity() string {
-	worker := os.Getenv(actorWorkerEnv)
-	if session := os.Getenv("CLAUDE_CODE_SESSION_ID"); session != "" {
-		switch {
-		case worker != "":
-			return "claude-code-unattended/" + worker + "/" + session
-		case os.Getenv("CLAUDE_CODE_SESSION_ATTENDED") == "0":
-			return "claude-code-unattended/" + session
-		default:
-			return "claude-code/" + session
-		}
-	}
-	if worker != "" {
-		return "worker/" + worker
-	}
-	user := os.Getenv("USER")
-	if user == "" {
-		user = "unknown"
-	}
-	host, err := os.Hostname()
-	if err != nil || host == "" {
-		return user
-	}
-	return user + "@" + host
 }
 
 // --- Rendering ---
@@ -864,17 +615,4 @@ func indent(text, prefix string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-func printIssueVocabulary(out io.Writer, v api.IssueVocabulary) {
-	_, _ = fmt.Fprintf(out, "statuses:     %s\n", strings.Join(v.Statuses, ", "))
-	_, _ = fmt.Fprintf(out, "types:        %s\n", strings.Join(v.Types, ", "))
-	priorities := make([]string, 0, len(v.Priorities))
-	for _, p := range v.Priorities {
-		priorities = append(priorities, fmt.Sprintf("%d %s", p.Value, p.Name))
-	}
-	_, _ = fmt.Fprintf(out, "priorities:   %s\n", strings.Join(priorities, ", "))
-	_, _ = fmt.Fprintf(out, "initiatives:  %s\n", strings.Join(v.InitiativeStatuses, ", "))
-	_, _ = fmt.Fprintln(out, "\nlabels:")
-	printIssueLabels(out, v.Labels)
 }

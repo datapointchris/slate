@@ -39,12 +39,28 @@ the read the kind's own route gives, with every claim the record has had:
 | `kind` | `record` is what this answers |
 | --- | --- |
 | `idea` | `GET /ideas/{number}` |
-| `initiative` | `GET /issues/initiatives/{number}`, plus `claims` |
+| `initiative` | `GET /initiatives/{number}` |
 | `issue` | `GET /issues/{number}` |
 
 `kind` discriminates the union in the OpenAPI schema, so a typed client
 decodes `record` into the right shape before reading it. A number nobody
-holds answers 404.
+holds answers 404. A number read through another kind's route answers 404
+naming the kind that holds it: `issue 1501 not found: #1501 is an initiative`.
+`slate show <number>` prints any record through its kind's own renderer, and
+its `--json` is this envelope. `slate show <number>.<seq>` prints a worklog. A
+worklog is not a record, so its `--json` is `{kind: "worklog", name, record}`,
+named by the name it is read back with, and `slate search --kind` does not
+take `worklog`.
+
+## A search reads every kind and every status
+
+`GET /records?search=<words>` lists each record whose title or description
+holds every word, in any order. It reads every status, because the record a
+reader remembers may be the one that closed. Unclosed records come first, then
+the most urgent, then the newest. An idea has no status, so it sorts with the
+unclosed. `kind` narrows the list to one kind. `slate search <words>` prints
+it. `slate issues list --search <words>` asks `GET /issues?search=` instead,
+beside every issue filter.
 
 ## Every write answers what it wrote and what else it did
 

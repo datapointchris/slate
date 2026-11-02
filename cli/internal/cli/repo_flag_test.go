@@ -77,15 +77,8 @@ func TestAReadRefusesAnUnregisteredRepo(t *testing.T) {
 	withRegistry(t, `{"repos":[{"name":"dotfiles"}]}`)
 	for _, args := range [][]string{
 		{"issues", "list", "--repo", "dotfile"},
-		{"issues", "search", "backup", "--repo", "dotfile"},
-		{"issues", "next", "--repo", "dotfile"},
-		{"issues", "tree", "--repo", "dotfile"},
-		{"projects", "list", "--repo", "dotfile"},
-		{"projects", "next", "--repo", "dotfile"},
-		{"projects", "items", "list", "--repo", "dotfile"},
-		{"projects", "items", "blocked", "--repo", "dotfile"},
-		{"projects", "items", "search", "backup", "--repo", "dotfile"},
-		{"projects", "items", "tree", "--repo", "dotfile"},
+		{"next", "--repo", "dotfile"},
+		{"dependencies", "tree", "--repo", "dotfile"},
 	} {
 		if got := runTree(t, args...); got != 2 {
 			t.Errorf("%v exit = %d, want 2", args, got)

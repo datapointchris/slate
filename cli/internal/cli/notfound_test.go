@@ -91,7 +91,8 @@ func TestA404FromTheRealTreeCarriesItsRecoveryHints(t *testing.T) {
 	got := err.Error()
 	for _, want := range []string{
 		"issue 999999 not found",
-		"slate issues search <query>",
+		"slate show <number>",
+		"slate search <words>",
 		"slate issues list --status all",
 	} {
 		if !strings.Contains(got, want) {
@@ -182,10 +183,14 @@ func TestTheClassifierReportsOnlyABodiedNotFound(t *testing.T) {
 	}
 }
 
+// The setup commands reach no record, and search and vocabulary name none, so
+// none of them has a missing record to recover from.
 var resourceExempt = map[string]bool{
-	"auth":   true,
-	"config": true,
-	"update": true,
+	"auth":       true,
+	"config":     true,
+	"update":     true,
+	"search":     true,
+	"vocabulary": true,
 }
 
 // A resource added without hints is the way this regresses: the code keeps

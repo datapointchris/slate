@@ -11,23 +11,24 @@
     "PATCH /api/v1/issues/{id}",
     "POST /api/v1/issues/{id}/comments"
   ],
-  "slate.issues.plan": [
-    "GET /api/v1/issues/vocabulary",
-    "PATCH /api/v1/issues/initiatives/{id:path}",
+  "slate.records.plan": [
+    "GET /api/v1/vocabulary",
+    "PATCH /api/v1/initiatives/{id:path}",
     "PATCH /api/v1/issues/{id}",
+    "POST /api/v1/initiatives",
     "POST /api/v1/issues",
-    "POST /api/v1/issues/initiatives",
     "POST /api/v1/issues/{id}/rank"
   ],
   "slate.records.read": [
     "GET /api/v1/claims",
     "GET /api/v1/ideas",
     "GET /api/v1/ideas/{id}",
+    "GET /api/v1/initiatives",
+    "GET /api/v1/initiatives/{id:path}",
     "GET /api/v1/issues",
-    "GET /api/v1/issues/initiatives",
-    "GET /api/v1/issues/initiatives/{id:path}",
     "GET /api/v1/issues/ready",
     "GET /api/v1/issues/{id}",
+    "GET /api/v1/records",
     "GET /api/v1/records/{number}",
     "GET /api/v1/worklogs",
     "GET /api/v1/worklogs/current",

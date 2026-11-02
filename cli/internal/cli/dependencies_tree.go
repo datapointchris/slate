@@ -14,7 +14,7 @@ import (
 	"github.com/datapointchris/slate/cli/internal/graph"
 )
 
-func newIssuesTreeCommand() *cobra.Command {
+func newDependenciesTreeCommand() *cobra.Command {
 	var (
 		asJSON      bool
 		invert      bool
@@ -37,10 +37,10 @@ func newIssuesTreeCommand() *cobra.Command {
 			"default.\n" +
 			"\n" +
 			"(*) marks an issue whose dependencies were drawn higher up.",
-		Example: "  slate issues tree\n" +
-			"  slate issues tree 412\n" +
-			"  slate issues tree 412 --invert\n" +
-			"  slate issues tree --repo webapp --json",
+		Example: "  slate dependencies tree\n" +
+			"  slate dependencies tree 412\n" +
+			"  slate dependencies tree 412 --invert\n" +
+			"  slate dependencies tree --repo webapp --json",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("status") && !slices.Contains(api.IssueStatuses, issueStatus) {
@@ -98,13 +98,13 @@ func newIssuesTreeCommand() *cobra.Command {
 				}
 			}
 
+			if len(args) == 0 && !cmd.Flags().Changed("status") {
+				defer noteHiddenByStatus(cmd, "Trees with nothing unclosed")
+			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), buildIssueTreeJSON(g, byID, trees, invert, maxDepth))
 			}
 			printIssueTrees(cmd.OutOrStdout(), g, byID, trees, invert, maxDepth)
-			if len(args) == 0 && !cmd.Flags().Changed("status") {
-				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\nTrees with nothing unclosed are hidden: %s\n", reinvocation(cmd, "--status all"))
-			}
 			return nil
 		},
 	}
@@ -113,6 +113,7 @@ func newIssuesTreeCommand() *cobra.Command {
 	cmd.Flags().IntVar(&depth, "depth", 0, "Stop drawing below this many levels (default every level)")
 	cmd.Flags().StringVar(&repo, "repo", "", "Only trees holding an issue on this repo (empty string for issues on no repo)")
 	cmd.Flags().StringVar(&issueStatus, "status", "", "Only trees holding an issue in this state: "+strings.Join(api.IssueStatuses, ", ")+" (default unclosed)")
+	withFlagValues(cmd, "status", api.IssueStatuses...)
 	return cmd
 }
 
@@ -125,7 +126,7 @@ func resolveFetchedIssue(issues []api.Issue, ref string) (api.Issue, error) {
 			return issue, nil
 		}
 	}
-	return api.Issue{}, fmt.Errorf("no issue %q — `slate issues search <query>` finds one by title", ref)
+	return api.Issue{}, fmt.Errorf("no issue %q — `slate search <words>` finds one by title", ref)
 }
 
 // issueComponentMatches keeps a tree when any issue in it answers both filters.

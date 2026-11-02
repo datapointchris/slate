@@ -7,7 +7,7 @@ from tests.util import show_status_and_response
 
 from .crud_test import ApiCrudTester
 
-INITIATIVES = '/issues/initiatives'
+INITIATIVES = '/initiatives'
 
 NEW_INITIATIVE = schemas.InitiativeCreate(name='Move dev items into issues', priority=1)
 
