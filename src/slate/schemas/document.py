@@ -25,7 +25,10 @@ class DocumentVersionSummary(RecordModel):
 
 
 class DocumentVersion(DocumentVersionSummary):
+    """`lines` is the body as a line comment numbers it, so a client prints the numbers it takes."""
+
     body: str
+    lines: list[str]
 
 
 class DocumentSummary(RecordModel):

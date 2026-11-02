@@ -93,7 +93,7 @@ class DocumentVersion(Base):
 
     @property
     def lines(self) -> list[str]:
-        """The body split at each newline alone, as a client numbering the lines splits it. A final newline ends the last line."""
+        """The body split at each newline alone, numbered from one by a line comment. A final newline ends the last line."""
         lines = self.body.split('\n')
         return lines[:-1] if lines[-1] == '' else lines
 

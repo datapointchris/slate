@@ -79,7 +79,7 @@ def document_view(session: Session, document: models.Document, shown: models.Doc
         address=document.address,
         kind=document.kind,
         created_ts=document.created_ts,
-        version=schemas.DocumentVersion(**version_summary(shown, worklogs).model_dump(), body=shown.body),
+        version=schemas.DocumentVersion(**version_summary(shown, worklogs).model_dump(), body=shown.body, lines=shown.lines),
         versions=[version_summary(version, worklogs) for version in document.versions],
         comments=placed,
     )
