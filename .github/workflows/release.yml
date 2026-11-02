@@ -9,9 +9,10 @@ name: Release
 # - The API, tagged vX.Y.Z: its image on ghcr, and deploy/ pushed to ghcr as an
 #   OCI artifact pinned to that image's digest, both signed keylessly.
 #
-# svu computes both versions. go-semantic-release can neither write nor read a
-# prefixed tag, and python-semantic-release cannot confine a version to some
-# paths, so with it every CLI change would release the API too.
+# svu computes both versions, in release/resolve-version. go-semantic-release
+# can neither write nor read a prefixed tag, and python-semantic-release cannot
+# confine a version to some paths, so with it every CLI change would release
+# the API too.
 on:
   push:
     branches: [main]
@@ -33,13 +34,15 @@ concurrency:
   cancel-in-progress: false
   queue: max
 
+# A named bash runs with pipefail, so a failed command early in a pipeline fails
+# its step rather than handing the next command an empty answer.
+defaults:
+  run:
+    shell: bash
+
 env:
   IMAGE: ghcr.io/${{ github.repository }}
   MANIFESTS: ghcr.io/${{ github.repository }}/manifests
-  # What a commit must touch to release the API: everything the image is built
-  # from, and the manifests. A change elsewhere, the CLI included, releases no
-  # API version whatever its conventional type.
-  API_PATHS: src Dockerfile .dockerignore pyproject.toml uv.lock alembic.ini deploy
 
 jobs:
   # Called rather than keyed off `workflow_run`, which names a workflow rather
@@ -48,53 +51,73 @@ jobs:
   validate:
     uses: ./.github/workflows/validate.yml
 
-  # svu prints the current version unchanged when nothing under cli/ is
-  # releasable, and that equality gates the two jobs below.
-  #
-  # svu exits 1 when no tag matches --tag.pattern, so it cannot name the first
-  # release. That case is decided here, at cli/v0.1.0, keyed on the absent tag
-  # rather than a failed svu: treating any svu failure as a first release would
-  # turn a broken run into a published one.
-  cli-version:
-    name: Resolve the CLI version
+  # Both streams' versions, read from one checkout of every tag. Only the API's
+  # tag is pushed here, before anything is published under it, so the version
+  # names this commit from the start. The CLI's tag lands with its release.
+  versions:
+    name: Resolve the versions
     needs: validate
     runs-on: ubuntu-26.04
+    permissions:
+      contents: write
     outputs:
-      tag: ${{ steps.resolve.outputs.tag }}
-      previous: ${{ steps.resolve.outputs.previous }}
+      cli-tag: ${{ steps.cli.outputs.tag }}
+      cli-previous: ${{ steps.cli.outputs.previous }}
+      api-tag: ${{ steps.api.outputs.tag }}
+      api-version: ${{ steps.api.outputs.version }}
+      api-previous: ${{ steps.api.outputs.previous }}
+      api-paths: ${{ steps.api-paths.outputs.paths }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: cli/go.mod
-          cache-dependency-path: cli/go.sum
-      - run: go install github.com/caarlos0/svu/v3@v3.4.1
 
-      # --v0 keeps a breaking change on 0.x a minor bump, so reaching 1.0 is a
-      # decision rather than something the next `feat!:` does.
-      - name: Resolve the next version
-        id: resolve
+      - name: Install svu
         run: |
-          previous=$(git tag --list 'cli/v*' --sort=-version:refname | head -1)
-          echo "previous=${previous}" >>"$GITHUB_OUTPUT"
-          if [ -z "$previous" ]; then
-            next='cli/v0.1.0'
-          else
-            next=$(svu next --tag.pattern 'cli/v*' --tag.prefix 'cli/v' --log.directory cli --v0)
-            if [ "$next" = "$previous" ]; then
-              echo "No releasable commits under cli/ since ${previous}"
-              exit 0
-            fi
-          fi
-          echo "Releasing ${next} (previous: ${previous:-none})"
-          echo "tag=${next}" >>"$GITHUB_OUTPUT"
+          release/install-tools "$RUNNER_TEMP/bin" svu
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
+
+      - name: Resolve the CLI version
+        id: cli
+        run: release/resolve-version --prefix cli/v --path cli >>"$GITHUB_OUTPUT"
+
+      # The image is built from .dockerignore's allowlist, so that list, the
+      # files that build it and the manifests are what release the API. A
+      # change elsewhere, the CLI included, releases no API version whatever
+      # its conventional type.
+      - name: List what releases the API
+        id: api-paths
+        run: |
+          paths=(Dockerfile .dockerignore deploy)
+          while IFS= read -r line; do
+            case $line in
+              '!'*)
+                path=${line#!}
+                paths+=("${path%/}")
+                ;;
+            esac
+          done <.dockerignore
+          echo "paths=${paths[*]}" >>"$GITHUB_OUTPUT"
+
+      - name: Resolve and tag the API version
+        id: api
+        env:
+          PATHS: ${{ steps.api-paths.outputs.paths }}
+        run: |
+          read -ra paths <<<"$PATHS"
+          arguments=()
+          for path in "${paths[@]}"; do
+            arguments+=(--path "$path")
+          done
+          release/resolve-version --prefix v --push "${arguments[@]}" >>"$GITHUB_OUTPUT"
 
   cli-build:
     name: Build the CLI for ${{ matrix.goos }}/${{ matrix.goarch }}
-    needs: cli-version
-    if: needs.cli-version.outputs.tag != ''
+    needs: versions
+    if: needs.versions.outputs.cli-tag != ''
     runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
@@ -119,7 +142,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
-          TAG: ${{ needs.cli-version.outputs.tag }}
+          TAG: ${{ needs.versions.outputs.cli-tag }}
         run: |
           version="${TAG#cli/}"
           mkdir -p ../dist
@@ -139,10 +162,15 @@ jobs:
 
   cli-publish:
     name: Publish the CLI release
-    needs: [cli-version, cli-build]
+    needs: [versions, cli-build]
     runs-on: ubuntu-26.04
     permissions:
       contents: write
+    env:
+      TAG: ${{ needs.versions.outputs.cli-tag }}
+      PREVIOUS: ${{ needs.versions.outputs.cli-previous }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -159,12 +187,9 @@ jobs:
       - name: Generate checksums
         run: cd dist && sha256sum -- *.tar.gz >checksums.txt
 
-      # Not `generate_release_notes`, which lists merged pull requests, and
+      # Not GitHub's generated notes, which list merged pull requests, and
       # would list the API's beside the CLI's.
       - name: Build release notes
-        env:
-          TAG: ${{ needs.cli-version.outputs.tag }}
-          PREVIOUS: ${{ needs.cli-version.outputs.previous }}
         run: |
           range="${PREVIOUS:+${PREVIOUS}..}HEAD"
           {
@@ -185,91 +210,28 @@ jobs:
       - name: Leave the release to a newer push
         id: tip
         run: |
-          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          tip=$(git ls-remote --exit-code origin "$GITHUB_REF" | cut -f1)
+          [ -n "$tip" ] || { echo "origin names no commit for $GITHUB_REF" >&2; exit 1; }
           if [ "$tip" != "$GITHUB_SHA" ]; then
-            echo "main is at ${tip}, past ${GITHUB_SHA}; the run for ${tip} releases these commits"
+            echo "$GITHUB_REF is at ${tip}, past ${GITHUB_SHA}; the run for ${tip} releases these commits"
             echo "superseded=true" >>"$GITHUB_OUTPUT"
           fi
 
-      # Creates the tag with the release, at the commit being built. A tag
-      # pushed with GITHUB_TOKEN triggers no workflow, so a build fired by the
-      # tag would never run. Latest marks the CLI's newest release, since the
-      # API is pulled from ghcr rather than downloaded from here. SHA-pinned
-      # because it is third-party, the major tag moves, and this job holds
-      # contents: write.
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+      # gh uploads every asset to a draft and publishes it last, and GitHub
+      # creates a draft's tag only when it is published. So a run that fails
+      # mid-upload leaves no tag, and the next run cuts the same version again.
+      # Latest marks the CLI's newest release, since the API is pulled from
+      # ghcr rather than downloaded from here.
+      - name: Publish the release
         if: steps.tip.outputs.superseded != 'true'
-        with:
-          tag_name: ${{ needs.cli-version.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          files: dist/*
-          body_path: release-notes.md
-          make_latest: true
-
-  # The API's tag is pushed before anything is published under it, so the
-  # version names this commit from the start. A re-run finds the tag on its
-  # own commit and finishes that release, and a later push bumps from it.
-  api-version:
-    name: Resolve and tag the API version
-    needs: validate
-    runs-on: ubuntu-26.04
-    permissions:
-      contents: write
-    outputs:
-      tag: ${{ steps.resolve.outputs.tag }}
-      version: ${{ steps.resolve.outputs.version }}
-      previous: ${{ steps.resolve.outputs.previous }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: cli/go.mod
-          cache-dependency-path: cli/go.sum
-      - run: go install github.com/caarlos0/svu/v3@v3.4.1
-
-      # The first release is v0.1.0, keyed on the absent tag as the CLI's is.
-      # A lightweight tag needs no git identity, and svu reads it.
-      - name: Resolve the next version
-        id: resolve
         run: |
-          previous=$(git tag --list 'v*' --no-contains HEAD --sort=-version:refname | head -1)
-          echo "previous=${previous}" >>"$GITHUB_OUTPUT"
-          next=$(git tag --list 'v*' --points-at HEAD --sort=-version:refname | head -1)
-          if [ -n "$next" ]; then
-            echo "${next} already tags ${GITHUB_SHA}, so this run finishes its release"
-          else
-            tip=$(git ls-remote origin refs/heads/main | cut -f1)
-            if [ "$tip" != "$GITHUB_SHA" ]; then
-              echo "main is at ${tip}, past ${GITHUB_SHA}; the run for ${tip} releases these commits"
-              exit 0
-            fi
-            if [ -z "$previous" ]; then
-              next='v0.1.0'
-            else
-              read -ra paths <<<"$API_PATHS"
-              directories=()
-              for path in "${paths[@]}"; do
-                directories+=(--log.directory "$path")
-              done
-              next=$(svu next --tag.pattern 'v*' --tag.prefix v "${directories[@]}" --v0)
-              if [ "$next" = "$previous" ]; then
-                echo "No releasable commits under ${API_PATHS} since ${previous}"
-                exit 0
-              fi
-            fi
-            git tag "$next" "$GITHUB_SHA"
-            git push origin "refs/tags/${next}"
-          fi
-          echo "Releasing ${next} (previous: ${previous:-none})"
-          echo "tag=${next}" >>"$GITHUB_OUTPUT"
-          echo "version=${next#v}" >>"$GITHUB_OUTPUT"
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" \
+            --notes-file release-notes.md --latest
 
   api-publish:
     name: Publish the API image and its manifests
-    needs: api-version
-    if: needs.api-version.outputs.version != ''
+    needs: versions
+    if: needs.versions.outputs.api-tag != ''
     runs-on: ubuntu-26.04
     # A stalled download fails the job here rather than at Actions' six-hour default.
     timeout-minutes: 30
@@ -280,9 +242,9 @@ jobs:
       id-token: write
     outputs:
       image: ${{ steps.image.outputs.ref }}
-      manifests: ${{ steps.manifests.outputs.manifests }}
+      manifests: ${{ steps.manifests.outputs.ref }}
     env:
-      VERSION: ${{ needs.api-version.outputs.version }}
+      VERSION: ${{ needs.versions.outputs.api-version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -299,11 +261,13 @@ jobs:
       # A version already on ghcr is never rebuilt, so one tag names one image,
       # and :latest moves only to the newest version. Only "not found" builds:
       # any other error fails the step, so a transient one never republishes a
-      # version under a new digest.
+      # version under a new digest. The pattern names the full ref, because a
+      # bare `v*` also matches the tail of refs/tags/cli/v0.1.0.
       - name: Decide what to publish
         id: publish
         run: |
-          newest=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/v||' | sort -V | tail -n 1)
+          newest=$(git ls-remote --tags --refs origin 'refs/tags/v*' | sed 's|.*refs/tags/v||' | sort -V | tail -n 1)
+          [ -n "$newest" ] || { echo "origin lists no v* tag, though this run tagged v$VERSION" >&2; exit 1; }
           if [ "$newest" = "$VERSION" ]; then
             echo "latest=true" >>"$GITHUB_OUTPUT"
           else
@@ -333,8 +297,8 @@ jobs:
             type=sha,format=short
             type=raw,value=latest,enable=${{ steps.publish.outputs.latest == 'true' }}
 
-      # linux/amd64 alone. The provenance and SBOM attestations ride in the
-      # image's index, so the digest a manifest pins carries them.
+      # The provenance and SBOM attestations ride in the image's index, so the
+      # digest a manifest pins carries them.
       - name: Build and push
         if: steps.publish.outputs.build == 'true'
         id: build
@@ -360,60 +324,30 @@ jobs:
           if [ -z "$pinned" ]; then
             pinned=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
           fi
+          [[ $pinned == sha256:* ]] || { echo "no digest for $IMAGE:$VERSION: '$pinned'" >&2; exit 1; }
           echo "ref=$IMAGE@$pinned" >>"$GITHUB_OUTPUT"
           echo "Image \`$IMAGE@$pinned\`" >>"$GITHUB_STEP_SUMMARY"
 
-      # Each is pinned by version and by the SHA-256 its release publishes for
-      # the linux asset. A bump edits both.
       - name: Install flux, kustomize and cosign
-        env:
-          FLUX_VERSION: 2.9.6
-          FLUX_SHA256: b4d22673e9246cbd628881f1a9ef3b090085dced291e42d804555cee8e8d42c5
-          KUSTOMIZE_VERSION: 5.8.3
-          KUSTOMIZE_SHA256: cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61
-          COSIGN_VERSION: 3.1.4
-          COSIGN_SHA256: 424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa
         run: |
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/flux.tar.gz" \
-            "https://github.com/fluxcd/flux2/releases/download/v$FLUX_VERSION/flux_${FLUX_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/kustomize.tar.gz" \
-            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv$KUSTOMIZE_VERSION/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/cosign" \
-            "https://github.com/sigstore/cosign/releases/download/v$COSIGN_VERSION/cosign-linux-amd64"
-          printf '%s  %s\n' \
-            "$FLUX_SHA256" "$RUNNER_TEMP/flux.tar.gz" \
-            "$KUSTOMIZE_SHA256" "$RUNNER_TEMP/kustomize.tar.gz" \
-            "$COSIGN_SHA256" "$RUNNER_TEMP/cosign" |
-            sha256sum -c --quiet -
-          mkdir -p "$RUNNER_TEMP/bin"
-          tar -xzf "$RUNNER_TEMP/flux.tar.gz" -C "$RUNNER_TEMP/bin" flux
-          tar -xzf "$RUNNER_TEMP/kustomize.tar.gz" -C "$RUNNER_TEMP/bin" kustomize
-          install -m 0755 "$RUNNER_TEMP/cosign" "$RUNNER_TEMP/bin/cosign"
+          release/install-tools "$RUNNER_TEMP/bin" flux kustomize cosign
           echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
 
-      # A copy of deploy/ with the digest and the version written into both
-      # paths, pushed as manifests:<version>. --reproducible makes a re-run
-      # send the same bytes for the same digest. The source and revision travel
-      # in the artifact, and Flux reports them beside what it applied.
+      # Pushed as manifests:<version>. --reproducible makes a re-run send the
+      # same bytes for the same digest. The source and revision travel in the
+      # artifact, and Flux reports them beside what it applied.
       - name: Push the manifests
         id: manifests
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
         run: |
-          work=$(mktemp -d)
-          cp -R deploy/. "$work/"
-          for path in app migrate; do
-            (
-              cd "$work/$path"
-              kustomize edit set image "slate=$IMAGE_REF"
-              kustomize edit add label --without-selector --include-templates "app.kubernetes.io/version:$VERSION"
-            )
-            kustomize build "$work/$path" >/dev/null
-          done
+          work=$RUNNER_TEMP/manifests
+          release/pin-manifests --image "$IMAGE_REF" --version "$VERSION" --out "$work"
           pushed=$(flux push artifact "oci://$MANIFESTS:$VERSION" --path="$work" \
             --source="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --revision="$VERSION@sha1:$GITHUB_SHA" \
             --reproducible --output=json | jq -r .digest)
-          echo "manifests=$MANIFESTS@$pushed" >>"$GITHUB_OUTPUT"
+          [[ $pushed == sha256:* ]] || { echo "flux push named no digest: '$pushed'" >&2; exit 1; }
+          echo "ref=$MANIFESTS@$pushed" >>"$GITHUB_OUTPUT"
           echo "Manifests \`$MANIFESTS:$VERSION\` as \`$MANIFESTS@$pushed\`" >>"$GITHUB_STEP_SUMMARY"
 
       # Keyless, so the signing certificate names this workflow on this ref and
@@ -424,7 +358,7 @@ jobs:
       - name: Sign the image and the manifests
         env:
           IMAGE_REF: ${{ steps.image.outputs.ref }}
-          MANIFESTS_REF: ${{ steps.manifests.outputs.manifests }}
+          MANIFESTS_REF: ${{ steps.manifests.outputs.ref }}
         run: |
           cosign sign --yes "$IMAGE_REF"
           cosign sign --yes "$MANIFESTS_REF"
@@ -432,26 +366,31 @@ jobs:
             --certificate-oidc-issuer https://token.actions.githubusercontent.com \
             "$IMAGE_REF" "$MANIFESTS_REF" >/dev/null
 
+  # The release is the last thing published, so its existence is what marks
+  # the version finished. release/resolve-version reads it.
   api-release:
     name: Publish the API release
-    needs: [api-version, api-publish]
+    needs: [versions, api-publish]
     runs-on: ubuntu-26.04
     permissions:
       contents: write
+    env:
+      TAG: ${{ needs.versions.outputs.api-tag }}
+      PREVIOUS: ${{ needs.versions.outputs.api-previous }}
+      PATHS: ${{ needs.versions.outputs.api-paths }}
+      IMAGE_REF: ${{ needs.api-publish.outputs.image }}
+      MANIFESTS_REF: ${{ needs.api-publish.outputs.manifests }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Build release notes
-        env:
-          TAG: ${{ needs.api-version.outputs.tag }}
-          PREVIOUS: ${{ needs.api-version.outputs.previous }}
-          IMAGE_REF: ${{ needs.api-publish.outputs.image }}
-          MANIFESTS_REF: ${{ needs.api-publish.outputs.manifests }}
         run: |
           range="${PREVIOUS:+${PREVIOUS}..}${TAG}"
-          read -ra paths <<<"$API_PATHS"
+          read -ra paths <<<"$PATHS"
           {
             echo '## Changes'
             echo
@@ -476,10 +415,8 @@ jobs:
           } >release-notes.md
           cat release-notes.md
 
-      # The tag already exists, so this creates only the release. It never
-      # takes Latest from the CLI's.
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          tag_name: ${{ needs.api-version.outputs.tag }}
-          body_path: release-notes.md
-          make_latest: false
+      # The tag already exists. It never takes Latest from the CLI's.
+      - name: Publish the release
+        run: |
+          gh release create "$TAG" --verify-tag --title "$TAG" \
+            --notes-file release-notes.md --latest=false

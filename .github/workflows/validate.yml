@@ -344,41 +344,22 @@ jobs:
   deploy-manifests:
     name: Kubernetes manifests
     runs-on: ubuntu-26.04
+    # A named bash runs with pipefail.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
-      # Each is pinned by version and by the SHA-256 of its linux asset.
-      # kube-linter publishes no checksum file, so its pin is the digest its
-      # release's sigstore bundle signs, which Rekor logged.
       - name: Install kustomize, kubeconform and kube-linter
-        env:
-          KUSTOMIZE_VERSION: 5.8.3
-          KUSTOMIZE_SHA256: cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61
-          KUBECONFORM_VERSION: 0.8.0
-          KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
-          KUBE_LINTER_VERSION: 0.8.3
-          KUBE_LINTER_SHA256: 618d299a3e2839c8ca9d86fce0db617be0fba41f0fecbbbfb7fbf1c04299fae1
         run: |
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/kustomize.tar.gz" \
-            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv$KUSTOMIZE_VERSION/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/kubeconform.tar.gz" \
-            "https://github.com/yannh/kubeconform/releases/download/v$KUBECONFORM_VERSION/kubeconform-linux-amd64.tar.gz"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/kube-linter" \
-            "https://github.com/stackrox/kube-linter/releases/download/v$KUBE_LINTER_VERSION/kube-linter-linux"
-          printf '%s  %s\n' \
-            "$KUSTOMIZE_SHA256" "$RUNNER_TEMP/kustomize.tar.gz" \
-            "$KUBECONFORM_SHA256" "$RUNNER_TEMP/kubeconform.tar.gz" \
-            "$KUBE_LINTER_SHA256" "$RUNNER_TEMP/kube-linter" |
-            sha256sum -c --quiet -
-          mkdir -p "$RUNNER_TEMP/bin"
-          tar -xzf "$RUNNER_TEMP/kustomize.tar.gz" -C "$RUNNER_TEMP/bin" kustomize
-          tar -xzf "$RUNNER_TEMP/kubeconform.tar.gz" -C "$RUNNER_TEMP/bin" kubeconform
-          install -m 0755 "$RUNNER_TEMP/kube-linter" "$RUNNER_TEMP/bin/kube-linter"
+          release/install-tools "$RUNNER_TEMP/bin" kustomize kubeconform kube-linter
           echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
 
-      # Each path is rendered as the release renders it, with the image named
-      # by a digest of zeros. kube-linter refuses an image with no tag or
-      # digest, which the committed base carries until the release pins it.
+      # release/pin-manifests pins and labels every path as the release does,
+      # with the image named by a digest of zeros. kube-linter refuses an image
+      # with no tag or digest, which the committed base carries until the
+      # release pins it.
       #
       # kubeconform -strict also refuses a field the schema does not know. Its
       # schemas are read at a fixed commit of kubeconform's own schema
@@ -390,16 +371,15 @@ jobs:
           SCHEMAS: https://raw.githubusercontent.com/yannh/kubernetes-json-schema/f7d855e49c34b039c9ef2196444910275e31e09e
         run: |
           zeros=$(printf '0%.0s' {1..64})
+          release/pin-manifests --image "ghcr.io/$GITHUB_REPOSITORY@sha256:$zeros" --version 0.0.0 \
+            --out "$RUNNER_TEMP/manifests" >"$RUNNER_TEMP/paths"
           status=0
-          for path in deploy/*/; do
-            work=$(mktemp -d)
-            cp -R "$path." "$work/"
-            (cd "$work" && kustomize edit set image "slate=ghcr.io/$GITHUB_REPOSITORY@sha256:$zeros")
-            echo "::group::$path"
-            kustomize build "$work" >"$work/rendered.yaml"
+          while IFS= read -r path; do
+            echo "::group::${path#"$RUNNER_TEMP"/manifests/}"
+            kustomize build "$path" >"$RUNNER_TEMP/rendered.yaml"
             kubeconform -strict -summary -kubernetes-version "$KUBERNETES_VERSION" \
-              -schema-location "$SCHEMAS" "$work/rendered.yaml" || status=1
-            kube-linter lint "$work/rendered.yaml" || status=1
+              -schema-location "$SCHEMAS" "$RUNNER_TEMP/rendered.yaml" || status=1
+            kube-linter lint "$RUNNER_TEMP/rendered.yaml" || status=1
             echo "::endgroup::"
-          done
+          done <"$RUNNER_TEMP/paths"
           exit "$status"

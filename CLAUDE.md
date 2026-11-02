@@ -18,6 +18,8 @@ it and its settings. `docs/index.md` lists the design pages, and
 - `tests/` — pytest, against a Postgres it starts itself
 - `deploy/` — the kustomize base each API release publishes, `migrate/`
   applied before `app/`
+- `release/` — the scripts `release.yml` and `validate.yml` run: each
+  stream's version, the pinned tool installs, and the pinned copy of `deploy/`
 
 ## Commands
 
@@ -103,18 +105,22 @@ A client's 4xx logs at warning and only a 5xx at error.
 
 ## Releases are two tag streams, each moved by its own paths
 
-`release.yml` versions both with svu, from conventional commits. A `chore:`
-or `docs:` commit releases nothing.
+`release/resolve-version` versions both with svu, from conventional commits.
+A `chore:` or `docs:` commit releases nothing.
 
 - **`cli/vX.Y.Z` moves on commits touching `cli/`.** `slate update` reads only
   that prefix.
-- **`vX.Y.Z` moves on commits touching `API_PATHS`** in `release.yml`.
-  A file the Dockerfile starts copying joins that list, or a change to it
-  alone releases nothing.
+- **`vX.Y.Z` moves on commits touching what the image is built from**:
+  `.dockerignore`'s allowlist, the Dockerfile, `.dockerignore` and `deploy/`.
+  The release reads the allowlist, so a file the image starts copying is
+  admitted there and nowhere else.
 - **The API's tag is pushed before its image**, so a re-run finds the tag on
   its own commit and finishes that release rather than cutting another.
+- **A tag with no published GitHub release stops the stream.** The next run
+  refuses to bump past it and names the run to re-run.
 - **A new setting is an environment variable**, listed in README's table and
   supplied through `slate-settings`. A value written into `deploy/` would be
   the same in every cluster that applies it.
 - **`deploy-manifests` in `validate.yml`** renders each path under `deploy/`
-  and runs kubeconform and kube-linter on it, as the release's gate.
+  through `release/pin-manifests`, as the release does, and runs kubeconform
+  and kube-linter on it, as the release's gate.
