@@ -45,6 +45,7 @@ def read_totals(
         name_record(named_worklog.record_number)
         name_worklog(named_worklog)
     named_record = resolve_record(session, record) if record is not None else None
-    if named_record is not None:
+    # A worklog narrows further than a record, so its record is the one named.
+    if named_record is not None and named_worklog is None:
         name_record(named_record.number)
     return work_totals(session, dt.datetime.now(dt.UTC), window, record=named_record, worklog=named_worklog, repo=repo)

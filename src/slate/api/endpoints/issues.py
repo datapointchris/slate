@@ -285,10 +285,16 @@ def read_many(
     if type is not None:
         validate_lookup(session, models.IssueType, type, 'issue type')
         query = query.where(models.Issue.type == type)
+    narrowed_to: models.Initiative | models.Issue | None = None
     if initiative is not None:
-        query = query.where(models.Issue.initiative_id == resolve_initiative(session, initiative).id)
+        narrowed_to = resolve_initiative(session, initiative)
+        query = query.where(models.Issue.initiative_id == narrowed_to.id)
     if parent is not None:
-        query = query.where(models.Issue.parent_id == resolve_issue(session, parent).id)
+        # A parent narrows further than an initiative, so it is the record named.
+        narrowed_to = resolve_issue(session, parent)
+        query = query.where(models.Issue.parent_id == narrowed_to.id)
+    if narrowed_to is not None:
+        name_record(narrowed_to.number)
     if priority is not None:
         query = query.where(models.Issue.priority == priority)
     if closed_by:
