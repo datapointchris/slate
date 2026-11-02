@@ -31,13 +31,16 @@ from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
+from slate.tracing.named_work import name_record
 
 logger = structlog.get_logger()
 router = APIRouter()
 
 
 def path_idea(id: str, session: DbSession) -> models.Idea:
-    return resolve_idea(session, id)
+    idea = resolve_idea(session, id)
+    name_record(idea.number)
+    return idea
 
 
 IdeaFromPath = Annotated[models.Idea, Depends(path_idea)]
@@ -57,6 +60,7 @@ def create(idea: schemas.IdeaCreate, session: DbSession, effects: Effects):
     db_obj = models.Idea(title=idea.title, description=idea.description, priority=idea.priority)
     session.add(db_obj)
     session.flush()
+    name_record(db_obj.number)
     warn_likely_duplicates(session, db_obj.number, db_obj.title, None, effects)
     session.commit()
     session.refresh(db_obj)

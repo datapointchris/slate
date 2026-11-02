@@ -44,6 +44,7 @@ from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffects
+from slate.tracing.named_work import name_record
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -61,7 +62,9 @@ def path_initiative(id: str, session: DbSession) -> models.Initiative:
     A name `ROUTED_NAMES` holds is refused, because a route reaches its path
     first.
     """
-    return resolve_initiative(session, id)
+    initiative = resolve_initiative(session, id)
+    name_record(initiative.number)
+    return initiative
 
 
 InitiativeFromPath = Annotated[models.Initiative, Depends(path_initiative)]
@@ -117,6 +120,7 @@ def read_many(
 def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Effects):
     """Create an initiative last in the queue, warning about each open record whose title reads like its name."""
     db_obj = new_initiative(session, initiative)
+    name_record(db_obj.number)
     warn_likely_duplicates(session, db_obj.number, db_obj.name, None, effects)
     session.commit()
     session.refresh(db_obj)
@@ -153,6 +157,8 @@ def read_progress(
     if initiative:
         initiatives = [resolve_initiative(session, ref) for ref in initiative]
         initiatives = initiatives if limit is None else initiatives[:limit]
+        if len(initiatives) == 1:
+            name_record(initiatives[0].number)
     else:
         active = select(models.Initiative).where(models.Initiative.status == 'active').order_by(*work_order())
         initiatives = list(session.scalars(apply_row_limit(active, limit)).all())

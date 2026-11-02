@@ -45,6 +45,9 @@ from slate.services.worklogs import resolve_worklog
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
+from slate.tracing.named_work import name_agent_session
+from slate.tracing.named_work import name_record
+from slate.tracing.named_work import name_worklog
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -53,7 +56,10 @@ WorklogStateFilter = Literal['live', 'expired', 'ended', 'all']
 
 
 def path_worklog(name: str, session: DbSession) -> models.Worklog:
-    return resolve_worklog(session, name)
+    worklog = resolve_worklog(session, name)
+    name_record(worklog.record_number)
+    name_worklog(worklog)
+    return worklog
 
 
 WorklogFromPath = Annotated[models.Worklog, Depends(path_worklog)]
@@ -106,8 +112,11 @@ def read_many(
         .order_by(models.Worklog.started_ts.desc(), models.Worklog.id.desc())
     )
     if record is not None:
-        query = query.where(models.Worklog.record_number == resolve_record(session, record).number)
+        number = resolve_record(session, record).number
+        name_record(number)
+        query = query.where(models.Worklog.record_number == number)
     if agent_session is not None:
+        name_agent_session(agent_session)
         query = query.where(
             models.Worklog.id.in_(select(models.WorklogSpan.worklog_id).where(models.WorklogSpan.session_id == agent_session))
         )
@@ -127,9 +136,14 @@ def read_current(session: DbSession, agent_session: Annotated[str, Query(alias='
     A commit hook stamps the commit with this worklog's name. A worklog whose claim ran out or ended
     is not live, so it answers null too.
     """
+    name_agent_session(agent_session)
     now = dt.datetime.now(dt.UTC)
     worklog = current_worklog(session, agent_session, now)
-    return worklog_views(session, [worklog], now)[0] if worklog is not None else None
+    if worklog is None:
+        return None
+    name_record(worklog.record_number)
+    name_worklog(worklog)
+    return worklog_views(session, [worklog], now)[0]
 
 
 @router.get('/{name}', response_model=schemas.Worklog, status_code=status.HTTP_200_OK)
@@ -147,6 +161,8 @@ def start(request: schemas.WorklogStart, session: DbSession, caller: CurrentCall
     """
     refuse_acting_for_another(caller, request.opened_by, Refusal.SCOPED_CLIENT_WRITES_WORKLOGS_AS_ITSELF)
     record = resolve_record(session, request.record)
+    name_record(record.number)
+    name_agent_session(request.session)
     now = dt.datetime.now(dt.UTC)
     unended = session.scalars(
         select(models.Worklog).where(models.Worklog.record_number == record.number, models.Worklog.ended_ts.is_(None))
@@ -159,6 +175,7 @@ def start(request: schemas.WorklogStart, session: DbSession, caller: CurrentCall
             record.number,
         )
     worklog = open_worklog(session, record.number, request.opened_by, now, workflow=request.workflow)
+    name_worklog(worklog)
     if request.session is not None:
         join(session, worklog, request.session, request.host, request.directory, now, effects)
     return written(session, worklog, now, effects)
@@ -172,6 +189,7 @@ def join_worklog(worklog: WorklogFromPath, request: schemas.WorklogJoin, session
     or its claim ran out or ended.
     """
     refuse_anothers_worklog(caller, worklog)
+    name_agent_session(request.session)
     now = dt.datetime.now(dt.UTC)
     refuse_joining_unless_live(worklog, now, effects)
     join(session, worklog, request.session, request.host, request.directory, now, effects)

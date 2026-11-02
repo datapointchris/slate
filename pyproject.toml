@@ -1,6 +1,7 @@
 [project]
 name = "slate"
-# Not a released version. The deployed artifact is the image, named by its tag, and nothing reads this field.
+# The source tree's version, never a release. The image build stamps the release it builds here,
+# and the API reads it from the installed package as service.version.
 version = "0.0.0"
 description = "Work tracker built for coding agents: the API and its Postgres schema."
 authors = [{ name = "Chris Birch", email = "chrisbirch@fastmail.com" }]
@@ -12,6 +13,12 @@ dependencies = [
   "fastapi>=0.111.0",
   # httpx's successor rather than a typosquat of it: same author, developed at pydantic/httpx2 under BSD-3.
   "httpx2>=2.13.0",
+  # OTLP over HTTP with protobuf, the spec's default protocol, which needs no grpc.
+  "opentelemetry-exporter-otlp-proto-http>=1.45.2",
+  "opentelemetry-instrumentation-fastapi>=0.66b2",
+  "opentelemetry-instrumentation-psycopg>=0.66b2",
+  "opentelemetry-processor-baggage>=0.66b2",
+  "opentelemetry-sdk>=1.45.2",
   # [binary] carries its own libpq, so the image installs no system Postgres packages.
   "psycopg[binary]>=3.1.19",
   "pydantic>=2.7.1",

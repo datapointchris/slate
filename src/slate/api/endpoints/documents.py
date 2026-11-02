@@ -32,6 +32,8 @@ from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
+from slate.tracing.named_work import name_agent_session
+from slate.tracing.named_work import name_record
 
 router = APIRouter()
 
@@ -57,7 +59,9 @@ def read_many(
         .order_by(latest.c.written_ts.desc(), models.Document.id.desc())
     )
     if record is not None:
-        query = query.where(models.Document.record_number == resolve_record(session, record).number)
+        number = resolve_record(session, record).number
+        name_record(number)
+        query = query.where(models.Document.record_number == number)
     return document_summaries(session, session.scalars(apply_row_limit(query, limit)).all())
 
 
@@ -73,7 +77,9 @@ def read_one(
     A line comment written on another version sits on the line its own became here, or on no line
     when this version changed or removed it.
     """
-    document = resolve_document(session, resolve_record(session, record).number, name)
+    number = resolve_record(session, record).number
+    name_record(number)
+    document = resolve_document(session, number, name)
     return document_view(session, document, resolve_version(document, version))
 
 
@@ -94,6 +100,8 @@ def write(
     warns. Naming a kind other than the document's is a 409.
     """
     number = resolve_record(session, record).number
+    name_record(number)
+    name_agent_session(request.session)
     document, created = write_version(session, number, name, request, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
     session.commit()
     if created:

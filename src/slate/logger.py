@@ -2,6 +2,9 @@
 
 `LOG_FORMAT` is `json` (the default, one object per line) or `console` for reading in a terminal.
 `LOG_LEVEL` is a stdlib level name and defaults to `INFO`.
+
+A line written under a span carries `trace_id`, `span_id` and `trace_flags`, the fields an
+OpenTelemetry Collector's filelog receiver reads a line's trace from.
 """
 
 import functools
@@ -10,9 +13,14 @@ import os
 import sys
 
 import structlog
+from opentelemetry import trace
+from opentelemetry.trace import format_span_id
+from opentelemetry.trace import format_trace_id
 from structlog.processors import CallsiteParameter
 from structlog.processors import CallsiteParameterAdder
+from structlog.typing import EventDict
 from structlog.typing import Processor
+from structlog.typing import WrappedLogger
 
 QUIET_LIBRARIES = {
     'httpcore': logging.INFO,
@@ -21,12 +29,22 @@ QUIET_LIBRARIES = {
 }
 
 
+def add_trace_context(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
+    context = trace.get_current_span().get_span_context()
+    if context.is_valid:
+        event_dict['trace_id'] = format_trace_id(context.trace_id)
+        event_dict['span_id'] = format_span_id(context.span_id)
+        event_dict['trace_flags'] = f'{context.trace_flags:02x}'
+    return event_dict
+
+
 @functools.cache
 def initialize_logging() -> None:
     log_format = os.environ.get('LOG_FORMAT') or 'json'
     log_level = os.environ.get('LOG_LEVEL') or 'INFO'
     shared_processors: list[Processor] = [
         structlog.contextvars.merge_contextvars,
+        add_trace_context,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt='iso', utc=True),
         CallsiteParameterAdder({CallsiteParameter.FILENAME, CallsiteParameter.FUNC_NAME, CallsiteParameter.LINENO}),

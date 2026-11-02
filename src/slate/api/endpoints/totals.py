@@ -17,6 +17,8 @@ from slate.api.time_window import TimeWindowQuery
 from slate.services.record_refs import resolve_record
 from slate.services.work_totals import work_totals
 from slate.services.worklogs import resolve_worklog
+from slate.tracing.named_work import name_record
+from slate.tracing.named_work import name_worklog
 
 router = APIRouter()
 
@@ -38,11 +40,12 @@ def read_totals(
     they narrow together. Naming none reaches every worklog, and every message no worklog held. The
     window narrows each figure to what happened inside it.
     """
-    return work_totals(
-        session,
-        dt.datetime.now(dt.UTC),
-        window,
-        record=resolve_record(session, record) if record is not None else None,
-        worklog=resolve_worklog(session, worklog) if worklog is not None else None,
-        repo=repo,
-    )
+    named_worklog = resolve_worklog(session, worklog) if worklog is not None else None
+    if named_worklog is not None:
+        name_record(named_worklog.record_number)
+        name_worklog(named_worklog)
+    named_record = resolve_record(session, record) if record is not None else None
+    # A worklog narrows further than a record, so its record is the one named.
+    if named_record is not None and named_worklog is None:
+        name_record(named_record.number)
+    return work_totals(session, dt.datetime.now(dt.UTC), window, record=named_record, worklog=named_worklog, repo=repo)

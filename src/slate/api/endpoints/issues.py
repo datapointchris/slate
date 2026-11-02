@@ -52,6 +52,7 @@ from slate.services.vocabulary import validate_lookup
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
+from slate.tracing.named_work import name_record
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -66,7 +67,9 @@ CREATE_STATUSES = ('triage', 'open')
 
 def path_issue(id: str, session: DbSession) -> models.Issue:
     """Resolve the `{id}` segment, which is a UUID or an issue number."""
-    return resolve_issue(session, id)
+    issue = resolve_issue(session, id)
+    name_record(issue.number)
+    return issue
 
 
 IssueFromPath = Annotated[models.Issue, Depends(path_issue)]
@@ -282,10 +285,16 @@ def read_many(
     if type is not None:
         validate_lookup(session, models.IssueType, type, 'issue type')
         query = query.where(models.Issue.type == type)
+    narrowed_to: models.Initiative | models.Issue | None = None
     if initiative is not None:
-        query = query.where(models.Issue.initiative_id == resolve_initiative(session, initiative).id)
+        narrowed_to = resolve_initiative(session, initiative)
+        query = query.where(models.Issue.initiative_id == narrowed_to.id)
     if parent is not None:
-        query = query.where(models.Issue.parent_id == resolve_issue(session, parent).id)
+        # A parent narrows further than an initiative, so it is the record named.
+        narrowed_to = resolve_issue(session, parent)
+        query = query.where(models.Issue.parent_id == narrowed_to.id)
+    if narrowed_to is not None:
+        name_record(narrowed_to.number)
     if priority is not None:
         query = query.where(models.Issue.priority == priority)
     if closed_by:
@@ -355,6 +364,7 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
     session.add(db_issue)
     set_labels(session, db_issue, issue.labels)
     session.flush()
+    name_record(db_issue.number)
     # Only through the parent can a brand-new issue close a cycle: depending on
     # its own parent, or on anything that waits on that parent.
     for blocker in depends_on:
@@ -517,6 +527,7 @@ def add_dependency(
 
 
 def path_dependency(dep_id: str, session: DbSession) -> models.Issue:
+    """The issue depended on, which the span leaves unnamed: the route is about the issue in `{id}`."""
     return resolve_issue(session, dep_id)
 
 

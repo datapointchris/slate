@@ -12,13 +12,17 @@ from zoneinfo import ZoneInfo
 
 import structlog
 from fastapi import Depends
+from opentelemetry import trace
 
 from slate.api.request_zone import CALENDAR_FALLBACK_ZONE
 from slate.api.request_zone import RequestZone
 from slate.schemas.write_effects import WriteEffect
 from slate.schemas.write_effects import Written
+from slate.tracing.named_work import RECORD_NUMBER
 
 logger = structlog.get_logger()
+
+WRITE_EFFECT_CODE = 'slate.write_effect.code'
 
 
 class WriteEffectCode(enum.StrEnum):
@@ -130,6 +134,18 @@ class WriteEffects:
         self.warnings.extend(other.warnings)
 
     def answer[W: Written](self, schema: type[W], **written: object) -> W:
+        """The write's answer. Each side effect and warning also becomes an event on the request's span.
+
+        An event carries the effect's code and record, so a trace names every record a write changed
+        beside the one it was asked about. Its message stays off the span, since it quotes titles.
+        """
+        span = trace.get_current_span()
+        for event, effects in (('slate.write_side_effect', self.side_effects), ('slate.write_warning', self.warnings)):
+            for effect in effects:
+                attributes: dict[str, str | int] = {WRITE_EFFECT_CODE: effect.code}
+                if effect.record is not None:
+                    attributes[RECORD_NUMBER] = effect.record
+                span.add_event(event, attributes)
         return schema(side_effects=self.side_effects, warnings=self.warnings, **written)
 
 

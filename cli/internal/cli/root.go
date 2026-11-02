@@ -199,7 +199,7 @@ func Execute() int {
 // it and every 404 prints the API's status line again, which is what
 // TestA404FromTheRealTreeCarriesItsRecoveryHints catches.
 func run(root *cobra.Command, config autoupdate.Config) error {
-	return goclikit.Execute(context.Background(), root, config, goclikit.WithNotFound(notFound))
+	return goclikit.Execute(withParentTrace(context.Background()), root, config, goclikit.WithNotFound(notFound))
 }
 
 // exitCodeFor maps a command error to a process exit code: 0 success, 2 for a
