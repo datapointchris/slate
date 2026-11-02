@@ -33,22 +33,34 @@ func newShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "show <number>",
 		SuggestFor: []string{"get", "view", "record", "records"},
-		Short:      "Show the idea, initiative or issue holding a number",
+		Short:      "Show the idea, initiative, issue or worklog a number names",
 		Long: "Ideas, initiatives and issues share one number sequence, so a number names\n" +
-			"one record whatever its kind. It prints what that kind's own show prints:\n" +
-			"`slate show 412` and `slate issues show 412` read the same.",
-		Example: "  slate show 412\n  slate show '#1501' --json",
+			"one record whatever its kind. A worklog is named under its record's number,\n" +
+			"so 412.2 is the second worklog on #412. It prints what that kind's own show\n" +
+			"prints: `slate show 412` and `slate issues show 412` read the same.",
+		Example: "  slate show 412\n  slate show '#1501' --json\n  slate show 412.2",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
 			}
+			out, now := cmd.OutOrStdout(), time.Now()
+			if name := strings.TrimPrefix(args[0], "#"); isWorklogName(name) {
+				worklog, err := client.GetWorklog(cmd.Context(), name)
+				if err != nil {
+					return handleArgumentAPIError(err)
+				}
+				if asJSON {
+					return encodeJSON(out, recordShown{Kind: recordKindWorklog, Number: worklog.RecordNumber, Record: worklog})
+				}
+				printWorklogDetail(out, worklog, now)
+				return nil
+			}
 			record, err := client.GetRecord(cmd.Context(), args[0], issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			out, now := cmd.OutOrStdout(), time.Now()
 			shown := recordShown{Kind: record.Kind, Number: record.Number}
 			var print func()
 			switch {
@@ -74,7 +86,16 @@ func newShowCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the kind, the number and the record as JSON to stdout")
-	return goclikit.WithRecoveryHints(cmd, searchHint)
+	return goclikit.WithRecoveryHints(cmd, searchHint, worklogHints[0])
+}
+
+// recordKindWorklog is the kind `slate show --json` names for a worklog, which
+// is not a record but is named under one.
+const recordKindWorklog = "worklog"
+
+func isWorklogName(s string) bool {
+	number, seq, found := strings.Cut(s, ".")
+	return found && isItemNumber(number) && isItemNumber(seq)
 }
 
 func newSearchCommand() *cobra.Command {

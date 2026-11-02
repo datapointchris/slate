@@ -46,7 +46,8 @@ the read the kind's own route gives, with every claim the record has had:
 decodes `record` into the right shape before reading it. A number nobody
 holds answers 404. A number read through another kind's route answers 404
 naming the kind that holds it: `issue 1501 not found: #1501 is an initiative`.
-`slate show <number>` prints any record through its kind's own renderer.
+`slate show <number>` prints any record through its kind's own renderer, and
+`slate show <number>.<seq>` prints a worklog.
 
 ## A search reads every kind and every status
 

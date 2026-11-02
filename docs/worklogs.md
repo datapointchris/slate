@@ -9,7 +9,8 @@ serves it under `/api/v1/worklogs`.
 
 `1991.2` is the second go at record #1991. The sequence counts per record from
 one, so the name says what was worked and how many times before. The API takes
-the name wherever it takes a worklog: `GET /worklogs/1991.2`.
+the name wherever it takes a worklog: `GET /worklogs/1991.2`. `slate show
+1991.2` reads it as `slate show` reads any record.
 
 A worklog is a row of `worklogs` on a record number, like a claim. Its spans
 are rows of `worklog_spans`, and its links rows of `worklog_links`.
