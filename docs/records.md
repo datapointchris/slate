@@ -47,7 +47,10 @@ decodes `record` into the right shape before reading it. A number nobody
 holds answers 404. A number read through another kind's route answers 404
 naming the kind that holds it: `issue 1501 not found: #1501 is an initiative`.
 `slate show <number>` prints any record through its kind's own renderer, and
-`slate show <number>.<seq>` prints a worklog.
+its `--json` is this envelope. `slate show <number>.<seq>` prints a worklog. A
+worklog is not a record, so its `--json` is `{kind: "worklog", name, record}`,
+named by the name it is read back with, and `slate search --kind` does not
+take `worklog`.
 
 ## A search reads every kind and every status
 
@@ -56,7 +59,8 @@ holds every word, in any order. It reads every status, because the record a
 reader remembers may be the one that closed. Unclosed records come first, then
 the most urgent, then the newest. An idea has no status, so it sorts with the
 unclosed. `kind` narrows the list to one kind. `slate search <words>` prints
-it.
+it. `slate issues list --search <words>` asks `GET /issues?search=` instead,
+beside every issue filter.
 
 ## Every write answers what it wrote and what else it did
 

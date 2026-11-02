@@ -5,9 +5,9 @@ import (
 	"testing"
 )
 
-// An unknown flag that is a value of one of the command's flags names that
-// flag, and one asked for elsewhere names where, in place of the flag nearest
-// in spelling: `--api` is two edits from `--all`.
+// `slate issues list --all` names the flag `all` is a value of, and neither it
+// nor `slate next --all` is answered with `--api`, a flag for choosing the
+// server that is two edits from `--all`.
 func TestAnUnknownFlagNamesWhatItMeant(t *testing.T) {
 	for _, c := range []struct {
 		args []string
@@ -15,7 +15,7 @@ func TestAnUnknownFlagNamesWhatItMeant(t *testing.T) {
 	}{
 		{[]string{"issues", "list", "--all"}, "all is a value of --status: slate issues list --status all"},
 		{[]string{"initiatives", "list", "--someday"}, "slate initiatives list --status someday"},
-		{[]string{"issues", "list", "--search", "cache"}, "slate search <words>"},
+		{[]string{"next", "--all"}, "unknown flag: --all"},
 	} {
 		err := runLine(t, c.args...)
 		if err == nil || !strings.Contains(err.Error(), c.want) || strings.Contains(err.Error(), "--api") {

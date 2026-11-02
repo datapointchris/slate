@@ -23,6 +23,18 @@ var issueHints = []string{
 	"Completed and canceled issues are hidden: slate issues list --status all",
 }
 
+// joinedHints is the hints of a command that reads more than one kind, each
+// line once, because every kind's list opens with anyRecordHint.
+func joinedHints(lists ...[]string) []string {
+	var joined []string
+	for _, hint := range slices.Concat(lists...) {
+		if !slices.Contains(joined, hint) {
+			joined = append(joined, hint)
+		}
+	}
+	return joined
+}
+
 const (
 	issueGroupRead      = "read"
 	issueGroupFile      = "file"
@@ -78,8 +90,8 @@ func newIssuesCommand() *cobra.Command {
 		goclikit.WithRecoveryHints(newIssuesCommentsCommand(), issueHints...),
 	)
 	add(issueGroupFile,
-		goclikit.WithRecoveryHints(newIssuesCreateCommand(), append(slices.Clone(issueHints), initiativeHints...)...),
-		goclikit.WithRecoveryHints(newIssuesEditCommand(), append(slices.Clone(issueHints), initiativeHints...)...),
+		goclikit.WithRecoveryHints(newIssuesCreateCommand(), joinedHints(issueHints, initiativeHints)...),
+		goclikit.WithRecoveryHints(newIssuesEditCommand(), joinedHints(issueHints, initiativeHints)...),
 		goclikit.WithRecoveryHints(newIssuesAddCommentCommand(), issueHints...),
 		goclikit.WithRecoveryHints(newIssuesRemoveCommentCommand(), issueHints...),
 		goclikit.WithRecoveryHints(newIssuesDeleteCommand(), issueHints...),
@@ -108,6 +120,7 @@ type issueFilterFlags struct {
 	parent      string
 	priority    string
 	closedBy    string
+	search      string
 	blocked     bool
 	autofixable bool
 }
@@ -125,6 +138,7 @@ func (v *issueFilterFlags) register(cmd *cobra.Command) {
 	f.StringVar(&v.priority, "priority", "", "Only issues whose own priority is this: "+priorityChoices())
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	f.StringVar(&v.closedBy, "closed-by", "", "Only issues whose closer starts with this, such as claude-code/")
+	f.StringVar(&v.search, "search", "", "Only issues whose title or description holds every one of these words")
 	f.BoolVar(&v.blocked, "blocked", false, "Only issues waiting on an unclosed dependency (--blocked=false for the rest)")
 	f.BoolVar(&v.autofixable, "autofixable", false, autofixableFilterHelp)
 }
@@ -152,6 +166,7 @@ func (v *issueFilterFlags) filter(cmd *cobra.Command) (api.IssueFilter, error) {
 		Initiative: v.initiative,
 		Parent:     v.parent,
 		ClosedBy:   v.closedBy,
+		Search:     v.search,
 	}
 	if f.Changed("priority") {
 		priority, err := parsePriority(v.priority)
@@ -230,8 +245,9 @@ func newIssuesListCommand() *cobra.Command {
 		Use:   "list",
 		Short: "List issues, open work first in queue order",
 		Long: "Unclosed issues by default: triage and open. Completed and canceled ones\n" +
-			"accumulate without end, so --status asks for them. `slate search <words>`\n" +
-			"finds a record by its title or description, whatever its kind or status.\n" +
+			"accumulate without end, so --status asks for them. --search keeps the issues\n" +
+			"whose title or description holds every word, beside any other filter.\n" +
+			"`slate search <words>` finds a record of any kind.\n" +
 			"\n" +
 			"Open work comes first in the order `slate next` takes it, then closed work,\n" +
 			"latest first. The priority column is the one the queue sorts by, and a * marks\n" +
@@ -245,6 +261,7 @@ func newIssuesListCommand() *cobra.Command {
 			"every attended Claude Code session. docs/issues.md lists the kinds.",
 		Example: "  slate issues list\n" +
 			"  slate issues list --repo webapp\n" +
+			"  slate issues list --search routing --repo webapp --status all\n" +
 			"  slate issues list --type decision\n" +
 			"  slate issues list --status triage\n" +
 			"  slate issues list --blocked\n" +
@@ -288,7 +305,6 @@ func newIssuesListCommand() *cobra.Command {
 	addWindowFlags(cmd, "issues closed")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output issues as JSON to stdout")
 	addLimitFlag(cmd, &limit)
-	withFlagElsewhere(cmd, "search", searchHint)
 	return cmd
 }
 
