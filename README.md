@@ -67,13 +67,13 @@ Each API release pushes `deploy/` to
 by digest. It holds two kustomize paths:
 
 - `migrate/` runs `alembic upgrade head` as a Job.
-- `app/` runs the API as a Deployment behind the Service `slate-api`, on port
-  8000.
+- `app/` runs the API as a Deployment behind the Service `slate-api`.
 
 Apply `migrate/`, wait for its Job to complete, then apply `app/`. With Flux,
-that is one `OCIRepository` and two `Kustomization`s, the app's naming the
-migration's in `dependsOn`. The Job carries Flux's force annotation, so a new
-release replaces it. Applied without Flux, delete the finished Job first.
+that is one `OCIRepository` and two `Kustomization`s. The migration's sets
+`wait: true`, so it is Ready only once its Job completes, and the app's names
+it in `dependsOn`. The Job carries Flux's force annotation, so a new release
+replaces it. Applied without Flux, delete the finished Job first.
 
 The cluster supplies what the base leaves out:
 
@@ -83,8 +83,8 @@ The cluster supplies what the base leaves out:
   well as `/api/v1`, at the address `PUBLIC_URL` names.
 - Each NetworkPolicy the pods need to reach Postgres and the issuer.
 
-Both pods run as uid 10400 under the restricted Pod Security profile, on a
-read-only root filesystem.
+Both pods run as the image's own uid under the restricted Pod Security
+profile, on a read-only root filesystem.
 
 The release signs the image and the manifests with Sigstore, as this
 repository's release workflow on `main`. Check a version before applying it:
@@ -143,11 +143,11 @@ A push to `main` releases what its conventional commits earned, in two
 streams that move apart:
 
 - **The CLI, tagged `cli/vX.Y.Z`,** when a commit touched `cli/`. Its GitHub
-  release carries a `slate` binary for Linux and macOS on amd64 and arm64, and
-  `slate update` replaces a released binary with the newest.
+  release carries a `slate` archive per platform, and `slate update` replaces
+  a released binary with the newest.
 - **The API, tagged `vX.Y.Z`,** when a commit touched what the image is built
-  from or `deploy/`. It publishes `ghcr.io/datapointchris/slate:<version>`,
-  built for linux/amd64, and the manifests above.
+  from or `deploy/`. It publishes `ghcr.io/datapointchris/slate:<version>` and
+  the manifests above.
 
 Both stay on 0.x, so a breaking change bumps the minor version.
 
