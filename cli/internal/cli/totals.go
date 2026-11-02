@@ -42,7 +42,8 @@ func newTotalsCommand() *cobra.Command {
 			"  slate totals --since 7d\n" +
 			"  slate totals --repo slate --since 2026-10-26 --until 2026-11-02\n" +
 			"  slate totals 412.2 --json",
-		Args: cobra.MaximumNArgs(1),
+		Args:        cobra.MaximumNArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var filter api.TotalsFilter
 			if len(args) == 1 {
@@ -60,7 +61,7 @@ func newTotalsCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

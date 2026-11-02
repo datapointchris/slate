@@ -67,13 +67,14 @@ func newIdeasListCommand() *cobra.Command {
 		limit  int
 	)
 	cmd := &cobra.Command{
-		Use:     "list",
-		Short:   "List every idea, promoted or not, most urgent first",
-		Long:    "Priority none sorts after every level. INITIATIVE is the one an idea was promoted into.",
-		Example: "  slate ideas list\n  slate ideas list --json",
-		Args:    cobra.NoArgs,
+		Use:         "list",
+		Short:       "List every idea, promoted or not, most urgent first",
+		Long:        "Priority none sorts after every level. INITIATIVE is the one an idea was promoted into.",
+		Example:     "  slate ideas list\n  slate ideas list --json",
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -96,12 +97,13 @@ func newIdeasListCommand() *cobra.Command {
 func newIdeasShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <idea>",
-		Short:   "Show an idea with its evidence, its claims, and the initiative it became",
-		Example: "  slate ideas show 1860\n  slate ideas show 1860 --json",
-		Args:    cobra.ExactArgs(1),
+		Use:         "show <idea>",
+		Short:       "Show an idea with its evidence, its claims, and the initiative it became",
+		Example:     "  slate ideas show 1860\n  slate ideas show 1860 --json",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -128,10 +130,11 @@ func newIdeasCreateCommand() *cobra.Command {
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
-		Use:     "create --title <title> [flags]",
-		Short:   "Record an idea",
-		Example: "  slate ideas create --title \"Run review rounds on a schedule\" --priority high",
-		Args:    cobra.NoArgs,
+		Use:         "create --title <title> [flags]",
+		Short:       "Record an idea",
+		Example:     "  slate ideas create --title \"Run review rounds on a schedule\" --priority high",
+		Args:        cobra.NoArgs,
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if strings.TrimSpace(title) == "" {
 				return goclikit.UsageError(errors.New("--title is required"))
@@ -145,7 +148,7 @@ func newIdeasCreateCommand() *cobra.Command {
 				}
 				in.Priority = &value
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -171,11 +174,12 @@ func newIdeasEditCommand() *cobra.Command {
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
-		Use:     "edit <idea> [flags]",
-		Short:   "Change an idea's title, description or priority",
-		Long:    "Update only the fields whose flags you pass. --description \"\" clears it.",
-		Example: "  slate ideas edit 1860 --priority urgent",
-		Args:    cobra.ExactArgs(1),
+		Use:         "edit <idea> [flags]",
+		Short:       "Change an idea's title, description or priority",
+		Long:        "Update only the fields whose flags you pass. --description \"\" clears it.",
+		Example:     "  slate ideas edit 1860 --priority urgent",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			if readFlagIntent(f, "title") == flagClears {
@@ -196,7 +200,7 @@ func newIdeasEditCommand() *cobra.Command {
 			if in == (api.IdeaUpdateInput{}) && len(clear) == 0 {
 				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --title/--description/--priority"))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -232,7 +236,8 @@ func newIdeasLinkCommand() *cobra.Command {
 			"worker $" + actorWorkerEnv + " names, or user@host.",
 		Example: "  slate ideas link 1860 inbox:4102 inbox:4117\n" +
 			"  slate ideas link 1860 https://example.com/thread/9 --note \"Where it came up\"",
-		Args: cobra.MinimumNArgs(2),
+		Args:        cobra.MinimumNArgs(2),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(linkedBy) == "" {
 				return goclikit.UsageError(errors.New("--linked-by cannot be empty — a link names who made it"))
@@ -242,7 +247,7 @@ func newIdeasLinkCommand() *cobra.Command {
 				return goclikit.UsageError(fmt.Errorf("ref %d is blank — every ref names its evidence", i+1))
 			}
 			in := api.IdeaEvidenceInput{Refs: refs, Note: valuedStrFlag(cmd.Flags(), "note", &note), LinkedBy: &linkedBy}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -281,7 +286,8 @@ func newIdeasPromoteCommand() *cobra.Command {
 			"aside.",
 		Example: "  slate ideas promote 1860\n" +
 			"  slate ideas promote 1860 --name \"Scheduled review rounds\" --status someday",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			if f.Changed("status") && !slices.Contains(promoteStatuses, status) {
@@ -305,7 +311,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 			if f.Changed("autofix") {
 				in.Autofix = &autofix
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

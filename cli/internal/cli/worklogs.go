@@ -73,12 +73,13 @@ func newWorklogsListCommand() *cobra.Command {
 		Example: "  slate worklogs list\n" +
 			"  slate worklogs list --record 1991 --state all\n" +
 			"  slate worklogs list --session \"$CLAUDE_CODE_SESSION_ID\" --state all --json",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if filter.State != "" && !slices.Contains(api.WorklogStates, filter.State) {
 				return goclikit.UsageError(fmt.Errorf("unknown state %q — one of: %s", filter.State, strings.Join(api.WorklogStates, ", ")))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -105,12 +106,13 @@ func newWorklogsListCommand() *cobra.Command {
 func newWorklogsShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <worklog>",
-		Short:   "Show a worklog with its sessions' spans, links, claim and waits",
-		Example: "  slate worklogs show 1991.2\n  slate worklogs show 1991.2 --json",
-		Args:    cobra.ExactArgs(1),
+		Use:         "show <worklog>",
+		Short:       "Show a worklog with its sessions' spans, links, claim and waits",
+		Example:     "  slate worklogs show 1991.2\n  slate worklogs show 1991.2 --json",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -144,11 +146,12 @@ func newWorklogsCurrentCommand() *cobra.Command {
 		Example: "  slate worklogs current\n" +
 			"  name=$(slate worklogs current) && [ -n \"$name\" ] &&\n" +
 			"    git interpret-trailers --in-place --if-exists doNothing --trailer \"Worklog: $name\" \"$1\"",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			var worklog *api.Worklog
 			if strings.TrimSpace(session) != "" {
-				client, err := newAPIClient(cmd.Context())
+				client, err := newAPIClient(cmd)
 				if err != nil {
 					return handleAPIError(err)
 				}
@@ -189,7 +192,8 @@ func newWorklogsStartCommand() *cobra.Command {
 			"--opened-by " + narrowedActorHelp,
 		Example: "  slate worklogs start 1860\n" +
 			"  slate worklogs start 2072 --workflow design-first",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validWorkflow(workflow); err != nil {
 				return err
@@ -202,7 +206,7 @@ func newWorklogsStartCommand() *cobra.Command {
 			if workflow != "" {
 				in.Workflow = &workflow
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -234,13 +238,14 @@ func newWorklogsJoinCommand() *cobra.Command {
 			"opened, or one `start` opened. Holding or resuming a claim returns the session\n" +
 			"to that claim's worklog. Refused when the worklog ended, or its claim ran out\n" +
 			"or ended.",
-		Example: "  slate worklogs join 1991.2",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate worklogs join 1991.2",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(session) == "" {
 				return goclikit.UsageError(errors.New("--session is required outside Claude Code — a worklog is joined by a session"))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -282,7 +287,8 @@ func newWorklogsLinkCommand() *cobra.Command {
 			"    slate worklogs link \"$name\" --commit \"$(git rev-parse HEAD)\" >/dev/null\n" +
 			"  slate worklogs link 1991.2 --pr https://github.com/datapointchris/slate/pull/3\n" +
 			"  slate worklogs link 1991.2 --landed 4fca8f1 --repo slate",
-		Args: cobra.MaximumNArgs(1),
+		Args:        cobra.MaximumNArgs(1),
+		Annotations: scopesForService(scopeRecordsRead, scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			var named []string
@@ -312,7 +318,7 @@ func newWorklogsLinkCommand() *cobra.Command {
 				return err
 			}
 			in.LinkedBy = linkedBy
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -367,11 +373,12 @@ func newWorklogsEditCommand() *cobra.Command {
 		workflow string
 	)
 	cmd := &cobra.Command{
-		Use:     "edit <worklog> --workflow <workflow>",
-		Short:   "Set how a worklog's work was approached",
-		Long:    "--workflow \"\" clears it. The workflow is kept so later work can compare the approaches.",
-		Example: "  slate worklogs edit 1991.2 --workflow plan-first",
-		Args:    cobra.ExactArgs(1),
+		Use:         "edit <worklog> --workflow <workflow>",
+		Short:       "Set how a worklog's work was approached",
+		Long:        "--workflow \"\" clears it. The workflow is kept so later work can compare the approaches.",
+		Example:     "  slate worklogs edit 1991.2 --workflow plan-first",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("workflow") {
 				return goclikit.UsageError(errors.New("nothing to change — pass --workflow"))
@@ -379,7 +386,7 @@ func newWorklogsEditCommand() *cobra.Command {
 			if err := validWorkflow(workflow); err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -408,14 +415,15 @@ func newWorklogsFinishCommand() *cobra.Command {
 			"ended changes nothing and warns.\n" +
 			"\n" +
 			"--finished-by " + narrowedActorHelp,
-		Example: "  slate worklogs finish 1860.1",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate worklogs finish 1860.1",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			finishedBy, err := narrowedActor(cmd, "finished-by", finishedBy)
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

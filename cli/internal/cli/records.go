@@ -47,10 +47,11 @@ func newShowCommand() *cobra.Command {
 			"one record whatever its kind. A worklog is named under its record's number,\n" +
 			"so 412.2 is the second worklog on #412. It prints what that kind's own show\n" +
 			"prints: `slate show 412` and `slate issues show 412` read the same.",
-		Example: "  slate show 412\n  slate show '#1501' --json\n  slate show 412.2",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate show 412\n  slate show '#1501' --json\n  slate show 412.2",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -124,12 +125,13 @@ func newSearchCommand() *cobra.Command {
 			"closed. Unclosed records come first, then the most urgent, then the newest.",
 		Example: "  slate search rank renumber\n" +
 			"  slate search \"device login\" --kind issue --json",
-		Args: cobra.MinimumNArgs(1),
+		Args:        cobra.MinimumNArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("kind") && !slices.Contains(api.RecordKinds, kind) {
 				return goclikit.UsageError(fmt.Errorf("unknown kind %q — one of: %s", kind, strings.Join(api.RecordKinds, ", ")))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

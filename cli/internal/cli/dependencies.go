@@ -43,13 +43,14 @@ func newDependenciesAddCommand() *cobra.Command {
 		Short: "Record that an issue waits on another",
 		Long: "An edge that would leave an issue waiting on itself, through dependencies or\n" +
 			"a parent, is refused, and the refusal prints the path.",
-		Example: "  slate dependencies add 412 --depends-on 411",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate dependencies add 412 --depends-on 411",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if dependsOn == "" {
 				return goclikit.UsageError(errors.New("--depends-on is required"))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -77,13 +78,14 @@ func newDependenciesRemoveCommand() *cobra.Command {
 		Short: "Remove the edge between an issue and one it waits on",
 		Long: "Adding the edge back restores it, so this asks nothing first. The issue it\n" +
 			"leaves is printed with what it still waits on.",
-		Example: "  slate dependencies remove 412 --depends-on 411",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate dependencies remove 412 --depends-on 411",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if dependsOn == "" {
 				return goclikit.UsageError(errors.New("--depends-on is required"))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

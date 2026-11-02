@@ -141,7 +141,6 @@ func TestIssues_CompleteAndCancelSendWhoIsClosingInTheirPatch(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_SESSION_ID", "2c3201ae")
 	t.Setenv("CLAUDE_CODE_SESSION_ATTENDED", "1")
 	t.Setenv(actorWorkerEnv, "")
-	idp := serviceIDP(t)
 	verbs := [][]string{{"issues", "complete", "412"}, {"issues", "cancel", "412", "--reason", "superseded"}}
 	cases := []struct {
 		flags []string
@@ -164,7 +163,7 @@ func TestIssues_CompleteAndCancelSendWhoIsClosingInTheirPatch(t *testing.T) {
 					_, _ = w.Write([]byte(`{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b","number":412,"title":"t","status":"open"}`))
 				}))
 				t.Cleanup(api.Close)
-				asService(t, idp.URL, api.URL, serviceSecret)
+				handToken(t, api.URL, "handed-access-token")
 
 				if _, err := runService(t, args...); err != nil {
 					t.Fatalf("run: %v", err)

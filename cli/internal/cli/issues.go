@@ -268,7 +268,8 @@ func newIssuesListCommand() *cobra.Command {
 			"  slate issues list --status completed --since 2026-10-01 --json\n" +
 			"  slate issues list --status completed --since 7d\n" +
 			"  slate issues list --status completed --closed-by claude-code/",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filter, err := filters.filter(cmd)
 			if err != nil {
@@ -278,7 +279,7 @@ func newIssuesListCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -312,12 +313,13 @@ func newIssuesListCommand() *cobra.Command {
 func newIssuesShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <issue>",
-		Short:   "Show an issue with its edges, children, documents and comments",
-		Example: "  slate issues show 412\n  slate issues show 412 --json",
-		Args:    cobra.ExactArgs(1),
+		Use:         "show <issue>",
+		Short:       "Show an issue with its edges, children, documents and comments",
+		Example:     "  slate issues show 412\n  slate issues show 412 --json",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

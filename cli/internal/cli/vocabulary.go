@@ -20,10 +20,11 @@ func newVocabularyCommand() *cobra.Command {
 			"and `initiatives --status` accept different values. Every noun's --priority\n" +
 			"takes one scale. Statuses, types and priorities are fixed by the API. Labels\n" +
 			"are made with `slate labels create`, so they are the one list that grows.",
-		Example: "  slate vocabulary\n  slate vocabulary --json",
-		Args:    cobra.NoArgs,
+		Example:     "  slate vocabulary\n  slate vocabulary --json",
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

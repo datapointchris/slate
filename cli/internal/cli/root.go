@@ -124,6 +124,7 @@ func NewRootCommand() *cobra.Command {
 		return goclikit.UsageError(explainUnknownFlag(cmd, err))
 	})
 	cobrahelp.Install(root)
+	showServiceScopesInHelp(root)
 
 	root.PersistentFlags().BoolVar(&noInput, "no-input", false,
 		"Never prompt; fail naming the flag that would have answered")

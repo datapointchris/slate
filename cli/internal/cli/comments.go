@@ -57,9 +57,10 @@ func newCommentsListCommand() *cobra.Command {
 			"list to one document's line comments.",
 		Example: "  slate comments list 412\n" +
 			"  slate comments list 412 --document plan --json",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -108,7 +109,8 @@ func newCommentsAddCommand() *cobra.Command {
 			"  slate comments add 412 --document plan --line 12 \"Split this step in two\"\n" +
 			"  slate comments add 412 -- \"- shipped the rules\"\n" +
 			"  slate comments add 412 --body \"$(cat handoff.md)\"",
-		Args: cobra.RangeArgs(1, 2),
+		Args:        cobra.RangeArgs(1, 2),
+		Annotations: scopesForService(scopeCommentsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 2 {
 				if cmd.Flags().Changed("body") {
@@ -135,7 +137,7 @@ func newCommentsAddCommand() *cobra.Command {
 			}
 			place := agentPlace(session)
 			in.Session, in.Host = place.Session, place.Host
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -170,11 +172,12 @@ func newCommentsRemoveCommand() *cobra.Command {
 		yes    bool
 	)
 	cmd := &cobra.Command{
-		Use:     "remove <comment>",
-		Short:   "Delete one comment",
-		Long:    "The comment is its id, the number that starts its row in `slate comments list`.",
-		Example: "  slate comments remove 57",
-		Args:    cobra.ExactArgs(1),
+		Use:         "remove <comment>",
+		Short:       "Delete one comment",
+		Long:        "The comment is its id, the number that starts its row in `slate comments list`.",
+		Example:     "  slate comments remove 57",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.Atoi(strings.TrimPrefix(args[0], "#"))
 			if err != nil || id < 1 {
@@ -190,7 +193,7 @@ func newCommentsRemoveCommand() *cobra.Command {
 					return nil
 				}
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

@@ -220,7 +220,8 @@ func newIssuesCreateCommand() *cobra.Command {
 			"  slate issues create --title \"Routing drops /issues\" --type bug --repo webapp --priority high\n" +
 			"  slate issues create --title \"Pick a rank scheme\" --type decision --label needs-design\n" +
 			"  slate issues create --title \"Flaky test\" --status triage --discovered-from 412 --description \"$(cat log.md)\"",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead, scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f := cmd.Flags()
 			if f.Changed("status") && !slices.Contains(createStatuses, issueStatus) {
@@ -236,7 +237,7 @@ func newIssuesCreateCommand() *cobra.Command {
 			if len(missing) > 0 && !interactive(cmd) {
 				return goclikit.UsageError(fmt.Errorf("%s required — pass it, or run from a terminal to be asked", strings.Join(missing, " and ")))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -366,7 +367,8 @@ func newIssuesEditCommand() *cobra.Command {
 			"  slate issues edit 412 --label area-api --label needs-design\n" +
 			"  slate issues edit 412 --path cli/internal/cli --path docs/issues.md\n" +
 			"  slate issues edit 412 --initiative \"\" --deferred-until 2026-11-01",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in, clear, err := v.update(cmd)
 			if err != nil {
@@ -478,7 +480,7 @@ func (v *issueEditFlags) update(cmd *cobra.Command) (api.IssueUpdateInput, []str
 
 // runIssueUpdate applies a PATCH and reports the issue it left.
 func runIssueUpdate(cmd *cobra.Command, ref string, in api.IssueUpdateInput, clear []string, asJSON bool, verb string) error {
-	client, err := newAPIClient(cmd.Context())
+	client, err := newAPIClient(cmd)
 	if err != nil {
 		return handleAPIError(err)
 	}
@@ -509,10 +511,11 @@ func newIssuesDeleteCommand() *cobra.Command {
 			"stay, with the link to it removed. It prints each claim it took, each child\n" +
 			"left with no parent and each issue that stops depending on it. Prompts\n" +
 			"unless --yes.",
-		Example: "  slate issues delete 412 --yes",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate issues delete 412 --yes",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -548,7 +551,7 @@ func newIssuesDeleteCommand() *cobra.Command {
 // one the verb is for. The read and the write are two requests, so this guards
 // against the wrong verb rather than against a concurrent edit.
 func runIssueTransition(cmd *cobra.Command, ref string, from []string, in api.IssueUpdateInput, asJSON bool, verb string) error {
-	client, err := newAPIClient(cmd.Context())
+	client, err := newAPIClient(cmd)
 	if err != nil {
 		return handleAPIError(err)
 	}
@@ -570,11 +573,12 @@ func runIssueTransition(cmd *cobra.Command, ref string, from []string, in api.Is
 func newIssuesAcceptCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "accept <issue>",
-		Short:   "Move an issue out of triage and into the queue",
-		Long:    "Triage holds what a hook or a script filed until a person says it is real.",
-		Example: "  slate issues accept 412",
-		Args:    cobra.ExactArgs(1),
+		Use:         "accept <issue>",
+		Short:       "Move an issue out of triage and into the queue",
+		Long:        "Triage holds what a hook or a script filed until a person says it is real.",
+		Example:     "  slate issues accept 412",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			open := api.IssueStatusOpen
 			return runIssueTransition(cmd, args[0], []string{api.IssueStatusTriage}, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
@@ -610,8 +614,9 @@ func newIssuesCompleteCommand() *cobra.Command {
 			"open. Say what shipped with `slate comments add`, so the thread holds it.\n" +
 			"--closed-by defaults to who is running slate: the Claude Code session, the worker\n" +
 			"$" + actorWorkerEnv + " names, or user@host.",
-		Example: "  slate issues complete 412",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate issues complete 412",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsRead, scopeIssuesClose),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			completed := api.IssueStatusCompleted
 			in := api.IssueUpdateInput{Status: &completed, ClosedBy: closer(cmd, &closedBy)}
@@ -639,7 +644,8 @@ func newIssuesCancelCommand() *cobra.Command {
 			"does for complete.",
 		Example: "  slate issues cancel 412 --reason \"the router rewrite removed the path\"\n" +
 			"  slate issues cancel 413 --duplicate-of 412",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.IssueUpdateInput{
 				StatusReason: valuedStrFlag(cmd.Flags(), "reason", &reason),
@@ -669,8 +675,9 @@ func newIssuesReopenCommand() *cobra.Command {
 		Long: "Clears when and by whom it closed, the cancel reason, and the duplicate link.\n" +
 			"A completed issue holds no open work, so each completed ancestor reopens\n" +
 			"with it, and each one reopened prints under the issue.",
-		Example: "  slate issues reopen 412",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate issues reopen 412",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			open := api.IssueStatusOpen
 			closed := []string{api.IssueStatusCompleted, api.IssueStatusCanceled}
@@ -714,13 +721,14 @@ func newReorderCommand(kind, rule, example string, rank rankRecord) *cobra.Comma
 			"records of its priority: ideas, initiatives with their issues, and issues in\n" +
 			"no initiative. Named beside an issue inside an initiative, it goes beside\n" +
 			"that whole initiative. " + rule,
-		Example: example,
-		Args:    cobra.ExactArgs(1),
+		Example:     example,
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if (before == "") == (after == "") {
 				return goclikit.UsageError(errors.New("pass exactly one of --before and --after"))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

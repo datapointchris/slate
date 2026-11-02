@@ -103,7 +103,8 @@ func newClaimsHoldCommand() *cobra.Command {
 			"  slate claims hold 412 --minutes 60\n" +
 			"  slate claims hold --next\n" +
 			"  slate claims hold --next --repo webapp --json",
-		Args: cobra.MaximumNArgs(1),
+		Args:        cobra.MaximumNArgs(1),
+		Annotations: scopesForService(scopeClaimsHold),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			if next == (len(args) == 1) {
@@ -120,7 +121,7 @@ func newClaimsHoldCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -165,8 +166,9 @@ func newClaimsExtendCommand() *cobra.Command {
 			"ran out is held again from now, with a warning that it had run out.\n" +
 			"\n" +
 			"--holder " + narrowedActorHelp,
-		Example: "  slate claims extend 412\n  slate claims extend 412 --minutes 600",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate claims extend 412\n  slate claims extend 412 --minutes 600",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeClaimsHold),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validClaimMinutes(minutes); err != nil {
 				return err
@@ -175,7 +177,7 @@ func newClaimsExtendCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -210,7 +212,8 @@ func newClaimsWaitCommand() *cobra.Command {
 			"--holder " + narrowedActorHelp,
 		Example: "  slate claims wait 412 --on \"slate#3 to merge\"\n" +
 			"  slate claims wait 412 --on \"#398 to land first\"",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeClaimsHold),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(waitingOn) == "" {
 				return goclikit.UsageError(errors.New("--on is required — a wait says what it waits on"))
@@ -219,7 +222,7 @@ func newClaimsWaitCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -249,14 +252,15 @@ func newClaimsResumeCommand() *cobra.Command {
 			"back. Refused unless --holder holds the record's claim.\n" +
 			"\n" +
 			"--holder " + narrowedActorHelp,
-		Example: "  slate claims resume 412",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate claims resume 412",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeClaimsHold),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			holder, err := narrowedActor(cmd, "holder", holder)
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -285,14 +289,15 @@ func newClaimsReleaseCommand() *cobra.Command {
 			"through with a warning. A record nobody holds changes nothing and warns.\n" +
 			"\n" +
 			"--released-by " + narrowedActorHelp,
-		Example: "  slate claims release 412",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate claims release 412",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeClaimsHold),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			releasedBy, err := narrowedActor(cmd, "released-by", releasedBy)
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -328,12 +333,13 @@ func newClaimsListCommand() *cobra.Command {
 		Example: "  slate claims list\n" +
 			"  slate claims list --holder claude-code/\n" +
 			"  slate claims list --record 412 --state all --json",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if filter.State != "" && !slices.Contains(api.ClaimStates, filter.State) {
 				return goclikit.UsageError(fmt.Errorf("unknown state %q — one of: %s", filter.State, strings.Join(api.ClaimStates, ", ")))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

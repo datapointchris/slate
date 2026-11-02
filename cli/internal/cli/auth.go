@@ -175,17 +175,18 @@ func newAuthTokenCommand() *cobra.Command {
 			"expired. Intended for scripting. Pass it to curl on stdin, as the example\n" +
 			"does, so the token never appears in another process's arguments. Exits\n" +
 			"non-zero if not logged in. With SLATE_CLIENT_SECRET set, it requests a new\n" +
-			"service token instead, and with token_command in the config file it prints\n" +
-			"the token that command hands.",
+			"service token instead, for every scope the client holds, and with\n" +
+			"token_command in the config file it prints the token that command hands.",
 		Example: "  slate auth token\n" +
 			"  printf 'Authorization: Bearer %s\\n' \"$(slate auth token)\" | curl --header @- https://slate.example.com/api/v1/issues",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: everyScopeTheClientHolds(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			deployment, err := config.Load(cmd.Context(), apiOverride)
 			if err != nil {
 				return err
 			}
-			source, err := tokenSource(cmd.Context(), deployment)
+			source, err := tokenSource(cmd, deployment)
 			if errors.Is(err, errNeedsLogin) {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Not logged in as %s. Run `slate auth login`.\n", deployment.ClientID.Value)
 				return exitCode(1)
@@ -251,6 +252,14 @@ type statusReport struct {
 	// KeyringNote carries the keyring's own failure when there is no token and
 	// the keyring is the reason, rather than simply holding no entry.
 	KeyringNote string `json:"keyring_note,omitempty"`
+
+	// Scopes are the service scopes the provider granted the client, each
+	// asked for alone. A person's login reaches every route, so it has none.
+	Scopes []string `json:"scopes,omitempty"`
+
+	// holdsNoScope is a service whose secret the provider accepted while it
+	// refused every scope, which a new secret would not fix.
+	holdsNoScope bool
 }
 
 func newAuthStatusCommand() *cobra.Command {
@@ -260,10 +269,12 @@ func newAuthStatusCommand() *cobra.Command {
 		Short: "Show where the CLI is pointed and whether it is logged in",
 		Long: "Show the api, issuer and client_id this machine uses, where each came\n" +
 			"from, the config file's path, and whether a token is stored for the client.\n" +
-			"Exits 1 when the file lacks a value, no token is stored, or the provider\n" +
-			"rejected the session.",
-		Example: "  slate auth status\n  slate auth status --json",
-		Args:    cobra.NoArgs,
+			"A service client is asked a grant per scope, and the scopes it holds are\n" +
+			"listed. Exits 1 when the file lacks a value, no token is stored, or the\n" +
+			"provider rejected the session or every scope.",
+		Example:     "  slate auth status\n  slate auth status --json",
+		Args:        cobra.NoArgs,
+		Annotations: everyScopeTheClientHolds(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			deployment, loadErr := config.Load(cmd.Context(), apiOverride)
 			if loadErr != nil && !errors.Is(loadErr, goclilogin.ErrNotConfigured) {
@@ -289,8 +300,7 @@ func newAuthStatusCommand() *cobra.Command {
 				source, err := goclilogin.CommandTokenSource(cmd.Context(), deployment.TokenCommand.Argv())
 				grantedStatus(source, err, &report)
 			case report.Type == serviceAccount:
-				source, err := goclilogin.ClientCredentialsTokenSource(cmd.Context(), config.Service(deployment), config.ClientSecret())
-				grantedStatus(source, err, &report)
+				serviceStatus(cmd.Context(), deployment, &report)
 			default:
 				if err := loginStatus(cmd.Context(), deployment, &report); err != nil {
 					return err
@@ -369,6 +379,24 @@ func grantedStatus(source oauth2.TokenSource, err error, report *statusReport) {
 	if err == nil {
 		token, err = source.Token()
 	}
+	grantedToken(token, err, report)
+}
+
+// serviceStatus asks the provider for each of slate's scopes, because a service
+// client holds only the ones its commands need, and a grant naming one it lacks
+// is refused whole.
+func serviceStatus(ctx context.Context, d goclilogin.Deployment, report *statusReport) {
+	held, token, err := heldScopes(ctx, d)
+	report.Scopes = held
+	var refused *scopesRefused
+	if errors.As(err, &refused) {
+		report.Session, report.holdsNoScope = goclilogin.SessionRejected, true
+		return
+	}
+	grantedToken(token, err, report)
+}
+
+func grantedToken(token *oauth2.Token, err error, report *statusReport) {
 	report.Session, token = goclilogin.ClassifySession(token, err)
 	report.LoggedIn = report.Session == goclilogin.SessionLive
 	if token != nil && !token.Expiry.IsZero() {
@@ -389,6 +417,8 @@ func printStatus(out io.Writer, r statusReport, d goclilogin.Deployment, loadErr
 		_, _ = fmt.Fprintln(out, "Handed a token by token_command")
 	case r.Type == externalAccount:
 		_, _ = fmt.Fprintf(out, "token_command handed no token. Check what %q asks.\n", d.TokenCommand)
+	case r.Type == serviceAccount && r.holdsNoScope:
+		_, _ = fmt.Fprintf(out, "Service client holds none of slate's scopes at %s. Register the ones its commands need; each command's --help names them.\n", r.Issuer)
 	case r.Type == serviceAccount && r.Session == goclilogin.SessionRejected:
 		_, _ = fmt.Fprintf(out, "Service client refused by %s. Check client_id in the config file, and %s.\n", r.Issuer, config.ClientSecretEnv)
 	case r.Type == serviceAccount && r.Session == goclilogin.SessionUnverified:
@@ -415,6 +445,9 @@ func printStatus(out io.Writer, r statusReport, d goclilogin.Deployment, loadErr
 			state = "expired — will refresh on next use"
 		}
 		_, _ = fmt.Fprintf(out, "  %-11s%s (expires %s)\n", "token", state, r.ExpiresAt)
+	}
+	if len(r.Scopes) > 0 {
+		_, _ = fmt.Fprintf(out, "  %-11s%s\n", "scopes", strings.Join(r.Scopes, " "))
 	}
 	if r.Backend == goclilogin.BackendFile {
 		_, _ = fmt.Fprintf(out, "  %-11s%s — no OS keyring on this host\n", "storage", r.Backend)

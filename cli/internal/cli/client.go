@@ -8,6 +8,7 @@ import (
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
+	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 
 	"github.com/datapointchris/slate/cli/internal/api"
@@ -19,33 +20,41 @@ import (
 // crash, so it is kept distinct from a runtime error.
 var errNeedsLogin = errors.New("not logged in")
 
-// newAPIClient builds an authenticated API client. The oauth2 client injects
-// (and refreshes) the bearer token on every request via goclilogin's token
-// source, so resource commands never touch tokens directly.
-func newAPIClient(ctx context.Context) (*api.Client, error) {
-	deployment, err := config.Load(ctx, apiOverride)
+// newAPIClient builds an authenticated API client for the running command. The
+// oauth2 client injects (and refreshes) the bearer token on every request via
+// goclilogin's token source, so resource commands never touch tokens directly.
+func newAPIClient(cmd *cobra.Command) (*api.Client, error) {
+	deployment, err := config.Load(cmd.Context(), apiOverride)
 	if err != nil {
 		return nil, err
 	}
-	source, err := tokenSource(ctx, deployment)
+	source, err := tokenSource(cmd, deployment)
 	if errors.Is(err, errNeedsLogin) {
 		return nil, err
 	}
 	if err != nil {
 		return nil, fmt.Errorf("prepare API client: %w", err)
 	}
-	return api.New(deployment.API.Value, oauth2.NewClient(ctx, source)), nil
+	return api.New(deployment.API.Value, oauth2.NewClient(cmd.Context(), source)), nil
 }
 
 // tokenSource is the config file's token_command where it names one, the
-// client-credentials grant when SLATE_CLIENT_SECRET is set, and otherwise the
-// token this machine logged in for.
-func tokenSource(ctx context.Context, d goclilogin.Deployment) (oauth2.TokenSource, error) {
+// client-credentials grant for the scopes cmd declares when SLATE_CLIENT_SECRET
+// is set, and otherwise the token this machine logged in for.
+//
+// A command that declares nothing is refused whoever runs it, so any test
+// running it names the omission rather than a service finding it.
+func tokenSource(cmd *cobra.Command, d goclilogin.Deployment) (oauth2.TokenSource, error) {
+	ctx := cmd.Context()
+	grant, declared := declaredGrant(cmd)
+	if !declared {
+		return nil, fmt.Errorf("%#q declares no service scopes; give its literal Annotations: scopesForService(...) or personOnly()", cmd.CommandPath())
+	}
 	if d.HandsTokens() {
 		return goclilogin.CommandTokenSource(ctx, d.TokenCommand.Argv())
 	}
 	if config.IsService() {
-		return goclilogin.ClientCredentialsTokenSource(ctx, config.Service(d), config.ClientSecret())
+		return serviceTokenSource(cmd, d, grant)
 	}
 	login := config.Login(d)
 	source, err := goclilogin.TokenSource(ctx, login, goclilogin.NewTokenStore(login))
@@ -78,10 +87,14 @@ func handleAPIError(err error) error {
 			return fmt.Errorf("the token %q handed: %s", d.TokenCommand, apiErr.Message)
 		}
 	}
-	// A service has no login to renew, so it is pointed at its id and secret.
+	// A service has no login to renew, so it is pointed at the scopes it lacks,
+	// or else at its id and secret.
 	if config.IsService() {
 		d, _ := config.Load(context.Background(), "")
+		var refused *scopesRefused
 		switch {
+		case errors.As(err, &refused):
+			return refused
 		case goclilogin.IsSessionRejected(err):
 			return fmt.Errorf("%s refused service client %s — check client_id in %s, and %s", d.Issuer.Value, d.ClientID.Value, d.Path, config.ClientSecretEnv)
 		case errors.As(err, &apiErr) && apiErr.Unauthorized():

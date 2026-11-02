@@ -61,13 +61,14 @@ func newDocumentsListCommand() *cobra.Command {
 		Long:  "With a record, only that record's documents. COMMENTS counts the line comments on every version.",
 		Example: "  slate documents list 412\n" +
 			"  slate documents list --limit 10 --json",
-		Args: cobra.MaximumNArgs(1),
+		Args:        cobra.MaximumNArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			record := ""
 			if len(args) == 1 {
 				record = args[0]
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -105,13 +106,14 @@ func newDocumentsShowCommand() *cobra.Command {
 			"is listed last, with who wrote it and the worklog it was written in.",
 		Example: "  slate documents show 412 plan\n" +
 			"  slate documents show 412 plan --version 1 --json",
-		Args: cobra.ExactArgs(2),
+		Args:        cobra.ExactArgs(2),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var asked *int
 			if cmd.Flags().Changed("version") {
 				asked = &version
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -155,7 +157,8 @@ func newDocumentsWriteCommand() *cobra.Command {
 			"names no go at the record.",
 		Example: "  slate documents write 412 plan --file plan.md\n" +
 			"  slate documents write 412 humanlayer --kind research < research.md",
-		Args: cobra.ExactArgs(2),
+		Args:        cobra.ExactArgs(2),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[1]
 			if !cmd.Flags().Changed("kind") && slices.Contains(api.DocumentKinds, name) {
@@ -173,7 +176,7 @@ func newDocumentsWriteCommand() *cobra.Command {
 			}
 			place := agentPlace(session)
 			in := api.DocumentWriteInput{Body: body, Kind: nonEmpty(kind), Session: place.Session, Host: place.Host}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

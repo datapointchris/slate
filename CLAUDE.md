@@ -56,6 +56,14 @@ scope gate reads it. A router left out answers every scoped client with 403.
 and the CLI's service tests read it to check each call a service makes lands on
 a route its scopes reach. Commit the file when the scopes change.
 
+**A CLI command declares the scopes its routes need**, as its literal's
+`Annotations`: `scopesForService(...)`, or `personOnly()` where a route it
+sends is in no scope or the API refuses every scoped client its body. A service
+grant asks for those alone, and `newAPIClient(cmd)` refuses a command that
+declares neither. `TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach`
+runs each declaring command as a service. It fails on a route the declared
+scopes miss, a declared scope no route needs, or a command with no run there.
+
 ## A command names its noun first, unless no one noun owns it
 
 A command is `slate <noun> <verb>`. A noun that stands alone gets its own API

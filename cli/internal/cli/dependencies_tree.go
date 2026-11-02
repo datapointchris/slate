@@ -41,7 +41,8 @@ func newDependenciesTreeCommand() *cobra.Command {
 			"  slate dependencies tree 412\n" +
 			"  slate dependencies tree 412 --invert\n" +
 			"  slate dependencies tree --repo webapp --json",
-		Args: cobra.MaximumNArgs(1),
+		Args:        cobra.MaximumNArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().Changed("status") && !slices.Contains(api.IssueStatuses, issueStatus) {
 				return goclikit.UsageError(fmt.Errorf("unknown status %q — one of: %s", issueStatus, strings.Join(api.IssueStatuses, ", ")))
@@ -57,7 +58,7 @@ func newDependenciesTreeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

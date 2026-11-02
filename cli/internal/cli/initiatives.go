@@ -79,8 +79,9 @@ func newInitiativesListCommand() *cobra.Command {
 			"and come after the active ones, finished ones latest first.\n\n" +
 			"Each row leads with the initiative's number, which every initiative command\n" +
 			"and --initiative flag accepts. The bar is its issues done over done and open.",
-		Example: "  slate initiatives list\n  slate initiatives list --sort open\n  slate initiatives list --status all --json",
-		Args:    cobra.NoArgs,
+		Example:     "  slate initiatives list\n  slate initiatives list --sort open\n  slate initiatives list --status all --json",
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Flags().Changed("status") && !slices.Contains(api.InitiativeStatuses, initiativeStatus) {
 				return goclikit.UsageError(fmt.Errorf("unknown status %q — one of: %s", initiativeStatus, strings.Join(api.InitiativeStatuses, ", ")))
@@ -88,7 +89,7 @@ func newInitiativesListCommand() *cobra.Command {
 			if cmd.Flags().Changed("sort") && !slices.Contains(api.InitiativeSorts, sort) {
 				return goclikit.UsageError(fmt.Errorf("unknown sort %q — one of: %s", sort, strings.Join(api.InitiativeSorts, ", ")))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -118,12 +119,13 @@ func newInitiativesListCommand() *cobra.Command {
 func newInitiativesShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <initiative>",
-		Short:   "Show an initiative, its claims, and its unclosed issues in queue order",
-		Example: "  slate initiatives show 1501\n  slate initiatives show \"Ship the tracker\"",
-		Args:    cobra.ExactArgs(1),
+		Use:         "show <initiative>",
+		Short:       "Show an initiative, its claims, and its unclosed issues in queue order",
+		Example:     "  slate initiatives show 1501\n  slate initiatives show \"Ship the tracker\"",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -192,7 +194,8 @@ func newInitiativesCreateCommand() *cobra.Command {
 			"`slate initiatives reorder` moves it.",
 		Example: "  slate initiatives create --name \"Ship the tracker\" --priority high\n" +
 			"  slate initiatives create --name \"Build day\" --autofix=false",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if strings.TrimSpace(name) == "" {
 				return goclikit.UsageError(errors.New("--name is required"))
@@ -209,7 +212,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 			if f.Changed("autofix") {
 				in.Autofix = &autofix
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -246,7 +249,8 @@ func newInitiativesEditCommand() *cobra.Command {
 			"queue through reorder.",
 		Example: "  slate initiatives edit \"Ship the tracker\" --priority urgent\n" +
 			"  slate initiatives edit 1491 --autofix=false",
-		Args: cobra.ExactArgs(1),
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			if readFlagIntent(f, "name") == flagClears {
@@ -288,7 +292,7 @@ func newInitiativesEditCommand() *cobra.Command {
 const initiativeAutofixHelp = "False keeps every issue in it from an unattended fix, so a session takes them"
 
 func runInitiativeUpdate(cmd *cobra.Command, ref string, in api.InitiativeUpdateInput, clear []string, asJSON bool, verb string) error {
-	client, err := newAPIClient(cmd.Context())
+	client, err := newAPIClient(cmd)
 	if err != nil {
 		return handleAPIError(err)
 	}
@@ -308,8 +312,9 @@ func newInitiativesCompleteCommand() *cobra.Command {
 		Short: "Mark an initiative's outcome reached, which hides it",
 		Long: "Its issues keep their status, so one still open stays in the queue. It ends\n" +
 			"the initiative's claim as completed, and prints whose claim it ended.",
-		Example: "  slate initiatives complete \"Ship the tracker\"",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate initiatives complete \"Ship the tracker\"",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			completed := "completed"
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &completed}, nil, asJSON, "Completed")
@@ -330,8 +335,9 @@ func newInitiativesDropCommand() *cobra.Command {
 		Long: "--reason is required. A drop with its reason closes the question, and a bare\n" +
 			"drop invites it back. It ends the initiative's claim as dropped, and prints\n" +
 			"whose claim it ended.",
-		Example: "  slate initiatives drop \"Rewrite the router\" --reason \"Traefik covers it\"",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate initiatives drop \"Rewrite the router\" --reason \"Traefik covers it\"",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(reason) == "" {
 				return goclikit.UsageError(errors.New("--reason is required — say why it is dropped"))
@@ -356,8 +362,9 @@ func newInitiativesShelveCommand() *cobra.Command {
 			"that work outside someday depends on stays in, at that work's priority.\n" +
 			"It lends no priority, and gives up its name, so a new initiative may take\n" +
 			"it. `slate initiatives reopen` makes its issues ready again.",
-		Example: "  slate initiatives shelve \"Measure everything\"",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate initiatives shelve \"Measure everything\"",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			someday := "someday"
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &someday}, nil, asJSON, "Shelved")
@@ -370,11 +377,12 @@ func newInitiativesShelveCommand() *cobra.Command {
 func newInitiativesReopenCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "reopen <initiative>",
-		Short:   "Return a shelved or finished initiative to the active list",
-		Long:    "Refused if an active initiative has taken the name in the meantime.",
-		Example: "  slate initiatives reopen \"Ship the tracker\"",
-		Args:    cobra.ExactArgs(1),
+		Use:         "reopen <initiative>",
+		Short:       "Return a shelved or finished initiative to the active list",
+		Long:        "Refused if an active initiative has taken the name in the meantime.",
+		Example:     "  slate initiatives reopen \"Ship the tracker\"",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			active := "active"
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &active}, nil, asJSON, "Reopened")
@@ -395,10 +403,11 @@ func newInitiativesDeleteCommand() *cobra.Command {
 		Long: "Every claim it has had goes with it, live or ended, with a warning when\n" +
 			"another holder's live claim was one. It prints each claim it took and each\n" +
 			"issue it left in no initiative. Prompts unless --yes.",
-		Example: "  slate initiatives delete \"Ship the tracker\" --yes",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate initiatives delete \"Ship the tracker\" --yes",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}

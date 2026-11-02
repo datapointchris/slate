@@ -40,12 +40,13 @@ func newLabelsCommand() *cobra.Command {
 func newLabelsListCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "list",
-		Short:   "List every label, grouped, with its count of unclosed issues",
-		Example: "  slate labels list\n  slate labels list --json",
-		Args:    cobra.NoArgs,
+		Use:         "list",
+		Short:       "List every label, grouped, with its count of unclosed issues",
+		Example:     "  slate labels list\n  slate labels list --json",
+		Args:        cobra.NoArgs,
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -67,12 +68,13 @@ func newLabelsListCommand() *cobra.Command {
 func newLabelsShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <label>",
-		Short:   "Show one label",
-		Example: "  slate labels show area-api",
-		Args:    cobra.ExactArgs(1),
+		Use:         "show <label>",
+		Short:       "Show one label",
+		Example:     "  slate labels show area-api",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -105,7 +107,8 @@ func newLabelsCreateCommand() *cobra.Command {
 			"the other labels in that group.",
 		Example: "  slate labels create --slug area-db --group area\n" +
 			"  slate labels create --slug needs-design --description \"Waiting on a design call\"",
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if slug == "" {
 				return goclikit.UsageError(errors.New("--slug is required"))
@@ -116,7 +119,7 @@ func newLabelsCreateCommand() *cobra.Command {
 				GroupSlug:   valuedStrFlag(f, "group", &group),
 				Description: valuedStrFlag(f, "description", &description),
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -146,8 +149,9 @@ func newLabelsEditCommand() *cobra.Command {
 		Long: "A label's slug is its name on every issue carrying it, so it does not change.\n" +
 			"An empty value clears a field. Moving a label into a group is refused while an\n" +
 			"issue carries it beside another label of that group.",
-		Example: "  slate labels edit area-db --group area\n  slate labels edit area-db --group \"\"",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate labels edit area-db --group area\n  slate labels edit area-db --group \"\"",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			in := api.IssueLabelUpdateInput{
@@ -164,7 +168,7 @@ func newLabelsEditCommand() *cobra.Command {
 			if in == (api.IssueLabelUpdateInput{}) && len(clear) == 0 {
 				return goclikit.UsageError(errors.New("nothing to change — pass --group and/or --description"))
 			}
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -192,10 +196,11 @@ func newLabelsDeleteCommand() *cobra.Command {
 		Long: "Every issue carrying it loses it, closed ones included, and each is printed.\n" +
 			"Putting it back means creating it and labeling each issue again, so it\n" +
 			"prompts unless --yes.",
-		Example: "  slate labels delete area-db --yes",
-		Args:    cobra.ExactArgs(1),
+		Example:     "  slate labels delete area-db --yes",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
+			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
