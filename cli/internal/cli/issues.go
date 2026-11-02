@@ -312,13 +312,13 @@ func newIssuesListCommand() *cobra.Command {
 
 func newIssuesShowCommand() *cobra.Command {
 	var (
-		asJSON  bool
-		history int
+		asJSON      bool
+		changeCount int
 	)
 	cmd := &cobra.Command{
 		Use:         "show <issue>",
-		Short:       "Show an issue with its edges, children, documents, comments and history",
-		Example:     "  slate issues show 412\n  slate issues show 412 --json --history 100",
+		Short:       "Show an issue with its edges, children, documents, comments and changes",
+		Example:     "  slate issues show 412\n  slate issues show 412 --json --changes 100",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -330,41 +330,30 @@ func newIssuesShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			shown, err := readIssueShown(cmd, client, issue, history)
+			changes, err := readChanges(cmd, client, issue.Number, changeCount, asJSON)
 			if err != nil {
 				return err
 			}
-			defer noteOlderHistory(cmd, shown.History)
+			defer noteChanges(cmd, changes)
 			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), shown)
+				return encodeJSON(cmd.OutOrStdout(), issueShown{IssueDetail: issue, Changes: changes})
 			}
-			printIssueShown(cmd.OutOrStdout(), shown, time.Now())
+			out, now := cmd.OutOrStdout(), time.Now()
+			printIssueDetail(out, issue, now)
+			printChanges(out, changes, now)
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the issue and its history as JSON to stdout")
-	addHistoryFlag(cmd, &history)
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the issue as JSON to stdout")
+	addChangesFlag(cmd, &changeCount)
 	return cmd
 }
 
-// issueShown is an issue beside its latest changes, as every show of one
-// prints it.
+// issueShown is what every show of an issue prints as JSON: the issue, with
+// the changes the show read beside its own fields.
 type issueShown struct {
 	api.IssueDetail
-	History recordHistory `json:"history"`
-}
-
-func readIssueShown(cmd *cobra.Command, client *api.Client, issue api.IssueDetail, history int) (issueShown, error) {
-	changes, err := readHistory(cmd, client, issue.Number, history)
-	if err != nil {
-		return issueShown{}, err
-	}
-	return issueShown{IssueDetail: issue, History: changes}, nil
-}
-
-func printIssueShown(out io.Writer, shown issueShown, now time.Time) {
-	printIssueDetail(out, shown.IssueDetail, now)
-	printHistory(out, shown.History, ownRows("issues", shown.ID, shown.Number), now)
+	Changes *recordChanges `json:"changes,omitempty"`
 }
 
 // --- Rendering ---

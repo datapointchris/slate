@@ -49,33 +49,48 @@ the read the kind's own route gives, with every claim the record has had:
 decodes `record` into the right shape before reading it. A number nobody
 holds answers 404. A number read through another kind's route answers 404
 naming the kind that holds it: `issue 1501 not found: #1501 is an initiative`.
-`slate show <number>` prints any record through its kind's own renderer, and
-its `--json` is this envelope. `slate show <number>.<seq>` prints a worklog. A
+`slate show <number>` prints any record through its kind's own renderer. Its
+`--json` is this envelope, with `record` holding what the kind's own show
+prints: an initiative's issues beside it, and the record's changes when
+`--changes` is set. `slate show <number>.<seq>` prints a worklog. A
 worklog is not a record, so its `--json` is `{kind: "worklog", name, record}`,
 named by the name it is read back with, and `slate search --kind` does not
 take `worklog`.
 
-## A record's history is every write to it and to the rows hanging off it
+## A record's changes are every write to it and to the rows hanging off it
 
-`GET /records/{number}/history` answers the record's rows of `audit_trail`,
+`GET /records/{number}/changes` answers the record's rows of `audit_trail`,
 newest first. Each says when it was written, by which actor, to which table
-and key, and the columns it changed with their old and new values. `limit`
-keeps the latest. `slate show` and each kind's own show print the latest 20
-after the record, and `--history` sets how many. Their `--json` carries them as
-`history`.
+and key, and the columns it changed with their old and new values.
+`is_own_row` marks a write to the record's own row, in its kind's table or in
+`records`. `limit` keeps the latest.
 
-The read covers the record's own row and its row in `records`, and every row
-hanging off it:
+`slate show` and each kind's own show print the latest changes after the
+record, and `--changes` sets how many. A failed read leaves the record printed
+and names the failure on stderr. A `--changes` the caller set makes the failure
+the command's, because the changes are then what it asked for. `--json` reads
+no changes unless `--changes` is set. An insert holds the whole row, so a
+record's changes repeat each comment and each document version in full. With
+`--changes`, `record` holds `changes` as `{rows, older}`, and `older` says
+changes past those shown exist.
 
-| Kind | Rows |
-| --- | --- |
-| any | claims and their waits, comments, documents and their versions, worklogs and their links |
-| issue | dependencies from either end, label assignments, comments in `issue_comments` |
-| idea | evidence |
+A row hangs off a record when single-column `ON DELETE CASCADE` foreign keys
+lead to it from the record, through any number of rows: a claim on the
+record's number, then a wait on that claim. Deleting the record deletes the
+row, so the row is part of it. The read takes that list from the schema's
+foreign keys, so a table added later is read with no change to the read.
+Three cases are set by hand in `services/record_changes.py`:
 
-A worklog's spans are left out. Each is a session joining or leaving the
-worklog, and every hold and resume writes several. Another issue moving into
-an initiative is that issue's history, not the initiative's.
+- A worklog's spans are left out. Each is a session joining or leaving the
+  worklog, and every hold and resume writes several.
+- An idea's changes hold the insert of the initiative promoting it, and no
+  later write to that initiative. Those are the initiative's own.
+- An issue's comments in `issue_comments`, a table imported rows name and no
+  model maps, are read by the issue each one names.
+
+An issue moving into an initiative is that issue's change, not the
+initiative's. Its key onto the initiative sets null on delete, so the
+initiative's deletion leaves the issue standing.
 
 The trigger stores only the columns an update changed, so the update ending a
 claim names no record. An insert or a delete holds the whole row, so it names
@@ -85,15 +100,18 @@ index over the `changes` of every insert and delete serves each parent column
 through one containment test, `changes @> {"record_number": {"new": 412}}`. So
 a table added later needs no index of its own.
 
-History imported with another tracker's rows keeps the table names, keys and
-actors it was written with. An issue's own rows match on its UUID, which the
+Audit rows imported with another tracker's rows keep the table names, keys and
+actors they were written with. An issue's own rows match on its UUID, which the
 import keeps. Comments on that schema lived in `issue_comments`, keyed by their
-own id there, so the read finds them by the issue each one names. A tracker
-whose audit trail started after its rows did holds deletes with no insert
-before them. The read matches a delete's old parent for that reason.
+own id there. A tracker whose audit trail started after its rows did holds
+deletes with no insert before them. The read matches a delete's old parent for
+that reason.
 
-- *Rejected:* history inside each kind's read. An issue's writes answer that
-  read, so every write would read its whole history back.
+- *Rejected:* the changes inside each kind's read. An issue's writes answer
+  that read, so every write would read its whole audit trail back.
+- *Rejected:* a hand-written list of the tables hanging off each kind. Nothing
+  kept it level with the schema, and it missed the initiative a promotion
+  creates.
 
 ## A search reads every kind and every status
 

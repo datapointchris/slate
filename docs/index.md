@@ -2,7 +2,7 @@
 
 | Page | What it holds |
 | --- | --- |
-| [records.md](records.md) | Ideas, initiatives and issues as one numbered record: the `records` table, why each kind references it, the read of any record by number, its history read back from the audit trail, the envelope every write answers, and the duplicate warning a create gives with the measurement behind its bar |
+| [records.md](records.md) | Ideas, initiatives and issues as one numbered record: the `records` table, why each kind references it, the read of any record by number, its changes read back from the audit trail, the envelope every write answers, and the duplicate warning a create gives with the measurement behind its bar |
 | [ideas.md](ideas.md) | Ideas as work nobody has taken on: their own priority, evidence linked by key or URL, and promotion into an initiative |
 | [issues.md](issues.md) | The model: what makes an issue ready, the steps `next` lists every kind at, what a dependency means, how the queue keeps each initiative's work together, the paths an issue changes, how closing works, the one state an initiative's progress counts each issue in, and what is deliberately not built |
 | [claims.md](claims.md) | Claims as leases on any record, kept after they end: the one refusal, the warnings a hold gives, the waiting state, and how a claim expires and ends |

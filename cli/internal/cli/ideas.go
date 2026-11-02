@@ -96,12 +96,12 @@ func newIdeasListCommand() *cobra.Command {
 
 func newIdeasShowCommand() *cobra.Command {
 	var (
-		asJSON  bool
-		history int
+		asJSON      bool
+		changeCount int
 	)
 	cmd := &cobra.Command{
 		Use:         "show <idea>",
-		Short:       "Show an idea with its evidence, its claims, the initiative it became, and its history",
+		Short:       "Show an idea with its evidence, its claims, the initiative it became, and its changes",
 		Example:     "  slate ideas show 1860\n  slate ideas show 1860 --json",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -114,41 +114,30 @@ func newIdeasShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			shown, err := readIdeaShown(cmd, client, idea, history)
+			changes, err := readChanges(cmd, client, idea.Number, changeCount, asJSON)
 			if err != nil {
 				return err
 			}
-			defer noteOlderHistory(cmd, shown.History)
+			defer noteChanges(cmd, changes)
 			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), shown)
+				return encodeJSON(cmd.OutOrStdout(), ideaShown{IdeaDetail: idea, Changes: changes})
 			}
-			printIdeaShown(cmd.OutOrStdout(), shown, time.Now())
+			out, now := cmd.OutOrStdout(), time.Now()
+			printIdeaDetail(out, idea, now)
+			printChanges(out, changes, now)
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the idea and its history as JSON to stdout")
-	addHistoryFlag(cmd, &history)
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the idea as JSON to stdout")
+	addChangesFlag(cmd, &changeCount)
 	return cmd
 }
 
-// ideaShown is an idea beside its latest changes, as every show of one prints
-// it.
+// ideaShown is what every show of an idea prints as JSON: the idea, with the
+// changes the show read beside its own fields.
 type ideaShown struct {
 	api.IdeaDetail
-	History recordHistory `json:"history"`
-}
-
-func readIdeaShown(cmd *cobra.Command, client *api.Client, idea api.IdeaDetail, history int) (ideaShown, error) {
-	changes, err := readHistory(cmd, client, idea.Number, history)
-	if err != nil {
-		return ideaShown{}, err
-	}
-	return ideaShown{IdeaDetail: idea, History: changes}, nil
-}
-
-func printIdeaShown(out io.Writer, shown ideaShown, now time.Time) {
-	printIdeaDetail(out, shown.IdeaDetail, now)
-	printHistory(out, shown.History, ownRows("ideas", shown.ID, shown.Number), now)
+	Changes *recordChanges `json:"changes,omitempty"`
 }
 
 func newIdeasCreateCommand() *cobra.Command {

@@ -125,6 +125,8 @@ type RecordChange struct {
 	Actor     *string                 `json:"actor"`
 	RequestID *string                 `json:"request_id"`
 	JobRunID  *string                 `json:"job_run_id"`
+	// IsOwnRow is a write to the record's own row, as the API decides it.
+	IsOwnRow bool `json:"is_own_row"`
 }
 
 // ColumnChange is one column's value before and after a write, each as the
@@ -135,13 +137,13 @@ type ColumnChange struct {
 	New json.RawMessage `json:"new,omitempty"`
 }
 
-// GetRecordHistory returns every write to a record and to each row hanging off
+// GetRecordChanges returns every write to a record and to each row hanging off
 // it, newest first, so a limit keeps the latest.
-func (c *Client) GetRecordHistory(ctx context.Context, number int, limit *int) ([]RecordChange, error) {
+func (c *Client) GetRecordChanges(ctx context.Context, number int, limit *int) ([]RecordChange, error) {
 	query := url.Values{}
 	applyLimit(query, limit)
 	var changes []RecordChange
-	if err := c.get(ctx, withQuery(fmt.Sprintf("/records/%d/history", number), query), &changes); err != nil {
+	if err := c.get(ctx, withQuery(fmt.Sprintf("/records/%d/changes", number), query), &changes); err != nil {
 		return nil, err
 	}
 	return changes, nil
