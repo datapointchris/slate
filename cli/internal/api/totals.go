@@ -24,21 +24,20 @@ type ModelTokens struct {
 }
 
 // WorkTotals is the worklogs, sessions, links, messages and tokens by kind
-// over one scope, each derived by the API on every read. Tokens is nil while
-// no message it covers was reported. TokensOutsideWorklogs is the part of
-// Tokens no worklog held, which only a scope naming no record, worklog or repo
-// reaches.
+// over one scope, each derived by the API on every read. LinkCounts holds
+// every link kind, zero where the scope linked none. Tokens is nil while no
+// message it covers was reported. TokensOutsideWorklogs is the part of Tokens
+// no worklog held, which only a scope naming no record, worklog or repo
+// reaches, so it is nil on every other scope.
 type WorkTotals struct {
-	Scope                 TotalsScope   `json:"scope"`
-	Worklogs              int           `json:"worklogs"`
-	Sessions              int           `json:"sessions"`
-	Commits               int           `json:"commits"`
-	PullRequests          int           `json:"pull_requests"`
-	Landings              int           `json:"landings"`
-	MessageCount          int           `json:"message_count"`
-	Tokens                *Tokens       `json:"tokens"`
-	TokensOutsideWorklogs *Tokens       `json:"tokens_outside_worklogs"`
-	TokensByModel         []ModelTokens `json:"tokens_by_model"`
+	Scope                 TotalsScope    `json:"scope"`
+	WorklogCount          int            `json:"worklog_count"`
+	SessionCount          int            `json:"session_count"`
+	LinkCounts            map[string]int `json:"link_counts"`
+	MessageCount          int            `json:"message_count"`
+	Tokens                *Tokens        `json:"tokens"`
+	TokensOutsideWorklogs *Tokens        `json:"tokens_outside_worklogs"`
+	TokensByModel         []ModelTokens  `json:"tokens_by_model"`
 }
 
 // TotalsFilter narrows the worklogs a totals read reaches. Record and Worklog

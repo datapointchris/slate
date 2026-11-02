@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -84,10 +85,9 @@ func printTotals(out io.Writer, totals api.WorkTotals, now time.Time) {
 	scope := totals.Scope
 	_, _ = fmt.Fprintln(out, totalsHeading(gotermstyle.PaletteFor(out), scope))
 	_, _ = fmt.Fprintf(out, "  window:    %s\n", totalsWindow(scope, now))
-	_, _ = fmt.Fprintf(out, "  worklogs:  %s\n", groupedDigits(totals.Worklogs))
-	_, _ = fmt.Fprintf(out, "  sessions:  %s\n", groupedDigits(totals.Sessions))
-	_, _ = fmt.Fprintf(out, "  links:     %s commits · %s pull requests · %s landings\n",
-		groupedDigits(totals.Commits), groupedDigits(totals.PullRequests), groupedDigits(totals.Landings))
+	_, _ = fmt.Fprintf(out, "  worklogs:  %s\n", groupedDigits(totals.WorklogCount))
+	_, _ = fmt.Fprintf(out, "  sessions:  %s\n", groupedDigits(totals.SessionCount))
+	_, _ = fmt.Fprintf(out, "  links:     %s\n", linkCountsLine(totals.LinkCounts))
 	_, _ = fmt.Fprintf(out, "  messages:  %s\n", groupedDigits(totals.MessageCount))
 	_, _ = fmt.Fprintf(out, "  tokens:    %s\n", reportedTokens(totals.Tokens))
 	if scope.Record == nil && scope.Worklog == nil && scope.Repo == nil {
@@ -97,11 +97,30 @@ func printTotals(out io.Writer, totals api.WorkTotals, now time.Time) {
 		_, _ = fmt.Fprintf(out, "\nBy model (%d):\n", len(totals.TokensByModel))
 		tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 		for _, model := range totals.TokensByModel {
-			_, _ = fmt.Fprintf(tw, "  %s\t%s messages\t%s\n",
-				orDash(strValue(model.Model)), groupedDigits(model.MessageCount), tokensLine(model.Tokens))
+			_, _ = fmt.Fprintf(tw, "  %s\t%s %s\t%s\n", orDash(strValue(model.Model)),
+				groupedDigits(model.MessageCount), plural(model.MessageCount, "message", "messages"), tokensLine(model.Tokens))
 		}
 		_ = tw.Flush()
 	}
+}
+
+// linkCountsLine names each link kind's count, in the order a change reaches
+// main, then any kind this CLI does not know yet, by name.
+func linkCountsLine(counts map[string]int) string {
+	kinds := slices.Clone(api.WorklogLinkKinds)
+	var unknown []string
+	for kind := range counts {
+		if !slices.Contains(kinds, kind) {
+			unknown = append(unknown, kind)
+		}
+	}
+	slices.Sort(unknown)
+	parts := make([]string, 0, len(kinds)+len(unknown))
+	for _, kind := range append(kinds, unknown...) {
+		n, noun := counts[kind], strings.ReplaceAll(kind, "_", " ")
+		parts = append(parts, groupedDigits(n)+" "+plural(n, noun, noun+"s"))
+	}
+	return strings.Join(parts, " · ")
 }
 
 // totalsHeading names what the totals reach: the record or worklog, then the
