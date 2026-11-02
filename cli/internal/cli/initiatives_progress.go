@@ -35,14 +35,19 @@ func newInitiativesProgressCommand() *cobra.Command {
 			"closed inside --since and --until; and the worklogs, sessions, links and\n" +
 			"tokens by kind of its whole life.\n\n" +
 			"An issue under a live claim counts as running, or as waiting where its holder\n" +
-			"parked it, whatever else holds it back. --since defaults to 7 days back, and\n" +
-			"--since= lists every close. --json prints an array, one entry per initiative,\n" +
-			"carrying every figure the text shows.",
+			"parked it, whatever else holds it back. Given neither --since nor --until, the\n" +
+			"closes are those since --since's default. --since= lists every close. --json\n" +
+			"prints an array, one entry per initiative, carrying every figure the text shows.",
 		Example: "  slate initiatives progress\n" +
 			"  slate initiatives progress 2072 \"Ship the tracker\"\n" +
 			"  slate initiatives progress 2072 --since 2026-10-26 --json",
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// The recent default stands in for a window only when none is given, so
+			// --until alone runs from the first close, as on every windowed read.
+			if !cmd.Flags().Changed("since") && !cmd.Flags().Changed("until") {
+				_ = cmd.Flags().Set("since", recentCloses)
+			}
 			window, err := readWindow(cmd)
 			if err != nil {
 				return err
@@ -51,26 +56,9 @@ func newInitiativesProgressCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			refs, named := args, len(args) > 0
-			if !named {
-				active, err := client.ListInitiatives(cmd.Context(), "", "", nil)
-				if err != nil {
-					return handleAPIError(err)
-				}
-				for _, initiative := range active {
-					refs = append(refs, strconv.Itoa(initiative.Number))
-				}
-			}
-			all := make([]api.InitiativeProgress, 0, len(refs))
-			for _, ref := range refs {
-				progress, err := client.GetInitiativeProgress(cmd.Context(), ref, window, issueZone())
-				if err != nil && named {
-					return handleArgumentAPIError(err)
-				}
-				if err != nil {
-					return handleAPIError(err)
-				}
-				all = append(all, progress)
+			all, err := client.ListInitiativesProgress(cmd.Context(), args, window, issueZone())
+			if err != nil {
+				return handleArgumentAPIError(err)
 			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), all)
@@ -80,9 +68,7 @@ func newInitiativesProgressCommand() *cobra.Command {
 		},
 	}
 	addWindowFlags(cmd, "issues closed")
-	since := cmd.Flags().Lookup("since")
-	since.DefValue = recentCloses
-	_ = since.Value.Set(recentCloses)
+	cmd.Flags().Lookup("since").DefValue = recentCloses
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output each initiative's progress as a JSON array to stdout")
 	return goclikit.WithRecoveryHints(cmd, initiativeHints...)
 }
@@ -131,9 +117,9 @@ func (v progressView) print(progress api.InitiativeProgress) {
 	used := utf8.RuneCountInString(number) + 2 + utf8.RuneCountInString(label) + 2
 	v.line("%s  %s  %s", p.Cyan(number), color(label), p.Bold(v.fit(initiative.Name, used)))
 
-	open := unclosedCount(states)
-	v.line("  %s  %d/%d done", progressBar(p, states, open), states.Completed, states.Completed+open)
-	v.line("  %s", stateCountsLine(p, states))
+	done, open := initiative.CompletedCount, initiative.OpenCount
+	v.line("  %s  %d/%d done", progressBar(p, states, done, open), done, done+open)
+	v.line("  %s", stateCountsLine(p, states, initiative.IssueCount))
 	if initiative.Claim != nil {
 		v.line("  %s", v.fit(claimNote(*initiative.Claim, v.now), 2))
 	}
@@ -152,18 +138,12 @@ func (v progressView) print(progress api.InitiativeProgress) {
 	v.line("  tokens:  %s", reportedTokens(totals.Tokens))
 }
 
-// unclosedCount is how many of the issues the states count are neither
-// completed nor canceled.
-func unclosedCount(s api.IssueStateCounts) int {
-	return s.Running + s.Waiting + s.Ready + s.Blocked + s.Triage + s.Deferred + s.Shelved + s.OpenChildren
-}
-
 // progressBar fills its done cells by the rule the list's bar keeps, in green,
 // then splits the empty cells among the open work: yellow for the running and
 // waiting, red for the blocked and plain for the rest. Without color it reads
 // as done over done and open.
-func progressBar(p gotermstyle.Palette, s api.IssueStateCounts, open int) string {
-	filled := progressFilled(s.Completed, open, progressBarCells)
+func progressBar(p gotermstyle.Palette, s api.IssueStateCounts, done, open int) string {
+	filled := progressFilled(done, open, progressBarCells)
 	empty := progressBarCells - filled
 	share := func(n int) int {
 		if open == 0 {
@@ -181,7 +161,7 @@ func progressBar(p gotermstyle.Palette, s api.IssueStateCounts, open int) string
 // stateCountsLine names the done count always, every other state holding an
 // issue, and the total, done in green, the work under way in yellow and the
 // blocked work in red.
-func stateCountsLine(p gotermstyle.Palette, s api.IssueStateCounts) string {
+func stateCountsLine(p gotermstyle.Palette, s api.IssueStateCounts, total int) string {
 	plain := func(text string) string { return text }
 	parts := []string{p.Green(strconv.Itoa(s.Completed) + " done")}
 	for _, state := range []struct {
@@ -203,7 +183,6 @@ func stateCountsLine(p gotermstyle.Palette, s api.IssueStateCounts) string {
 			parts = append(parts, state.color(strconv.Itoa(state.n)+" "+state.name))
 		}
 	}
-	total := s.Completed + s.Canceled + unclosedCount(s)
 	return strings.Join(append(parts, strconv.Itoa(total)+" "+plural(total, "issue", "issues")), " · ")
 }
 
@@ -254,17 +233,32 @@ func (v progressView) section(heading string, rows []progressRow) {
 }
 
 // claimedSection lists issues under a live claim, each with its holder, its
-// expiry and what it waits on.
+// expiry, what its holder waits on, and the unclosed issues it still depends on.
 func (v progressView) claimedSection(heading string, issues []api.Issue) {
 	rows := make([]progressRow, 0, len(issues))
 	for _, issue := range issues {
-		row := progressRow{number: issue.Number, title: issue.Title}
+		var notes []string
 		if issue.Claim != nil {
-			row.note = claimNote(*issue.Claim, v.now)
+			notes = append(notes, claimNote(*issue.Claim, v.now))
 		}
-		rows = append(rows, row)
+		if blockers := unclosedDependencies(issue); len(blockers) > 0 {
+			notes = append(notes, "blocked by "+strings.Join(blockers, ", "))
+		}
+		rows = append(rows, progressRow{number: issue.Number, title: issue.Title, note: strings.Join(notes, "; ")})
 	}
 	v.section(heading, rows)
+}
+
+// unclosedDependencies names each issue the issue depends on that is not yet
+// completed or canceled.
+func unclosedDependencies(issue api.Issue) []string {
+	var numbers []string
+	for _, dependency := range issue.DependsOn {
+		if dependency.Status != api.IssueStatusCompleted && dependency.Status != api.IssueStatusCanceled {
+			numbers = append(numbers, "#"+strconv.Itoa(dependency.Number))
+		}
+	}
+	return numbers
 }
 
 // nextSection lists the head of the queue, each row with the step it asks
@@ -292,13 +286,8 @@ func (v progressView) nextSection(next []api.QueueRow) {
 func (v progressView) blockedSection(issues []api.Issue) {
 	rows := make([]progressRow, 0, len(issues))
 	for _, issue := range issues {
-		var waitsOn []string
-		for _, dependency := range issue.DependsOn {
-			if dependency.Status != api.IssueStatusCompleted && dependency.Status != api.IssueStatusCanceled {
-				waitsOn = append(waitsOn, "#"+strconv.Itoa(dependency.Number))
-			}
-		}
-		rows = append(rows, progressRow{number: issue.Number, title: issue.Title, note: "waits on " + strings.Join(waitsOn, ", ")})
+		note := "waits on " + strings.Join(unclosedDependencies(issue), ", ")
+		rows = append(rows, progressRow{number: issue.Number, title: issue.Title, note: note})
 	}
 	v.section("Blocked", rows)
 }

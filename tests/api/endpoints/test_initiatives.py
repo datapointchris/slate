@@ -174,7 +174,7 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     message = {'key': 'm1', 'written_ts': (entered + dt.timedelta(seconds=1)).isoformat(), 'model': 'claude-opus-5-5', 'tokens': tokens}
     ok(client.put('/sessions/s1/usage', json={'messages': [message]}))
 
-    progress = ok(client.get(f'{INITIATIVES}/Progress/progress'))
+    (progress,) = ok(client.get(f'{INITIATIVES}/progress', params={'initiative': 'Progress'}))
     assert progress['initiative']['number'] == initiative
     assert progress['states'] == {
         'completed': 1,
@@ -198,5 +198,14 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     assert (totals['scope']['record']['number'], totals['worklog_count'], totals['tokens']) == (initiative, 2, tokens)
 
     later = (dt.datetime.now(dt.UTC) + dt.timedelta(minutes=1)).isoformat()
-    windowed = ok(client.get(f'{INITIATIVES}/{initiative}/progress', params={'since': later}))
+    (windowed,) = ok(client.get(f'{INITIATIVES}/progress', params={'initiative': initiative, 'since': later}))
     assert (windowed['closed'], windowed['closed_since'] is not None, windowed['states']) == ([], True, progress['states'])
+
+    every_active = ok(client.get(f'{INITIATIVES}/progress'))
+    assert [row['initiative']['number'] for row in every_active] == [row['number'] for row in ok(client.get(INITIATIVES))]
+
+
+def test_an_initiative_cannot_take_the_name_of_the_progress_route(client):
+    """`GET /initiatives/progress` is reached before an initiative named `progress` could be read by name."""
+    assert ok(client.post(INITIATIVES, json={'name': 'progress'}), status.HTTP_422_UNPROCESSABLE_CONTENT)
+    assert ok(client.patch(f'{INITIATIVES}/Ship the issue tracker', json={'name': 'progress'}), status.HTTP_422_UNPROCESSABLE_CONTENT)

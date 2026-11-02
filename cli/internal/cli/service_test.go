@@ -514,7 +514,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 			`[]`,
 			map[string]string{"/api/v1/initiatives/Practical help guides": `{}`},
 		},
-		{[]string{"initiatives", "progress", "Practical help guides", "--json"}, `{}`, nil},
+		{[]string{"initiatives", "progress", "Practical help guides", "--json"}, `[]`, nil},
 		{[]string{"ideas", "list", "--json"}, `[]`, nil},
 		{[]string{"ideas", "show", "412", "--json"}, `{}`, nil},
 		{[]string{"documents", "list", "412", "--json"}, `[]`, nil},

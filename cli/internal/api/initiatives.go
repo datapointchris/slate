@@ -168,15 +168,19 @@ type InitiativeProgress struct {
 	Totals      WorkTotals       `json:"totals"`
 }
 
-// GetInitiativeProgress reads an initiative's progress, by any reference the
-// API resolves. The window narrows only its closes, and zone is the calendar
-// its readiness is read in.
-func (c *Client) GetInitiativeProgress(ctx context.Context, ref string, window Window, zone DayZone) (InitiativeProgress, error) {
+// ListInitiativesProgress reads the progress of each initiative refs names, by
+// any reference the API resolves, in the order named. With none named, the API
+// answers every active initiative in the order to work them. The window narrows
+// only the closes, and zone is the calendar readiness is read in.
+func (c *Client) ListInitiativesProgress(ctx context.Context, refs []string, window Window, zone DayZone) ([]InitiativeProgress, error) {
 	query := zoneQuery(zone)
+	for _, ref := range refs {
+		query.Add("initiative", ref)
+	}
 	applyWindow(query, window)
-	var progress InitiativeProgress
-	if err := c.get(ctx, withQuery(initiativePath(ref)+"/progress", query), &progress); err != nil {
-		return InitiativeProgress{}, err
+	var progress []InitiativeProgress
+	if err := c.get(ctx, withQuery("/initiatives/progress", query), &progress); err != nil {
+		return nil, err
 	}
 	return progress, nil
 }

@@ -321,7 +321,7 @@ alone.
 
 ## An initiative's progress counts each of its issues in one state
 
-`GET /initiatives/{id}/progress` answers how far an initiative has come, and
+`GET /initiatives/progress` answers how far each initiative has come, and
 `slate initiatives progress` prints it. It is the view Jira's epic progress bar
 and Linear's project view give. Each issue counts in exactly one state, so the
 counts add up to every issue in the initiative, closed ones included. An issue
@@ -344,23 +344,35 @@ else is true of it. Triage outranks blocked, because nobody has accepted the
 work its blockers hold back. No status says an issue is in progress. Its claim
 says that.
 
-The answer lists the issues running, waiting and blocked in queue order. Each
-blocked issue carries what it depends on. `next` is the head of `GET /queue`
-for the initiative, read from the same readiness pass, so the two never
-disagree. `closed` lists the closes inside the `since` and `until` window,
-latest first. `totals` is what `GET /totals` answers for the initiative over its
-whole life, whatever the window.
+One read answers any number of initiatives. Each `initiative` names one, in
+the order named. With none named, the answer holds every active initiative in
+the order to work them. Readiness is measured over the whole issue graph, so
+one pass serves them all. The route's path is the name `progress`, so no
+initiative may take that name.
+
+For each initiative, the answer lists the issues running, waiting and blocked,
+in queue order. Each carries what it depends on, so a held issue still shows
+what holds it back. `next` is the
+head of `GET /queue` for the initiative. It is read from the same readiness
+pass, so the two never disagree. `closed` lists the closes inside the `since`
+and `until` window, latest first. `totals` is what `GET /totals` answers for
+the initiative over its whole life, whatever the window.
 
 The window means what it means on every bounded read. A bound left out leaves
 that end open, so the API given no `since` lists every close. "Recently" is the
-CLI's choice: `--since` defaults to 7 days back, and `--since=` lists every
-close. The answer echoes the window as `closed_since` and `closed_until`.
+CLI's choice. Given neither `--since` nor `--until`, it reads the closes since
+the default its help shows. `--since=` lists every close. The answer echoes the
+window as `closed_since` and `closed_until`.
 
-- *Rejected:* a 7-day default in the API. `since` would mean one thing on this
+- *Rejected:* a recent default in the API. `since` would mean one thing on this
   route and another on every other.
 - *Rejected:* a CLI composing the initiative, issue, queue and totals reads.
   That is four calls per initiative, and the states derive from readiness,
   which only the API derives.
+- *Rejected:* `GET /initiatives/{id}/progress`. A name may hold a slash, and
+  the path is decoded before routing, so the read of an initiative named
+  `Ship/progress` would answer the progress of `Ship`. It also took one call,
+  and one readiness pass, per initiative.
 
 The bar spans the done and open issues and leaves out the canceled ones, as
 the bar in `slate initiatives list` does. Done fills it in green. Its empty

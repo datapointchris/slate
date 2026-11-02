@@ -1,25 +1,20 @@
 """An initiative's progress: each of its issues in one state, the work under way and next, its closes, and its totals.
 
 A state is derived on every read from the issue's status, its live claim and its readiness, and
-never stored. An issue takes the first of these that holds:
-
-1. `completed` or `canceled`, its closing status
-2. `running` or `waiting`, under a live claim, `waiting` where the holder parked it on something
-3. `triage`, filed and not yet accepted
-4. `blocked`, depending on an unclosed issue
-5. `ready`, as `next` would hand it out
-6. `deferred`, until its not-before day
-7. `shelved`, in a someday initiative with nothing outside someday depending on it
-8. `open_children`, held back only by its open children
+never stored. `issue_state` gives each issue the first state that holds.
 
 A claim outranks every unclosed state, because someone holding an issue is working it whatever
 else is true of it. Triage outranks blocked, because nobody has accepted the work its blockers hold.
 
-One readiness pass serves the states, the lists and the head of the queue, so progress and `next`
-never disagree about an issue.
+One readiness pass serves every initiative's states, lists and head of the queue, so a read of
+any number of initiatives measures the issue graph once, and progress and `next` never disagree
+about an issue.
 """
 
 from __future__ import annotations
+
+import datetime as dt
+from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -64,10 +59,18 @@ def issue_state(issue: models.Issue, claim: models.Claim | None, readiness: Issu
     return 'open_children'
 
 
-def initiative_progress(session: Session, initiative: models.Initiative, zone: str, window: TimeWindow) -> schemas.InitiativeProgress:
-    """The initiative's progress as of now, read in `zone`. `window` narrows only the closes."""
+def initiatives_progress(
+    session: Session, initiatives: Sequence[models.Initiative], zone: str, window: TimeWindow
+) -> list[schemas.InitiativeProgress]:
+    """Each initiative's progress as of now, read in `zone`, in the order given. `window` narrows only the closes."""
     today, now = calendar_now(zone)
     readiness = measure_readiness(session, today, now)
+    return [initiative_progress(session, initiative, zone, now, readiness, window) for initiative in initiatives]
+
+
+def initiative_progress(
+    session: Session, initiative: models.Initiative, zone: str, now: dt.datetime, readiness: IssueReadiness, window: TimeWindow
+) -> schemas.InitiativeProgress:
     issues = session.scalars(select(models.Issue).options(*ISSUE_LOAD_OPTIONS).where(models.Issue.initiative_id == initiative.id)).all()
     claims = live_claims(session, [issue.number for issue in issues], now)
     state_of = {issue.id: issue_state(issue, claims.get(issue.number), readiness) for issue in issues}
