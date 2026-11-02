@@ -40,19 +40,18 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('POST', f'{API_PREFIX}/claims/{{record}}/release'),
         }
     ),
-    # What `slate issues add-comment` and `complete` send, for a job closing an issue whose fix
-    # merged. The update handler narrows a body naming `status` or `closed_by` to the close of an
-    # open issue.
+    # Commenting on an issue and closing it, for a job closing an issue whose fix merged. The
+    # update handler narrows a body naming `status` or `closed_by` to the close of an open issue.
     ISSUES_CLOSE: frozenset(
         {
             ('POST', f'{API_PREFIX}/issues/{{id}}/comments'),
             ('PATCH', f'{API_PREFIX}/issues/{{id}}'),
         }
     ),
-    # What `slate issues edit --priority` and `--initiative`, `reorder`, `create`, and
-    # `initiatives create`, `edit`, `complete` and `drop` send, for a job ordering the queue.
-    # `create` reads the vocabulary before it files. The handlers narrow any other update to an
-    # issue's priority and initiative, and a filing to triage under no parent. Nothing here deletes.
+    # Filing an issue, setting its priority, initiative and rank, and creating and updating an
+    # initiative, for a job ordering the queue. A filing reads the vocabulary first. The handlers
+    # narrow any other update to an issue's priority and initiative, and a filing to triage under
+    # no parent. Nothing here deletes.
     ISSUES_PLAN: frozenset(
         {
             ('GET', f'{API_PREFIX}/issues/vocabulary'),
