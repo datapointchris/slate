@@ -36,9 +36,14 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY alembic.ini ./
 
+# The release names the version it builds, and every span carries it as service.version. A build
+# that names none, such as a pull request's, leaves it empty, and the spans carry no version.
+ARG SLATE_VERSION=""
+
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    SLATE_VERSION=${SLATE_VERSION}
 
 USER 10400:10400
 EXPOSE 8000

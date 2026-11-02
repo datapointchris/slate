@@ -309,6 +309,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: SLATE_VERSION=${{ env.VERSION }}
           provenance: mode=max
           sbom: true
           cache-from: type=gha
