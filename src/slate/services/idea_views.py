@@ -44,6 +44,7 @@ def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.I
             title=idea.title,
             description=idea.description,
             priority=idea.priority,
+            rank=idea.rank,
             created_ts=idea.created_ts,
             updated_ts=idea.updated_ts,
             evidence=[evidence_view(evidence) for evidence in idea.evidence],

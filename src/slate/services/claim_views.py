@@ -71,6 +71,10 @@ def live_claims(session: Session, numbers: Iterable[int], now: dt.datetime) -> d
     return {number: claim for number, claim in unended_claims(session, numbers).items() if claim.is_live(now)}
 
 
+def live_claims_on_every_record(session: Session, now: dt.datetime) -> dict[int, models.Claim]:
+    return {claim.record_number: claim for claim in session.scalars(select(models.Claim).where(models.Claim.is_live(now))).all()}
+
+
 def live_claim_numbers(session: Session, now: dt.datetime) -> frozenset[int]:
     query = select(models.Claim.record_number).where(models.Claim.is_live(now))
     return frozenset(session.scalars(query).all())

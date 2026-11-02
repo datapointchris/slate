@@ -1,5 +1,8 @@
 import datetime as dt
+from typing import Any
 from uuid import UUID
+
+from pydantic import model_validator
 
 from slate.schemas.claim import Claim
 from slate.schemas.not_null import NotNull
@@ -22,17 +25,30 @@ class InitiativeSummary(RecordModel):
     autofix: bool
 
 
-class InitiativeCreate(RecordModel):
+class InitiativeWrite(RecordModel):
+    """A create or an edit. `position` is refused by name, so a client sending it learns what places an initiative now."""
+
+    @model_validator(mode='before')
+    @classmethod
+    def refuse_position(cls, data: Any) -> Any:
+        if isinstance(data, dict) and 'position' in data:
+            raise ValueError(
+                'position is not a field: an initiative is placed in the queue by POST /initiatives/{id}/rank, '
+                'which `slate initiatives reorder` sends'
+            )
+        return data
+
+
+class InitiativeCreate(InitiativeWrite):
     name: str
     description: str | None = None
     status: str = 'active'
     status_reason: str | None = None
     priority: Priority = 0
-    position: int | None = None
     autofix: bool = True
 
 
-class InitiativeUpdate(RecordModel):
+class InitiativeUpdate(InitiativeWrite):
     """`closed_ts` is stamped on the move into a terminal status and cleared on reopen."""
 
     name: NotNull[str] = None
@@ -40,7 +56,6 @@ class InitiativeUpdate(RecordModel):
     status: NotNull[str] = None
     status_reason: str | None = None
     priority: NotNull[Priority] = None
-    position: NotNull[int] = None
     autofix: NotNull[bool] = None
 
 
@@ -50,7 +65,8 @@ class Initiative(RecordModel):
     The three counts partition `issue_count`. `repos` is derived from every issue
     not canceled, never stored, so it cannot drift from what the work touches.
     `claim` is the initiative's unended claim, live or expired. `idea` is the
-    idea promoted into it.
+    idea promoted into it. `rank` places it, with its issues, among the
+    records of its priority in the queue.
     """
 
     id: UUID
@@ -60,7 +76,7 @@ class Initiative(RecordModel):
     status: str
     status_reason: str | None = None
     priority: int
-    position: int
+    rank: float
     autofix: bool
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None

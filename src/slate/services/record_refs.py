@@ -147,8 +147,8 @@ def resolve_initiative(session: Session, ref: str | UUID | int) -> models.Initia
 
 
 def initiative_names(session: Session) -> list[str]:
-    """Every initiative's name, active ones first and each group in board order."""
-    query = select(models.Initiative.name).order_by((models.Initiative.status == 'active').desc(), models.Initiative.position)
+    """Every initiative's name, active ones first and each group in queue order."""
+    query = select(models.Initiative.name).order_by((models.Initiative.status == 'active').desc(), models.Initiative.rank)
     return list(session.scalars(query))
 
 

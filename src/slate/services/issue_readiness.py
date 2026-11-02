@@ -18,19 +18,26 @@ says `autofix` is false, and the parent is read the same way up the tree. That
 is a person's veto on an unattended fix, and says nothing about whether anyone
 may take the issue now, which `ready` answers.
 
-Order is effective priority, then rank, then number. Effective priority is the
-most urgent of the issue's own, its open parent's effective priority, its active
-initiative's, and the effective priority of any open issue it blocks. Nothing in
-that set lowers it, so an own priority can raise an issue above its initiative
-and never sink it below. The blocking step is priority inheritance from scheduling:
-without it a blocker ranked near the bottom keeps waiting while the work it
-gates sits at the top of the queue, hidden because it is blocked.
+The queue is ordered in slots. A slot is an active initiative with the issues
+it holds, or a record standing alone: an idea, an initiative with no issues, or
+an issue outside any initiative. Slots sort by urgency, then by their record's
+rank. Inside an initiative its issues sort by rank. An issue whose own priority
+is more urgent than its initiative's stands alone at its own.
+
+An issue something waits on, a dependent or its parent, sorts just ahead of the
+earliest of them when that is earlier than its own place, at any depth. That
+is priority inheritance from scheduling: without it a blocker ranked near the
+bottom keeps waiting while the work it gates sits at the top of the queue,
+hidden because it is blocked. So an issue's effective priority is the urgency
+of the place it sorts at: the most urgent of its own, its active initiative's,
+and that of everything waiting on it. Nothing in that set lowers it.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from typing import NamedTuple
 from uuid import UUID
 
 from sqlalchemy import select
@@ -38,11 +45,16 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.models.record import Kind
 from slate.services.claim_views import live_claim_numbers
+from slate.services.open_records import is_open
 
 # The urgency of "no priority": after every real level, which run 1 (urgent)
 # to 4 (low).
 NO_PRIORITY_URGENCY = 5
+
+# A slot's own record sorts ahead of whatever the slot holds.
+AHEAD_OF_ITS_ISSUES = float('-inf')
 
 
 def urgency(priority: int) -> int:
@@ -51,6 +63,38 @@ def urgency(priority: int) -> int:
 
 def priority_of(urgency_value: int) -> int:
     return 0 if urgency_value == NO_PRIORITY_URGENCY else urgency_value
+
+
+class QueueKey(NamedTuple):
+    """Where a record sorts. The slot comes first, then the place inside it.
+
+    `ahead` counts how many steps before `inner` a waited-on issue sorts, and
+    `tie_rank` and `tie_number` order the issues sorting at the same step.
+    """
+
+    urgency: int
+    slot_rank: float
+    slot_number: int
+    inner_rank: float
+    inner_number: int
+    ahead: int
+    tie_rank: float
+    tie_number: int
+
+
+def slot_key(urgency_value: int, rank: float, number: int) -> QueueKey:
+    """The key of a record standing as its own slot: an idea, an initiative, or an issue outside one."""
+    return QueueKey(urgency_value, rank, number, AHEAD_OF_ITS_ISSUES, 0, 0, 0.0, 0)
+
+
+def just_ahead_of(waiter: QueueKey, rank: float, number: int) -> QueueKey:
+    return QueueKey(*waiter[:5], waiter.ahead - 1, rank, number)
+
+
+class ActiveInitiative(NamedTuple):
+    number: int
+    urgency: int
+    rank: float
 
 
 @dataclass(frozen=True)
@@ -63,10 +107,24 @@ class IssueReadiness:
     autofixable: frozenset[UUID]
     child_count: dict[UUID, int]
     open_child_count: dict[UUID, int]
+    # Every unclosed issue's place, the place it would take on its own, the
+    # record number of the slot that place is in, and the issue whose wait put
+    # it ahead of its own place.
+    queue_key: dict[UUID, QueueKey]
+    home_key: dict[UUID, QueueKey]
+    slot_of: dict[UUID, int]
+    raised_by: dict[UUID, int]
+    # Each idea and initiative the queue holds as a slot, by number: an active initiative, with
+    # its issues or alone, and an idea nobody has promoted.
+    slot_key_by_number: dict[int, QueueKey]
 
-    def sort_key(self, issue: models.Issue) -> tuple[int, float, int]:
-        """Number breaks a rank tie because it is issued in creation order and never repeats."""
-        return (urgency(self.effective_priority.get(issue.id, issue.priority)), issue.rank, issue.number)
+    def sort_key(self, issue: models.Issue) -> QueueKey:
+        """A closed issue stands alone at its own priority, which the queue never reads."""
+        return self.queue_key.get(issue.id) or slot_key(urgency(issue.priority), issue.rank, issue.number)
+
+    def record_sort_key(self, number: int, priority: int, rank: float) -> QueueKey:
+        """An idea or an initiative the queue holds no slot for, such as a held someday one, stands alone at its own priority."""
+        return self.slot_key_by_number.get(number) or slot_key(urgency(priority), rank, number)
 
 
 def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> IssueReadiness:
@@ -84,14 +142,27 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
         models.Issue.parent_id,
         models.Issue.deferred_until_date,
         models.Issue.autofix,
+        models.Record.rank,
     )
-    rows = {row.id: row for row in session.execute(select(*columns)).all()}
-    initiative_urgency = {
-        row.id: urgency(row.priority)
+    query = select(*columns).join(models.Record, models.Record.number == models.Issue.number)
+    rows = {row.id: row for row in session.execute(query).all()}
+    active_initiatives = {
+        row.id: ActiveInitiative(row.number, urgency(row.priority), row.rank)
         for row in session.execute(
-            select(models.Initiative.id, models.Initiative.priority).where(models.Initiative.status == 'active')
+            select(models.Initiative.id, models.Initiative.number, models.Initiative.priority, models.Record.rank)
+            .join(models.Record, models.Record.number == models.Initiative.number)
+            .where(models.Initiative.status == 'active')
         ).all()
     }
+    slot_key_by_number = {
+        initiative.number: slot_key(initiative.urgency, initiative.rank, initiative.number) for initiative in active_initiatives.values()
+    }
+    for number, priority, rank in session.execute(
+        select(models.Idea.number, models.Idea.priority, models.Record.rank)
+        .join(models.Record, models.Record.number == models.Idea.number)
+        .where(is_open(Kind.IDEA))
+    ).all():
+        slot_key_by_number[number] = slot_key(urgency(priority), rank, number)
     someday_initiatives = set(session.scalars(select(models.Initiative.id).where(models.Initiative.status == 'someday')).all())
     no_autofix_initiatives = set(session.scalars(select(models.Initiative.id).where(models.Initiative.autofix.is_(False))).all())
     edges = session.execute(select(models.IssueDependency.issue_id, models.IssueDependency.depends_on_id)).all()
@@ -113,31 +184,50 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
             if issue_id in unclosed:
                 open_child_count[row.parent_id] = open_child_count.get(row.parent_id, 0) + 1
 
-    memo: dict[UUID, int] = {}
+    home_key: dict[UUID, QueueKey] = {}
+    slot_of: dict[UUID, int] = {}
+    for issue_id in unclosed:
+        row = rows[issue_id]
+        initiative = active_initiatives.get(row.initiative_id)
+        if initiative is not None and urgency(row.priority) >= initiative.urgency:
+            home_key[issue_id] = QueueKey(initiative.urgency, initiative.rank, initiative.number, row.rank, row.number, 0, 0.0, 0)
+            slot_of[issue_id] = initiative.number
+        else:
+            home_key[issue_id] = slot_key(urgency(row.priority), row.rank, row.number)
+            slot_of[issue_id] = row.number
+
+    queue_key: dict[UUID, QueueKey] = {}
+    raised_by: dict[UUID, int] = {}
     walking: set[UUID] = set()
 
-    def effective_urgency(issue_id: UUID) -> int:
-        if issue_id in memo:
-            return memo[issue_id]
+    def place(issue_id: UUID) -> QueueKey | None:
+        if issue_id in queue_key:
+            return queue_key[issue_id]
         # Every loop through a dependency or a parent edge is refused on write, so
         # re-entering means a row written around that check. Contributing nothing
         # keeps the walk finite.
         if issue_id in walking:
-            return NO_PRIORITY_URGENCY
+            return None
         walking.add(issue_id)
         row = rows[issue_id]
-        best = min(urgency(row.priority), initiative_urgency.get(row.initiative_id, NO_PRIORITY_URGENCY))
+        best = home_key[issue_id]
+        waiters = [dependent_id for dependent_id in dependents.get(issue_id, []) if dependent_id in unclosed]
         if row.parent_id in unclosed:
-            best = min(best, effective_urgency(row.parent_id))
-        for dependent_id in dependents.get(issue_id, []):
-            if dependent_id in unclosed:
-                best = min(best, effective_urgency(dependent_id))
+            waiters.append(row.parent_id)
+        for waiter_id in waiters:
+            waiter = place(waiter_id)
+            if waiter is not None and (ahead := just_ahead_of(waiter, row.rank, row.number)) < best:
+                best = ahead
+                raised_by[issue_id] = rows[waiter_id].number
         walking.discard(issue_id)
-        memo[issue_id] = best
+        queue_key[issue_id] = best
         return best
 
+    for issue_id in unclosed:
+        place(issue_id)
+
     effective_priority = {
-        issue_id: priority_of(effective_urgency(issue_id)) if issue_id in unclosed else row.priority for issue_id, row in rows.items()
+        issue_id: priority_of(queue_key[issue_id].urgency) if issue_id in unclosed else row.priority for issue_id, row in rows.items()
     }
 
     deferred = {
@@ -196,4 +286,9 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
         autofixable=frozenset(autofixable),
         child_count=child_count,
         open_child_count=open_child_count,
+        queue_key=queue_key,
+        home_key=home_key,
+        slot_of=slot_of,
+        raised_by=raised_by,
+        slot_key_by_number=slot_key_by_number,
     )

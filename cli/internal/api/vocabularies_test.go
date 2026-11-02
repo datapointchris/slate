@@ -32,6 +32,7 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		"initiative_statuses_closed": InitiativeStatusesClosed,
 		"record_kinds":               RecordKinds,
 		"document_kinds":             DocumentKinds,
+		"queue_steps":                QueueSteps,
 	} {
 		if !slices.Equal(copied, api[name]) {
 			t.Errorf("%s = %v, the API's are %v", name, copied, api[name])

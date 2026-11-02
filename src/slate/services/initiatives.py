@@ -5,7 +5,6 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from fastapi import status
-from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -55,25 +54,25 @@ def ensure_active_name_available(session: Session, name: str, exclude_id: UUID |
 
 
 def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea: models.Idea | None = None) -> models.Initiative:
-    """Add an initiative after every check a create makes, last in the board unless placed."""
+    """Add an initiative after every check a create makes.
+
+    Promoted from `idea`, it takes the idea's place in the queue. Otherwise its record goes last, as every new one does.
+    """
     refuse_number_shaped_name(initiative.name)
     validate_status(initiative.status, session)
     require_reason_when_dropped(initiative.status, initiative.status_reason)
     if initiative.status == 'active':
         ensure_active_name_available(session, initiative.name)
 
-    position = initiative.position
-    if position is None:
-        position = (session.scalar(select(func.max(models.Initiative.position))) or 0) + 1
     db_obj = models.Initiative(
         name=initiative.name,
         description=initiative.description,
         status=initiative.status,
         status_reason=initiative.status_reason,
         priority=initiative.priority,
-        position=position,
         autofix=initiative.autofix,
         idea=idea,
+        rank=None if idea is None else idea.rank,
     )
     if db_obj.status in TERMINAL_INITIATIVE_STATUSES:
         db_obj.closed_ts = dt.datetime.now(dt.UTC)

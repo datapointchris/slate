@@ -10,7 +10,8 @@ on. Promoting it creates the initiative that is the work.
 
 An idea carries its own priority on the scale every record shares. A
 high-priority idea is one worth deciding on soon. Nothing about being an idea
-caps how urgent it can be.
+caps how urgent it can be. `slate next` lists an unpromoted idea at step
+`discuss`, at its priority, and `slate ideas reorder` places it.
 
 This is product discovery, as Jira Product Discovery runs it: an idea collects
 its insights, and once committed it links the delivery work, whose progress

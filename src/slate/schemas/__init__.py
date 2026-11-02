@@ -50,11 +50,14 @@ from slate.schemas.issue import IssueLabelCreate
 from slate.schemas.issue import IssueLabelDeleted
 from slate.schemas.issue import IssueLabelUpdate
 from slate.schemas.issue import IssueLabelWritten
-from slate.schemas.issue import IssueRankMove
 from slate.schemas.issue import IssueSummary
 from slate.schemas.issue import IssueUpdate
 from slate.schemas.issue import IssueWritten
+from slate.schemas.queue import PathOverlap
+from slate.schemas.queue import Queue
+from slate.schemas.queue import QueueFilter
 from slate.schemas.record import RecordListed
+from slate.schemas.record import RecordRankMove
 from slate.schemas.record import RecordSummary
 from slate.schemas.record_parts import RecordParts
 from slate.schemas.tokens import TokensByKind
@@ -121,16 +124,19 @@ __all__ = [
     'IssueLabelDeleted',
     'IssueLabelUpdate',
     'IssueLabelWritten',
-    'IssueRankMove',
     'IssueSummary',
     'IssueUpdate',
     'IssueWritten',
     'MessageTokensReport',
+    'PathOverlap',
     'PlacedComment',
     'PriorityName',
+    'Queue',
+    'QueueFilter',
     'RecordDeleted',
     'RecordListed',
     'RecordParts',
+    'RecordRankMove',
     'RecordSummary',
     'SessionSpan',
     'SessionUsageReport',

@@ -43,9 +43,10 @@ class Initiative(NumberedRecord, Base):
     """A bounded outcome that groups issues, and the priority they inherit.
 
     An initiative has a definition of done. Work with no end is a label instead,
-    because an initiative that can never finish ranks its issues forever by a
-    position nobody revisits. Only an active initiative lends its priority, so
-    closing one stops it ranking the issues still open inside it.
+    because an initiative that can never finish holds its issues' place in the
+    queue forever. Only an active initiative lends its priority and keeps its
+    issues together in the queue, so closing one releases the issues still open
+    inside it.
     """
 
     RECORD_KIND = Kind.INITIATIVE
@@ -58,10 +59,12 @@ class Initiative(NumberedRecord, Base):
     status: Mapped[str] = mapped_column(Text, ForeignKey('initiative_statuses.name'), nullable=False, server_default='active')
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     priority: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default='0')
-    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
     # False keeps every issue in it from an unattended fix, so a step of one
     # design is never landed alone.
     autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text('true'))
+    # The order the API release before `records.rank` reads, kept while the two can overlap in a
+    # rollout. Nothing here reads or writes it.
+    previous_release_position: Mapped[int] = mapped_column('position', Integer, nullable=False, server_default='0')
     created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     closed_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # The idea promoted into this initiative. One idea becomes at most one initiative.

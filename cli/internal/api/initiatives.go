@@ -29,7 +29,7 @@ type Initiative struct {
 	Status         string         `json:"status"`
 	StatusReason   *string        `json:"status_reason"`
 	Priority       int            `json:"priority"`
-	Position       int            `json:"position"`
+	Rank           float64        `json:"rank"`
 	Autofix        bool           `json:"autofix"`
 	CreatedTS      time.Time      `json:"created_ts"`
 	ClosedTS       *time.Time     `json:"closed_ts"`
@@ -48,13 +48,12 @@ type InitiativeDetail struct {
 	RecordParts
 }
 
-// InitiativeCreateInput is the body for POST /initiatives. A nil Position puts
-// the initiative last.
+// InitiativeCreateInput is the body for POST /initiatives. The initiative ranks
+// last, and RankInitiative moves it.
 type InitiativeCreateInput struct {
 	Name        string  `json:"name"`
 	Description *string `json:"description,omitempty"`
 	Priority    *int    `json:"priority,omitempty"`
-	Position    *int    `json:"position,omitempty"`
 	Autofix     *bool   `json:"autofix,omitempty"`
 }
 
@@ -65,7 +64,6 @@ type InitiativeUpdateInput struct {
 	Status       *string `json:"status,omitempty"`
 	StatusReason *string `json:"status_reason,omitempty"`
 	Priority     *int    `json:"priority,omitempty"`
-	Position     *int    `json:"position,omitempty"`
 	Autofix      *bool   `json:"autofix,omitempty"`
 }
 
@@ -133,4 +131,14 @@ func (c *Client) DeleteInitiative(ctx context.Context, ref string, zone DayZone)
 		return RecordDeleted{}, err
 	}
 	return deleted, nil
+}
+
+// RankInitiative places an initiative, with its issues, directly before or
+// after another record of its priority.
+func (c *Client) RankInitiative(ctx context.Context, ref string, move RankMove, zone DayZone) (InitiativeWritten, error) {
+	var written InitiativeWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(initiativePath(ref)+"/rank", zoneQuery(zone)), move, &written); err != nil {
+		return InitiativeWritten{}, err
+	}
+	return written, nil
 }

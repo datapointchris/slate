@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import Field
 from pydantic import StringConstraints
+from pydantic import model_validator
 
 from slate.schemas.ready_filter import ReadyFilter
 from slate.schemas.record import Actor
@@ -36,7 +37,16 @@ class ClaimHold(ClaimLease):
 
 
 class ClaimHoldNext(ClaimLease, ReadyFilter):
-    """Hold the head of the issue ready queue, narrowed by the filters the queue reads."""
+    """Hold the head of the queue's `build` step, narrowed by the filters the queue reads."""
+
+    @model_validator(mode='after')
+    def refuse_decisions(self):
+        if self.type == 'decision':
+            raise ValueError(
+                'a decision waits on a person, so the next hold is taken only from build work. '
+                'GET /queue?step=decide lists the decisions, and a hold naming one takes it'
+            )
+        return self
 
 
 class ClaimExtend(RecordModel):

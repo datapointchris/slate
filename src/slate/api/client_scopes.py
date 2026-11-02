@@ -30,8 +30,8 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/initiatives'),
             ('GET', f'{API_PREFIX}/initiatives/{{id:path}}'),
             ('GET', f'{API_PREFIX}/issues'),
-            ('GET', f'{API_PREFIX}/issues/ready'),
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
+            ('GET', f'{API_PREFIX}/queue'),
             ('GET', f'{API_PREFIX}/sessions/{{id}}'),
             ('GET', f'{API_PREFIX}/worklogs'),
             ('GET', f'{API_PREFIX}/worklogs/current'),
@@ -74,10 +74,10 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # Closing an issue, for a job closing an issue whose fix merged. The update handler narrows a
     # body naming `status` or `closed_by` to the close of an open issue.
     ISSUES_CLOSE: frozenset({('PATCH', f'{API_PREFIX}/issues/{{id}}')}),
-    # Filing an issue, setting its priority, initiative and rank, and creating and updating an
-    # initiative, for a job ordering the queue. A filing reads the vocabulary first. The handlers
-    # narrow any other update to an issue's priority and initiative, and a filing to triage under
-    # no parent. Nothing here deletes.
+    # Filing an issue, setting its priority and initiative, creating and updating an initiative,
+    # and moving an issue, initiative or idea in the queue, for a job ordering the queue. A filing
+    # reads the vocabulary first. The handlers narrow any other update to an issue's priority and
+    # initiative, and a filing to triage under no parent. Nothing here deletes.
     RECORDS_PLAN: frozenset(
         {
             ('GET', f'{API_PREFIX}/vocabulary'),
@@ -86,6 +86,8 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('POST', f'{API_PREFIX}/issues/{{id}}/rank'),
             ('POST', f'{API_PREFIX}/initiatives'),
             ('PATCH', f'{API_PREFIX}/initiatives/{{id:path}}'),
+            ('POST', f'{API_PREFIX}/initiatives/{{id:path}}/rank'),
+            ('POST', f'{API_PREFIX}/ideas/{{id}}/rank'),
         }
     ),
 }

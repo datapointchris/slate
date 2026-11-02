@@ -67,5 +67,11 @@
     "research",
     "design",
     "plan"
+  ],
+  "queue_steps": [
+    "discuss",
+    "plan",
+    "decide",
+    "build"
   ]
 }

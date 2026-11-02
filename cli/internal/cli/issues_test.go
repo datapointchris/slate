@@ -46,6 +46,7 @@ func TestIssues_AUsageRefusalDoesNotWaitOnTheNetwork(t *testing.T) {
 		{"an unknown status", []string{"issues", "list", "--status", "done"}},
 		{"an unknown priority", []string{"issues", "list", "--priority", "extreme"}},
 		{"a reorder with no neighbor", []string{"issues", "reorder", "412"}},
+		{"an unknown step", []string{"next", "--step", "ship"}},
 		{"a reorder with both neighbors", []string{"issues", "reorder", "412", "--before", "1", "--after", "2"}},
 		{"a negative tree depth", []string{"dependencies", "tree", "--depth", "-1"}},
 		{"an initiative dropped with no reason", []string{"initiatives", "drop", "Ship it"}},

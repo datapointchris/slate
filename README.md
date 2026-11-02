@@ -5,8 +5,8 @@ on, with their priority and evidence, until promotion makes each an
 initiative. Issues carry their dependencies, labels and the initiative they
 ship toward. Any record keeps its research, design and plan documents,
 versioned, and comments on the record or on one line of a document.
-`slate next` is
-the ready queue, ordered by priority. A claim is a lease on a record that
+`slate next` lists every kind of open work in the order to take it, each with
+its step, and the work someone holds apart. A claim is a lease on a record that
 expires, so two agents never hold the same issue and a dead one never holds it
 for long. Every claim is kept after it ends, as the record's history.
 
@@ -132,15 +132,16 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the ready queue, who holds which claim, worklogs, documents, comments, and a session's tokens |
-| `slate.claims.hold` | holding a claim on a record or on the head of the ready queue, and extending, releasing, waiting on and resuming one, under the service's own client id |
+| `slate.records.read` | reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, and a session's tokens |
+| `slate.claims.hold` | holding a claim on a record or on the head of the ready issues, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.comments.write` | commenting on any record, or on one line of its document, under the service's own client id |
 | `slate.issues.close` | closing an open issue |
-| `slate.records.plan` | reading the vocabulary, filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
+| `slate.records.plan` | reading the vocabulary, filing into triage, setting an issue's priority and initiative, moving an issue, initiative or idea in the queue, and creating and editing initiatives |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
 
-No scope deletes anything, and none files or changes an idea.
+No scope deletes anything, and none files an idea or edits one. A planning
+job only moves one in the queue.
 `src/slate/api/client_scopes.py` holds the exact routes.
 
 The CLI requests every scope in the table, so register each on every service

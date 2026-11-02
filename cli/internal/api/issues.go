@@ -24,7 +24,8 @@ var IssueStatuses = []string{
 }
 
 // IssueTypeDecision is the one type that changes what happens to an issue: it
-// waits on a person, so the ready queue leaves it out unless asked for.
+// waits on a person, so the queue lists it at step decide, and holding the
+// queue's head leaves it out unless asked for.
 const IssueTypeDecision = "decision"
 
 // IssueTypes is what --type accepts and the guided form offers. It matches the
@@ -88,18 +89,21 @@ type Issue struct {
 	DiscoveredFrom *IssueSummary      `json:"discovered_from"`
 	DuplicateOf    *IssueSummary      `json:"duplicate_of"`
 	Labels         []string           `json:"labels"`
-	DependsOn      []IssueSummary     `json:"depends_on"`
-	Blocks         []IssueSummary     `json:"blocks"`
-	ChildCount     int                `json:"child_count"`
-	OpenChildCount int                `json:"open_child_count"`
-	CommentCount   int                `json:"comment_count"`
-	IsBlocked      bool               `json:"is_blocked"`
-	IsReady        bool               `json:"is_ready"`
-	IsAutofixable  *bool              `json:"is_autofixable"`
-	CreatedTS      time.Time          `json:"created_ts"`
-	UpdatedTS      time.Time          `json:"updated_ts"`
-	ClosedTS       *time.Time         `json:"closed_ts"`
-	ClosedBy       *string            `json:"closed_by"`
+	// Paths are the files and directories the issue changes, in its repo. A
+	// directory covers everything under it.
+	Paths          []string       `json:"paths"`
+	DependsOn      []IssueSummary `json:"depends_on"`
+	Blocks         []IssueSummary `json:"blocks"`
+	ChildCount     int            `json:"child_count"`
+	OpenChildCount int            `json:"open_child_count"`
+	CommentCount   int            `json:"comment_count"`
+	IsBlocked      bool           `json:"is_blocked"`
+	IsReady        bool           `json:"is_ready"`
+	IsAutofixable  *bool          `json:"is_autofixable"`
+	CreatedTS      time.Time      `json:"created_ts"`
+	UpdatedTS      time.Time      `json:"updated_ts"`
+	ClosedTS       *time.Time     `json:"closed_ts"`
+	ClosedBy       *string        `json:"closed_by"`
 }
 
 // IssueDetail is one issue with its children, claims, comments and documents.
@@ -127,6 +131,7 @@ type IssueCreateInput struct {
 	DiscoveredFrom    *string  `json:"discovered_from,omitempty"`
 	Labels            []string `json:"labels,omitempty"`
 	DependsOn         []string `json:"depends_on,omitempty"`
+	Paths             []string `json:"paths,omitempty"`
 }
 
 // IssueUpdateInput is a partial update. A field left nil is not sent. A field
@@ -152,6 +157,7 @@ type IssueUpdateInput struct {
 	DuplicateOf       *string   `json:"duplicate_of,omitempty"`
 	ClosedBy          *string   `json:"closed_by,omitempty"`
 	Labels            *[]string `json:"labels,omitempty"`
+	Paths             *[]string `json:"paths,omitempty"`
 }
 
 // IssueFilter narrows a list. A zero field narrows nothing. Repo is a pointer
@@ -198,8 +204,8 @@ func (f IssueFilter) query() url.Values {
 	return query
 }
 
-// ReadyFilter narrows the ready queue. An empty Type leaves decisions out,
-// because they wait on a person. Type "decision" is the only way to see them.
+// ReadyFilter narrows the ready issues. HoldNextClaim takes from them at step
+// build, which refuses Type decision, and QueueFilter carries it beside its step.
 type ReadyFilter struct {
 	Repo        *string `json:"repo,omitempty"`
 	Type        string  `json:"type,omitempty"`
@@ -221,9 +227,9 @@ func (f ReadyFilter) query() url.Values {
 	return query
 }
 
-// IssueRankMove places an issue directly before or after another. Exactly one
-// of the two is set.
-type IssueRankMove struct {
+// RankMove places a record directly before or after another record, of any
+// kind. Exactly one of the two is set.
+type RankMove struct {
 	Before string `json:"before,omitempty"`
 	After  string `json:"after,omitempty"`
 }
@@ -263,19 +269,6 @@ func (c *Client) ListIssues(ctx context.Context, filter IssueFilter, window Wind
 	applyLimit(query, limit)
 	var issues []Issue
 	if err := c.get(ctx, withQuery("/issues", query), &issues); err != nil {
-		return nil, err
-	}
-	return issues, nil
-}
-
-// ListReadyIssues returns the issues an agent could take now, in the order to
-// take them.
-func (c *Client) ListReadyIssues(ctx context.Context, filter ReadyFilter, zone DayZone, limit *int) ([]Issue, error) {
-	query := filter.query()
-	setZone(query, zone)
-	applyLimit(query, limit)
-	var issues []Issue
-	if err := c.get(ctx, withQuery("/issues/ready", query), &issues); err != nil {
 		return nil, err
 	}
 	return issues, nil
@@ -325,8 +318,8 @@ func (c *Client) DeleteIssue(ctx context.Context, ref string, zone DayZone) (Rec
 	return deleted, nil
 }
 
-// RankIssue places an issue directly before or after another.
-func (c *Client) RankIssue(ctx context.Context, ref string, move IssueRankMove, zone DayZone) (IssueWritten, error) {
+// RankIssue places an issue directly before or after another record.
+func (c *Client) RankIssue(ctx context.Context, ref string, move RankMove, zone DayZone) (IssueWritten, error) {
 	var written IssueWritten
 	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "rank"), zoneQuery(zone)), move, &written); err != nil {
 		return IssueWritten{}, err

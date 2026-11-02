@@ -25,7 +25,6 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.services.claim_views import unended_claim_views
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
-from slate.services.issue_readiness import urgency
 from slate.services.record_parts import record_parts
 
 ISSUE_LOAD_OPTIONS = (
@@ -76,6 +75,7 @@ def issue_view(issue: models.Issue, readiness: IssueReadiness, comments: dict[in
         description=issue.description,
         acceptance=issue.acceptance,
         repo=issue.repo,
+        paths=issue.paths,
         type=issue.type,
         status=issue.status,
         status_reason=issue.status_reason,
@@ -115,17 +115,17 @@ def issue_view(issue: models.Issue, readiness: IssueReadiness, comments: dict[in
 
 
 def list_order(readiness: IssueReadiness):
-    """Open work by effective priority then rank; closed work after it, latest first.
+    """Unclosed work in queue order; closed work after it, latest first.
 
     A closed issue's priority says nothing about it any more, and the question a
     list of finished work answers is what finished most recently.
     """
 
-    def key(issue: models.Issue):
+    def key(issue: models.Issue) -> tuple:
         if issue.is_closed:
             closed = issue.closed_ts.timestamp() if issue.closed_ts else float('-inf')
-            return (1, 0, -closed, issue.number)
-        return (0, urgency(readiness.effective_priority.get(issue.id, issue.priority)), issue.rank, issue.number)
+            return (1, -closed, issue.number)
+        return (0, readiness.sort_key(issue))
 
     return key
 

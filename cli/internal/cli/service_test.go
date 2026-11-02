@@ -187,10 +187,10 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 	}
 
 	// A {name} in these templates is a UUID, a record's number, or a worklog's
-	// <number>.<sequence>. Matched as any segment, /issues/{id} would also take
-	// /issues/ready, and /worklogs/{name} would take /worklogs/current, each of
-	// which FastAPI routes to another handler. A {name:path} is FastAPI's path
-	// converter, which takes any segments, and an initiative is named by its name.
+	// <number>.<sequence>. Matched as any segment, /worklogs/{name} would also
+	// take /worklogs/current, which FastAPI routes to another handler. A
+	// {name:path} is FastAPI's path converter, which takes any segments, and an
+	// initiative is named by its name.
 	reference := `(?:[0-9]+(?:\.[0-9]+)?|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`
 	wildcard := regexp.MustCompile(`\{[^}]*\}`)
 	scopes := config.Service(goclilogin.Deployment{}).Scopes
@@ -233,7 +233,7 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		{[]string{"search", "sync", "--json"}, `[]`, nil},
 		{[]string{"issues", "list", "--json"}, `[]`, nil},
 		{[]string{"issues", "list", "--blocked", "--json"}, `[]`, nil},
-		{[]string{"next", "--json"}, `[]`, nil},
+		{[]string{"next", "--step", "build", "--json"}, `{"queue":[],"claimed":[]}`, nil},
 		{[]string{"show", "412", "--json"}, `{"kind":"idea","number":412,"record":{}}`, nil},
 		{[]string{"issues", "show", "412", "--json"}, `{}`, nil},
 		{[]string{"issues", "show", "019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b", "--json"}, `{}`, nil},
@@ -266,6 +266,8 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		{[]string{"issues", "complete", "412"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--priority", "none", "--initiative", "Practical help guides"}, openIssue, nil},
 		{[]string{"issues", "reorder", "412", "--after", "398"}, openIssue, nil},
+		{[]string{"initiatives", "reorder", "Practical help guides", "--before", "398"}, `{}`, nil},
+		{[]string{"ideas", "reorder", "412", "--after", "398"}, `{}`, nil},
 		{
 			[]string{"issues", "create", "--title", "Left of the guides", "--initiative", "Practical help guides", "--status", "triage"},
 			`{}`,

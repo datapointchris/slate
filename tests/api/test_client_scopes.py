@@ -48,7 +48,7 @@ SCOPED_URLS = {
     f'{API_PREFIX}/ideas': '/ideas',
     f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
     f'{API_PREFIX}/issues': '/issues?status=all',
-    f'{API_PREFIX}/issues/ready': '/issues/ready',
+    f'{API_PREFIX}/queue': '/queue?step=build',
     f'{API_PREFIX}/vocabulary': '/vocabulary',
     f'{API_PREFIX}/issues/{{id}}': '/issues/{issue}',
     f'{API_PREFIX}/initiatives': '/initiatives',
@@ -123,6 +123,12 @@ SCOPED_WRITES = {
         {'status': 'dropped', 'status_reason': 'merged into another'},
         status.HTTP_200_OK,
     ),
+    (PLAN, 'POST', f'{API_PREFIX}/initiatives/{{id:path}}/rank'): (
+        '/initiatives/{initiative}/rank',
+        {'before': '{idea}'},
+        status.HTTP_200_OK,
+    ),
+    (PLAN, 'POST', f'{API_PREFIX}/ideas/{{id}}/rank'): ('/ideas/{idea}/rank', {'after': '{issue}'}, status.HTTP_200_OK),
 }
 
 

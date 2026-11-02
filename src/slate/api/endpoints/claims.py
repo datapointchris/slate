@@ -34,11 +34,12 @@ from slate.services.claims import hold_next
 from slate.services.claims import release
 from slate.services.claims import resume
 from slate.services.claims import wait
+from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_views import calendar_now
-from slate.services.ready_queue import ready_issues
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
+from slate.services.work_queue import queued_issues
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffects
 
@@ -107,15 +108,15 @@ def hold_claim(request: schemas.ClaimHold, session: DbSession, zone: RequestZone
 
 @router.post('/next', response_model=schemas.ClaimWritten, status_code=status.HTTP_200_OK)
 def hold_next_claim(request: schemas.ClaimHoldNext, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects):
-    """Hold the head of the issue ready queue, narrowed by the queue's filters.
+    """Hold the head of `GET /queue?step=build`, narrowed by the same filters.
 
     Two callers asking at once never hold the same issue: the one that loses
     the insert moves on to the next. With nothing ready, `claim` is null and a
     warning says so.
     """
     refuse_claiming_for_another(caller, request.holder)
-    issues, _ = ready_issues(session, zone, request)
     today, now = calendar_now(zone)
+    issues = queued_issues(session, measure_readiness(session, today, now), request, 'build')
     return written(session, hold_next(session, issues, request, now, today, effects), now, effects)
 
 

@@ -25,6 +25,7 @@ type Idea struct {
 	Title       string         `json:"title"`
 	Description *string        `json:"description"`
 	Priority    int            `json:"priority"`
+	Rank        float64        `json:"rank"`
 	CreatedTS   time.Time      `json:"created_ts"`
 	UpdatedTS   time.Time      `json:"updated_ts"`
 	Evidence    []IdeaEvidence `json:"evidence"`
@@ -136,6 +137,16 @@ func (c *Client) LinkIdeaEvidence(ctx context.Context, ref string, in IdeaEviden
 func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInput, zone DayZone) (IdeaWritten, error) {
 	var written IdeaWritten
 	if err := c.send(ctx, http.MethodPost, withQuery(ideaPath(ref)+"/promote", zoneQuery(zone)), in, &written); err != nil {
+		return IdeaWritten{}, err
+	}
+	return written, nil
+}
+
+// RankIdea places an idea directly before or after another record of its
+// priority.
+func (c *Client) RankIdea(ctx context.Context, ref string, move RankMove, zone DayZone) (IdeaWritten, error) {
+	var written IdeaWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(ideaPath(ref)+"/rank", zoneQuery(zone)), move, &written); err != nil {
 		return IdeaWritten{}, err
 	}
 	return written, nil

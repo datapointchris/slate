@@ -184,6 +184,7 @@ func newIssuesCreateCommand() *cobra.Command {
 		parent         string
 		discoveredFrom string
 		dependsOn      []string
+		paths          []string
 		deferredUntil  string
 		autofix        bool
 	)
@@ -206,9 +207,15 @@ func newIssuesCreateCommand() *cobra.Command {
 			"--autofix=false keeps it and its children from an unattended fix, so only a\n" +
 			"session takes them.\n" +
 			"\n" +
-			"--parent, --discovered-from, --depends-on, --deferred-until and --autofix are\n" +
-			"never asked for. A new issue that depends on its own parent is refused, since\n" +
-			"neither could ever start.",
+			"--path names a file or directory the issue changes, relative to its repo's\n" +
+			"root, and a directory covers everything under it. Holding a claim on it warns\n" +
+			"about each held issue on the same repo whose paths meet its own.\n" +
+			"\n" +
+			"A title reading like an open record's files anyway, with a warning naming it.\n" +
+			"\n" +
+			"--parent, --discovered-from, --depends-on, --path, --deferred-until and\n" +
+			"--autofix are never asked for. A new issue that depends on its own parent is\n" +
+			"refused, since neither could ever start.",
 		Example: "  slate issues create\n" +
 			"  slate issues create --title \"Routing drops /issues\" --type bug --repo webapp --priority high\n" +
 			"  slate issues create --title \"Pick a rank scheme\" --type decision --label needs-design\n" +
@@ -254,7 +261,7 @@ func newIssuesCreateCommand() *cobra.Command {
 				}
 				answers.Merge(asked)
 			}
-			in := api.IssueCreateInput{Title: answers.Get("title"), Labels: answers.All("label"), DependsOn: dependsOn}
+			in := api.IssueCreateInput{Title: answers.Get("title"), Labels: answers.All("label"), DependsOn: dependsOn, Paths: paths}
 			optional := map[string]**string{
 				"type": &in.Type, "repo": &in.Repo, "initiative": &in.Initiative,
 				"description": &in.Description, "acceptance": &in.Acceptance,
@@ -303,6 +310,7 @@ func newIssuesCreateCommand() *cobra.Command {
 	f.StringVar(&parent, "parent", "", "Parent issue, which waits on this one")
 	f.StringVar(&discoveredFrom, "discovered-from", "", "Issue whose work turned this up")
 	f.StringArrayVar(&dependsOn, "depends-on", nil, "Issue this waits on (repeatable)")
+	f.StringArrayVar(&paths, "path", nil, issuePathHelp)
 	f.StringVar(&deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD")
 	f.BoolVar(&autofix, "autofix", true, autofixSetHelp)
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
@@ -312,7 +320,8 @@ func newIssuesCreateCommand() *cobra.Command {
 // --- Edit ---
 
 // issueClearableFlags maps each edit flag an empty value clears to the field it
-// empties. --label is left out, because labels empty to [] rather than null.
+// empties. --label and --path are left out, because each empties to [] rather
+// than null.
 var issueClearableFlags = map[string]string{
 	"description": "description", "acceptance": "acceptance", "repo": "repo",
 	"initiative": "initiative", "parent": "parent", "discovered-from": "discovered_from",
@@ -322,13 +331,15 @@ var issueClearableFlags = map[string]string{
 // issueRequiredFlags are the fields every issue carries, so none can be emptied.
 var issueRequiredFlags = []string{"title", "type", "priority"}
 
+const issuePathHelp = "File or directory it changes, from the repo root (repeatable; needs a repo)"
+
 // autofixSetHelp is the help an issue write's --autofix carries.
 const autofixSetHelp = "False keeps it and its children from an unattended fix, as its initiative's or a parent's false does"
 
 type issueEditFlags struct {
 	title, description, acceptance, repo, issueType, priority string
 	initiative, parent, discoveredFrom, deferredUntil         string
-	labels                                                    []string
+	labels, paths                                             []string
 	autofix                                                   bool
 }
 
@@ -345,14 +356,15 @@ func newIssuesEditCommand() *cobra.Command {
 			"\n" +
 			"An empty value empties the field: --repo \"\" takes it off every repo and\n" +
 			"--deferred-until \"\" makes it ready today. --label replaces the whole set,\n" +
-			"and --label \"\" removes every label. --title, --type and --priority cannot\n" +
-			"be emptied. --priority none drops the issue's own, so it takes its parent's\n" +
-			"or its initiative's. --autofix=false keeps it and its children from an\n" +
-			"unattended fix.",
+			"and --label \"\" removes every label. --path does the same for the paths it\n" +
+			"changes. --title, --type and --priority cannot be emptied. --priority none\n" +
+			"drops the issue's own, so it takes its parent's or its initiative's.\n" +
+			"--autofix=false keeps it and its children from an unattended fix.",
 		Example: "  slate issues edit 412 --priority urgent\n" +
 			"  slate issues edit 412 --autofix=false\n" +
 			"  slate issues edit 412 --acceptance \"$(cat acceptance.md)\"\n" +
 			"  slate issues edit 412 --label area-api --label needs-design\n" +
+			"  slate issues edit 412 --path cli/internal/cli --path docs/issues.md\n" +
 			"  slate issues edit 412 --initiative \"\" --deferred-until 2026-11-01",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -383,6 +395,7 @@ func (v *issueEditFlags) register(cmd *cobra.Command) {
 	f.StringVar(&v.discoveredFrom, "discovered-from", "", "Issue whose work turned this up (empty removes it)")
 	f.StringVar(&v.deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD (empty clears)")
 	f.StringArrayVar(&v.labels, "label", nil, "Label (repeatable; replaces the set, empty removes every label)")
+	f.StringArrayVar(&v.paths, "path", nil, issuePathHelp+"; replaces the set, empty removes every path")
 	f.BoolVar(&v.autofix, "autofix", true, autofixSetHelp)
 }
 
@@ -395,8 +408,10 @@ func (v *issueEditFlags) update(cmd *cobra.Command) (api.IssueUpdateInput, []str
 			return api.IssueUpdateInput{}, nil, goclikit.UsageError(fmt.Errorf("--%s cannot be emptied — every issue carries one", name))
 		}
 	}
-	if readFlagIntent(f, "label") == flagMixesEmptyWithValues {
-		return api.IssueUpdateInput{}, nil, goclikit.UsageError(errors.New("--label given both a value and an empty one — an empty value removes every label, so pass one or the other"))
+	for _, name := range []string{"label", "path"} {
+		if readFlagIntent(f, name) == flagMixesEmptyWithValues {
+			return api.IssueUpdateInput{}, nil, goclikit.UsageError(fmt.Errorf("--%s given both a value and an empty one — an empty value removes every %s, so pass one or the other", name, name))
+		}
 	}
 	if err := validateIssueType(f, "type", v.issueType); err != nil {
 		return api.IssueUpdateInput{}, nil, err
@@ -438,6 +453,13 @@ func (v *issueEditFlags) update(cmd *cobra.Command) (api.IssueUpdateInput, []str
 		in.Labels = &[]string{}
 	case flagCarriesValues:
 		in.Labels = &v.labels
+	case flagUntouched, flagMixesEmptyWithValues:
+	}
+	switch readFlagIntent(f, "path") {
+	case flagClears:
+		in.Paths = &[]string{}
+	case flagCarriesValues:
+		in.Paths = &v.paths
 	case flagUntouched, flagMixesEmptyWithValues:
 	}
 
@@ -662,19 +684,37 @@ func newIssuesReopenCommand() *cobra.Command {
 // --- Order and dependencies ---
 
 func newIssuesReorderCommand() *cobra.Command {
+	return newReorderCommand("issue",
+		"An issue inside an initiative moves only among that initiative's issues.",
+		"  slate issues reorder 412 --before 398\n  slate issues reorder 412 --after 420",
+		func(cmd *cobra.Command, client *api.Client, ref string, move api.RankMove) (any, api.WriteEffects, string, error) {
+			written, err := client.RankIssue(cmd.Context(), ref, move, issueZone())
+			return written, written.WriteEffects, fmt.Sprintf("#%d %s", written.Issue.Number, written.Issue.Title), err
+		})
+}
+
+// rankRecord moves one kind's record, and names it for the line the move prints.
+type rankRecord func(cmd *cobra.Command, client *api.Client, ref string, move api.RankMove) (any, api.WriteEffects, string, error)
+
+// newReorderCommand moves a record of one kind beside a record of any kind in
+// the queue `slate next` reads. Every kind's move is refused for the same
+// reasons, so each kind's command shares this one.
+func newReorderCommand(kind, rule, example string, rank rankRecord) *cobra.Command {
 	var (
 		before string
 		after  string
 		asJSON bool
 	)
 	cmd := &cobra.Command{
-		Use:   "reorder <issue> --before <issue> | --after <issue>",
-		Short: "Move an issue directly before or after another in the queue",
-		Long: "The queue sorts by priority first. Rank only orders issues of the same\n" +
-			"effective priority, so the issue named by --before or --after must share it.\n" +
-			"One of another priority is refused. `edit --priority` moves an issue across\n" +
-			"priorities.",
-		Example: "  slate issues reorder 412 --before 398\n  slate issues reorder 412 --after 420",
+		Use:   "reorder <" + kind + "> --before <record> | --after <record>",
+		Short: "Move an " + kind + " directly before or after another record in the queue",
+		Long: "The queue sorts by priority first, so the record named by --before or\n" +
+			"--after must sort at the same priority, and one of another is refused. `edit\n" +
+			"--priority` moves a record across priorities. A record moves among the\n" +
+			"records of its priority: ideas, initiatives with their issues, and issues in\n" +
+			"no initiative. Named beside an issue inside an initiative, it goes beside\n" +
+			"that whole initiative. " + rule,
+		Example: example,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if (before == "") == (after == "") {
@@ -684,7 +724,7 @@ func newIssuesReorderCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			written, err := client.RankIssue(cmd.Context(), args[0], api.IssueRankMove{Before: before, After: after}, issueZone())
+			written, effects, moved, err := rank(cmd, client, args[0], api.RankMove{Before: before, After: after})
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
@@ -692,12 +732,11 @@ func newIssuesReorderCommand() *cobra.Command {
 			if after != "" {
 				where = "after " + issueRefLabel(after)
 			}
-			issue := written.Issue
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Moved #%d %s %s", issue.Number, issue.Title, where))
+			return reportWrite(cmd, asJSON, written, effects, fmt.Sprintf("Moved %s %s", moved, where))
 		},
 	}
-	cmd.Flags().StringVar(&before, "before", "", "Issue to place it directly ahead of")
-	cmd.Flags().StringVar(&after, "after", "", "Issue to place it directly behind")
+	cmd.Flags().StringVar(&before, "before", "", "Record to place it directly ahead of, of any kind")
+	cmd.Flags().StringVar(&after, "after", "", "Record to place it directly behind, of any kind")
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
