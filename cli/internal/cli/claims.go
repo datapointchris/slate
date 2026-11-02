@@ -73,13 +73,10 @@ func newClaimsHoldCommand() *cobra.Command {
 		Short: "Hold a claim on a record, or on the next ready issue",
 		Long: "Holds a claim on the record named, for --minutes. Another holder's live\n" +
 			"claim refuses it, naming them. Everything else goes through, with a\n" +
-			"warning on stderr for each thing it found:\n" +
-			"\n" +
-			"  the record is closed, in triage, deferred, or shelved in a someday initiative\n" +
-			"  an issue waits on an open dependency, or has open children\n" +
-			"  an issue's initiative, parent, child or dependent is claimed by another holder\n" +
-			"  an initiative holds issues another holder claims\n" +
-			"  you already hold it, so nothing changed: only `extend` moves an expiry\n" +
+			"warning on stderr naming what it found about the record and its neighbors,\n" +
+			"such as an open dependency or a neighbor another holder claims. --json gives\n" +
+			"each warning's code. Holding a record you already hold changes nothing: only\n" +
+			"`extend` moves an expiry.\n" +
 			"\n" +
 			"A claim another holder let run out is ended as expired, and the answer says\n" +
 			"so under the line naming the hold.\n" +

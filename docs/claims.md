@@ -48,9 +48,13 @@ the answer carries a warning for each thing:
 | `shelved` | the initiative is someday, or the issue is shelved in one |
 | `open_dependency` | the issue depends on an unclosed issue, one warning each |
 | `open_children` | the issue has open children |
-| `claimed_initiative` | another holder claims the issue's initiative |
+| `idea_promoted` | the idea was promoted; the warning names its initiative |
+| `claimed_initiative` | another holder claims the issue's initiative, or the initiative an idea became |
 | `claimed_parent`, `claimed_child`, `claimed_dependent` | another holder claims an issue beside it |
 | `claimed_issue_in_initiative` | another holder claims an issue in the initiative held |
+
+`WriteEffectCode` in `services/write_effects.py` holds every code, the hold
+warnings under their own comment.
 
 A neighbor the same holder claims is not named, because a lead holding an
 initiative and its issues is one actor working one plan.
