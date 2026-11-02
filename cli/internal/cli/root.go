@@ -35,14 +35,14 @@ func withAPIFlag(cmd *cobra.Command) *cobra.Command {
 	return cmd
 }
 
-// The root's help sections: the reads across every kind, the records work is
-// planned in, the commands that do it, then what sets the CLI and its
+// The root's help sections: the commands that take no noun, the records work
+// is planned in, the commands that do it, then what sets the CLI and its
 // vocabulary up.
 const (
-	groupEveryKind = "every-kind"
-	groupPlanning  = "planning"
-	groupDoing     = "doing"
-	groupSetup     = "setup"
+	groupNoNoun   = "no-noun"
+	groupPlanning = "planning"
+	groupDoing    = "doing"
+	groupSetup    = "setup"
 )
 
 // Within a namespace whose verbs both read and change something, the verbs
@@ -84,9 +84,9 @@ func NewRootCommand() *cobra.Command {
 		Long: "slate tracks software work for the agents and people doing it.\n" +
 			"\n" +
 			"The noun comes first and the verb last, so `slate issues list` becomes\n" +
-			"`slate issues edit` by changing the last word. Three commands read every\n" +
-			"kind and take no noun: `slate next` is the order to take the work in,\n" +
-			"`slate show <number>` reads any record, and `slate search <words>` finds one.\n" +
+			"`slate issues edit` by changing the last word. These take no noun:\n" +
+			"`slate next` is the order to take the work in, and `slate show <number>`\n" +
+			"and `slate search <words>` read every kind.\n" +
 			"\n" +
 			"Ideas, initiatives and issues share one number sequence, so a number names\n" +
 			"one record whatever its kind. A worklog is named under its record's number:\n" +
@@ -117,8 +117,8 @@ func NewRootCommand() *cobra.Command {
 	// Flag mistakes are marked goclikit.ErrUsage, so they exit 2. Inherited by subcommands.
 	// goclikit.Execute composes with this rather than replacing it, and keeping
 	// it here is what makes the tree self-classifying for anything driving
-	// NewRootCommand directly. An unknown flag the command can name a meaning
-	// for comes back with that meaning instead of goclikit's near spelling.
+	// NewRootCommand directly. An unknown flag that is a value of one of the
+	// command's flags also names that flag.
 	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
 		return goclikit.UsageError(explainUnknownFlag(cmd, err))
 	})
@@ -136,13 +136,13 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	root.AddGroup(
-		&cobra.Group{ID: groupEveryKind, Title: "Every kind:"},
+		&cobra.Group{ID: groupNoNoun, Title: "Start here:"},
 		&cobra.Group{ID: groupPlanning, Title: "Planning:"},
 		&cobra.Group{ID: groupDoing, Title: "Doing:"},
 		&cobra.Group{ID: groupSetup, Title: "Setup:"},
 	)
 	root.SetCompletionCommandGroupID(groupSetup)
-	root.AddCommand(inGroup(groupEveryKind,
+	root.AddCommand(inGroup(groupNoNoun,
 		withAPIFlag(goclikit.WithRecoveryHints(newNextCommand(), initiativeHints...)),
 		withAPIFlag(newShowCommand()),
 		withAPIFlag(newSearchCommand()),
