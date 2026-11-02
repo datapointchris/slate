@@ -3,8 +3,8 @@
 # The cluster supplies what this directory does not create:
 #
 # - A ConfigMap and a Secret, both named slate-settings, holding the settings
-#   README.md lists as environment variables. OIDC_ISSUER and the Postgres
-#   host and database go in the ConfigMap, POSTGRES_PASSWORD in the Secret.
+#   README.md lists as environment variables. POSTGRES_PASSWORD goes in the
+#   Secret. The pod reads both, so any other setting may sit in either.
 # - A route to the Service reaching /.well-known/oauth-protected-resource as
 #   well as /api/v1, since `slate auth login` reads the first to find the
 #   issuer. PUBLIC_URL names the address that route serves.
