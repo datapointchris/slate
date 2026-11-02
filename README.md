@@ -57,7 +57,7 @@ directory is read first where one exists, and the environment outranks it.
 | `POSTGRES_DB` | required | |
 | `LOG_FORMAT` | `json` | `json` for one object per line, `console` for a terminal |
 | `LOG_LEVEL` | `INFO` | A Python logging level name |
-| `OTEL_TRACES_EXPORTER` | unset | `otlp`, `console` or `none`. Unset, `otlp` where an OTLP endpoint is set, else nothing exports |
+| `OTEL_TRACES_EXPORTER` | unset | The exporters to run, from those `docs/tracing.md` lists. Unset, `otlp` where an OTLP endpoint is set, else nothing exports |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | The OTLP/HTTP receiver spans go to. Every other `OTEL_*` variable the SDK reads applies too |
 
 Each request continues the caller's `traceparent`, and its span names the

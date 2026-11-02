@@ -2,8 +2,8 @@
 
 A row trigger on each table writes the entry, so every path that reaches the database is audited:
 the ORM, a Core statement, raw SQL, and an `ON DELETE` action Postgres takes itself. The trigger
-reads who is writing from five transaction-local settings, which `name_the_writer` sets each time
-a session begins a transaction. The API binds the caller's actor to the session where it resolves
+reads who is writing from the transaction-local `audit.*` settings `set_writer_settings` sets,
+which `name_the_writer` calls each time a session begins a transaction. The API binds the caller's actor to the session where it resolves
 the caller: a person's username, else their `sub`, or a service client's id. `request_id` and `job_run_id` come from structlog's context,
 where the request middleware or a batch job binds them. `traceparent` and `baggage` are the span
 writing and its baggage, so a reader of the change can follow it to the trace and flow that made it.

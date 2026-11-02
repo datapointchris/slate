@@ -1,6 +1,6 @@
 """The OpenTelemetry SDK, set up from its own environment variables and nothing else.
 
-`OTEL_TRACES_EXPORTER` names the exporters: `otlp`, `console` or `none`. Left unset, `otlp` runs
+`OTEL_TRACES_EXPORTER` names the exporters, from `SPAN_EXPORTERS` or `none`. Left unset, `otlp` runs
 when `OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` names a receiver, and
 nothing exports otherwise. So a deployment that sets nothing gets no exporter retrying a missing
 endpoint. Spans are still made, so an incoming `traceparent` is continued and every log line and
