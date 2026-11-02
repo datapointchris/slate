@@ -48,7 +48,7 @@ def end_claim(claim: models.Claim, ending: str, now: dt.datetime, ended_by: str 
 
 
 def end_with_record(session: Session, number: int, ending: str, now: dt.datetime, ended_by: str | None, effects: WriteEffects) -> None:
-    """End the record's claim because the record reached `ending`, a closing status, and name it."""
+    """End the record's claim because the record reached `ending`, a closing status or `promoted`, and name it."""
     claim = unended_claims(session, [number]).get(number)
     if claim is None:
         return

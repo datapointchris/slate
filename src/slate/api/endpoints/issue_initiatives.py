@@ -7,7 +7,6 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import Query
-from fastapi import Response
 from fastapi import status
 from sqlalchemy import ColumnElement
 from sqlalchemy import case
@@ -31,7 +30,9 @@ from slate.services.initiatives import refuse_number_shaped_name
 from slate.services.initiatives import require_reason_when_dropped
 from slate.services.initiatives import validate_status
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
+from slate.services.record_deletes import name_initiative_delete
 from slate.services.record_refs import resolve_initiative
+from slate.services.record_summaries import record_summaries
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
@@ -159,9 +160,15 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
 
 
-@router.delete('/{id:path}', status_code=status.HTTP_204_NO_CONTENT)
-def delete(initiative: InitiativeFromPath, session: DbSession):
-    """Delete the initiative's record, and the initiative and its claims with it. Its issues stay, and stop inheriting its priority."""
+@router.delete('/{id:path}', response_model=schemas.RecordDeleted, status_code=status.HTTP_200_OK)
+def delete(initiative: InitiativeFromPath, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Delete the initiative's record, and the initiative and its claims with it. Its issues stay, and stop inheriting its priority.
+
+    The answer names each claim it took and each issue it left in no initiative.
+    """
+    deleted = record_summaries(session, [initiative.number])[initiative.number]
+    name_initiative_delete(session, initiative, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
     session.execute(sql_delete(models.Record).where(models.Record.number == initiative.number))
     session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    logger.info('initiative_deleted', number=deleted.number)
+    return effects.answer(schemas.RecordDeleted, deleted=deleted)

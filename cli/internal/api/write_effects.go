@@ -34,6 +34,13 @@ type InitiativeWritten struct {
 	WriteEffects
 }
 
+// RecordDeleted is the answer to deleting a record: the record as it stood
+// before the delete took it.
+type RecordDeleted struct {
+	Deleted RecordSummary `json:"deleted"`
+	WriteEffects
+}
+
 // IssueLabelWritten is the answer to a write on a label.
 type IssueLabelWritten struct {
 	Label IssueLabel `json:"label"`

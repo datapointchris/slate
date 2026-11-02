@@ -41,7 +41,8 @@ warns `evidence_already_linked`. Each idea links a ref once.
 idea. Each field the request leaves out takes the idea's own: its title as the
 name, its description, its priority. The answer is the idea, which then carries
 the initiative with its issue counts. Its `side_effects` name the initiative
-created, as `initiative_created`.
+created, as `initiative_created`. A claim on the idea ends as `promoted`, named
+as `claim_ended`, because the idea's work is the initiative's from then on.
 
 An initiative read names its idea as `idea`. An idea becomes at most one
 initiative, so a second promotion answers 409 naming the first.

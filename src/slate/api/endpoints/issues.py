@@ -19,6 +19,7 @@ from slate import models
 from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
+from slate.api.callers import caller_actor
 from slate.api.client_scopes import ISSUES_CLOSE
 from slate.api.client_scopes import ISSUES_PLAN
 from slate.api.exceptions import ForbiddenException
@@ -50,9 +51,11 @@ from slate.services.issue_views import issue_views
 from slate.services.issue_views import label_views
 from slate.services.issue_views import list_order
 from slate.services.ready_queue import ready_issues
+from slate.services.record_deletes import name_issue_delete
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_refs import resolve_issue
 from slate.services.record_refs import resolve_labels
+from slate.services.record_summaries import record_summaries
 from slate.services.row_limit import RowLimit
 from slate.services.time_window import apply_time_window
 from slate.services.vocabulary import validate_lookup
@@ -494,12 +497,18 @@ def update(
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
-@router.delete('/{id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete(issue: IssueFromPath, session: DbSession):
-    """Delete the issue's record, which takes the issue, its comments, its edges and its claims with it."""
+@router.delete('/{id}', response_model=schemas.RecordDeleted, status_code=status.HTTP_200_OK)
+def delete(issue: IssueFromPath, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Delete the issue's record, which takes the issue, its comments, its edges and its claims with it.
+
+    The answer names each claim it took and each issue that lost its link to this one.
+    """
+    deleted = record_summaries(session, [issue.number])[issue.number]
+    name_issue_delete(session, issue, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
     session.execute(sql_delete(models.Record).where(models.Record.number == issue.number))
     session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    logger.info('issue_deleted', number=deleted.number)
+    return effects.answer(schemas.RecordDeleted, deleted=deleted)
 
 
 def priority_phrase(priority: int) -> str:

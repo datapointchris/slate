@@ -264,8 +264,10 @@ func newIdeasPromoteCommand() *cobra.Command {
 		Short: "Create the initiative an idea becomes",
 		Long: "Creates an initiative that names the idea, and prints it under the line naming\n" +
 			"the promotion. Each flag left out takes the idea's own: its title as the name,\n" +
-			"its description, its priority. An idea already promoted is refused, naming\n" +
-			"its initiative. --status someday creates it set aside.",
+			"its description, its priority. The idea's claim ends as promoted, printed\n" +
+			"under the line too, since its work is the initiative's now. An idea already\n" +
+			"promoted is refused, naming its initiative. --status someday creates it set\n" +
+			"aside.",
 		Example: "  slate ideas promote 1860\n" +
 			"  slate ideas promote 1860 --name \"Scheduled review rounds\" --status someday",
 		Args: cobra.ExactArgs(1),

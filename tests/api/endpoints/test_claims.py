@@ -167,6 +167,18 @@ def test_a_person_may_release_another_holders_claim_and_is_warned(client):
     assert (nothing['claim'], [warning['code'] for warning in nothing['warnings']]) == (None, ['nothing_to_release'])
 
 
+def test_deleting_an_issue_another_session_holds_warns_and_names_each_record_it_changed(client):
+    parent = ok(client.post(ISSUES, json={'title': 'Filed by mistake'}), status.HTTP_201_CREATED)['issue']['number']
+    child = ok(client.post(ISSUES, json={'title': 'Its child', 'parent': parent}), status.HTTP_201_CREATED)['issue']['number']
+    dependent = ok(client.post(ISSUES, json={'title': 'Waits on it', 'depends_on': [parent]}), status.HTTP_201_CREATED)['issue']['number']
+    hold(client, parent, 'agent-z')
+
+    answer = ok(client.delete(f'{ISSUES}/{parent}'))
+    assert (answer['deleted']['number'], answer['deleted']['kind']) == (parent, 'issue')
+    assert codes(answer['warnings']) == [('deleted_anothers_claim', parent)]
+    assert codes(answer['side_effects']) == [('claims_deleted', parent), ('child_detached', child), ('dependency_removed', dependent)]
+
+
 def test_completing_an_initiative_ends_its_claim_naming_it(client):
     initiative = initiative_number(client, 'Retire the old capture path')
     hold(client, initiative, 'claude-code/lead')

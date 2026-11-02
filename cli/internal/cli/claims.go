@@ -40,10 +40,9 @@ func newClaimsCommand() *cobra.Command {
 			"\n" +
 			"Another holder's live claim refuses a hold, and that is the only refusal.\n" +
 			"Every other conflict a hold finds goes through with a warning. Nothing\n" +
-			"extends a claim but `extend`, and nothing ends one silently: `release`,\n" +
-			"`slate issues complete` and `slate issues cancel` each say whose claim they\n" +
-			"ended. A claim that runs out stops holding its record at once, and ends as\n" +
-			"expired at its expiry when the next write finds it.",
+			"extends a claim but `extend`. Every write that ends or removes a claim\n" +
+			"names whose it was. A claim that runs out stops holding its record at once,\n" +
+			"and ends as expired at its expiry when the next write finds it.",
 	})
 	goclikit.WithRecoveryHints(cmd, claimHints...)
 	splitReadingFromChanging(cmd)

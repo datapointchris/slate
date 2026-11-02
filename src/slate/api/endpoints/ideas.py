@@ -13,7 +13,10 @@ from sqlalchemy import select
 
 from slate import models
 from slate import schemas
+from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
+from slate.api.callers import caller_actor
+from slate.services.claims import end_with_record
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
@@ -87,11 +90,12 @@ def link_evidence(idea: IdeaFromPath, link: schemas.IdeaEvidenceLink, session: D
 
 
 @router.post('/{id}/promote', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
-def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession, effects: Effects):
+def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession, caller: CurrentCaller, effects: Effects):
     """Create the initiative the idea becomes, naming the idea. A promoted idea is refused with 409.
 
     Each field the request leaves out takes the idea's own: its title as the name, its
     description, its priority. The answer is the idea, which then shows the initiative.
+    The idea's claim ends as `promoted`, because its work is the initiative's now.
     """
     if idea.initiative is not None:
         raise HTTPException(
@@ -114,7 +118,9 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
         f'Created initiative #{initiative.number} {initiative.name!r} from #{idea.number}.',
         initiative.number,
     )
-    idea.updated_ts = dt.datetime.now(dt.UTC)
+    now = dt.datetime.now(dt.UTC)
+    end_with_record(session, idea.number, 'promoted', now, caller_actor(caller), effects)
+    idea.updated_ts = now
     session.commit()
     session.refresh(idea)
     return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))

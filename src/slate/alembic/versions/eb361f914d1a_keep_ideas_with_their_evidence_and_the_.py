@@ -51,6 +51,7 @@ def upgrade() -> None:
     op.add_column('initiatives', sa.Column('idea_id', sa.Uuid(), nullable=True))
     op.create_unique_constraint(op.f('uq_initiatives_idea_id'), 'initiatives', ['idea_id'])
     op.create_foreign_key(op.f('fk_initiatives_idea_id_ideas'), 'initiatives', 'ideas', ['idea_id'], ['id'], ondelete='SET NULL')
+    op.execute("INSERT INTO claim_endings (name) VALUES ('promoted')")
     for table in AUDITED_TABLES:
         op.execute(
             f'CREATE TRIGGER audit_trail AFTER INSERT OR UPDATE OR DELETE ON "{table}" FOR EACH ROW EXECUTE FUNCTION audit_trail_record()'
@@ -66,3 +67,4 @@ def downgrade() -> None:
     op.drop_table('idea_evidence')
     op.drop_table('ideas')
     op.execute("DELETE FROM records WHERE kind = 'idea'")
+    op.execute("DELETE FROM claim_endings WHERE name = 'promoted'")

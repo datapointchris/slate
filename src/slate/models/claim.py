@@ -34,9 +34,10 @@ from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Record
 
-# How a claim ended. `released` is its holder or a person letting go, and `expired` is its lease
-# running out first. The rest are the record closing under it, named for the closing status it reached.
-CLAIM_ENDINGS = ['released', 'expired', *dict.fromkeys([*CLOSED_ISSUE_STATUSES, *TERMINAL_INITIATIVE_STATUSES])]
+# How a claim ended. `released` is its holder or a person letting go, `expired` is its lease
+# running out first, and `promoted` is an idea becoming its initiative. The rest are the record
+# closing under it, named for the closing status it reached.
+CLAIM_ENDINGS = ['released', 'expired', 'promoted', *dict.fromkeys([*CLOSED_ISSUE_STATUSES, *TERMINAL_INITIATIVE_STATUSES])]
 
 
 class ClaimEnding(Base):

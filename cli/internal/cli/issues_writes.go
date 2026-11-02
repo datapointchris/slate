@@ -464,14 +464,20 @@ func reportIssueWrite(cmd *cobra.Command, asJSON bool, written api.IssueWritten,
 }
 
 func newIssuesDeleteCommand() *cobra.Command {
-	var yes bool
+	var (
+		yes    bool
+		asJSON bool
+	)
 	cmd := &cobra.Command{
 		Use:   "delete <issue>",
 		Short: "Delete an issue, its comments, its edges and its claims",
 		Long: "For an issue filed by mistake. Work that will not be done is canceled\n" +
 			"instead, which keeps the reason. Every claim it has had goes with it, live or\n" +
-			"ended. Its children, the issues found during its work and the issues canceled\n" +
-			"as its duplicates stay, with the link to it removed. Prompts unless --yes.",
+			"ended, with a warning when another holder's live claim was one. Its children,\n" +
+			"the issues found during its work and the issues canceled as its duplicates\n" +
+			"stay, with the link to it removed. It prints each claim it took, each child\n" +
+			"left with no parent and each issue that stops depending on it. Prompts\n" +
+			"unless --yes.",
 		Example: "  slate issues delete 412 --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -493,14 +499,15 @@ func newIssuesDeleteCommand() *cobra.Command {
 					return nil
 				}
 			}
-			if err := client.DeleteIssue(cmd.Context(), issue.ID); err != nil {
+			deleted, err := client.DeleteIssue(cmd.Context(), issue.ID)
+			if err != nil {
 				return handleAPIError(err)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted #%d %s\n", issue.Number, issue.Title)
-			return nil
+			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, fmt.Sprintf("Deleted #%d %s", issue.Number, issue.Title))
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 

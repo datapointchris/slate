@@ -78,7 +78,7 @@ def test_a_name_holding_a_slash_addresses_its_initiative(client):
     path = f'{INITIATIVES}/library%2Fconsumer%20pair'
     assert ok(client.get(path))['name'] == 'library/consumer pair'
     assert wrote(client.patch(path, json={'priority': 3}), 'initiative')['priority'] == 3
-    assert client.delete(path).status_code == status.HTTP_204_NO_CONTENT
+    assert client.delete(path).status_code == status.HTTP_200_OK
     assert client.get(path).status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -138,6 +138,6 @@ def test_deleting_an_initiative_keeps_its_issues(client):
     created = wrote(
         client.post('/issues', json={'title': 'kept', 'initiative': 'Ship the issue tracker'}), 'issue', status.HTTP_201_CREATED
     )
-    response = client.delete(f'{INITIATIVES}/Ship the issue tracker')
-    assert response.status_code == status.HTTP_204_NO_CONTENT, show_status_and_response(response)
+    answer = ok(client.delete(f'{INITIATIVES}/Ship the issue tracker'))
+    assert [(effect['code'], effect['record']) for effect in answer['side_effects']] == [('issue_detached', created['number'])]
     assert ok(client.get(f'/issues/{created["number"]}'))['initiative'] is None

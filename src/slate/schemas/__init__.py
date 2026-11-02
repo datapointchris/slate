@@ -38,6 +38,7 @@ from slate.schemas.issue import IssueUpdate
 from slate.schemas.issue import IssueVocabulary
 from slate.schemas.issue import IssueWritten
 from slate.schemas.record import RecordSummary
+from slate.schemas.write_effects import RecordDeleted
 from slate.schemas.write_effects import WriteEffect
 from slate.schemas.write_effects import Written
 
@@ -81,6 +82,7 @@ __all__ = [
     'IssueUpdate',
     'IssueVocabulary',
     'IssueWritten',
+    'RecordDeleted',
     'RecordSummary',
     'WriteEffect',
     'Written',

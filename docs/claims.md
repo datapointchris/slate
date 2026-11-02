@@ -16,8 +16,10 @@ initiative are claimed the same way. A row carries:
 | `started_ts`, `expires_ts` | when the lease began, and when it runs out |
 | `ended_ts`, `ending`, `ended_by` | when and how it stopped, and who stopped it |
 
-`ending` is one of `released`, `expired`, `completed`, `canceled` and
-`dropped`. `ended_ts` and `ending` are set together or not at all.
+`ending` is a row of `claim_endings`. `released` is a holder or a person
+letting go, `expired` is the lease running out first, and `promoted` is an idea
+becoming its initiative. The rest name the closing status the record reached.
+`ended_ts` and `ending` are set together or not at all.
 
 A claim holds no work, only the fact that someone is doing it. Whether an issue
 is open or closed is its status. Whether anyone is working it is its claim. So
@@ -63,13 +65,20 @@ Holding a record already held under the same name changes nothing, and warns
 `already_held`. Only `POST /claims/{record}/extend` moves an expiry. A hold that
 quietly extended would hide a second session running under the same name.
 
-A write that ends a claim names it in `side_effects`:
+A write that ends a claim beyond the one it was asked about names it in
+`side_effects`:
 
-- `claim_ended` when a release ends it, or when completing or canceling an
-  issue, or completing or dropping an initiative, ends it. The ending is the
-  status reached, and `ended_by` is who closed the record.
+- `claim_ended` when completing or canceling an issue, completing or dropping
+  an initiative, or promoting an idea ends its claim. The ending is the status
+  reached, or `promoted`, and `ended_by` is who closed or promoted the record.
+  A release names it only when it finds the claim had already run out, and
+  ends it as `expired` rather than `released`.
 - `expired_claim_ended` when a hold finds another holder's claim run out and
   ends it before starting its own.
+
+Deleting an issue or an initiative deletes every claim it has had, live or
+ended. The answer names them as `claims_deleted`, and warns
+`deleted_anothers_claim` when another holder's live claim was one.
 
 Releasing a record nobody holds changes nothing and warns `nothing_to_release`.
 A person may release another holder's claim, to free work a dead session left,

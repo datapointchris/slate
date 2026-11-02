@@ -60,8 +60,8 @@ A write answers an envelope, never the bare record:
 }
 ```
 
-The key holding the record names what was written: `idea`, `issue`,
-`initiative`, `label`, `comment`, `claim`. A side effect is a change the write made beyond its
+The key holding the record is named for what was written, such as `issue` or
+`claim`. A side effect is a change the write made beyond its
 request. A warning is a condition the write went through despite. Each entry
 carries a `code` a client branches on, a `message` for a person, and the
 number of the record it concerns.
@@ -88,3 +88,16 @@ kubectl prints from the API server.
 The delete endpoints delete the `records` row. Every kind's table references
 it with `ON DELETE CASCADE`, so the kind's row goes with it, and with that row
 whatever cascades from it.
+
+A delete answers the envelope too, with the record as it stood under `deleted`.
+Its side effects name what went with it and each other record it changed:
+
+| Code | When |
+| --- | --- |
+| `claims_deleted` | the record had claims, live or ended; they go with it |
+| `child_detached` | an issue's child loses its parent |
+| `dependency_removed` | an issue that depended on the deleted one no longer does |
+| `issue_detached` | an initiative's issue is left in no initiative |
+
+It warns `deleted_anothers_claim` when another holder's live claim was on the
+record.

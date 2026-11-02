@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 
+from slate.schemas.record import RecordSummary
+
 
 class WriteEffect(BaseModel):
     """One thing a write did beyond what it was asked, or one thing it found worth a look.
@@ -22,3 +24,9 @@ class Written(BaseModel):
 
     side_effects: list[WriteEffect] = []
     warnings: list[WriteEffect] = []
+
+
+class RecordDeleted(Written):
+    """`deleted` is the record as it stood before the delete took it."""
+
+    deleted: RecordSummary

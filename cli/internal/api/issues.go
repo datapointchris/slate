@@ -335,9 +335,14 @@ func (c *Client) UpdateIssue(ctx context.Context, ref string, in IssueUpdateInpu
 	return written, nil
 }
 
-// DeleteIssue removes an issue, its comments and its edges.
-func (c *Client) DeleteIssue(ctx context.Context, ref string) error {
-	return c.send(ctx, http.MethodDelete, issuePath(ref), nil, nil)
+// DeleteIssue removes an issue, its comments, its edges and its claims. The
+// answer names each claim it took and each issue that lost its link to it.
+func (c *Client) DeleteIssue(ctx context.Context, ref string) (RecordDeleted, error) {
+	var deleted RecordDeleted
+	if err := c.send(ctx, http.MethodDelete, issuePath(ref), nil, &deleted); err != nil {
+		return RecordDeleted{}, err
+	}
+	return deleted, nil
 }
 
 // RankIssue places an issue directly before or after another.
@@ -518,9 +523,14 @@ func (c *Client) UpdateInitiative(ctx context.Context, ref string, in Initiative
 	return written, nil
 }
 
-// DeleteInitiative removes an initiative. Its issues stay, belonging to none.
-func (c *Client) DeleteInitiative(ctx context.Context, ref string) error {
-	return c.send(ctx, http.MethodDelete, initiativePath(ref), nil, nil)
+// DeleteInitiative removes an initiative and its claims. Its issues stay,
+// belonging to none, and the answer names each of them.
+func (c *Client) DeleteInitiative(ctx context.Context, ref string) (RecordDeleted, error) {
+	var deleted RecordDeleted
+	if err := c.send(ctx, http.MethodDelete, initiativePath(ref), nil, &deleted); err != nil {
+		return RecordDeleted{}, err
+	}
+	return deleted, nil
 }
 
 // IssueLabel is one value of the label vocabulary. Labels sharing a group are

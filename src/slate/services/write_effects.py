@@ -26,6 +26,15 @@ class WriteEffectCode(enum.StrEnum):
     EXPIRED_CLAIM_ENDED = 'expired_claim_ended'
     INITIATIVE_CREATED = 'initiative_created'
 
+    # Side effects of deleting a record: what went with it, and each other record it changed.
+    CLAIMS_DELETED = 'claims_deleted'
+    CHILD_DETACHED = 'child_detached'
+    DEPENDENCY_REMOVED = 'dependency_removed'
+    ISSUE_DETACHED = 'issue_detached'
+
+    # A warning on deleting a record another holder's live claim was on.
+    DELETED_ANOTHERS_CLAIM = 'deleted_anothers_claim'
+
     # A warning on linking evidence an idea already links.
     EVIDENCE_ALREADY_LINKED = 'evidence_already_linked'
 

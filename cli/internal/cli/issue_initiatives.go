@@ -352,10 +352,16 @@ func newInitiativesReopenCommand() *cobra.Command {
 }
 
 func newInitiativesDeleteCommand() *cobra.Command {
-	var yes bool
+	var (
+		yes    bool
+		asJSON bool
+	)
 	cmd := &cobra.Command{
-		Use:     "delete <initiative>",
-		Short:   "Delete an initiative and its claims, leaving its issues in none",
+		Use:   "delete <initiative>",
+		Short: "Delete an initiative and its claims, leaving its issues in none",
+		Long: "Every claim it has had goes with it, live or ended, with a warning when\n" +
+			"another holder's live claim was one. It prints each claim it took and each\n" +
+			"issue it left in no initiative. Prompts unless --yes.",
 		Example: "  slate issues initiatives delete \"Ship the tracker\" --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -379,14 +385,16 @@ func newInitiativesDeleteCommand() *cobra.Command {
 					return nil
 				}
 			}
-			if err := client.DeleteInitiative(cmd.Context(), initiative.ID); err != nil {
+			deleted, err := client.DeleteInitiative(cmd.Context(), initiative.ID)
+			if err != nil {
 				return handleAPIError(err)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted initiative #%d %q\n", initiative.Number, initiative.Name)
-			return nil
+			summary := fmt.Sprintf("Deleted initiative #%d %q", initiative.Number, initiative.Name)
+			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, summary)
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 

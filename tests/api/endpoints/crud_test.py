@@ -58,5 +58,5 @@ class ApiCrudTester[SchemaType: BaseModel]:
         self._verify_length(self._list(test_api_client), self.expected_length + 1)
 
         deleted = test_api_client.delete(f'{self.endpoint}/{row["id"]}')
-        assert deleted.status_code == status.HTTP_204_NO_CONTENT, show_status_and_response(deleted)
+        assert deleted.status_code == status.HTTP_200_OK, show_status_and_response(deleted)
         self._verify_length(self._list(test_api_client), self.expected_length)
