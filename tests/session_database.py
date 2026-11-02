@@ -41,7 +41,7 @@ def get_transactional_session() -> Generator[Session]:
     """A session on the test's connection, so the API's writes join the transaction the test rolls back."""
     if test_connection is None:
         raise RuntimeError('No test connection is set; use a txn_api fixture.')
-    session = Session(bind=test_connection, join_transaction_mode='create_savepoint')
+    session = Session(bind=test_connection, join_transaction_mode='create_savepoint', autoflush=False)
     try:
         yield session
     finally:
