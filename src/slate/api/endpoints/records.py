@@ -24,6 +24,7 @@ from slate.services.record_changes import record_changes
 from slate.services.record_lists import listed_records
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
+from slate.tracing.work_on_span import name_record
 
 router = APIRouter()
 
@@ -50,6 +51,7 @@ def read_one(number: str, session: DbSession, zone: RequestZone) -> RecordRead:
     Each kind's read is the one its own route answers, with the record's whole claim history.
     """
     record = resolve_record(session, number)
+    name_record(record.number)
     match record.kind:
         case Kind.ISSUE:
             issue = session.scalars(select(models.Issue).where(models.Issue.number == record.number)).one()
@@ -65,4 +67,6 @@ def read_one(number: str, session: DbSession, zone: RequestZone) -> RecordRead:
 @router.get('/{number}/changes', response_model=list[schemas.RecordChange], status_code=status.HTTP_200_OK)
 def read_changes(number: str, session: DbSession, limit: RowLimit = None) -> list[schemas.RecordChange]:
     """Every write to the record and to each row hanging off it, newest first, so `limit` keeps the latest."""
-    return record_changes(session, resolve_record(session, number), limit)
+    record = resolve_record(session, number)
+    name_record(record.number)
+    return record_changes(session, record, limit)

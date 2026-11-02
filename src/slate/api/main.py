@@ -16,6 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.utils import is_body_allowed_for_status_code
+from opentelemetry.sdk.trace import TracerProvider
 from sqlalchemy import text
 from starlette.exceptions import HTTPException
 from starlette.responses import Response
@@ -42,6 +43,8 @@ from slate.config import Settings
 from slate.config import get_settings
 from slate.database.session import get_db_engine
 from slate.logger import initialize_logging
+from slate.tracing.tracer_provider import initialize_tracing
+from slate.tracing.tracer_provider import instrument_api
 
 logger = structlog.get_logger()
 
@@ -166,7 +169,9 @@ def add_probe_routes(api: FastAPI, settings: Settings) -> None:
     api.add_api_route('/ready', ready, methods=['GET'], include_in_schema=False)
 
 
-def create_api(settings: Settings) -> FastAPI:
+def create_api(settings: Settings, tracer_provider: TracerProvider | None = None) -> FastAPI:
+    """The API, its spans made by `tracer_provider`, else by whichever provider the process installed."""
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.settings = settings
@@ -174,6 +179,8 @@ def create_api(settings: Settings) -> FastAPI:
         yield
         # uvicorn has stopped accepting connections and drained in-flight requests by now.
         get_db_engine(settings).dispose()
+        if tracer_provider is not None:
+            tracer_provider.shutdown()
         logger.info('api_stopped')
 
     api = FastAPI(
@@ -199,10 +206,11 @@ def create_api(settings: Settings) -> FastAPI:
     api.add_exception_handler(HTTPException, http_exception_handler)
     api.add_exception_handler(RequestValidationError, request_validation_exception_handler)
     api.add_exception_handler(Exception, unhandled_exception_handler)
+    instrument_api(api, tracer_provider)
     return api
 
 
 def create_app() -> FastAPI:
     """The uvicorn factory: `uvicorn --factory slate.api.main:create_app`."""
     initialize_logging()
-    return create_api(get_settings())
+    return create_api(get_settings(), initialize_tracing())

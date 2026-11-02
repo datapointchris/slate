@@ -2,10 +2,11 @@
 
 A row trigger on each table writes the entry, so every path that reaches the database is audited:
 the ORM, a Core statement, raw SQL, and an `ON DELETE` action Postgres takes itself. The trigger
-reads who is writing from three transaction-local settings, which `name_the_writer` sets each time
+reads who is writing from five transaction-local settings, which `name_the_writer` sets each time
 a session begins a transaction. The API binds the caller's actor to the session where it resolves
 the caller: a person's username, else their `sub`, or a service client's id. `request_id` and `job_run_id` come from structlog's context,
-where the request middleware or a batch job binds them.
+where the request middleware or a batch job binds them. `traceparent` and `baggage` are the span
+writing and its baggage, so a reader of the change can follow it to the trace and flow that made it.
 
 A table opts out with `'info': {'record_changes': False}` in its `__table_args__`, and a column
 with the same key in its `info`. Each declaration is mirrored in the table's trigger, which the
@@ -16,6 +17,7 @@ import datetime as dt
 from typing import Any
 
 import structlog
+from opentelemetry import propagate
 from sqlalchemy import BigInteger
 from sqlalchemy import CheckConstraint
 from sqlalchemy import Connection
@@ -71,6 +73,8 @@ class RecordChange(Base):
     actor: Mapped[str | None] = mapped_column(Text, nullable=True, index=True)
     request_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     job_run_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    traceparent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    baggage: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def __repr__(self) -> str:
         return f'RecordChange({self.operation} {self.table_name}/{self.record_id} by {self.actor!r})'
@@ -84,12 +88,17 @@ def bind_actor(session: Session, actor: str) -> None:
 
 
 def set_writer_settings(session: Session, connection: Connection) -> None:
+    """Each setting is transaction-local, so a pooled connection carries no request's writer into the next."""
     bound = structlog.contextvars.get_contextvars()
+    trace_context: dict[str, str] = {}
+    propagate.inject(trace_context)
     connection.execute(
         select(
             func.set_config('audit.actor', session.info.get(ACTOR) or '', True),
             func.set_config('audit.request_id', bound.get('request_id') or '', True),
             func.set_config('audit.job_run_id', bound.get('job_run_id') or '', True),
+            func.set_config('audit.traceparent', trace_context.get('traceparent', ''), True),
+            func.set_config('audit.baggage', trace_context.get('baggage', ''), True),
         )
     )
 

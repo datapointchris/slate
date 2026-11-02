@@ -52,6 +52,7 @@ from slate.services.vocabulary import validate_lookup
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
+from slate.tracing.work_on_span import name_record
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -66,7 +67,9 @@ CREATE_STATUSES = ('triage', 'open')
 
 def path_issue(id: str, session: DbSession) -> models.Issue:
     """Resolve the `{id}` segment, which is a UUID or an issue number."""
-    return resolve_issue(session, id)
+    issue = resolve_issue(session, id)
+    name_record(issue.number)
+    return issue
 
 
 IssueFromPath = Annotated[models.Issue, Depends(path_issue)]
@@ -355,6 +358,7 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
     session.add(db_issue)
     set_labels(session, db_issue, issue.labels)
     session.flush()
+    name_record(db_issue.number)
     # Only through the parent can a brand-new issue close a cycle: depending on
     # its own parent, or on anything that waits on that parent.
     for blocker in depends_on:
@@ -517,6 +521,7 @@ def add_dependency(
 
 
 def path_dependency(dep_id: str, session: DbSession) -> models.Issue:
+    """The issue depended on, which the span leaves unnamed: the route is about the issue in `{id}`."""
     return resolve_issue(session, dep_id)
 
 

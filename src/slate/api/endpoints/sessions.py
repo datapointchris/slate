@@ -19,12 +19,14 @@ from slate.api.exceptions import NotFoundException
 from slate.services.session_usage import replace_usage
 from slate.services.session_usage import session_view
 from slate.services.write_effects import Effects
+from slate.tracing.work_on_span import name_agent_session
 
 logger = structlog.get_logger()
 router = APIRouter()
 
 
 def path_session(id: str, session: DbSession) -> models.AgentSession:
+    name_agent_session(id)
     agent = session.get(models.AgentSession, id)
     if agent is None:
         raise NotFoundException('session', id, logger)
@@ -48,6 +50,7 @@ def report_usage(id: str, request: schemas.SessionUsageReport, session: DbSessio
     alone outside every span. A session slate has not seen is recorded. Reporting the same messages
     again changes nothing and warns, so a session reports as often as it likes.
     """
+    name_agent_session(id)
     now = dt.datetime.now(dt.UTC)
     agent = replace_usage(session, id, request, now, effects)
     session.commit()

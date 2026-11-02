@@ -12,7 +12,8 @@ class RecordChange(RecordModel):
     another tracker keeps the table name, key and actor it was written with. `changes` maps each
     column the write touched to `{"old": ..., "new": ...}`. An insert carries no `old`, and a delete
     no `new`. `is_own_row` is true for a write to the record's own row, in its kind's table or in
-    `records`, and false for a write to a row hanging off it.
+    `records`, and false for a write to a row hanging off it. `traceparent` and `baggage` are the W3C
+    headers of the span that wrote it, null for a write made outside a trace.
     """
 
     id: int
@@ -24,4 +25,6 @@ class RecordChange(RecordModel):
     actor: str | None
     request_id: str | None
     job_run_id: str | None
+    traceparent: str | None
+    baggage: str | None
     is_own_row: bool = False

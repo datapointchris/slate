@@ -42,6 +42,9 @@ from slate.services.row_limit import apply_row_limit
 from slate.services.work_queue import queued_issues
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffects
+from slate.tracing.work_on_span import name_agent_session
+from slate.tracing.work_on_span import name_record
+from slate.tracing.work_on_span import name_worklog
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -50,7 +53,9 @@ ClaimStateFilter = Literal['live', 'expired', 'ended', 'all']
 
 
 def path_record(record: str, session: DbSession) -> models.Record:
-    return resolve_record(session, record)
+    resolved = resolve_record(session, record)
+    name_record(resolved.number)
+    return resolved
 
 
 RecordFromPath = Annotated[models.Record, Depends(path_record)]
@@ -61,6 +66,11 @@ def refuse_claiming_for_another(caller: OIDCIdentity | ScopedClient, named: str)
 
 
 def written(session: Session, claim: models.Claim | None, now: dt.datetime, effects: WriteEffects) -> schemas.ClaimWritten:
+    """Commit and answer the claim, naming its record and worklog on the span, which is how `hold --next` names what it took."""
+    if claim is not None:
+        name_record(claim.record_number)
+        if claim.worklog is not None:
+            name_worklog(claim.worklog)
     session.commit()
     on_record = claims_on_records(session, [claim], now)[0] if claim is not None else None
     return effects.answer(schemas.ClaimWritten, claim=on_record)
@@ -80,7 +90,9 @@ def read_many(
     if holder:
         query = query.where(models.Claim.holder.startswith(holder, autoescape=True))
     if record is not None:
-        query = query.where(models.Claim.record_number == resolve_record(session, record).number)
+        number = resolve_record(session, record).number
+        name_record(number)
+        query = query.where(models.Claim.record_number == number)
     if state == 'live':
         query = query.where(models.Claim.is_live(now))
     elif state == 'expired':
@@ -102,6 +114,8 @@ def hold_claim(request: schemas.ClaimHold, session: DbSession, zone: RequestZone
     """
     refuse_claiming_for_another(caller, request.holder)
     record = resolve_record(session, request.record)
+    name_record(record.number)
+    name_agent_session(request.session)
     today, now = calendar_now(zone)
     return written(session, hold(session, record, request, now, today, effects), now, effects)
 
@@ -115,6 +129,7 @@ def hold_next_claim(request: schemas.ClaimHoldNext, session: DbSession, zone: Re
     warning says so.
     """
     refuse_claiming_for_another(caller, request.holder)
+    name_agent_session(request.session)
     today, now = calendar_now(zone)
     issues = queued_issues(session, measure_readiness(session, today, now), request, 'build')
     return written(session, hold_next(session, issues, request, now, today, effects), now, effects)
@@ -147,6 +162,7 @@ def resume_claim(record: RecordFromPath, request: schemas.ClaimResume, session: 
     A `session` named goes back into the claim's worklog, ending its span in any other, named in `side_effects`.
     """
     refuse_claiming_for_another(caller, request.holder)
+    name_agent_session(request.session)
     now = dt.datetime.now(dt.UTC)
     return written(session, resume(session, record.number, request, now, effects), now, effects)
 

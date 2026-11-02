@@ -29,6 +29,9 @@ from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
+from slate.tracing.work_on_span import name_agent_session
+from slate.tracing.work_on_span import name_record
+from slate.tracing.work_on_span import name_worklog
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -43,6 +46,7 @@ def read_many(
 ):
     """A record's comments oldest first, so a thread reads in the order it was written. Line comments on its documents are among them."""
     number = resolve_record(session, record).number
+    name_record(number)
     query = select(models.Comment).where(models.Comment.record_number == number).order_by(*COMMENT_ORDER)
     if document is not None:
         query = query.where(models.Comment.document_id == resolve_document(session, number, document).id)
@@ -57,6 +61,8 @@ def add(request: schemas.CommentAdd, session: DbSession, caller: CurrentCaller, 
     A line past the version's last is a 422.
     """
     number = resolve_record(session, request.record).number
+    name_record(number)
+    name_agent_session(request.session)
     now = dt.datetime.now(dt.UTC)
     comment = models.Comment(record_number=number, body=request.body, written_by=caller_actor(caller), written_ts=now)
     if request.document is not None and request.line is not None:
@@ -71,6 +77,8 @@ def add(request: schemas.CommentAdd, session: DbSession, caller: CurrentCaller, 
     agent_session, worklog = session_worklog(session, request.session, request.host, now)
     comment.session_id = agent_session
     comment.worklog_id = worklog.id if worklog is not None else None
+    if worklog is not None:
+        name_worklog(worklog)
     session.add(comment)
     session.commit()
     logger.info('comment_added', record=number, comment=comment.id, document=request.document, line=request.line)
@@ -83,6 +91,7 @@ def delete(id: int, session: DbSession, effects: Effects):
     comment = session.get(models.Comment, id)
     if comment is None:
         raise NotFoundException('comment', str(id), logger)
+    name_record(comment.record_number)
     deleted = comment_views(session, [comment])[0]
     session.delete(comment)
     session.commit()
