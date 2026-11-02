@@ -1,6 +1,7 @@
 {
   "slate.claims.hold": [
     "POST /api/v1/claims",
+    "POST /api/v1/claims/next",
     "POST /api/v1/claims/{record}/extend",
     "POST /api/v1/claims/{record}/release"
   ],
@@ -17,6 +18,7 @@
     "POST /api/v1/issues/{id}/rank"
   ],
   "slate.records.read": [
+    "GET /api/v1/claims",
     "GET /api/v1/ideas",
     "GET /api/v1/ideas/{id}",
     "GET /api/v1/issues",

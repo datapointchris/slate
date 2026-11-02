@@ -82,8 +82,8 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading any record by number, listing, searching and showing issues, initiatives and ideas, and the ready queue |
-| `slate.claims.hold` | holding, extending and releasing a claim on a record under the service's own client id |
+| `slate.records.read` | reading any record by number, listing, searching and showing issues, initiatives and ideas, the ready queue, and who holds which claim |
+| `slate.claims.hold` | holding a claim on a record or on the head of the ready queue, and extending and releasing one, under the service's own client id |
 | `slate.issues.close` | commenting on an issue, and closing an open one |
 | `slate.issues.plan` | filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
 

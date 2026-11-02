@@ -14,13 +14,12 @@ ISSUES_CLOSE = 'slate.issues.close'
 ISSUES_PLAN = 'slate.issues.plan'
 
 SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
-    # Every read of a record of any kind: a number through `/records`, and the reads `slate issues
-    # list`, `search`, `next` and `show`, `initiatives list` and `show`, and `ideas list` and `show`
-    # make. An issue in a series often has no description of its own, so a reader judging it needs
-    # its initiative's.
+    # Every read of a record of any kind, and of who holds which. An issue in a series often has no
+    # description of its own, so a reader judging it needs its initiative's.
     'slate.records.read': frozenset(
         {
             ('GET', f'{API_PREFIX}/records/{{number}}'),
+            ('GET', f'{API_PREFIX}/claims'),
             ('GET', f'{API_PREFIX}/ideas'),
             ('GET', f'{API_PREFIX}/ideas/{{id}}'),
             ('GET', f'{API_PREFIX}/issues'),
@@ -30,12 +29,13 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
         }
     ),
-    # What `slate claims hold <record>`, `extend` and `release` send, for a job holding a record
-    # while an agent carries it. The handlers let a scoped client act only under its own client id
-    # and release only a claim that id holds.
+    # Holding, extending and releasing a claim, for a job holding a record while an agent carries
+    # it. The handlers let a scoped client act only under its own client id and release only a
+    # claim that id holds.
     'slate.claims.hold': frozenset(
         {
             ('POST', f'{API_PREFIX}/claims'),
+            ('POST', f'{API_PREFIX}/claims/next'),
             ('POST', f'{API_PREFIX}/claims/{{record}}/extend'),
             ('POST', f'{API_PREFIX}/claims/{{record}}/release'),
         }

@@ -104,7 +104,9 @@ answer warns `claim_had_expired`.
 
 ## A service claims under its own client id
 
-`slate.claims.hold` reaches the hold, extend and release routes. A scoped client
-holds, extends and releases only under its own client id, because its token
-says which service it is and nothing says which of its workers acted. It
-releases only a claim that id holds.
+`slate.claims.hold` reaches the hold, extend and release routes, and the hold
+of the ready queue's head. A scoped client holds, extends and releases only
+under its own client id, because its token says which service it is and
+nothing says which of its workers acted. It releases only a claim that id
+holds. `slate.records.read` reaches the claims list, so a service finds what it
+holds with `slate claims list --holder <client id>`.

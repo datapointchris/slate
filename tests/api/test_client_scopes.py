@@ -36,6 +36,7 @@ SCOPES_DOCUMENT = Path(__file__).parent / 'testdata' / 'client-scopes.json'
 # and show names the issue by number, as the CLI sends them.
 SCOPED_URLS = {
     f'{API_PREFIX}/records/{{number}}': '/records/{issue}',
+    f'{API_PREFIX}/claims': f'/claims?holder={SERVICE}',
     f'{API_PREFIX}/ideas': '/ideas',
     f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
     f'{API_PREFIX}/issues': '/issues?search=scheduler&status=all',
@@ -46,11 +47,13 @@ SCOPED_URLS = {
     f'{API_PREFIX}/issues/initiatives/{{id:path}}': '/issues/initiatives/{initiative}',
 }
 
-# Each write a scope lists, as the CLI sends it: the claim holding the issue for the fix agent, and
-# the extend and release of the claim the fixture seeds, the comment saying what landed, the update
-# that completes the issue and names the job closing it, and each edit a planning job makes to the queue.
+# Each write a scope lists, as the CLI sends it: the claim holding the issue for the fix agent, the
+# hold of the queue's head, the extend and release of the claim the fixture seeds, the comment saying
+# what landed, the update that completes the issue and names the job closing it, and each edit a
+# planning job makes to the queue.
 SCOPED_WRITES = {
     (CLAIM, 'POST', f'{API_PREFIX}/claims'): ('/claims', {'record': '{issue}', 'holder': SERVICE, 'minutes': 60}, status.HTTP_200_OK),
+    (CLAIM, 'POST', f'{API_PREFIX}/claims/next'): ('/claims/next', {'holder': SERVICE}, status.HTTP_200_OK),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/extend'): ('/claims/{neighbor}/extend', {'holder': SERVICE}, status.HTTP_200_OK),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/release'): (
         '/claims/{neighbor}/release',
@@ -156,7 +159,7 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (CLOSE, 'DELETE', '/issues/{issue}'),
         (CLOSE, 'POST', '/claims'),
         (CLOSE, 'PATCH', '/issues/initiatives/{initiative}'),
-        (CLAIM, 'POST', '/claims/next'),
+        (CLAIM, 'GET', '/claims'),
         (CLAIM, 'PATCH', '/issues/{issue}'),
         (PLAN, 'DELETE', '/issues/{issue}'),
         (PLAN, 'DELETE', '/issues/initiatives/{initiative}'),
@@ -180,7 +183,7 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         'close-delete',
         'close-hold',
         'close-initiative-update',
-        'hold-the-queues-head',
+        'hold-list',
         'hold-update',
         'plan-delete',
         'plan-initiative-delete',
