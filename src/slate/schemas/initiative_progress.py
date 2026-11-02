@@ -2,6 +2,7 @@
 
 import datetime as dt
 from typing import Literal
+from typing import get_args
 
 from slate.schemas.initiative import Initiative
 from slate.schemas.issue import Issue
@@ -9,7 +10,7 @@ from slate.schemas.queue import QueueRow
 from slate.schemas.record import RecordModel
 from slate.schemas.work_totals import WorkTotals
 
-# `services/initiative_progress.py` gives each issue the first of these that holds, in its own order.
+# Each issue counts in exactly one of these. `issue_state` decides which, in its own order.
 IssueState = Literal['completed', 'canceled', 'running', 'waiting', 'ready', 'blocked', 'triage', 'deferred', 'shelved', 'open_children']
 
 
@@ -32,8 +33,13 @@ class IssueStateCounts(RecordModel):
     open_children: int = 0
 
 
+# A state the counts lack would fail only when an issue first reached it, so the two lists are held equal here.
+if tuple(IssueStateCounts.model_fields) != get_args(IssueState):
+    raise TypeError(f'IssueStateCounts holds {tuple(IssueStateCounts.model_fields)}, and IssueState names {get_args(IssueState)}')
+
+
 class InitiativeProgress(RecordModel):
-    """Everything a progress view prints for one initiative, so a reader never needs a second call.
+    """Everything a progress view prints for one initiative, in one read.
 
     `running`, `waiting` and `blocked` hold the issues in that state, in queue order. `next` is the
     head of `GET /queue` for the initiative. `closed` is every issue whose close falls between
