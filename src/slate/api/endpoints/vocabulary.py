@@ -23,12 +23,12 @@ def read(session: DbSession):
     Statuses and types come back in their lifecycle order rather than the
     table's, so a client can render them as given.
     """
-    statuses = set(session.scalars(select(models.IssueStatus.name)).all())
-    types = set(session.scalars(select(models.IssueType.name)).all())
+    issue_statuses = set(session.scalars(select(models.IssueStatus.name)).all())
+    issue_types = set(session.scalars(select(models.IssueType.name)).all())
     initiative_statuses = set(session.scalars(select(models.InitiativeStatus.name)).all())
     return schemas.Vocabulary(
-        statuses=in_declared_order(statuses, ISSUE_STATUSES),
-        types=in_declared_order(types, ISSUE_TYPES),
+        issue_statuses=in_declared_order(issue_statuses, ISSUE_STATUSES),
+        issue_types=in_declared_order(issue_types, ISSUE_TYPES),
         priorities=[schemas.PriorityName(value=value, name=name) for value, name in PRIORITIES.items()],
         initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),
         labels=label_views(session),

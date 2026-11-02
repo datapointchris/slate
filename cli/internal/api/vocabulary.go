@@ -12,8 +12,8 @@ type PriorityName struct {
 // in the order a picker lists them. Labels come with it because they are the
 // one vocabulary that grows at runtime.
 type Vocabulary struct {
-	Statuses           []string       `json:"statuses"`
-	Types              []string       `json:"types"`
+	IssueStatuses      []string       `json:"issue_statuses"`
+	IssueTypes         []string       `json:"issue_types"`
 	Priorities         []PriorityName `json:"priorities"`
 	InitiativeStatuses []string       `json:"initiative_statuses"`
 	Labels             []IssueLabel   `json:"labels"`

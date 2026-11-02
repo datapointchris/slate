@@ -457,6 +457,6 @@ class TestComments:
 
 def test_the_vocabulary_lists_values_in_lifecycle_order(client):
     vocabulary = ok(client.get('/vocabulary'))
-    assert vocabulary['statuses'] == ['triage', 'open', 'completed', 'canceled']
+    assert vocabulary['issue_statuses'] == ['triage', 'open', 'completed', 'canceled']
     assert vocabulary['priorities'][0] == {'value': 0, 'name': 'none'}
     assert [label['slug'] for label in vocabulary['labels']] == ['area-api', 'area-cli', 'needs-design']
