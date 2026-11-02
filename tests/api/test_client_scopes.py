@@ -141,7 +141,7 @@ def scoped(scope: str) -> ScopedClient:
 
 @pytest.fixture
 def as_caller(txn_api):
-    """Seed two issues of one priority, one initiative, one idea, the service's claim on the neighbor, a worklog it opened, a session and a plan.
+    """Seed two issues of one priority, an initiative, an idea, the service's claim on the neighbor, its worklog, a session and a plan.
 
     `caller(identity)` sets who the token says is calling and returns the client, and `url(template)`
     fills a template with the seeded rows. The initiative is named, as the CLI names one.
