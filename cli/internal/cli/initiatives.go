@@ -144,9 +144,11 @@ type initiativeShown struct {
 
 // readInitiativeIssues reads the unclosed issues an initiative's show lists.
 func readInitiativeIssues(cmd *cobra.Command, client *api.Client, initiative api.InitiativeDetail) (initiativeShown, error) {
+	// The filter is the initiative's id from the read before, never the
+	// caller's argument, so a refusal here is not theirs to fix.
 	issues, err := client.ListIssues(cmd.Context(), api.IssueFilter{Initiative: initiative.ID}, api.Window{}, issueZone(), nil)
 	if err != nil {
-		return initiativeShown{}, handleArgumentAPIError(err)
+		return initiativeShown{}, handleAPIError(err)
 	}
 	return initiativeShown{InitiativeDetail: initiative, Issues: issues}, nil
 }

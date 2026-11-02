@@ -20,12 +20,21 @@ const (
 	searchHint    = "Search every kind by title or description: slate search <words>"
 )
 
-// recordShown is `slate show --json`: the kind, the number, and the JSON that
-// kind's own show prints.
+// recordShown is `slate show <number> --json`: the kind, the number, and the
+// JSON that kind's own show prints.
 type recordShown struct {
 	Kind   string `json:"kind"`
 	Number int    `json:"number"`
 	Record any    `json:"record"`
+}
+
+// worklogShown is `slate show <number>.<seq> --json`. A worklog is not a
+// record, so its envelope names it by the name it is read back with, and
+// record.record_number holds the record it sits under.
+type worklogShown struct {
+	Kind   string      `json:"kind"`
+	Name   string      `json:"name"`
+	Record api.Worklog `json:"record"`
 }
 
 func newShowCommand() *cobra.Command {
@@ -52,7 +61,7 @@ func newShowCommand() *cobra.Command {
 					return handleArgumentAPIError(err)
 				}
 				if asJSON {
-					return encodeJSON(out, recordShown{Kind: recordKindWorklog, Number: worklog.RecordNumber, Record: worklog})
+					return encodeJSON(out, worklogShown{Kind: recordKindWorklog, Name: worklog.Name, Record: worklog})
 				}
 				printWorklogDetail(out, worklog, now)
 				return nil
@@ -63,20 +72,22 @@ func newShowCommand() *cobra.Command {
 			}
 			shown := recordShown{Kind: record.Kind, Number: record.Number}
 			var print func()
-			switch {
-			case record.Idea != nil:
+			switch record.Kind {
+			case api.RecordKindIdea:
 				shown.Record = record.Idea
 				print = func() { printIdeaDetail(out, *record.Idea, now) }
-			case record.Issue != nil:
-				shown.Record = record.Issue
-				print = func() { printIssueDetail(out, *record.Issue, now) }
-			case record.Initiative != nil:
+			case api.RecordKindInitiative:
 				initiative, err := readInitiativeIssues(cmd, client, *record.Initiative)
 				if err != nil {
 					return err
 				}
 				shown.Record = initiative
 				print = func() { printInitiativeShown(cmd, initiative) }
+			case api.RecordKindIssue:
+				shown.Record = record.Issue
+				print = func() { printIssueDetail(out, *record.Issue, now) }
+			default:
+				return fmt.Errorf("#%d is of kind %q, which slate show cannot print", record.Number, record.Kind)
 			}
 			if asJSON {
 				return encodeJSON(out, shown)
