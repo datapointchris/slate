@@ -39,6 +39,9 @@ from slate.models.record import Record
 # closing under it, named for the closing status it reached.
 CLAIM_ENDINGS = ['released', 'expired', 'promoted', *dict.fromkeys([*CLOSED_ISSUE_STATUSES, *TERMINAL_INITIATIVE_STATUSES])]
 
+# The partial unique index that settles two holds racing for one record.
+ONE_UNENDED_CLAIM_PER_RECORD = 'uq_claims_one_unended_per_record'
+
 
 class ClaimEnding(Base):
     __tablename__ = 'claim_endings'
@@ -68,7 +71,7 @@ class Claim(Base):
         CheckConstraint('(ended_ts IS NULL) = (ending IS NULL)', name='claim_ending_is_whole'),
         CheckConstraint('ended_by IS NULL OR ended_ts IS NOT NULL', name='claim_ended_by_only_when_ended'),
         # One unended claim per record, so two holders racing for it cannot both insert.
-        Index('uq_claims_one_unended_per_record', 'record_number', unique=True, postgresql_where=text('ended_ts IS NULL')),
+        Index(ONE_UNENDED_CLAIM_PER_RECORD, 'record_number', unique=True, postgresql_where=text('ended_ts IS NULL')),
         Index('idx_claims_record_number', 'record_number'),
     )
 

@@ -70,7 +70,23 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Put each open issue's unended claim back on its row. A claim on any other kind, or ended, is lost."""
+    """Put each open issue's unended claim back on its row, refusing while any other claim exists.
+
+    An ended claim, and a claim on an initiative or a closed issue, has no column to go back to. The
+    downgrade stops before dropping them, while the database still matches its revision.
+    """
+    stranded = op.get_bind().scalar(
+        sa.text(
+            'SELECT count(*) FROM claims LEFT JOIN issues ON issues.number = claims.record_number '
+            "WHERE claims.ended_ts IS NOT NULL OR issues.number IS NULL OR issues.status <> 'open'"
+        )
+    )
+    if stranded:
+        counted = '1 claim has' if stranded == 1 else f'{stranded} claims have'
+        raise RuntimeError(
+            f'{counted} no issue column to go back to: ended claims, and claims on an initiative or a closed issue. '
+            'Restore the backup taken before the upgrade, or delete those claims and downgrade again.'
+        )
     for table in AUDITED_TABLES:
         op.execute(f'DROP TRIGGER audit_trail ON "{table}"')
     op.execute("INSERT INTO issue_statuses (name) VALUES ('in_progress')")

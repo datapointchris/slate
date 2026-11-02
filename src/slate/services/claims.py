@@ -15,11 +15,13 @@ import datetime as dt
 import structlog
 from fastapi import HTTPException
 from fastapi import status
+from psycopg.errors import UniqueViolation
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
+from slate.models.claim import ONE_UNENDED_CLAIM_PER_RECORD
 from slate.services.claim_neighbors import warn_about_neighbors
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
@@ -95,19 +97,27 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
     return claim
 
 
+def lost_the_race(exc: IntegrityError) -> bool:
+    """True when another hold's unended claim beat this one to the record's one unended slot."""
+    return isinstance(exc.orig, UniqueViolation) and exc.orig.diag.constraint_name == ONE_UNENDED_CLAIM_PER_RECORD
+
+
 def hold(
     session: Session, record: models.Record, lease: schemas.ClaimLease, now: dt.datetime, today: dt.date, effects: WriteEffects
 ) -> models.Claim:
     """Take a claim on the record, refused only by another holder's live claim.
 
     The insert runs in a savepoint. A hold racing this one past the read loses
-    to the partial unique index, and only its own savepoint rolls back.
+    to the partial unique index, and only its own savepoint rolls back. Any
+    other integrity failure is not a lost race, so it is raised as it is.
     """
     attempt = effects.attempt()
     try:
         with session.begin_nested():
             claim = take(session, record.number, lease, now, attempt)
-    except IntegrityError:
+    except IntegrityError as exc:
+        if not lost_the_race(exc):
+            raise
         current = live_claims(session, [record.number], now).get(record.number)
         held = f'is claimed by {held_by(current, effects)}' if current is not None else 'was taken by a hold that landed first'
         raise ClaimRefused(f'#{record.number} {held}.') from None
