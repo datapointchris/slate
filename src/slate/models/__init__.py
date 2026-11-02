@@ -3,12 +3,15 @@ from slate.models.agent_session import MessageTokens
 from slate.models.claim import Claim
 from slate.models.claim import ClaimEnding
 from slate.models.claim import ClaimWait
+from slate.models.comment import Comment
+from slate.models.document import Document
+from slate.models.document import DocumentKind
+from slate.models.document import DocumentVersion
 from slate.models.idea import Idea
 from slate.models.idea import IdeaEvidence
 from slate.models.initiative import Initiative
 from slate.models.initiative import InitiativeStatus
 from slate.models.issue import Issue
-from slate.models.issue import IssueComment
 from slate.models.issue import IssueDependency
 from slate.models.issue import IssueLabel
 from slate.models.issue import IssueLabelAssignment
@@ -29,12 +32,15 @@ __all__ = [
     'Claim',
     'ClaimEnding',
     'ClaimWait',
+    'Comment',
+    'Document',
+    'DocumentKind',
+    'DocumentVersion',
     'Idea',
     'IdeaEvidence',
     'Initiative',
     'InitiativeStatus',
     'Issue',
-    'IssueComment',
     'IssueDependency',
     'IssueLabel',
     'IssueLabelAssignment',

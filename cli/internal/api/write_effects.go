@@ -22,12 +22,6 @@ type IssueWritten struct {
 	WriteEffects
 }
 
-// IssueCommentWritten is the answer to leaving a comment.
-type IssueCommentWritten struct {
-	Comment IssueComment `json:"comment"`
-	WriteEffects
-}
-
 // InitiativeWritten is the answer to a write on an initiative.
 type InitiativeWritten struct {
 	Initiative Initiative `json:"initiative"`

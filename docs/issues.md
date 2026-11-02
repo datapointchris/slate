@@ -176,8 +176,8 @@ runs it, with the kind of actor as the prefix:
 | `user@host` | a person at a terminal |
 
 A scheduler names its worker in `SLATE_ACTOR`. Claude Code sets
-`CLAUDE_CODE_SESSION_ATTENDED=0` in a session nobody attends. Comments and
-claims are signed the same way. A null `closed_by` means unknown. A move
+`CLAUDE_CODE_SESSION_ATTENDED=0` in a session nobody attends. Claims are
+signed the same way. A null `closed_by` means unknown. A move
 between completed and canceled keeps the first close's stamps. So `closed_by`
 is accepted only on the change that closes an open issue, and any other PATCH
 naming one answers 422.

@@ -35,7 +35,7 @@ func TestIssues_AUsageRefusalDoesNotWaitOnTheNetwork(t *testing.T) {
 		{"an idea edit changing nothing", []string{"ideas", "edit", "1860"}},
 		{"a promotion into a closed status", []string{"ideas", "promote", "1860", "--status", "completed"}},
 		{"a cancel with no reason", []string{"issues", "cancel", "412"}},
-		{"a comment given twice", []string{"issues", "add-comment", "412", "shipped", "--body", "shipped"}},
+		{"a comment given twice", []string{"comments", "add", "412", "shipped", "--body", "shipped"}},
 		{"an edit changing nothing", []string{"issues", "edit", "412"}},
 		{"emptying the title", []string{"issues", "edit", "412", "--title", ""}},
 		{"a label beside an empty one", []string{"issues", "edit", "412", "--label", "area-api", "--label", ""}},
@@ -183,26 +183,6 @@ func TestIssues_CompleteAndCancelSendWhoIsClosingInTheirPatch(t *testing.T) {
 	}
 }
 
-func TestIssues_AddCommentTakesTheTextAfterTheIssue(t *testing.T) {
-	var comment struct {
-		Body string `json:"body"`
-	}
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewDecoder(r.Body).Decode(&comment)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	t.Cleanup(api.Close)
-	asService(t, serviceIDP(t).URL, api.URL, serviceSecret)
-
-	if _, err := runService(t, "issues", "add-comment", "412", "Shipped in 55a0881"); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if comment.Body != "Shipped in 55a0881" {
-		t.Errorf("sent body %q, want the text after the issue", comment.Body)
-	}
-}
-
 // Reading what attended sessions finished: --closed-by reaches the API as the
 // prefix it matches on.
 func TestIssues_ListClosedBySendsThePrefixToMatch(t *testing.T) {
@@ -322,29 +302,6 @@ func TestReinvocation_KeepsTheFiltersItWidens(t *testing.T) {
 	want := "slate issues list --blocked=false --label area-cli --repo '' --status all"
 	if got := reinvocation(cmd, "--status all"); got != want {
 		t.Errorf("reinvocation = %q\nwant          %q", got, want)
-	}
-}
-
-func TestResolveIssueComment_ByPlaceOrById(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`[
-			{"id":"019a0000-0000-7000-8000-00000000000a","issue_id":"i","body":"first","created_ts":"2026-10-07T12:00:00Z"},
-			{"id":"019a0000-0000-7000-8000-00000000000b","issue_id":"i","body":"second","created_ts":"2026-10-07T12:00:00Z"}
-		]`))
-	}))
-	t.Cleanup(srv.Close)
-	client := api.New(srv.URL, srv.Client())
-	ctx := context.Background()
-
-	for ref, want := range map[string]string{"2": "second", "#1": "first", "019a0000-0000-7000-8000-00000000000b": "second"} {
-		comment, err := resolveIssueComment(ctx, client, "412", ref)
-		if err != nil || comment.Body != want {
-			t.Errorf("resolve %q = %q, %v; want %q", ref, comment.Body, err, want)
-		}
-	}
-	if _, err := resolveIssueComment(ctx, client, "412", "3"); err == nil || !strings.Contains(err.Error(), "no #3") {
-		t.Errorf("resolve 3 = %v, want it to say there is no #3", err)
 	}
 }
 

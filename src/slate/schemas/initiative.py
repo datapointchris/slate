@@ -6,6 +6,7 @@ from slate.schemas.not_null import NotNull
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
+from slate.schemas.record_parts import RecordParts
 from slate.schemas.write_effects import Written
 
 # An initiative answers to its UUID, its number or its name, and the API resolves each.
@@ -72,10 +73,8 @@ class Initiative(RecordModel):
     idea: RecordSummary | None = None
 
 
-class InitiativeDetail(Initiative):
-    """An initiative with every claim ever held on it, oldest first."""
-
-    claims: list[Claim] = []
+class InitiativeDetail(Initiative, RecordParts):
+    """An initiative with its claims, comments and documents."""
 
 
 class InitiativeWritten(Written):

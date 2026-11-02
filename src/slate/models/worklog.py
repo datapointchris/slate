@@ -49,12 +49,14 @@ WorkflowName = Literal['oneshot', 'plan-first', 'design-first']
 WORKLOG_WORKFLOWS: list[str] = list(get_args(WorkflowName))
 
 # What a worklog produced, and the stage each brings it to, in the order a change reaches main. A
-# landing is a commit or a pull request reaching the main branch. A worklog with no link is started.
+# plan document written in it is `planned`. A landing is a commit or a pull request reaching the
+# main branch. A worklog that produced nothing is started.
 LinkKindName = Literal['commit', 'pull_request', 'landing']
-WorklogStage = Literal['started', 'committed', 'pull_request', 'landed']
+WorklogStage = Literal['started', 'planned', 'committed', 'pull_request', 'landed']
 STAGE_OF_LINK: dict[LinkKindName, WorklogStage] = {'commit': 'committed', 'pull_request': 'pull_request', 'landing': 'landed'}
 WORKLOG_LINK_KINDS: list[str] = list(STAGE_OF_LINK)
-WORKLOG_STAGES: tuple[WorklogStage, ...] = ('started', *STAGE_OF_LINK.values())
+WORKLOG_PLANNED: WorklogStage = 'planned'
+WORKLOG_STAGES: tuple[WorklogStage, ...] = ('started', WORKLOG_PLANNED, *STAGE_OF_LINK.values())
 
 # The partial unique index that keeps a session in one worklog at a time.
 ONE_OPEN_SPAN_PER_SESSION = 'uq_worklog_spans_one_open_per_session'

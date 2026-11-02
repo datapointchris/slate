@@ -12,7 +12,6 @@ import (
 
 	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
 	"github.com/datapointchris/slate/cli/internal/api"
 	"github.com/datapointchris/slate/cli/internal/prompt"
@@ -586,8 +585,8 @@ func newIssuesCompleteCommand() *cobra.Command {
 		Short: "Mark an issue done",
 		Long: "Records when it closed and who closed it, and ends its claim as completed,\n" +
 			"printing whose claim it ended. A parent is refused while a child is still\n" +
-			"open. Say what shipped with add-comment, so the thread holds it. --closed-by\n" +
-			"defaults to who is running slate: the Claude Code session, the worker\n" +
+			"open. Say what shipped with `slate comments add`, so the thread holds it.\n" +
+			"--closed-by defaults to who is running slate: the Claude Code session, the worker\n" +
 			"$" + actorWorkerEnv + " names, or user@host.",
 		Example: "  slate issues complete 412",
 		Args:    cobra.ExactArgs(1),
@@ -709,127 +708,4 @@ func issueRefLabel(ref string) string {
 		return "#" + ref
 	}
 	return ref
-}
-
-// --- Comments ---
-
-func newIssuesAddCommentCommand() *cobra.Command {
-	var (
-		body   string
-		author string
-		asJSON bool
-	)
-	cmd := &cobra.Command{
-		Use:   "add-comment <issue> [<text>]",
-		Short: "Leave a comment on an issue",
-		Long: "Progress, a handoff, or what completing it shipped. The comment is markdown,\n" +
-			"given after the issue or in --body. One that opens with - goes after --.\n" +
-			"--author defaults to who is running slate: the Claude Code session, the worker\n" +
-			"$" + actorWorkerEnv + " names, or user@host.",
-		Example: "  slate issues add-comment 412 \"Root cause: the router order\"\n" +
-			"  slate issues add-comment 412 -- \"- shipped the rules\"\n" +
-			"  slate issues add-comment 412 --body \"$(cat handoff.md)\"",
-		Args: cobra.RangeArgs(1, 2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 2 {
-				if cmd.Flags().Changed("body") {
-					return goclikit.UsageError(errors.New("give the comment once — after the issue, or in --body"))
-				}
-				body = args[1]
-			}
-			if strings.TrimSpace(body) == "" {
-				return goclikit.UsageError(errors.New("the comment is required and cannot be blank — give it after the issue, or in --body"))
-			}
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			// The default names the session, so it is sent unless emptied.
-			signedBy := &author
-			if readFlagIntent(cmd.Flags(), "author") == flagClears {
-				signedBy = nil
-			}
-			written, err := client.AddIssueComment(cmd.Context(), args[0], body, signedBy)
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
-			summary := fmt.Sprintf("Commented on %s as %s", args[0], orDash(strValue(written.Comment.Author)))
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
-		},
-	}
-	cmd.Flags().StringVar(&body, "body", "", "The comment, as markdown, in place of the text after the issue")
-	cmd.Flags().StringVar(&author, "author", actorIdentity(), "Who wrote it (empty leaves it unsigned)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
-	// A comment that opens with a bullet parses as a group of short flags.
-	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
-		var unknown *pflag.NotExistError
-		if errors.As(err, &unknown) && unknown.GetSpecifiedShortnames() != "" {
-			err = fmt.Errorf("%w — a comment that opens with - goes after --, as in: slate issues add-comment 412 -- \"- shipped\"", err)
-		}
-		return goclikit.UsageError(err)
-	})
-	return cmd
-}
-
-func newIssuesRemoveCommentCommand() *cobra.Command {
-	var yes bool
-	cmd := &cobra.Command{
-		Use:     "remove-comment <issue> <comment>",
-		Short:   "Delete one comment from an issue",
-		Long:    "The comment is its #n in `slate issues comments`, or its id.",
-		Example: "  slate issues remove-comment 412 3",
-		Args:    cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			comment, err := resolveIssueComment(cmd.Context(), client, args[0], args[1])
-			if err != nil {
-				return err
-			}
-			if !yes {
-				ok, err := confirm(cmd, fmt.Sprintf("Delete this comment on %s?\n%s", args[0], indent(comment.Body, "  ")))
-				if err != nil {
-					return err
-				}
-				if !ok {
-					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
-					return nil
-				}
-			}
-			if err := client.RemoveIssueComment(cmd.Context(), args[0], comment.ID); err != nil {
-				return handleArgumentAPIError(err)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted the comment on %s\n", args[0])
-			return nil
-		},
-	}
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
-	return cmd
-}
-
-// resolveIssueComment finds a comment by its place in the thread or by id. The
-// place is what the comment rows print, so a row can be acted on as read.
-func resolveIssueComment(ctx context.Context, client *api.Client, issue, ref string) (api.IssueComment, error) {
-	comments, err := client.ListIssueComments(ctx, issue, nil)
-	if err != nil {
-		return api.IssueComment{}, handleArgumentAPIError(err)
-	}
-	if looksLikeUUID(ref) {
-		for _, comment := range comments {
-			if comment.ID == ref {
-				return comment, nil
-			}
-		}
-		return api.IssueComment{}, fmt.Errorf("no comment %s on %s — slate issues comments %s", ref, issue, issue)
-	}
-	place, err := strconv.Atoi(strings.TrimPrefix(ref, "#"))
-	if err != nil {
-		return api.IssueComment{}, goclikit.UsageError(fmt.Errorf("comment %q: pass its #n from `slate issues comments %s`, or its id", ref, issue))
-	}
-	if place < 1 || place > len(comments) {
-		return api.IssueComment{}, fmt.Errorf("%s has %d %s, so there is no #%d", issue, len(comments), plural(len(comments), "comment", "comments"), place)
-	}
-	return comments[place-1], nil
 }

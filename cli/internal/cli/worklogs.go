@@ -68,8 +68,8 @@ func newWorklogsListCommand() *cobra.Command {
 		Short: "List worklogs, latest started first: the live ones by default",
 		Long: "--state live is what is under way now. expired is the worklogs whose claim ran\n" +
 			"out and no write has ended yet. ended is history, and all is every worklog.\n" +
-			"STAGE is the furthest its links reached: started, committed, pull_request or\n" +
-			"landed.",
+			"STAGE is the furthest it reached: started, planned once it wrote a plan\n" +
+			"document, then committed, pull_request and landed as its links reach them.",
 		Example: "  slate worklogs list\n" +
 			"  slate worklogs list --record 1991 --state all\n" +
 			"  slate worklogs list --session \"$CLAUDE_CODE_SESSION_ID\" --state all --json",
@@ -524,6 +524,12 @@ func printWorklogDetail(out io.Writer, worklog api.Worklog, now time.Time) {
 		_, _ = fmt.Fprintf(out, "\nWaits (%d):\n", len(worklog.Waits))
 		for _, wait := range worklog.Waits {
 			_, _ = fmt.Fprintf(out, "  %s  %s\n", wait.WaitingOn, spanTimes(wait.StartedTS, wait.EndedTS, now, "still waiting"))
+		}
+	}
+	if len(worklog.DocumentVersions) > 0 {
+		_, _ = fmt.Fprintf(out, "\nDocuments written (%d):\n", len(worklog.DocumentVersions))
+		for _, version := range worklog.DocumentVersions {
+			_, _ = fmt.Fprintf(out, "  %s version %d  %s  %s\n", version.Address, version.Version, version.Kind, localClock(version.WrittenTS, now))
 		}
 	}
 }

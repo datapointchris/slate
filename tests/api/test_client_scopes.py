@@ -26,6 +26,7 @@ from tests.util import show_status_and_response
 READ = 'slate.records.read'
 CLAIM = 'slate.claims.hold'
 CLOSE = 'slate.issues.close'
+COMMENTS = 'slate.comments.write'
 PLAN = 'slate.records.plan'
 WORKLOGS = 'slate.worklogs.write'
 SESSIONS = 'slate.sessions.write'
@@ -41,6 +42,9 @@ SCOPED_URLS = {
     f'{API_PREFIX}/records': '/records?search=scheduler',
     f'{API_PREFIX}/records/{{number}}': '/records/{issue}',
     f'{API_PREFIX}/claims': f'/claims?holder={SERVICE}',
+    f'{API_PREFIX}/comments': '/comments?record={issue}',
+    f'{API_PREFIX}/documents': '/documents?record={issue}',
+    f'{API_PREFIX}/documents/{{record}}/{{name}}': '/documents/{issue}/plan',
     f'{API_PREFIX}/ideas': '/ideas',
     f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
     f'{API_PREFIX}/issues': '/issues?status=all',
@@ -96,9 +100,9 @@ SCOPED_WRITES = {
         {'released_by': SERVICE},
         status.HTTP_200_OK,
     ),
-    (CLOSE, 'POST', f'{API_PREFIX}/issues/{{id}}/comments'): (
-        '/issues/{issue}/comments',
-        {'body': 'Landed: a merged fix'},
+    (COMMENTS, 'POST', f'{API_PREFIX}/comments'): (
+        '/comments',
+        {'record': '{issue}', 'body': 'Landed: a merged fix'},
         status.HTTP_201_CREATED,
     ),
     (CLOSE, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): ('/issues/{issue}', {'status': 'completed', 'closed_by': CLOSER}, status.HTTP_200_OK),
@@ -137,7 +141,7 @@ def scoped(scope: str) -> ScopedClient:
 
 @pytest.fixture
 def as_caller(txn_api):
-    """Seed two issues of one priority, one initiative, one idea, the service's claim on the neighbor, a worklog it opened, and a session.
+    """Seed two issues of one priority, an initiative, an idea, the service's claim on the neighbor, its worklog, a session and a plan.
 
     `caller(identity)` sets who the token says is calling and returns the client, and `url(template)`
     fills a template with the seeded rows. The initiative is named, as the CLI names one.
@@ -153,6 +157,8 @@ def as_caller(txn_api):
     session.add(models.Claim(record_number=neighbor.number, holder=SERVICE, started_ts=now, expires_ts=now + dt.timedelta(hours=1)))
     session.add(models.Worklog(record_number=issue.number, sequence=1, opened_by=SERVICE, started_ts=now))
     session.add(models.AgentSession(id=RUN_POD_SESSION, host='run-pod'))
+    plan = models.Document(record_number=issue.number, name='plan', kind='plan')
+    session.add(models.DocumentVersion(document=plan, version=1, body='1. Fix it', written_by=PERSON.subject))
     session.flush()
 
     def caller(identity):
@@ -185,8 +191,8 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (READ, 'PATCH', '/issues/{issue}'),
         (READ, 'DELETE', '/issues/{issue}'),
         (READ, 'POST', '/claims'),
-        (READ, 'POST', '/issues/{issue}/comments'),
-        (READ, 'GET', '/issues/{issue}/comments'),
+        (READ, 'POST', '/comments'),
+        (READ, 'PUT', '/documents/{issue}/plan'),
         (READ, 'GET', '/vocabulary'),
         (READ, 'GET', '/labels'),
         (READ, 'POST', '/initiatives'),
@@ -199,6 +205,9 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (CLOSE, 'DELETE', '/issues/{issue}'),
         (CLOSE, 'POST', '/claims'),
         (CLOSE, 'PATCH', '/initiatives/{initiative}'),
+        (CLOSE, 'POST', '/comments'),
+        (COMMENTS, 'DELETE', '/comments/1'),
+        (COMMENTS, 'PUT', '/documents/{issue}/plan'),
         (CLAIM, 'GET', '/claims'),
         (CLAIM, 'PATCH', '/issues/{issue}'),
         (CLAIM, 'POST', '/worklogs/{worklog}/links'),
@@ -214,7 +223,7 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         'read-delete',
         'read-hold',
         'read-comment',
-        'read-unlisted-read',
+        'read-document-write',
         'read-vocabulary',
         'read-labels-router',
         'read-initiatives-create',
@@ -227,6 +236,9 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         'close-delete',
         'close-hold',
         'close-initiative-update',
+        'close-comment',
+        'comments-delete',
+        'comments-document-write',
         'hold-list',
         'hold-update',
         'hold-link',

@@ -77,6 +77,8 @@ type Worklog struct {
 	Tokens       *Tokens       `json:"tokens"`
 	Spans        []WorklogSpan `json:"spans"`
 	Links        []WorklogLink `json:"links"`
+	// DocumentVersions is every document version a session wrote while in it.
+	DocumentVersions []DocumentVersionRef `json:"document_versions"`
 }
 
 // WorklogWritten is the answer to a write on a worklog.

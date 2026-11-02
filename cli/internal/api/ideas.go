@@ -32,10 +32,10 @@ type Idea struct {
 	Claim       *Claim         `json:"claim"`
 }
 
-// IdeaDetail is an idea with every claim ever held on it, oldest first.
+// IdeaDetail is an idea with its claims, comments and documents.
 type IdeaDetail struct {
 	Idea
-	Claims []Claim `json:"claims"`
+	RecordParts
 }
 
 // IdeaWritten is the answer to an idea write.

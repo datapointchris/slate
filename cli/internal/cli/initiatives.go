@@ -156,10 +156,7 @@ func readInitiativeIssues(cmd *cobra.Command, client *api.Client, initiative api
 func printInitiativeShown(cmd *cobra.Command, shown initiativeShown) {
 	out, now := cmd.OutOrStdout(), time.Now()
 	printInitiativeDetail(out, shown.Initiative)
-	if len(shown.Claims) > 0 {
-		_, _ = fmt.Fprintf(out, "\nClaims (%d):\n", len(shown.Claims))
-		printClaimHistory(out, shown.Claims, now)
-	}
+	printRecordParts(out, shown.RecordParts, now)
 	_, _ = fmt.Fprintf(out, "\nUnclosed issues (%d):\n", len(shown.Issues))
 	if len(shown.Issues) == 0 {
 		_, _ = fmt.Fprintln(out, "  (none)")

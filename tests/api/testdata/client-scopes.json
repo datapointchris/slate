@@ -7,9 +7,11 @@
     "POST /api/v1/claims/{record}/resume",
     "POST /api/v1/claims/{record}/wait"
   ],
+  "slate.comments.write": [
+    "POST /api/v1/comments"
+  ],
   "slate.issues.close": [
-    "PATCH /api/v1/issues/{id}",
-    "POST /api/v1/issues/{id}/comments"
+    "PATCH /api/v1/issues/{id}"
   ],
   "slate.records.plan": [
     "GET /api/v1/vocabulary",
@@ -21,6 +23,9 @@
   ],
   "slate.records.read": [
     "GET /api/v1/claims",
+    "GET /api/v1/comments",
+    "GET /api/v1/documents",
+    "GET /api/v1/documents/{record}/{name}",
     "GET /api/v1/ideas",
     "GET /api/v1/ideas/{id}",
     "GET /api/v1/initiatives",

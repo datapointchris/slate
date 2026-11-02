@@ -433,28 +433,6 @@ class TestRank:
         refused(client.post(f'{ISSUES}/{bug["number"]}/rank', json={'before': bug['number']}), 422)
 
 
-class TestComments:
-    def test_comments_read_oldest_first_and_are_counted(self, client):
-        bug = issue(client, 'Ready bug with high priority')
-        for body in ('Claimed', 'Halfway', 'Shipped'):
-            ok(client.post(f'{ISSUES}/{bug["number"]}/comments', json={'body': body, 'author': 'agent'}), status.HTTP_201_CREATED)
-        assert [c['body'] for c in ok(client.get(f'{ISSUES}/{bug["number"]}/comments'))] == ['Claimed', 'Halfway', 'Shipped']
-        assert len(ok(client.get(f'{ISSUES}/{bug["number"]}/comments', params={'limit': 1}))) == 1
-        assert issue(client, bug['title'])['comment_count'] == 3
-
-    def test_a_comment_is_deleted_only_through_its_own_issue(self, client):
-        bug = issue(client, 'Ready bug with high priority')
-        task = issue(client, 'Ready task without priority')
-        comment = ok(client.post(f'{ISSUES}/{bug["number"]}/comments', json={'body': 'Note'}), status.HTTP_201_CREATED)['comment']
-        refused(client.delete(f'{ISSUES}/{task["number"]}/comments/{comment["id"]}'), 404)
-        response = client.delete(f'{ISSUES}/{bug["number"]}/comments/{comment["id"]}')
-        assert response.status_code == status.HTTP_204_NO_CONTENT, show_status_and_response(response)
-
-    def test_a_blank_comment_is_a_422(self, client):
-        bug = issue(client, 'Ready bug with high priority')
-        refused(client.post(f'{ISSUES}/{bug["number"]}/comments', json={'body': '   '}), 422)
-
-
 def test_the_vocabulary_lists_values_in_lifecycle_order(client):
     vocabulary = ok(client.get('/vocabulary'))
     assert vocabulary['issue_statuses'] == ['triage', 'open', 'completed', 'canceled']

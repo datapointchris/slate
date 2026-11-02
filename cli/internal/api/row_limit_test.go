@@ -11,8 +11,8 @@ func intptr(n int) *int { return &n }
 
 func TestApplyLimit_SendsThePositiveCap(t *testing.T) {
 	client, query := recordQuery(t, `[]`)
-	if _, err := client.ListIssueComments(context.Background(), "12", intptr(5)); err != nil {
-		t.Fatalf("ListIssueComments: %v", err)
+	if _, err := client.ListDocuments(context.Background(), "", intptr(5)); err != nil {
+		t.Fatalf("ListDocuments: %v", err)
 	}
 	if *query != "limit=5" {
 		t.Errorf("query = %q, want limit=5", *query)
@@ -21,8 +21,8 @@ func TestApplyLimit_SendsThePositiveCap(t *testing.T) {
 
 func TestApplyLimit_OmitsAnAbsentCap(t *testing.T) {
 	client, query := recordQuery(t, `[]`)
-	if _, err := client.ListIssueComments(context.Background(), "12", nil); err != nil {
-		t.Fatalf("ListIssueComments: %v", err)
+	if _, err := client.ListDocuments(context.Background(), "", nil); err != nil {
+		t.Fatalf("ListDocuments: %v", err)
 	}
 	if *query != "" {
 		t.Errorf("query = %q, want no parameters at all", *query)
@@ -34,8 +34,8 @@ func TestApplyLimit_OmitsAnAbsentCap(t *testing.T) {
 // only an absent limit does that.
 func TestApplyLimit_SendsAnExplicitZero(t *testing.T) {
 	client, query := recordQuery(t, `[]`)
-	if _, err := client.ListIssueComments(context.Background(), "12", intptr(0)); err != nil {
-		t.Fatalf("ListIssueComments: %v", err)
+	if _, err := client.ListDocuments(context.Background(), "", intptr(0)); err != nil {
+		t.Fatalf("ListDocuments: %v", err)
 	}
 	if *query != "limit=0" {
 		t.Errorf("query = %q, want limit=0 so zero rows is what the caller gets", *query)
@@ -51,8 +51,12 @@ func TestApplyLimit_RidesEveryListRead(t *testing.T) {
 			_, err := c.ListInitiatives(ctx, "", "", intptr(3))
 			return err
 		},
-		"ListIssueComments": func(c *Client) error {
-			_, err := c.ListIssueComments(ctx, "12", intptr(3))
+		"ListComments": func(c *Client) error {
+			_, err := c.ListComments(ctx, "12", "", intptr(3))
+			return err
+		},
+		"ListDocuments": func(c *Client) error {
+			_, err := c.ListDocuments(ctx, "12", intptr(3))
 			return err
 		},
 		"ListIssues": func(c *Client) error {

@@ -14,6 +14,19 @@ from slate.schemas.claim import ClaimResume
 from slate.schemas.claim import ClaimWait
 from slate.schemas.claim import ClaimWaitStart
 from slate.schemas.claim import ClaimWritten
+from slate.schemas.comment import Comment
+from slate.schemas.comment import CommentAdd
+from slate.schemas.comment import CommentDeleted
+from slate.schemas.comment import CommentLine
+from slate.schemas.comment import CommentWritten
+from slate.schemas.comment import PlacedComment
+from slate.schemas.document import Document
+from slate.schemas.document import DocumentSummary
+from slate.schemas.document import DocumentVersion
+from slate.schemas.document import DocumentVersionRef
+from slate.schemas.document import DocumentVersionSummary
+from slate.schemas.document import DocumentWrite
+from slate.schemas.document import DocumentWritten
 from slate.schemas.idea import Idea
 from slate.schemas.idea import IdeaCreate
 from slate.schemas.idea import IdeaDetail
@@ -29,9 +42,6 @@ from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.initiative import InitiativeUpdate
 from slate.schemas.initiative import InitiativeWritten
 from slate.schemas.issue import Issue
-from slate.schemas.issue import IssueComment
-from slate.schemas.issue import IssueCommentCreate
-from slate.schemas.issue import IssueCommentWritten
 from slate.schemas.issue import IssueCreate
 from slate.schemas.issue import IssueDependencyCreate
 from slate.schemas.issue import IssueDetail
@@ -46,6 +56,7 @@ from slate.schemas.issue import IssueUpdate
 from slate.schemas.issue import IssueWritten
 from slate.schemas.record import RecordListed
 from slate.schemas.record import RecordSummary
+from slate.schemas.record_parts import RecordParts
 from slate.schemas.tokens import TokensByKind
 from slate.schemas.vocabulary import PriorityName
 from slate.schemas.vocabulary import Vocabulary
@@ -75,6 +86,18 @@ __all__ = [
     'ClaimWait',
     'ClaimWaitStart',
     'ClaimWritten',
+    'Comment',
+    'CommentAdd',
+    'CommentDeleted',
+    'CommentLine',
+    'CommentWritten',
+    'Document',
+    'DocumentSummary',
+    'DocumentVersion',
+    'DocumentVersionRef',
+    'DocumentVersionSummary',
+    'DocumentWrite',
+    'DocumentWritten',
     'Idea',
     'IdeaCreate',
     'IdeaDetail',
@@ -90,9 +113,6 @@ __all__ = [
     'InitiativeUpdate',
     'InitiativeWritten',
     'Issue',
-    'IssueComment',
-    'IssueCommentCreate',
-    'IssueCommentWritten',
     'IssueCreate',
     'IssueDependencyCreate',
     'IssueDetail',
@@ -106,9 +126,11 @@ __all__ = [
     'IssueUpdate',
     'IssueWritten',
     'MessageTokensReport',
+    'PlacedComment',
     'PriorityName',
     'RecordDeleted',
     'RecordListed',
+    'RecordParts',
     'RecordSummary',
     'SessionSpan',
     'SessionUsageReport',

@@ -11,6 +11,7 @@ from slate.api.endpoints import issues
 from slate.api.endpoints.claims import ClaimStateFilter
 from slate.api.endpoints.initiatives import InitiativeSort
 from slate.api.endpoints.worklogs import WorklogStateFilter
+from slate.models.document import DOCUMENT_KINDS
 from slate.models.initiative import INITIATIVE_STATUSES
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
@@ -40,6 +41,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'initiative_sorts': list(get_args(InitiativeSort)),
         'initiative_statuses_closed': TERMINAL_INITIATIVE_STATUSES,
         'record_kinds': [kind.value for kind in Kind],
+        'document_kinds': DOCUMENT_KINDS,
     }
     document = json.dumps(table, indent=2) + '\n'
     if not VOCABULARIES_DOCUMENT.exists() or VOCABULARIES_DOCUMENT.read_text() != document:

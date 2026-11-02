@@ -366,8 +366,5 @@ func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 			_, _ = fmt.Fprintln(out, line)
 		}
 	}
-	if len(idea.Claims) > 0 {
-		_, _ = fmt.Fprintf(out, "\nClaims (%d):\n", len(idea.Claims))
-		printClaimHistory(out, idea.Claims, now)
-	}
+	printRecordParts(out, idea.RecordParts, now)
 }

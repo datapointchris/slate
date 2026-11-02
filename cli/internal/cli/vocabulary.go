@@ -51,6 +51,8 @@ func printVocabulary(out io.Writer, v api.Vocabulary) {
 	_, _ = fmt.Fprintf(tw, "issues --status:\t%s\n", strings.Join(v.IssueStatuses, ", "))
 	_, _ = fmt.Fprintf(tw, "issues --type:\t%s\n", strings.Join(v.IssueTypes, ", "))
 	_, _ = fmt.Fprintf(tw, "initiatives --status:\t%s\n", strings.Join(v.InitiativeStatuses, ", "))
+	_, _ = fmt.Fprintf(tw, "documents --kind:\t%s\n", strings.Join(v.DocumentKinds, ", "))
+	_, _ = fmt.Fprintf(tw, "worklogs --workflow:\t%s\n", strings.Join(v.WorklogWorkflows, ", "))
 	_, _ = fmt.Fprintf(tw, "--priority:\t%s\n", strings.Join(priorities, ", "))
 	_ = tw.Flush()
 	_, _ = fmt.Fprintln(out, "\nissues --label:")

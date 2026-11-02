@@ -12,6 +12,7 @@ from slate.schemas.not_null import NotNull
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
+from slate.schemas.record_parts import RecordParts
 from slate.schemas.write_effects import Written
 
 # An idea answers to its UUID or its number.
@@ -84,10 +85,8 @@ class Idea(RecordModel):
     claim: Claim | None = None
 
 
-class IdeaDetail(Idea):
-    """An idea with every claim ever held on it, oldest first."""
-
-    claims: list[Claim] = []
+class IdeaDetail(Idea, RecordParts):
+    """An idea with its claims, comments and documents."""
 
 
 class IdeaWritten(Written):

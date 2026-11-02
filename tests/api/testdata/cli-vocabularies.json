@@ -62,5 +62,10 @@
     "idea",
     "initiative",
     "issue"
+  ],
+  "document_kinds": [
+    "research",
+    "design",
+    "plan"
   ]
 }

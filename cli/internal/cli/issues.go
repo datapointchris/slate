@@ -87,13 +87,10 @@ func newIssuesCommand() *cobra.Command {
 	add(issueGroupRead,
 		newIssuesListCommand(),
 		goclikit.WithRecoveryHints(newIssuesShowCommand(), issueHints...),
-		goclikit.WithRecoveryHints(newIssuesCommentsCommand(), issueHints...),
 	)
 	add(issueGroupFile,
 		goclikit.WithRecoveryHints(newIssuesCreateCommand(), joinedHints(issueHints, initiativeHints)...),
 		goclikit.WithRecoveryHints(newIssuesEditCommand(), joinedHints(issueHints, initiativeHints)...),
-		goclikit.WithRecoveryHints(newIssuesAddCommentCommand(), issueHints...),
-		goclikit.WithRecoveryHints(newIssuesRemoveCommentCommand(), issueHints...),
 		goclikit.WithRecoveryHints(newIssuesDeleteCommand(), issueHints...),
 	)
 	add(issueGroupLifecycle,
@@ -314,7 +311,7 @@ func newIssuesShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:     "show <issue>",
-		Short:   "Show an issue with its edges, children and comments",
+		Short:   "Show an issue with its edges, children, documents and comments",
 		Example: "  slate issues show 412\n  slate issues show 412 --json",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -334,42 +331,6 @@ func newIssuesShowCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the issue as JSON to stdout")
-	return cmd
-}
-
-func newIssuesCommentsCommand() *cobra.Command {
-	var (
-		asJSON bool
-		limit  int
-	)
-	cmd := &cobra.Command{
-		Use:     "comments <issue>",
-		Short:   "List an issue's comments, oldest first",
-		Long:    "Each row's #n is its place in the thread, which `remove-comment` takes.",
-		Example: "  slate issues comments 412\n  slate issues comments 412 --json",
-		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			comments, err := client.ListIssueComments(cmd.Context(), args[0], limitFlag(cmd))
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), comments)
-			}
-			if len(comments) == 0 {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No comments.")
-				return nil
-			}
-			printIssueComments(cmd.OutOrStdout(), comments)
-			return nil
-		},
-	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output comments as JSON to stdout")
-	addLimitFlag(cmd, &limit)
 	return cmd
 }
 
@@ -586,25 +547,7 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 	edges("Blocks", issue.Blocks)
 	edges("Children", issue.Children)
 
-	if len(issue.Claims) > 0 {
-		_, _ = fmt.Fprintf(out, "\nClaims (%d):\n", len(issue.Claims))
-		printClaimHistory(out, issue.Claims, now)
-	}
-
-	if len(issue.Comments) > 0 {
-		_, _ = fmt.Fprintf(out, "\nComments (%d):\n", len(issue.Comments))
-		printIssueComments(out, issue.Comments)
-	}
-}
-
-func printIssueComments(out io.Writer, comments []api.IssueComment) {
-	for i, comment := range comments {
-		if i > 0 {
-			_, _ = fmt.Fprintln(out)
-		}
-		_, _ = fmt.Fprintf(out, "  #%d  %s  %s\n", i+1, comment.CreatedTS.Local().Format("2006-01-02 15:04"), orDash(strValue(comment.Author)))
-		_, _ = fmt.Fprintln(out, indent(comment.Body, "      "))
-	}
+	printRecordParts(out, issue.RecordParts, now)
 }
 
 func indent(text, prefix string) string {

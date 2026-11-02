@@ -12,6 +12,7 @@ from slate.schemas.not_null import NotNull
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
+from slate.schemas.record_parts import RecordParts
 from slate.schemas.write_effects import Written
 
 # An issue answers to its UUID or its number, and the API resolves either. `str`
@@ -123,25 +124,10 @@ class Issue(RecordModel):
     closed_by: str | None = None
 
 
-class IssueCommentCreate(RecordModel):
-    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    author: str | None = None
-
-
-class IssueComment(RecordModel):
-    id: UUID
-    issue_id: UUID
-    body: str
-    author: str | None = None
-    created_ts: dt.datetime
-
-
-class IssueDetail(Issue):
-    """`claims` is every claim the issue has had, ended ones included, oldest first."""
+class IssueDetail(Issue, RecordParts):
+    """An issue with its children, claims, comments and documents."""
 
     children: list[IssueSummary] = []
-    comments: list[IssueComment] = []
-    claims: list[Claim] = []
 
 
 class IssueDependencyCreate(RecordModel):
@@ -183,10 +169,6 @@ class IssueLabel(RecordModel):
 
 class IssueWritten(Written):
     issue: IssueDetail
-
-
-class IssueCommentWritten(Written):
-    comment: IssueComment
 
 
 class IssueLabelWritten(Written):

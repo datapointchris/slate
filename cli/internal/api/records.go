@@ -18,6 +18,15 @@ const (
 // RecordKinds is what --kind accepts, in the order a record moves through them.
 var RecordKinds = []string{RecordKindIdea, RecordKindInitiative, RecordKindIssue}
 
+// RecordParts is what every kind's read carries beside its own fields: every
+// claim the record has had and every comment on it, oldest first, and its
+// documents.
+type RecordParts struct {
+	Claims    []Claim           `json:"claims"`
+	Comments  []Comment         `json:"comments"`
+	Documents []DocumentSummary `json:"documents"`
+}
+
 // Record is the read of any record by its number. Kind says which of Idea,
 // Initiative and Issue holds it, and the other two are nil.
 type Record struct {
