@@ -547,12 +547,7 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 	edges("Blocks", issue.Blocks)
 	edges("Children", issue.Children)
 
-	if len(issue.Claims) > 0 {
-		_, _ = fmt.Fprintf(out, "\nClaims (%d):\n", len(issue.Claims))
-		printClaimHistory(out, issue.Claims, now)
-	}
-
-	printRecordDocumentsAndComments(out, issue.Documents, issue.Comments, now)
+	printRecordParts(out, issue.RecordParts, now)
 }
 
 func indent(text, prefix string) string {

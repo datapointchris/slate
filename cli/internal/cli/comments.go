@@ -244,15 +244,19 @@ func printComments(out io.Writer, comments []api.Comment, now time.Time) {
 	}
 }
 
-// printRecordDocumentsAndComments closes a record's read with its documents
-// and the comments on it, as every kind's show prints them.
-func printRecordDocumentsAndComments(out io.Writer, documents []api.DocumentSummary, comments []api.Comment, now time.Time) {
-	if len(documents) > 0 {
-		_, _ = fmt.Fprintf(out, "\nDocuments (%d):\n", len(documents))
-		printDocumentsTable(out, documents, now, "  ")
+// printRecordParts prints a record's claims, documents and comments, as every
+// kind's show prints them.
+func printRecordParts(out io.Writer, parts api.RecordParts, now time.Time) {
+	if len(parts.Claims) > 0 {
+		_, _ = fmt.Fprintf(out, "\nClaims (%d):\n", len(parts.Claims))
+		printClaimHistory(out, parts.Claims, now)
 	}
-	if len(comments) > 0 {
-		_, _ = fmt.Fprintf(out, "\nComments (%d):\n", len(comments))
-		printComments(out, comments, now)
+	if len(parts.Documents) > 0 {
+		_, _ = fmt.Fprintf(out, "\nDocuments (%d):\n", len(parts.Documents))
+		printDocumentsTable(out, parts.Documents, now, "  ")
+	}
+	if len(parts.Comments) > 0 {
+		_, _ = fmt.Fprintf(out, "\nComments (%d):\n", len(parts.Comments))
+		printComments(out, parts.Comments, now)
 	}
 }

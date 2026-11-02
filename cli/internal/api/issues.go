@@ -102,14 +102,11 @@ type Issue struct {
 	ClosedBy       *string            `json:"closed_by"`
 }
 
-// IssueDetail is one issue with its children, the comments on it and every
-// claim it has had, oldest first, and its documents.
+// IssueDetail is one issue with its children, claims, comments and documents.
 type IssueDetail struct {
 	Issue
-	Children  []IssueSummary    `json:"children"`
-	Comments  []Comment         `json:"comments"`
-	Documents []DocumentSummary `json:"documents"`
-	Claims    []Claim           `json:"claims"`
+	RecordParts
+	Children []IssueSummary `json:"children"`
 }
 
 // IssueCreateInput is the body for POST /issues. Only Title is required. The

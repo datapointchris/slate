@@ -42,13 +42,10 @@ type Initiative struct {
 	Idea           *RecordSummary `json:"idea"`
 }
 
-// InitiativeDetail is an initiative with every claim ever held on it and every
-// comment on it, oldest first, and its documents.
+// InitiativeDetail is an initiative with its claims, comments and documents.
 type InitiativeDetail struct {
 	Initiative
-	Claims    []Claim           `json:"claims"`
-	Comments  []Comment         `json:"comments"`
-	Documents []DocumentSummary `json:"documents"`
+	RecordParts
 }
 
 // InitiativeCreateInput is the body for POST /initiatives. A nil Position puts
