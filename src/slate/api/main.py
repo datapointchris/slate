@@ -45,6 +45,7 @@ from slate.database.session import get_db_engine
 from slate.logger import initialize_logging
 from slate.tracing.tracer_provider import initialize_tracing
 from slate.tracing.tracer_provider import instrument_api
+from slate.tracing.tracer_provider import shut_down_tracing
 
 logger = structlog.get_logger()
 
@@ -180,7 +181,7 @@ def create_api(settings: Settings, tracer_provider: TracerProvider | None = None
         # uvicorn has stopped accepting connections and drained in-flight requests by now.
         get_db_engine(settings).dispose()
         if tracer_provider is not None:
-            tracer_provider.shutdown()
+            shut_down_tracing(tracer_provider)
         logger.info('api_stopped')
 
     api = FastAPI(

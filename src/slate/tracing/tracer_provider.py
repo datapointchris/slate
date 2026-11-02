@@ -10,6 +10,7 @@ audit row carries the caller's trace. `OTEL_SDK_DISABLED=true` turns the SDK off
 import functools
 import importlib.metadata
 import os
+import threading
 from collections.abc import Callable
 from collections.abc import Iterable
 
@@ -42,6 +43,9 @@ SPAN_EXPORTERS: dict[str, Callable[[], SpanExporter]] = {
 
 # pyproject.toml's version for the source tree, which no release stamped.
 UNRELEASED_VERSION = '0.0.0'
+
+# A receiver that is down never takes the spans, so a longer wait only holds a stopping pod.
+SHUTDOWN_FLUSH_SECONDS = 5
 
 
 def exporter_names() -> list[str]:
@@ -107,3 +111,17 @@ def initialize_tracing() -> TracerProvider:
 def instrument_api(api: FastAPI, tracer_provider: TracerProvider | None) -> None:
     """A server span per request, continuing the caller's `traceparent` and named by the route's template."""
     FastAPIInstrumentor.instrument_app(api, tracer_provider=tracer_provider, exclude_spans=['receive', 'send'])
+
+
+def shut_down_tracing(provider: TracerProvider) -> None:
+    """Export what is queued and stop, waiting `SHUTDOWN_FLUSH_SECONDS` at most.
+
+    `TracerProvider.shutdown` takes no timeout. In SDK 1.45 a batch processor waits up to 30 seconds
+    on a receiver that is down, longer than a stopping pod has left before it is killed. So the
+    shutdown runs on a thread of its own, and spans still unsent when the wait ends are dropped.
+    """
+    flushing = threading.Thread(target=provider.shutdown, name='trace-flush', daemon=True)
+    flushing.start()
+    flushing.join(SHUTDOWN_FLUSH_SECONDS)
+    if flushing.is_alive():
+        logger.warning('trace_flush_abandoned', waited_seconds=SHUTDOWN_FLUSH_SECONDS)
