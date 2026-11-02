@@ -30,26 +30,26 @@ from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import ScopedClient
 from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
+from slate.models.initiative import INITIATIVE_STATUSES
+from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.models.issue import INITIATIVE_STATUSES
-from slate.models.issue import ISSUE_PRIORITIES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
-from slate.models.issue import TERMINAL_INITIATIVE_STATUSES
+from slate.models.record import PRIORITIES
 from slate.services.issue_rank import move_issue
 from slate.services.issue_rank import rank_at_end
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
-from slate.services.issue_refs import resolve_initiative
-from slate.services.issue_refs import resolve_issue
-from slate.services.issue_refs import resolve_label
-from slate.services.issue_refs import resolve_labels
 from slate.services.issue_views import ISSUE_LOAD_OPTIONS
 from slate.services.issue_views import calendar_now
 from slate.services.issue_views import issue_detail
 from slate.services.issue_views import issue_views
 from slate.services.issue_views import label_views
 from slate.services.issue_views import list_order
+from slate.services.record_refs import resolve_initiative
+from slate.services.record_refs import resolve_issue
+from slate.services.record_refs import resolve_label
+from slate.services.record_refs import resolve_labels
 from slate.services.row_limit import RowLimit
 from slate.services.time_window import apply_time_window
 
@@ -477,7 +477,7 @@ def read_vocabulary(session: DbSession):
     return schemas.IssueVocabulary(
         statuses=in_declared_order(statuses, ISSUE_STATUSES),
         types=in_declared_order(types, ISSUE_TYPES),
-        priorities=[schemas.IssuePriorityName(value=value, name=name) for value, name in ISSUE_PRIORITIES.items()],
+        priorities=[schemas.IssuePriorityName(value=value, name=name) for value, name in PRIORITIES.items()],
         initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),
         labels=label_views(session),
     )
@@ -633,7 +633,8 @@ def update(issue: IssueFromPath, update: schemas.IssueUpdate, session: DbSession
 
 @router.delete('/{id}', status_code=status.HTTP_204_NO_CONTENT)
 def delete(issue: IssueFromPath, session: DbSession):
-    session.delete(issue)
+    """Delete the issue's record, which takes the issue, its comments and its edges with it."""
+    session.execute(sql_delete(models.Record).where(models.Record.number == issue.number))
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -729,7 +730,7 @@ def release(issue: IssueFromPath, session: DbSession, zone: RequestZone, caller:
 
 
 def priority_phrase(priority: int) -> str:
-    return 'no priority' if priority == 0 else f'{ISSUE_PRIORITIES[priority]} priority'
+    return 'no priority' if priority == 0 else f'{PRIORITIES[priority]} priority'
 
 
 def ensure_same_priority(issue: models.Issue, neighbor: models.Issue, readiness: IssueReadiness) -> None:

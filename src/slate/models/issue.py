@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import datetime as dt
+from typing import TYPE_CHECKING
 from uuid import UUID
 from uuid import uuid7
 
-from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
 from sqlalchemy import CheckConstraint
 from sqlalchemy import Date
@@ -23,7 +23,11 @@ from sqlalchemy.orm import relationship
 
 from slate.database.base import Base
 from slate.database.fractionally_ranked import FractionallyRanked
-from slate.models.item_number_sequence import ITEM_NUMBER_SEQUENCE
+from slate.models.record import NumberedRecord
+from slate.models.record import record_link
+
+if TYPE_CHECKING:
+    from slate.models.initiative import Initiative
 
 # `in_progress` is what a claim sets, and the only status a claim may sit on.
 ISSUE_STATUSES = ['triage', 'open', 'in_progress', 'completed', 'canceled']
@@ -32,15 +36,6 @@ CLOSED_ISSUE_STATUSES = ['completed', 'canceled']
 # `decision` is the one type that changes what happens to an issue: it waits on
 # a person, so the ready queue an agent reads leaves it out.
 ISSUE_TYPES = ['bug', 'feature', 'task', 'chore', 'decision']
-
-# `someday` holds ideas not yet taken on: its issues wait until the initiative is
-# active, except one that work outside someday depends on, and it lends no priority.
-INITIATIVE_STATUSES = ['active', 'someday', 'completed', 'dropped']
-TERMINAL_INITIATIVE_STATUSES = ['completed', 'dropped']
-
-# Linear's scale. 0 is the absence of a priority and sorts after every level, so
-# the smallest non-zero value is the most urgent.
-ISSUE_PRIORITIES = {0: 'none', 1: 'urgent', 2: 'high', 3: 'medium', 4: 'low'}
 
 
 class IssueStatus(Base):
@@ -53,57 +48,11 @@ class IssueType(Base):
     name: Mapped[str] = mapped_column(Text, primary_key=True)
 
 
-class InitiativeStatus(Base):
-    __tablename__ = 'initiative_statuses'
-    name: Mapped[str] = mapped_column(Text, primary_key=True)
-
-
-class Initiative(Base):
-    """A bounded outcome that groups issues, and the priority they inherit.
-
-    An initiative has a definition of done. Work with no end is a label instead,
-    because an initiative that can never finish ranks its issues forever by a
-    position nobody revisits. Only an active initiative lends its priority, so
-    closing one stops it ranking the issues still open inside it.
-    """
-
-    __tablename__ = 'initiatives'
-    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid7)
-    # Drawn from `item_numbers`, so a bare number names one row across every table that draws from it.
-    number: Mapped[int] = mapped_column(
-        BigInteger, ITEM_NUMBER_SEQUENCE, server_default=ITEM_NUMBER_SEQUENCE.next_value(), nullable=False, unique=True
-    )
-    # Unique among ACTIVE initiatives only, so a finished initiative's name can be reused.
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(Text, ForeignKey('initiative_statuses.name'), nullable=False, server_default='active')
-    status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    priority: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default='0')
-    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default='0')
-    # False keeps every issue in it from an unattended fix, so a step of one
-    # design is never landed alone.
-    autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text('true'))
-    created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
-    closed_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    issues: Mapped[list[Issue]] = relationship('Issue', back_populates='initiative')
-
-    __table_args__ = (
-        CheckConstraint("status <> 'dropped' OR status_reason IS NOT NULL", name='initiative_dropped_requires_reason'),
-        CheckConstraint('priority BETWEEN 0 AND 4', name='initiative_priority_range'),
-        Index('uq_initiatives_name_active', 'name', unique=True, postgresql_where=text("status = 'active'")),
-    )
-
-    def __repr__(self):
-        return f'Initiative(id={self.id!r}, name={self.name!r}, status={self.status!r})'
-
-
-class Issue(FractionallyRanked, Base):
+class Issue(NumberedRecord, FractionallyRanked, Base):
     """A unit of software work, written for the agent that will do it.
 
     `id` is the key and `number` is the handle a person or an agent types. The
-    number comes from the sequence initiatives also draw from, so a bare number
-    is never ambiguous between the two.
+    number is its row in `records`, so a bare number names one record of any kind.
 
     Order is effective priority, then `rank`, then `number`.
     `services/issue_readiness.py` derives the effective priority, and
@@ -115,10 +64,9 @@ class Issue(FractionallyRanked, Base):
     the ready queue with nobody releasing it.
     """
 
+    RECORD_KIND = 'issue'
+
     __tablename__ = 'issues'
-    number: Mapped[int] = mapped_column(
-        BigInteger, ITEM_NUMBER_SEQUENCE, server_default=ITEM_NUMBER_SEQUENCE.next_value(), nullable=False, unique=True
-    )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     # Facts the agent cannot find in the repo. What the repo already says costs
     # tokens on every read and adds nothing.
@@ -182,6 +130,7 @@ class Issue(FractionallyRanked, Base):
     )
 
     __table_args__ = (
+        *record_link(RECORD_KIND),
         CheckConstraint('priority BETWEEN 0 AND 4', name='issue_priority_range'),
         CheckConstraint(
             "status <> 'canceled' OR status_reason IS NOT NULL OR duplicate_of_id IS NOT NULL",

@@ -13,6 +13,7 @@ from fastapi import Response
 from fastapi import status
 from sqlalchemy import ColumnElement
 from sqlalchemy import case
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import distinct
 from sqlalchemy import func
 from sqlalchemy import select
@@ -21,11 +22,11 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.api.callers import DbSession
+from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.models.issue import TERMINAL_INITIATIVE_STATUSES
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
-from slate.services.issue_refs import item_number
-from slate.services.issue_refs import resolve_initiative
+from slate.services.record_refs import record_number
+from slate.services.record_refs import resolve_initiative
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 
@@ -69,7 +70,7 @@ def require_reason_when_dropped(initiative_status: str, reason: str | None) -> N
 
 def refuse_number_shaped_name(name: str) -> None:
     """A name that reads as `N` or `#N` would resolve to the initiative holding that number."""
-    if (number := item_number(name)) is not None:
+    if (number := record_number(name)) is not None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f'{name!r} reads as the number {number}, so it cannot name an initiative. Name it in words.',
@@ -245,7 +246,7 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
 
 @router.delete('/{id:path}', status_code=status.HTTP_204_NO_CONTENT)
 def delete(initiative: InitiativeFromPath, session: DbSession):
-    """Delete the initiative. Its issues stay, and stop inheriting its priority."""
-    session.delete(initiative)
+    """Delete the initiative's record and the initiative with it. Its issues stay, and stop inheriting its priority."""
+    session.execute(sql_delete(models.Record).where(models.Record.number == initiative.number))
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -3,11 +3,12 @@
 An issue is a unit of software work, written for the agent that will do it.
 `slate issues` is the CLI, and the API serves it under `/api/v1/issues/`.
 
-## Issues and initiatives share one number sequence
+## An issue's number is shared with every other kind of record
 
-An issue's `number` and an initiative's come from one Postgres sequence,
-`item_numbers`. So a bare `#42` names exactly one record, and a commit message
-or a conversation can cite it without saying which kind it is.
+An issue's `number` is its row in `records`, which ideas and initiatives draw
+from too. So a bare `#42` names exactly one record, and a commit message or a
+conversation can cite it without saying which kind it is.
+[records.md](records.md) explains the table.
 
 `id` is the key. `number` is the handle a person or an agent types.
 

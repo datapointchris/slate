@@ -13,8 +13,8 @@ from sqlalchemy.orm import aliased
 from slate import models
 from slate import schemas
 from slate.api.callers import DbSession
-from slate.services.issue_refs import resolve_label
 from slate.services.issue_views import label_views
+from slate.services.record_refs import resolve_label
 
 logger = structlog.get_logger()
 router = APIRouter()
