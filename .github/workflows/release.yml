@@ -226,13 +226,14 @@ jobs:
 
       # gh uploads every asset to a draft and publishes it last. A failed upload
       # leaves no tag, so the next run cuts the same version again. GitHub can
-      # also create the tag and then fail the publish, and a re-run of this run
-      # finishes that release. Latest marks the CLI's newest release, since the
-      # API is pulled from ghcr rather than downloaded from here.
+      # also create the tag and then fail the publish, so the script retries,
+      # and a re-run of this run finishes what it could not. Latest marks the
+      # CLI's newest release, since the API is pulled from ghcr rather than
+      # downloaded from here.
       - name: Publish the release
         if: steps.tip.outputs.superseded != 'true'
         run: |
-          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" \
+          release/publish-github-release "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" \
             --notes-file release-notes.md --latest
 
   api-publish:
@@ -426,5 +427,5 @@ jobs:
       # The tag already exists. It never takes Latest from the CLI's.
       - name: Publish the release
         run: |
-          gh release create "$TAG" --verify-tag --title "$TAG" \
+          release/publish-github-release "$TAG" --verify-tag --title "$TAG" \
             --notes-file release-notes.md --latest=false
