@@ -12,8 +12,8 @@ comes from the Postgres sequence `record_numbers`. Each kind's table,
 
 That is class table inheritance: a supertype table with what every kind
 shares, and a table per kind with what is its own. Anything that attaches to
-"a record" holds one foreign key to `records`, whatever the kind. A claim and
-a worklog do, and so will a document and a comment.
+"a record" holds one foreign key to `records`, whatever the kind. A claim, a
+worklog, a document and a comment each do.
 
 Each kind's table carries its kind beside the number, and the reference is on
 the pair. So the database refuses an issue whose number `records` holds as an
@@ -28,7 +28,7 @@ initiative's.
   rows, with a `CHECK` per kind to say which.
 
 Each kind keeps its own UUID `id` as its key, which its own edges use: an
-issue's parent, its dependencies, its comments. The number is the handle a
+issue's parent, its dependencies, its labels. The number is the handle a
 person or an agent types.
 
 ## A number reads as its kind's whole record
@@ -112,6 +112,8 @@ Its side effects name what went with it and each other record it changed:
 | --- | --- |
 | `claims_deleted` | the record had claims, live or ended; they go with it |
 | `worklogs_deleted` | the record had worklogs; they go with their spans and links |
+| `documents_deleted` | the record had documents; they go with every version |
+| `comments_deleted` | the record or its documents had comments; they go with them |
 | `child_detached` | an issue's child loses its parent |
 | `dependency_removed` | an issue that depended on the deleted one no longer does |
 | `issue_detached` | an initiative's issue is left in no initiative |

@@ -129,8 +129,12 @@ worklog that ended still takes a link, since a pull request lands after the
 claim that made it is done. Linking the same ref twice changes nothing and
 warns `already_linked`.
 
-A worklog's `stage` is the furthest its links reached, derived on every read:
-`started`, `committed`, `pull_request`, then `landed`.
+A worklog's `stage` is the furthest it reached, derived on every read:
+`started`, then `planned` once it wrote a plan document, then `committed`,
+`pull_request` and `landed` as its links reach them. Its read lists every
+document version written in it as `document_versions`.
+[documents-and-comments.md](documents-and-comments.md) covers how a version
+names its worklog.
 
 Its `workflow` says how the work was approached: `oneshot`, `plan-first` or
 `design-first`. `start --workflow` or `slate worklogs edit --workflow` sets
