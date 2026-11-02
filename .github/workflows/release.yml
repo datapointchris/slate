@@ -1,0 +1,422 @@
+name: Release
+
+# slate's two release streams, each cut by a push to main whose commits touch
+# its own paths:
+#
+# - The CLI, tagged cli/vX.Y.Z, as a `slate` binary per platform on the GitHub
+#   release. `slate update` reads releases under the cli/ prefix, so a bare
+#   tag would be invisible to it.
+# - The API, tagged vX.Y.Z: its image on ghcr, and deploy/ pushed to ghcr as an
+#   OCI artifact pinned to that image's digest, both signed keylessly.
+#
+# svu computes both versions, in release/resolve-version. go-semantic-release
+# can neither write nor read a prefixed tag, and python-semantic-release cannot
+# confine a version to some paths, so with it every CLI change would release
+# the API too.
+on:
+  push:
+    branches: [main]
+  # A hand trigger for the case push cannot reach. GitHub counts a run it
+  # created but never turned into jobs as still running, and refuses a second
+  # run of the same workflow while it sits there.
+  workflow_dispatch:
+
+# Scoped per job rather than here: validate only reads, and it is the job that
+# runs the most third-party code.
+permissions:
+  contents: read
+
+# Two pushes to main inside one run's window would otherwise race: both resolve
+# the same next version from the same newest tag. Never cancel-in-progress: a
+# canceled release can leave a tag with nothing published under it.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
+# A named bash runs with pipefail, so a failed command early in a pipeline fails
+# its step rather than handing the next command an empty answer.
+defaults:
+  run:
+    shell: bash
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  MANIFESTS: ghcr.io/${{ github.repository }}/manifests
+
+jobs:
+  # Called rather than keyed off `workflow_run`, which names a workflow rather
+  # than a commit, so a release could be cut from a tree that is not the one
+  # that passed.
+  validate:
+    uses: ./.github/workflows/validate.yml
+
+  # Both streams' versions, read from one checkout of every tag. Only the API's
+  # tag is pushed here, before anything is published under it, so the version
+  # names this commit from the start. The CLI's tag lands with its release.
+  versions:
+    name: Resolve the versions
+    needs: validate
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    outputs:
+      cli-tag: ${{ steps.cli.outputs.tag }}
+      cli-previous: ${{ steps.cli.outputs.previous }}
+      api-tag: ${{ steps.api.outputs.tag }}
+      api-version: ${{ steps.api.outputs.version }}
+      api-previous: ${{ steps.api.outputs.previous }}
+      api-paths: ${{ steps.api-paths.outputs.paths }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install svu
+        run: |
+          release/install-tools "$RUNNER_TEMP/bin" svu
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
+
+      - name: Resolve the CLI version
+        id: cli
+        run: release/resolve-version --prefix cli/v --path cli >>"$GITHUB_OUTPUT"
+
+      # The image is built from .dockerignore's allowlist, so that list, the
+      # files that build it and the manifests are what release the API. A
+      # change elsewhere, the CLI included, releases no API version whatever
+      # its conventional type.
+      - name: List what releases the API
+        id: api-paths
+        run: |
+          paths=(Dockerfile .dockerignore deploy)
+          while IFS= read -r line; do
+            case $line in
+              '!'*)
+                path=${line#!}
+                paths+=("${path%/}")
+                ;;
+            esac
+          done <.dockerignore
+          echo "paths=${paths[*]}" >>"$GITHUB_OUTPUT"
+
+      - name: Resolve and tag the API version
+        id: api
+        env:
+          PATHS: ${{ steps.api-paths.outputs.paths }}
+        run: |
+          read -ra paths <<<"$PATHS"
+          arguments=()
+          for path in "${paths[@]}"; do
+            arguments+=(--path "$path")
+          done
+          release/resolve-version --prefix v --push "${arguments[@]}" >>"$GITHUB_OUTPUT"
+
+  cli-build:
+    name: Build the CLI for ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: versions
+    if: needs.versions.outputs.cli-tag != ''
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      # The archive is `slate_<version>_<os>_<arch>.tar.gz`. goselfupdate
+      # matches the OS and the Go arch as delimited words in an asset's name,
+      # so the underscores are what make it findable. `-o slate`, because the
+      # module's last path element would name the binary `cli`. CGO off, so the
+      # binary runs on a machine without the build host's libc.
+      - name: Build and archive
+        working-directory: cli
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+          TAG: ${{ needs.versions.outputs.cli-tag }}
+        run: |
+          version="${TAG#cli/}"
+          mkdir -p ../dist
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/datapointchris/slate/cli/internal/cli.version=${version}" \
+            -o ../dist/slate .
+          tar -czf "../dist/slate_${version#v}_${GOOS}_${GOARCH}.tar.gz" -C ../dist slate
+          rm ../dist/slate
+
+      # The publish job attaches these to the release in this run, so a day outlives every use.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: slate-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  cli-publish:
+    name: Publish the CLI release
+    needs: [versions, cli-build]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.versions.outputs.cli-tag }}
+      PREVIOUS: ${{ needs.versions.outputs.cli-previous }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: slate-*
+          path: dist
+          merge-multiple: true
+
+      # `--` rather than `./*`, because sha256sum echoes its argument and the
+      # release asset is named `name`, not `./name`.
+      - name: Generate checksums
+        run: cd dist && sha256sum -- *.tar.gz >checksums.txt
+
+      # Not GitHub's generated notes, which list merged pull requests, and
+      # would list the API's beside the CLI's.
+      - name: Build release notes
+        run: |
+          range="${PREVIOUS:+${PREVIOUS}..}HEAD"
+          {
+            echo '## Changes'
+            echo
+            git log --no-merges --pretty='- %s (%h)' "$range" -- cli
+            if [ -n "$PREVIOUS" ]; then
+              echo
+              echo "**Full changelog**: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${TAG}"
+            fi
+          } >release-notes.md
+          cat release-notes.md
+
+      # The run for a newer push resolves from the same previous tag, so it
+      # releases these commits too. GitHub also answers 403 to tagging an older
+      # commit once a newer push changed a workflow file, because GITHUB_TOKEN
+      # holds no workflows permission.
+      - name: Leave the release to a newer push
+        id: tip
+        run: |
+          tip=$(git ls-remote --exit-code origin "$GITHUB_REF" | cut -f1)
+          [ -n "$tip" ] || { echo "origin names no commit for $GITHUB_REF" >&2; exit 1; }
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "$GITHUB_REF is at ${tip}, past ${GITHUB_SHA}; the run for ${tip} releases these commits"
+            echo "superseded=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      # gh uploads every asset to a draft and publishes it last, and GitHub
+      # creates a draft's tag only when it is published. So a run that fails
+      # mid-upload leaves no tag, and the next run cuts the same version again.
+      # Latest marks the CLI's newest release, since the API is pulled from
+      # ghcr rather than downloaded from here.
+      - name: Publish the release
+        if: steps.tip.outputs.superseded != 'true'
+        run: |
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" \
+            --notes-file release-notes.md --latest
+
+  api-publish:
+    name: Publish the API image and its manifests
+    needs: versions
+    if: needs.versions.outputs.api-tag != ''
+    runs-on: ubuntu-26.04
+    # A stalled download fails the job here rather than at Actions' six-hour default.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      # The OIDC token cosign trades for a signing certificate naming this workflow.
+      id-token: write
+    outputs:
+      image: ${{ steps.image.outputs.ref }}
+      manifests: ${{ steps.manifests.outputs.ref }}
+    env:
+      VERSION: ${{ needs.versions.outputs.api-version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # SHA-pinned because they are third-party, the major tag moves, and the
+      # login action is handed a token with packages: write.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # A version already on ghcr is never rebuilt, so one tag names one image,
+      # and :latest moves only to the newest version. Only "not found" builds:
+      # any other error fails the step, so a transient one never republishes a
+      # version under a new digest. The pattern names the full ref, because a
+      # bare `v*` also matches the tail of refs/tags/cli/v0.1.0.
+      - name: Decide what to publish
+        id: publish
+        run: |
+          newest=$(git ls-remote --tags --refs origin 'refs/tags/v*' | sed 's|.*refs/tags/v||' | sort -V | tail -n 1)
+          [ -n "$newest" ] || { echo "origin lists no v* tag, though this run tagged v$VERSION" >&2; exit 1; }
+          if [ "$newest" = "$VERSION" ]; then
+            echo "latest=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "latest=false" >>"$GITHUB_OUTPUT"
+          fi
+          if answer=$(docker buildx imagetools inspect "$IMAGE:$VERSION" 2>&1 >/dev/null); then
+            echo "::notice::$IMAGE:$VERSION is already published"
+            echo "build=false" >>"$GITHUB_OUTPUT"
+          elif grep -q ': not found$' <<<"$answer"; then
+            echo "build=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "$answer" >&2
+            exit 1
+          fi
+
+      # The version for a deployment to pin, :sha-<short> for a person to
+      # trace, and :latest for `docker run`. A manifest names the digest.
+      - name: Resolve the tags
+        if: steps.publish.outputs.build == 'true'
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=${{ env.VERSION }}
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ steps.publish.outputs.latest == 'true' }}
+
+      # The provenance and SBOM attestations ride in the image's index, so the
+      # digest a manifest pins carries them.
+      - name: Build and push
+        if: steps.publish.outputs.build == 'true'
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A re-run that built nothing reads the published version's digest.
+      - name: Name the image by its digest
+        id: image
+        env:
+          BUILT: ${{ steps.build.outputs.digest }}
+        run: |
+          pinned=$BUILT
+          if [ -z "$pinned" ]; then
+            pinned=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          fi
+          [[ $pinned == sha256:* ]] || { echo "no digest for $IMAGE:$VERSION: '$pinned'" >&2; exit 1; }
+          echo "ref=$IMAGE@$pinned" >>"$GITHUB_OUTPUT"
+          echo "Image \`$IMAGE@$pinned\`" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Install flux, kustomize and cosign
+        run: |
+          release/install-tools "$RUNNER_TEMP/bin" flux kustomize cosign
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
+
+      # Pushed as manifests:<version>. --reproducible makes a re-run send the
+      # same bytes for the same digest. The source and revision travel in the
+      # artifact, and Flux reports them beside what it applied.
+      - name: Push the manifests
+        id: manifests
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+        run: |
+          work=$RUNNER_TEMP/manifests
+          release/pin-manifests --image "$IMAGE_REF" --version "$VERSION" --out "$work"
+          pushed=$(flux push artifact "oci://$MANIFESTS:$VERSION" --path="$work" \
+            --source="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" --revision="$VERSION@sha1:$GITHUB_SHA" \
+            --reproducible --output=json | jq -r .digest)
+          [[ $pushed == sha256:* ]] || { echo "flux push named no digest: '$pushed'" >&2; exit 1; }
+          echo "ref=$MANIFESTS@$pushed" >>"$GITHUB_OUTPUT"
+          echo "Manifests \`$MANIFESTS:$VERSION\` as \`$MANIFESTS@$pushed\`" >>"$GITHUB_STEP_SUMMARY"
+
+      # Keyless, so the signing certificate names this workflow on this ref and
+      # no key exists to keep. A deployment verifies the artifact against that
+      # identity before applying it. The verify proves the pair the release
+      # notes print is the one a consumer can check. A re-run signs again, and
+      # either signature verifies.
+      - name: Sign the image and the manifests
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.ref }}
+          MANIFESTS_REF: ${{ steps.manifests.outputs.ref }}
+        run: |
+          cosign sign --yes "$IMAGE_REF"
+          cosign sign --yes "$MANIFESTS_REF"
+          cosign verify --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$IMAGE_REF" "$MANIFESTS_REF" >/dev/null
+
+  # The release is the last thing published, so its existence is what marks
+  # the version finished. release/resolve-version reads it.
+  api-release:
+    name: Publish the API release
+    needs: [versions, api-publish]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.versions.outputs.api-tag }}
+      PREVIOUS: ${{ needs.versions.outputs.api-previous }}
+      PATHS: ${{ needs.versions.outputs.api-paths }}
+      IMAGE_REF: ${{ needs.api-publish.outputs.image }}
+      MANIFESTS_REF: ${{ needs.api-publish.outputs.manifests }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Build release notes
+        run: |
+          range="${PREVIOUS:+${PREVIOUS}..}${TAG}"
+          read -ra paths <<<"$PATHS"
+          {
+            echo '## Changes'
+            echo
+            git log --no-merges --pretty='- %s (%h)' "$range" -- "${paths[@]}"
+            echo
+            echo '## Published'
+            echo
+            echo "- Image: \`$IMAGE_REF\`"
+            echo "- Manifests: \`$MANIFESTS_REF\`, with \`migrate/\` to apply before \`app/\`"
+            echo
+            echo 'Both are signed by this workflow on main:'
+            echo
+            echo '```bash'
+            echo "cosign verify --certificate-identity '$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF' \\"
+            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\"
+            echo "  $MANIFESTS_REF"
+            echo '```'
+            if [ -n "$PREVIOUS" ]; then
+              echo
+              echo "**Full changelog**: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${TAG}"
+            fi
+          } >release-notes.md
+          cat release-notes.md
+
+      # The tag already exists. It never takes Latest from the CLI's.
+      - name: Publish the release
+        run: |
+          gh release create "$TAG" --verify-tag --title "$TAG" \
+            --notes-file release-notes.md --latest=false
