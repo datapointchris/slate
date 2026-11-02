@@ -37,7 +37,8 @@ first holds it, and a later report naming it warns
 A message is the grain any window can split at. A seven-day window, or one
 day in any time zone, may cut through a span. A message has one moment, so it
 falls on one side of every edge. Any sum, over any grouping or window, reads
-these same rows.
+these same rows. `slate totals` sums them over any record, worklog, repo or
+window ([totals.md](totals.md)).
 
 - *Rejected:* one row per span with its sums. A window whose edge cuts the
   span would need the sum split by time, which the row cannot give.

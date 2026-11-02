@@ -14,9 +14,9 @@ ISSUES_CLOSE = 'slate.issues.close'
 RECORDS_PLAN = 'slate.records.plan'
 
 SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
-    # Every read of a record of any kind, of who holds which, and of the documents and comments on
-    # it. An issue in a series often has no description of its own, so a reader judging it needs
-    # its initiative's.
+    # Every read of a record of any kind, of who holds which, of the documents and comments on it,
+    # and of the work's totals. An issue in a series often has no description of its own, so a
+    # reader judging it needs its initiative's.
     'slate.records.read': frozenset(
         {
             ('GET', f'{API_PREFIX}/records'),
@@ -33,6 +33,7 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
             ('GET', f'{API_PREFIX}/queue'),
             ('GET', f'{API_PREFIX}/sessions/{{id}}'),
+            ('GET', f'{API_PREFIX}/totals'),
             ('GET', f'{API_PREFIX}/worklogs'),
             ('GET', f'{API_PREFIX}/worklogs/current'),
             ('GET', f'{API_PREFIX}/worklogs/{{name}}'),

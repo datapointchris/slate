@@ -28,6 +28,8 @@ from sqlalchemy import Identity
 from sqlalchemy import Index
 from sqlalchemy import Text
 from sqlalchemy import and_
+from sqlalchemy import case
+from sqlalchemy import func
 from sqlalchemy import text
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.orm import Mapped
@@ -112,6 +114,18 @@ class Claim(Base):
     def held_until(self, now: dt.datetime) -> dt.datetime:
         """When holding stops, for a claim ended at `now`: its expiry when the lease ran out first, else `now`."""
         return self.expires_ts if self.is_expired(now) else now
+
+    @hybrid_method
+    def stopped_holding_at(self, now: dt.datetime) -> dt.datetime | None:
+        """When it stopped holding its record, as of `now`: its ending, else its expiry once that passed. None while it holds."""
+        if self.ended_ts is not None:
+            return self.ended_ts
+        return self.expires_ts if self.expires_ts <= now else None
+
+    @stopped_holding_at.expression
+    @classmethod
+    def _stopped_holding_at_expression(cls, now: dt.datetime) -> ColumnElement[dt.datetime | None]:
+        return func.coalesce(cls.ended_ts, case((cls.expires_ts <= now, cls.expires_ts)))
 
     @property
     def open_wait(self) -> ClaimWait | None:

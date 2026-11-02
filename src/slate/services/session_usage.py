@@ -185,9 +185,7 @@ def tokens_of(row) -> schemas.TokensByKind:
 def summed(parts: Iterable[schemas.TokensByKind | None]) -> schemas.TokensByKind | None:
     """Each kind summed over the parts that hold a count, or None when none does."""
     counted = [part for part in parts if part is not None]
-    if not counted:
-        return None
-    return schemas.TokensByKind(**{kind: sum(getattr(part, kind) for part in counted) for kind in TOKEN_COLUMNS})
+    return sum(counted, schemas.TokensByKind()) if counted else None
 
 
 def tokens_by_span(session: Session, span_ids: Iterable[int]) -> dict[int, schemas.TokensByKind]:

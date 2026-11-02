@@ -63,6 +63,9 @@ from slate.schemas.record_parts import RecordParts
 from slate.schemas.tokens import TokensByKind
 from slate.schemas.vocabulary import PriorityName
 from slate.schemas.vocabulary import Vocabulary
+from slate.schemas.work_totals import ModelTokens
+from slate.schemas.work_totals import TotalsScope
+from slate.schemas.work_totals import WorkTotals
 from slate.schemas.worklog import Worklog
 from slate.schemas.worklog import WorklogFinish
 from slate.schemas.worklog import WorklogJoin
@@ -128,6 +131,7 @@ __all__ = [
     'IssueUpdate',
     'IssueWritten',
     'MessageTokensReport',
+    'ModelTokens',
     'PathOverlap',
     'PlacedComment',
     'PriorityName',
@@ -142,7 +146,9 @@ __all__ = [
     'SessionUsageReport',
     'SessionWritten',
     'TokensByKind',
+    'TotalsScope',
     'Vocabulary',
+    'WorkTotals',
     'Worklog',
     'WorklogFinish',
     'WorklogJoin',

@@ -9,3 +9,4 @@
 | [worklogs.md](worklogs.md) | Worklogs as each go at a record: their names, what opens and ends one, why a session is in one at a time, and how a commit reaches its worklog |
 | [sessions.md](sessions.md) | Each agent session's tokens by kind: why they are stored per message, how a message finds its worklog span, why a report replaces the last, and the Claude Code hook that reports them |
 | [documents-and-comments.md](documents-and-comments.md) | Research, design and plan documents on any record, versioned, and comments on a record or a line: who wrote each, from which worklog, and how a line comment follows its line into a later version |
+| [totals.md](totals.md) | The work's totals over any record, worklog, repo or window: what each scope reaches, why a repo's total is its issues' worklogs, and what a window counts of each figure |
