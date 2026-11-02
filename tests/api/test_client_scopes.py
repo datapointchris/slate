@@ -28,6 +28,8 @@ CLAIM = 'slate.claims.hold'
 CLOSE = 'slate.issues.close'
 PLAN = 'slate.records.plan'
 WORKLOGS = 'slate.worklogs.write'
+SESSIONS = 'slate.sessions.write'
+RUN_POD_SESSION = 'run-pod-session'
 CLOSER = 'worker/close-job@service-box'
 SERVICE = 'slate-svc-worker'
 PERSON = OIDCIdentity(subject='person-subject', client_id='slate-cli-laptop')
@@ -47,6 +49,7 @@ SCOPED_URLS = {
     f'{API_PREFIX}/issues/{{id}}': '/issues/{issue}',
     f'{API_PREFIX}/initiatives': '/initiatives',
     f'{API_PREFIX}/initiatives/{{id:path}}': '/initiatives/{initiative}',
+    f'{API_PREFIX}/sessions/{{id}}': f'/sessions/{RUN_POD_SESSION}',
     f'{API_PREFIX}/worklogs': '/worklogs?state=all',
     f'{API_PREFIX}/worklogs/current': '/worklogs/current?session=run-pod-session',
     f'{API_PREFIX}/worklogs/{{name}}': '/worklogs/{worklog}',
@@ -81,6 +84,11 @@ SCOPED_WRITES = {
     (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs/{{name}}/finish'): (
         '/worklogs/{worklog}/finish',
         {'finished_by': SERVICE},
+        status.HTTP_200_OK,
+    ),
+    (SESSIONS, 'PUT', f'{API_PREFIX}/sessions/{{id}}/usage'): (
+        f'/sessions/{RUN_POD_SESSION}/usage',
+        {'messages': [{'key': 'msg_1', 'written_ts': '2026-11-02T12:00:00Z', 'tokens': {'cache_read': 900, 'output': 40}}]},
         status.HTTP_200_OK,
     ),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/release'): (
@@ -129,7 +137,7 @@ def scoped(scope: str) -> ScopedClient:
 
 @pytest.fixture
 def as_caller(txn_api):
-    """Seed two issues of one priority, one initiative, one idea, the service's claim on the neighbor, and a worklog it opened.
+    """Seed two issues of one priority, one initiative, one idea, the service's claim on the neighbor, a worklog it opened, and a session.
 
     `caller(identity)` sets who the token says is calling and returns the client, and `url(template)`
     fills a template with the seeded rows. The initiative is named, as the CLI names one.
@@ -144,6 +152,7 @@ def as_caller(txn_api):
     now = dt.datetime.now(dt.UTC)
     session.add(models.Claim(record_number=neighbor.number, holder=SERVICE, started_ts=now, expires_ts=now + dt.timedelta(hours=1)))
     session.add(models.Worklog(record_number=issue.number, sequence=1, opened_by=SERVICE, started_ts=now))
+    session.add(models.AgentSession(id=RUN_POD_SESSION, host='run-pod'))
     session.flush()
 
     def caller(identity):

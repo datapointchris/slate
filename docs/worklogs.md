@@ -70,7 +70,9 @@ worklog.
 
 Time a session spends outside any span belongs to the session alone. So
 anything measured over a session, such as its tokens, splits at its span
-boundaries with each moment counted once.
+boundaries with each moment counted once. A worklog's read sums the tokens its
+sessions reported inside its spans, and [sessions.md](sessions.md) covers how
+each message reaches its span.
 
 This is the single running timer that time trackers such as Toggl Track and
 Harvest use: starting one timer stops the one running.

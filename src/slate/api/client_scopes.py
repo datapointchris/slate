@@ -28,6 +28,7 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/issues'),
             ('GET', f'{API_PREFIX}/issues/ready'),
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
+            ('GET', f'{API_PREFIX}/sessions/{{id}}'),
             ('GET', f'{API_PREFIX}/worklogs'),
             ('GET', f'{API_PREFIX}/worklogs/current'),
             ('GET', f'{API_PREFIX}/worklogs/{{name}}'),
@@ -58,6 +59,10 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('POST', f'{API_PREFIX}/worklogs/{{name}}/finish'),
         }
     ),
+    # Reporting the tokens an agent session spent, for a job whose agent reports its own usage. A
+    # report names a session and carries no actor, so where it changes the session, the audit row
+    # names the client.
+    'slate.sessions.write': frozenset({('PUT', f'{API_PREFIX}/sessions/{{id}}/usage')}),
     # Commenting on an issue and closing it, for a job closing an issue whose fix merged. The
     # update handler narrows a body naming `status` or `closed_by` to the close of an open issue.
     ISSUES_CLOSE: frozenset(

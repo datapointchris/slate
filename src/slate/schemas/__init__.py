@@ -1,3 +1,8 @@
+from slate.schemas.agent_session import AgentSession
+from slate.schemas.agent_session import MessageTokensReport
+from slate.schemas.agent_session import SessionSpan
+from slate.schemas.agent_session import SessionUsageReport
+from slate.schemas.agent_session import SessionWritten
 from slate.schemas.claim import Claim
 from slate.schemas.claim import ClaimExtend
 from slate.schemas.claim import ClaimHold
@@ -41,6 +46,7 @@ from slate.schemas.issue import IssueUpdate
 from slate.schemas.issue import IssueWritten
 from slate.schemas.record import RecordListed
 from slate.schemas.record import RecordSummary
+from slate.schemas.tokens import TokensByKind
 from slate.schemas.vocabulary import PriorityName
 from slate.schemas.vocabulary import Vocabulary
 from slate.schemas.worklog import Worklog
@@ -57,6 +63,7 @@ from slate.schemas.write_effects import WriteEffect
 from slate.schemas.write_effects import Written
 
 __all__ = [
+    'AgentSession',
     'Claim',
     'ClaimExtend',
     'ClaimHold',
@@ -98,10 +105,15 @@ __all__ = [
     'IssueSummary',
     'IssueUpdate',
     'IssueWritten',
+    'MessageTokensReport',
     'PriorityName',
     'RecordDeleted',
     'RecordListed',
     'RecordSummary',
+    'SessionSpan',
+    'SessionUsageReport',
+    'SessionWritten',
+    'TokensByKind',
     'Vocabulary',
     'Worklog',
     'WorklogFinish',

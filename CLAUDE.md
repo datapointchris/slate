@@ -15,7 +15,8 @@ it and its settings. `docs/index.md` lists the design pages, and
 - `src/slate/alembic/` — migrations; `alembic.ini` finds them as
   `slate:alembic`, so the installed package carries them
 - `cli/` — its own Go module, `github.com/datapointchris/slate/cli`, built with
-  cobra. `internal/api` is the typed client and `internal/cli` the commands
+  cobra. `internal/api` is the typed client, `internal/cli` the commands, and
+  `internal/transcript` reads a Claude Code session's tokens from its transcripts
 - `tests/` — pytest, against a Postgres it starts itself
 - `deploy/` — the kustomize base each API release publishes, `migrate/`
   applied before `app/`
@@ -43,7 +44,7 @@ names. The client id's prefix decides who is calling:
   is a `ScopedClient`, and reaches only the routes `client_scopes.py` lists for
   its scopes.
 
-There are no users and no sessions. Routes take `CurrentCaller` from
+There are no users and no login sessions. Routes take `CurrentCaller` from
 `api/callers.py`, and tests override `get_current_caller`.
 
 **A new router goes in `RESOURCE_ROUTERS` in `api/main.py`.** FastAPI hands a
@@ -81,7 +82,9 @@ A new command takes a noun unless no one noun owns what it reads.
   so no write path does anything for it. A new table's migration creates its
   trigger, and `test_every_table_is_audited_but_what_opts_out` names the
   statement when one is missing. The actor is the caller's subject or client
-  id, set per transaction by `bind_actor`.
+  id, set per transaction by `bind_actor`. `message_tokens` opts out, because
+  its rows mirror a transcript, and each report that changes them is audited
+  on `agent_sessions`.
 - **A write answers an envelope that names everything else it did.** The
   handler takes `Effects` from `services/write_effects.py`, calls `did()` for
   each change beyond the request and `warn()` for each condition it went

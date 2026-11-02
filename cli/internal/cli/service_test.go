@@ -221,6 +221,9 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 	worklog := `{"name":"412.1","record_number":412,"sequence":1,"record":{"number":412,"kind":"issue","title":"t","status":"open"},` +
 		`"opened_by":"` + serviceClientID + `","started_ts":"2026-10-19T00:00:00Z","state":"live","stage":"started"}`
 	wroteWorklog := `{"worklog":` + worklog + `,"side_effects":[],"warnings":[]}`
+	const fixtureSession = "0f6e2a4c-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
+	agentSession := `{"id":"` + fixtureSession + `","first_seen_ts":"2026-11-02T10:00:00Z","message_count":5,"tokens":{},"tokens_outside_worklogs":null,"spans":[]}`
+	reportedSession := `{"session":` + agentSession + `,"side_effects":[],"warnings":[]}`
 	for _, call := range []struct {
 		args []string
 		body string
@@ -257,6 +260,8 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		{[]string{"worklogs", "link", "412.1", "--pr", "https://github.com/example/repo/pull/3"}, wroteWorklog, nil},
 		{[]string{"worklogs", "edit", "412.1", "--workflow", "oneshot"}, wroteWorklog, nil},
 		{[]string{"worklogs", "finish", "412.1"}, wroteWorklog, nil},
+		{[]string{"sessions", "show", fixtureSession, "--json"}, agentSession, nil},
+		{[]string{"sessions", "report", "--transcript", "../transcript/testdata/project/" + fixtureSession + ".jsonl"}, reportedSession, nil},
 		{[]string{"issues", "add-comment", "412", "--body", "Landed: a merged fix"}, `{}`, nil},
 		{[]string{"issues", "complete", "412"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--priority", "none", "--initiative", "Practical help guides"}, openIssue, nil},

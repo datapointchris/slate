@@ -156,6 +156,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(inGroup(groupDoing,
 		withAPIFlag(newClaimsCommand()),
 		withAPIFlag(newWorklogsCommand()),
+		withAPIFlag(newSessionsCommand()),
 	)...)
 	root.AddCommand(inGroup(groupSetup,
 		withAPIFlag(newLabelsCommand()),

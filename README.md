@@ -18,8 +18,9 @@ Two parts share this repository:
 
 `docs/issues.md` explains the model: what makes an issue ready, how the queue
 is ordered and why some things are not built. `docs/claims.md` explains
-claims, `docs/worklogs.md` worklogs, `docs/ideas.md` ideas, and
-`docs/index.md` lists every page.
+claims, `docs/worklogs.md` worklogs, `docs/sessions.md` the tokens each
+agent session spent and the Claude Code hook that reports them,
+`docs/ideas.md` ideas, and `docs/index.md` lists every page.
 
 ## Running the API
 
@@ -129,11 +130,12 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the ready queue, who holds which claim, and worklogs |
+| `slate.records.read` | reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the ready queue, who holds which claim, worklogs, and a session's tokens |
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready queue, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.issues.close` | commenting on an issue, and closing an open one |
 | `slate.records.plan` | reading the vocabulary, filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
+| `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
 
 No scope deletes anything, and none files or changes an idea.
 `src/slate/api/client_scopes.py` holds the exact routes.

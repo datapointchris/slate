@@ -498,6 +498,9 @@ func printWorklogDetail(out io.Writer, worklog api.Worklog, now time.Time) {
 		}
 		_, _ = fmt.Fprintf(out, "  ended:     %s\n", ended)
 	}
+	if worklog.Tokens != nil {
+		_, _ = fmt.Fprintf(out, "  tokens:    %s\n", tokensLine(*worklog.Tokens))
+	}
 	if len(worklog.Spans) > 0 {
 		_, _ = fmt.Fprintf(out, "\nSessions (%d):\n", len(worklog.Spans))
 		for _, span := range worklog.Spans {
