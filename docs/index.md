@@ -7,3 +7,4 @@
 | [issues.md](issues.md) | The model: what makes an issue ready, how the queue is ordered, how closing works, and what is deliberately not built |
 | [claims.md](claims.md) | Claims as leases on any record, kept after they end: the one refusal, the warnings a hold gives, the waiting state, and how a claim expires and ends |
 | [worklogs.md](worklogs.md) | Worklogs as each go at a record: their names, what opens and ends one, why a session is in one at a time, and how a commit reaches its worklog |
+| [sessions.md](sessions.md) | Each agent session's tokens by kind: why they are stored per message, how a message finds its worklog span, why a report replaces the last, and the Claude Code hook that reports them |
