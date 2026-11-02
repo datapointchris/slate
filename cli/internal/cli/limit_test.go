@@ -51,7 +51,7 @@ func TestNoteCappedRows_SilentWhenNothingWasCut(t *testing.T) {
 func TestEveryListCommandTakesLimit(t *testing.T) {
 	lists := [][]string{
 		{"issues", "list"},
-		{"issues", "initiatives", "list"},
+		{"initiatives", "list"},
 	}
 	for _, path := range lists {
 		t.Run(strings.Join(path, " "), func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestLimitFlag_DistinguishesUnsetFromExplicitZero(t *testing.T) {
 }
 
 func TestLimitFlag_CarriesAnExplicitCap(t *testing.T) {
-	cmd := findCommand(t, "issues", "initiatives", "list")
+	cmd := findCommand(t, "initiatives", "list")
 	if err := cmd.Flags().Set("limit", "7"); err != nil {
 		t.Fatalf("set limit: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestEveryLimitFlagRefusesANegative(t *testing.T) {
 // The commands that cap what they print carry a default; the reads the API
 // bounds carry none, because an unset --limit sends no parameter at all.
 func TestOnlyTheClientSideCapsCarryADefault(t *testing.T) {
-	capped := map[string]string{"overview": "10", "projects next": "10", "issues next": "10"}
+	capped := map[string]string{"next": "10"}
 	for path, flag := range limitCommands(t) {
 		t.Run(path, func(t *testing.T) {
 			want, isCapped := capped[path]

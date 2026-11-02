@@ -1,0 +1,134 @@
+package cli
+
+import (
+	"fmt"
+	"io"
+	"slices"
+	"strings"
+	"text/tabwriter"
+	"time"
+
+	"github.com/datapointchris/goclikit"
+	"github.com/spf13/cobra"
+
+	"github.com/datapointchris/slate/cli/internal/api"
+)
+
+// The ways to find a record after a 404, whatever its kind.
+const (
+	anyRecordHint = "Any record by its number, whatever its kind: slate show <number>"
+	searchHint    = "Search every kind by title or description: slate search <words>"
+)
+
+// recordShown is `slate show --json`: the kind, the number, and the JSON that
+// kind's own show prints.
+type recordShown struct {
+	Kind   string `json:"kind"`
+	Number int    `json:"number"`
+	Record any    `json:"record"`
+}
+
+func newShowCommand() *cobra.Command {
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:        "show <number>",
+		SuggestFor: []string{"get", "view", "record", "records"},
+		Short:      "Show the idea, initiative or issue holding a number",
+		Long: "Ideas, initiatives and issues share one number sequence, so a number names\n" +
+			"one record whatever its kind. It prints what that kind's own show prints:\n" +
+			"`slate show 412` and `slate issues show 412` read the same.",
+		Example: "  slate show 412\n  slate show '#1501' --json",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := newAPIClient(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			record, err := client.GetRecord(cmd.Context(), args[0], issueZone())
+			if err != nil {
+				return handleArgumentAPIError(err)
+			}
+			out, now := cmd.OutOrStdout(), time.Now()
+			shown := recordShown{Kind: record.Kind, Number: record.Number}
+			var print func()
+			switch {
+			case record.Idea != nil:
+				shown.Record = record.Idea
+				print = func() { printIdeaDetail(out, *record.Idea, now) }
+			case record.Issue != nil:
+				shown.Record = record.Issue
+				print = func() { printIssueDetail(out, *record.Issue, now) }
+			case record.Initiative != nil:
+				initiative, err := readInitiativeIssues(cmd, client, *record.Initiative)
+				if err != nil {
+					return err
+				}
+				shown.Record = initiative
+				print = func() { printInitiativeShown(cmd, initiative) }
+			}
+			if asJSON {
+				return encodeJSON(out, shown)
+			}
+			print()
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the kind, the number and the record as JSON to stdout")
+	return goclikit.WithRecoveryHints(cmd, searchHint)
+}
+
+func newSearchCommand() *cobra.Command {
+	var (
+		kind   string
+		asJSON bool
+		limit  int
+	)
+	cmd := &cobra.Command{
+		Use:        "search <words>...",
+		SuggestFor: []string{"find", "grep"},
+		Short:      "Find ideas, initiatives and issues by title or description",
+		Long: "Every word must appear in the title or the description, in any order. Every\n" +
+			"status is searched, because the record you remember may be the one that\n" +
+			"closed. Unclosed records come first, then the most urgent, then the newest.",
+		Example: "  slate search rank renumber\n" +
+			"  slate search \"device login\" --kind issue --json",
+		Args: cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("kind") && !slices.Contains(api.RecordKinds, kind) {
+				return goclikit.UsageError(fmt.Errorf("unknown kind %q — one of: %s", kind, strings.Join(api.RecordKinds, ", ")))
+			}
+			client, err := newAPIClient(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			filter := api.RecordFilter{Search: strings.Join(args, " "), Kind: kind}
+			records, err := client.ListRecords(cmd.Context(), filter, limitFlag(cmd))
+			if err != nil {
+				return handleArgumentAPIError(err)
+			}
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), records)
+			}
+			printRecordsTable(cmd.OutOrStdout(), records)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&kind, "kind", "", "Only records of this kind: "+strings.Join(api.RecordKinds, ", "))
+	withFlagValues(cmd, "kind", api.RecordKinds...)
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output records as JSON to stdout")
+	addLimitFlag(cmd, &limit)
+	return cmd
+}
+
+func printRecordsTable(out io.Writer, records []api.RecordListed) {
+	if len(records) == 0 {
+		_, _ = fmt.Fprintln(out, "No record holds every word.")
+		return
+	}
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "NUMBER\tKIND\tSTATUS\tPRIORITY\tTITLE")
+	for _, record := range records {
+		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%s\t%s\t%s\n", record.Number, record.Kind, orDash(strValue(record.Status)), priorityName(record.Priority), record.Title)
+	}
+	_ = tw.Flush()
+}

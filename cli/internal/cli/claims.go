@@ -25,7 +25,7 @@ const maxClaimMinutes = 10080
 
 var claimHints = []string{
 	"List who holds what: slate claims list",
-	"Search issues by title or description: slate issues search <query>",
+	searchHint,
 }
 
 func newClaimsCommand() *cobra.Command {
@@ -92,7 +92,7 @@ func newClaimsHoldCommand() *cobra.Command {
 			"other worklog it was in, which is printed too. `slate worklogs` reads it.\n" +
 			"\n" +
 			"--next holds the head of the issue ready queue in one request, so two\n" +
-			"callers asking at once never hold the same issue. `slate issues next` under\n" +
+			"callers asking at once never hold the same issue. `slate next` under\n" +
 			"the same flags shows what it would take. Decisions are left out unless --type\n" +
 			"decision asks for them. An empty queue warns and exits 0.\n" +
 			"\n" +

@@ -76,7 +76,7 @@ func TestListInitiatives_AuthenticatesUnderTheAPIPrefix(t *testing.T) {
 	if gotAuth != "Bearer abc123" {
 		t.Errorf("Authorization header = %q, want %q", gotAuth, "Bearer abc123")
 	}
-	if gotPath != "/api/v1/issues/initiatives" {
+	if gotPath != "/api/v1/initiatives" {
 		t.Errorf("request path = %q, want it under /api/v1", gotPath)
 	}
 }

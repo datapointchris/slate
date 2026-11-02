@@ -4,7 +4,6 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
-from fastapi import Response
 from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,6 +15,7 @@ from slate.api.callers import DbSession
 from slate.services.issue_views import label_views
 from slate.services.record_refs import resolve_label
 from slate.services.write_effects import Effects
+from slate.services.write_effects import WriteEffectCode
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -94,9 +94,19 @@ def update(label: LabelFromPath, update: schemas.IssueLabelUpdate, session: DbSe
     return effects.answer(schemas.IssueLabelWritten, label=view(session, label))
 
 
-@router.delete('/{slug}', status_code=status.HTTP_204_NO_CONTENT)
-def delete(label: LabelFromPath, session: DbSession):
-    """Delete the label and take it off every issue carrying it."""
+@router.delete('/{slug}', response_model=schemas.IssueLabelDeleted, status_code=status.HTTP_200_OK)
+def delete(label: LabelFromPath, session: DbSession, effects: Effects):
+    """Delete the label and take it off every issue carrying it, naming each one."""
+    deleted = view(session, label)
+    carriers = session.scalars(
+        select(models.Issue.number)
+        .join(models.IssueLabelAssignment, models.IssueLabelAssignment.issue_id == models.Issue.id)
+        .where(models.IssueLabelAssignment.label_id == label.id)
+        .order_by(models.Issue.number)
+    ).all()
+    for number in carriers:
+        effects.did(WriteEffectCode.LABEL_REMOVED, f'#{number} no longer carries {label.slug!r}.', number)
     session.delete(label)
     session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    logger.info('issue_label_deleted', slug=label.slug, carriers=len(carriers))
+    return effects.answer(schemas.IssueLabelDeleted, deleted=deleted)

@@ -31,7 +31,7 @@ var unclosedStatuses = []string{api.IssueStatusTriage, api.IssueStatusOpen}
 // The initiatives and labels are read from the API because both change without
 // this file changing.
 func issueCreateFields(ctx context.Context, client *api.Client) ([]prompt.Field, error) {
-	vocabulary, err := client.GetIssueVocabulary(ctx)
+	vocabulary, err := client.GetVocabulary(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -189,9 +189,14 @@ func newIssuesCreateCommand() *cobra.Command {
 		autofix        bool
 	)
 	cmd := &cobra.Command{
-		Use:   "create [flags]",
+		Use:   "create --title <title> [flags]",
 		Short: "File an issue",
-		Long: "Pass every field as a flag to file in one shot. Leave --title out at a\n" +
+		Long: "--title is required. --type is one of " + strings.Join(api.IssueTypes, ", ") + " (default task).\n" +
+			"--priority is one of " + priorityChoices() + " (default none).\n" +
+			"--status is " + strings.Join(createStatuses, " or ") + " (default open). --repo takes a registry name, and\n" +
+			"--initiative a number, name or id.\n" +
+			"\n" +
+			"Pass every field as a flag to file in one shot. Leave --title out at a\n" +
 			"terminal and the rest are asked for one at a time. Tab lists the choices for\n" +
 			"a field that has them. Label repeats until an empty answer, and Description\n" +
 			"and Acceptance take lines until a blank one. Ctrl-C abandons the issue.\n" +
@@ -286,13 +291,16 @@ func newIssuesCreateCommand() *cobra.Command {
 	f := cmd.Flags()
 	f.String("title", "", "Issue title (asked for when omitted)")
 	f.String("type", "", "One of: "+strings.Join(api.IssueTypes, ", ")+" (default task)")
+	withFlagValues(cmd, "type", api.IssueTypes...)
 	f.String("priority", "", "One of: "+priorityChoices()+" (default none)")
+	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	f.String("repo", "", "Repo this is work on, by registry name (omit for work on no repo)")
 	f.String("initiative", "", "Initiative this ships toward, by number, name or id")
-	f.StringArray("label", nil, "Label to carry (repeatable; see: slate issues labels list)")
+	f.StringArray("label", nil, "Label to carry (repeatable; see: slate labels list)")
 	f.String("description", "", "What an agent could not find in the repo on its own")
 	f.String("acceptance", "", "How to verify it is done")
 	f.StringVar(&issueStatus, "status", "", "Where it starts: "+strings.Join(createStatuses, " or ")+" (default open)")
+	withFlagValues(cmd, "status", createStatuses...)
 	f.StringVar(&parent, "parent", "", "Parent issue, which waits on this one")
 	f.StringVar(&discoveredFrom, "discovered-from", "", "Issue whose work turned this up")
 	f.StringArrayVar(&dependsOn, "depends-on", nil, "Issue this waits on (repeatable)")
@@ -368,7 +376,9 @@ func (v *issueEditFlags) register(cmd *cobra.Command) {
 	f.StringVar(&v.acceptance, "acceptance", "", "New acceptance (empty clears)")
 	f.StringVar(&v.repo, "repo", "", "Repo by registry name (empty takes it off every repo)")
 	f.StringVar(&v.issueType, "type", "", "One of: "+strings.Join(api.IssueTypes, ", "))
+	withFlagValues(cmd, "type", api.IssueTypes...)
 	f.StringVar(&v.priority, "priority", "", "One of: "+priorityChoices())
+	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	f.StringVar(&v.initiative, "initiative", "", "Initiative by number, name or id (empty removes it)")
 	f.StringVar(&v.parent, "parent", "", "Parent issue (empty removes it)")
 	f.StringVar(&v.discoveredFrom, "discovered-from", "", "Issue whose work turned this up (empty removes it)")
@@ -469,7 +479,7 @@ func newIssuesDeleteCommand() *cobra.Command {
 		asJSON bool
 	)
 	cmd := &cobra.Command{
-		Use:   "delete <issue>",
+		Use:   "delete <issue> [--yes]",
 		Short: "Delete an issue, its comments, its edges and its claims",
 		Long: "For an issue filed by mistake. Work that will not be done is canceled\n" +
 			"instead, which keeps the reason. Every claim it has had goes with it, live or\n" +
@@ -699,90 +709,6 @@ func issueRefLabel(ref string) string {
 		return "#" + ref
 	}
 	return ref
-}
-
-func newIssuesAddDependencyCommand() *cobra.Command {
-	var (
-		dependsOn string
-		asJSON    bool
-	)
-	cmd := &cobra.Command{
-		Use:   "add-dependency <issue> --depends-on <other-issue>",
-		Short: "Record that an issue waits on another",
-		Long: "An issue is not ready while anything it depends on is unclosed. The issue it\n" +
-			"waits on takes its priority when that is more urgent. An edge that would\n" +
-			"leave an issue waiting on itself, through dependencies or a parent, is\n" +
-			"refused, and the refusal prints the path.",
-		Example: "  slate issues add-dependency 412 --depends-on 411",
-		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if dependsOn == "" {
-				return goclikit.UsageError(errors.New("--depends-on is required"))
-			}
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			written, err := client.AddIssueDependency(cmd.Context(), args[0], dependsOn, issueZone())
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
-			issue := written.Issue
-			summary := fmt.Sprintf("#%d %s now waits on %s", issue.Number, issue.Title, strings.Join(dependencyNumbers(issue.DependsOn), ", "))
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
-		},
-	}
-	cmd.Flags().StringVar(&dependsOn, "depends-on", "", "Issue it waits on (required)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
-	return cmd
-}
-
-func dependencyNumbers(summaries []api.IssueSummary) []string {
-	numbers := make([]string, 0, len(summaries))
-	for _, summary := range summaries {
-		numbers = append(numbers, "#"+strconv.Itoa(summary.Number))
-	}
-	return numbers
-}
-
-func newIssuesRemoveDependencyCommand() *cobra.Command {
-	var (
-		dependsOn string
-		yes       bool
-	)
-	cmd := &cobra.Command{
-		Use:     "remove-dependency <issue> --depends-on <other-issue>",
-		Short:   "Remove the edge between an issue and one it waits on",
-		Example: "  slate issues remove-dependency 412 --depends-on 411",
-		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if dependsOn == "" {
-				return goclikit.UsageError(errors.New("--depends-on is required"))
-			}
-			if !yes {
-				ok, err := confirm(cmd, fmt.Sprintf("Remove the dependency %s → %s?", args[0], dependsOn))
-				if err != nil {
-					return err
-				}
-				if !ok {
-					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
-					return nil
-				}
-			}
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			if err := client.RemoveIssueDependency(cmd.Context(), args[0], dependsOn); err != nil {
-				return handleArgumentAPIError(err)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Removed the dependency %s → %s\n", args[0], dependsOn)
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&dependsOn, "depends-on", "", "Issue it no longer waits on (required)")
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
-	return cmd
 }
 
 // --- Comments ---

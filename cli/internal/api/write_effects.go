@@ -46,3 +46,10 @@ type IssueLabelWritten struct {
 	Label IssueLabel `json:"label"`
 	WriteEffects
 }
+
+// IssueLabelDeleted is the answer to deleting a label: the label as it stood,
+// with each issue it came off named as a side effect.
+type IssueLabelDeleted struct {
+	Deleted IssueLabel `json:"deleted"`
+	WriteEffects
+}

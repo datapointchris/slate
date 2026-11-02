@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.services.claim_views import claim_history
 from slate.services.claim_views import unended_claim_views
 
 
@@ -78,6 +79,12 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
 def counted(session: Session, initiative: models.Initiative) -> schemas.Initiative:
     counts = session.execute(select(*issue_count_columns()).where(models.Issue.initiative_id == initiative.id)).one()
     return initiative_views(session, [(initiative, counts)])[0]
+
+
+def initiative_detail(session: Session, initiative: models.Initiative) -> schemas.InitiativeDetail:
+    """The initiative counted, with every claim it has had, as an idea's and an issue's reads carry theirs."""
+    claims = claim_history(session, initiative.number, dt.datetime.now(dt.UTC))
+    return schemas.InitiativeDetail(**counted(session, initiative).model_dump(), claims=claims)
 
 
 def initiatives_of_ideas(session: Session, idea_ids: Sequence[UUID]) -> dict[UUID, schemas.Initiative]:

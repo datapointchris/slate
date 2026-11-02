@@ -35,10 +35,14 @@ func withAPIFlag(cmd *cobra.Command) *cobra.Command {
 	return cmd
 }
 
-// The root's help sections: the work, then the commands that set the CLI up.
+// The root's help sections: the reads across every kind, the records work is
+// planned in, the commands that do it, then what sets the CLI and its
+// vocabulary up.
 const (
-	groupWork  = "work"
-	groupSetup = "setup"
+	groupEveryKind = "every-kind"
+	groupPlanning  = "planning"
+	groupDoing     = "doing"
+	groupSetup     = "setup"
 )
 
 // Within a namespace whose verbs both read and change something, the verbs
@@ -77,18 +81,28 @@ func NewRootCommand() *cobra.Command {
 	root := goclikit.AsNamespace(&cobra.Command{
 		Use:   "slate",
 		Short: "Work tracker built for coding agents",
-		Long: "slate tracks software work for the agents and people doing it: the ideas\n" +
-			"nobody has taken on yet, issues, the initiatives that group them, their\n" +
-			"labels, dependencies and comments, and the claims that say who is working\n" +
-			"what. `slate issues next` is the order to take the work in.\n" +
+		Long: "slate tracks software work for the agents and people doing it.\n" +
 			"\n" +
-			"The noun comes first and the verb last: `slate issues list` becomes\n" +
-			"`slate issues edit`. Every read and write takes --json. Run any partial command\n" +
-			"bare to see what comes next. Authenticate once with `slate auth login <url>`;\n" +
-			"`slate auth status` shows where slate is pointed.",
-		Example: "  slate issues next --limit 1\n" +
-			"  slate issues show 42\n" +
+			"The noun comes first and the verb last, so `slate issues list` becomes\n" +
+			"`slate issues edit` by changing the last word. Three commands read every\n" +
+			"kind and take no noun: `slate next` is the order to take the work in,\n" +
+			"`slate show <number>` reads any record, and `slate search <words>` finds one.\n" +
+			"\n" +
+			"Ideas, initiatives and issues share one number sequence, so a number names\n" +
+			"one record whatever its kind. A worklog is named under its record's number:\n" +
+			"412.2 is the second worklog on #412.\n" +
+			"\n" +
+			"Nothing happens that a command does not print. A write names every change\n" +
+			"it made beyond the one asked for, and every warning it went past. A read that\n" +
+			"leaves rows out by default says which, and how to include them. Every read\n" +
+			"and write takes --json.\n" +
+			"\n" +
+			"Authenticate once with `slate auth login <url>`. `slate auth status` shows\n" +
+			"where slate is pointed. Run any partial command bare to see what comes next.",
+		Example: "  slate next --limit 1\n" +
+			"  slate show 42\n" +
 			"  slate claims hold 42\n" +
+			"  slate search retry upload\n" +
 			"  slate issues create --title \"Retry the upload on a 503\" --type bug",
 		Version:       version,
 		SilenceUsage:  true, // usage is shown deliberately, not on every runtime error
@@ -103,9 +117,10 @@ func NewRootCommand() *cobra.Command {
 	// Flag mistakes are marked goclikit.ErrUsage, so they exit 2. Inherited by subcommands.
 	// goclikit.Execute composes with this rather than replacing it, and keeping
 	// it here is what makes the tree self-classifying for anything driving
-	// NewRootCommand directly.
-	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
-		return goclikit.UsageError(err)
+	// NewRootCommand directly. An unknown flag the command can name a meaning
+	// for comes back with that meaning instead of goclikit's near spelling.
+	root.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return goclikit.UsageError(explainUnknownFlag(cmd, err))
 	})
 	cobrahelp.Install(root)
 
@@ -121,17 +136,34 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	root.AddGroup(
-		&cobra.Group{ID: groupWork, Title: "Work commands:"},
-		&cobra.Group{ID: groupSetup, Title: "Setup commands:"},
+		&cobra.Group{ID: groupEveryKind, Title: "Every kind:"},
+		&cobra.Group{ID: groupPlanning, Title: "Planning:"},
+		&cobra.Group{ID: groupDoing, Title: "Doing:"},
+		&cobra.Group{ID: groupSetup, Title: "Setup:"},
 	)
 	root.SetCompletionCommandGroupID(groupSetup)
-	root.AddCommand(inGroup(groupWork,
-		withAPIFlag(newIssuesCommand()),
+	root.AddCommand(inGroup(groupEveryKind,
+		withAPIFlag(goclikit.WithRecoveryHints(newNextCommand(), initiativeHints...)),
+		withAPIFlag(newShowCommand()),
+		withAPIFlag(newSearchCommand()),
+	)...)
+	root.AddCommand(inGroup(groupPlanning,
 		withAPIFlag(newIdeasCommand()),
+		withAPIFlag(newInitiativesCommand()),
+		withAPIFlag(newIssuesCommand()),
+		withAPIFlag(newDependenciesCommand()),
+	)...)
+	root.AddCommand(inGroup(groupDoing,
 		withAPIFlag(newClaimsCommand()),
 		withAPIFlag(newWorklogsCommand()),
 	)...)
-	root.AddCommand(inGroup(groupSetup, newAuthCommand(), newConfigCommand(), newUpdateCommand())...)
+	root.AddCommand(inGroup(groupSetup,
+		withAPIFlag(newLabelsCommand()),
+		withAPIFlag(newVocabularyCommand()),
+		newAuthCommand(),
+		newConfigCommand(),
+		newUpdateCommand(),
+	)...)
 	return root
 }
 

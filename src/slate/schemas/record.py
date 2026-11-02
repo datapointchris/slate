@@ -1,3 +1,4 @@
+import datetime as dt
 from typing import Annotated
 
 from pydantic import BaseModel
@@ -28,3 +29,10 @@ class RecordSummary(RecordModel):
     kind: str
     title: str
     status: str | None = None
+
+
+class RecordListed(RecordSummary):
+    """A record of any kind in a list across kinds, with the priority every kind carries."""
+
+    priority: int
+    created_ts: dt.datetime

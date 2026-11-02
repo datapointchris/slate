@@ -86,7 +86,7 @@ func TestService_SearchCarriesTheClientCredentialsToken(t *testing.T) {
 	t.Cleanup(api.Close)
 	state := asService(t, serviceIDP(t).URL, api.URL, serviceSecret)
 
-	if _, err := runService(t, "issues", "search", "sync"); err != nil {
+	if _, err := runService(t, "search", "sync"); err != nil {
 		t.Fatalf("search as a service: %v", err)
 	}
 	if authorization != "Bearer "+serviceToken {
@@ -105,7 +105,7 @@ func TestService_ARefusedSecretNamesTheSecretRatherThanALogin(t *testing.T) {
 	t.Cleanup(api.Close)
 	asService(t, serviceIDP(t).URL, api.URL, "wrong-secret")
 
-	_, err := runService(t, "issues", "search", "sync")
+	_, err := runService(t, "search", "sync")
 	if err == nil || !strings.Contains(err.Error(), "SLATE_CLIENT_SECRET") || strings.Contains(err.Error(), "auth login") {
 		t.Errorf("got %v, want the secret named and no login suggested", err)
 	}
@@ -166,7 +166,7 @@ func TestService_ARouteOutsideTheScopeReportsTheAPIsMessage(t *testing.T) {
 	t.Cleanup(api.Close)
 	asService(t, serviceIDP(t).URL, api.URL, serviceSecret)
 
-	_, err := runService(t, "issues", "search", "sync")
+	_, err := runService(t, "search", "sync")
 	if err == nil || !strings.Contains(err.Error(), serviceClientID) || !strings.Contains(err.Error(), message) || strings.Contains(err.Error(), "auth login") {
 		t.Errorf("got %v, want the client and the API's message whole, and no login suggested", err)
 	}
@@ -188,10 +188,9 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 
 	// A {name} in these templates is a UUID, a record's number, or a worklog's
 	// <number>.<sequence>. Matched as any segment, /issues/{id} would also take
-	// /issues/search and /issues/vocabulary, and /worklogs/{name} would take
-	// /worklogs/current, each of which FastAPI routes to another handler. A
-	// {name:path} is FastAPI's path converter, which takes any segments, and an
-	// initiative is named by its name.
+	// /issues/ready, and /worklogs/{name} would take /worklogs/current, each of
+	// which FastAPI routes to another handler. A {name:path} is FastAPI's path
+	// converter, which takes any segments, and an initiative is named by its name.
 	reference := `(?:[0-9]+(?:\.[0-9]+)?|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})`
 	wildcard := regexp.MustCompile(`\{[^}]*\}`)
 	scopes := config.Service(goclilogin.Deployment{}).Scopes
@@ -228,17 +227,18 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		// byPath answers a call that makes a second request of another shape.
 		byPath map[string]string
 	}{
-		{[]string{"issues", "search", "sync", "--json"}, `[]`, nil},
+		{[]string{"search", "sync", "--json"}, `[]`, nil},
 		{[]string{"issues", "list", "--json"}, `[]`, nil},
 		{[]string{"issues", "list", "--blocked", "--json"}, `[]`, nil},
-		{[]string{"issues", "next", "--json"}, `[]`, nil},
+		{[]string{"next", "--json"}, `[]`, nil},
+		{[]string{"show", "412", "--json"}, `{"kind":"idea","number":412,"record":{}}`, nil},
 		{[]string{"issues", "show", "412", "--json"}, `{}`, nil},
 		{[]string{"issues", "show", "019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b", "--json"}, `{}`, nil},
-		{[]string{"issues", "initiatives", "list", "--json"}, `[]`, nil},
+		{[]string{"initiatives", "list", "--json"}, `[]`, nil},
 		{
-			[]string{"issues", "initiatives", "show", "Practical help guides", "--json"},
+			[]string{"initiatives", "show", "Practical help guides", "--json"},
 			`[]`,
-			map[string]string{"/api/v1/issues/initiatives/Practical help guides": `{}`},
+			map[string]string{"/api/v1/initiatives/Practical help guides": `{}`},
 		},
 		{[]string{"ideas", "list", "--json"}, `[]`, nil},
 		{[]string{"ideas", "show", "412", "--json"}, `{}`, nil},
@@ -264,10 +264,10 @@ func TestService_EachScheduledCallSendsARouteTheRequestedScopesReach(t *testing.
 		{
 			[]string{"issues", "create", "--title", "Left of the guides", "--initiative", "Practical help guides", "--status", "triage"},
 			`{}`,
-			map[string]string{"/api/v1/issues/initiatives": `[{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","name":"Practical help guides"}]`},
+			map[string]string{"/api/v1/initiatives": `[{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","name":"Practical help guides"}]`},
 		},
-		{[]string{"issues", "initiatives", "create", "--name", "Practical help guides", "--priority", "high"}, `{}`, nil},
-		{[]string{"issues", "initiatives", "drop", "Practical help guides", "--reason", "Merged into the help initiative"}, `{}`, nil},
+		{[]string{"initiatives", "create", "--name", "Practical help guides", "--priority", "high"}, `{}`, nil},
+		{[]string{"initiatives", "drop", "Practical help guides", "--reason", "Merged into the help initiative"}, `{}`, nil},
 	} {
 		t.Run(strings.Join(call.args, " "), func(t *testing.T) {
 			var sent []string
@@ -336,14 +336,14 @@ func TestHandedToken_SearchCarriesTheTokenTheCommandHands(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := runService(t, "issues", "search", "sync"); err != nil {
+	if _, err := runService(t, "search", "sync"); err != nil {
 		t.Fatalf("search on a handed token: %v", err)
 	}
 	if authorization != "Bearer handed-access-token" {
 		t.Errorf("the API saw Authorization %q, want the handed token", authorization)
 	}
 	t.Setenv(config.ClientSecretEnv, serviceSecret)
-	if _, err := runService(t, "issues", "search", "sync"); err == nil || !strings.Contains(err.Error(), "two credentials") {
+	if _, err := runService(t, "search", "sync"); err == nil || !strings.Contains(err.Error(), "two credentials") {
 		t.Errorf("a token_command beside %s: err = %v", config.ClientSecretEnv, err)
 	}
 }

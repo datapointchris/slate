@@ -38,7 +38,7 @@ const (
 	recordsReadScope   = "slate.records.read"
 	claimsHoldScope    = "slate.claims.hold"
 	issuesCloseScope   = "slate.issues.close"
-	issuesPlanScope    = "slate.issues.plan"
+	recordsPlanScope   = "slate.records.plan"
 	worklogsWriteScope = "slate.worklogs.write"
 )
 
@@ -115,5 +115,5 @@ func IsService() bool { return ClientSecret() != "" }
 // grant. Nothing it obtains is stored, so it names no keyring or state
 // directory.
 func Service(d goclilogin.Deployment) goclilogin.ServiceClient {
-	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: []string{recordsReadScope, claimsHoldScope, issuesCloseScope, issuesPlanScope, worklogsWriteScope}}
+	return goclilogin.ServiceClient{Issuer: d.Issuer.Value, ClientID: d.ClientID.Value, Scopes: []string{recordsReadScope, claimsHoldScope, issuesCloseScope, recordsPlanScope, worklogsWriteScope}}
 }

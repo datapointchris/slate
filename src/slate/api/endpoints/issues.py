@@ -21,18 +21,15 @@ from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.client_scopes import ISSUES_CLOSE
-from slate.api.client_scopes import ISSUES_PLAN
+from slate.api.client_scopes import RECORDS_PLAN
 from slate.api.exceptions import ForbiddenException
 from slate.api.exceptions import NotFoundException
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import ScopedClient
 from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
-from slate.models.initiative import INITIATIVE_STATUSES
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.models.issue import ISSUE_STATUSES
-from slate.models.issue import ISSUE_TYPES
 from slate.models.record import PRIORITIES
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
 from slate.schemas.ready_filter import ReadyFilter
@@ -48,7 +45,6 @@ from slate.services.issue_views import ISSUE_LOAD_OPTIONS
 from slate.services.issue_views import calendar_now
 from slate.services.issue_views import fresh_issue_detail
 from slate.services.issue_views import issue_views
-from slate.services.issue_views import label_views
 from slate.services.issue_views import list_order
 from slate.services.ready_queue import ready_issues
 from slate.services.record_deletes import name_issue_delete
@@ -247,8 +243,8 @@ def apply_status_transition(
         end_with_record(session, issue.number, target, now, issue.closed_by, effects)
 
 
-# `/ready` and `/vocabulary` are declared ahead of `/{id}`, which would
-# otherwise take either segment as an issue reference.
+# `/ready` is declared ahead of `/{id}`, which would otherwise take the segment
+# as an issue reference.
 
 
 @router.get('', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
@@ -264,7 +260,7 @@ def read_many(
     repo: str | None = Query(None, description='A repo name, or an empty string for issues on no repo'),
     type: str | None = Query(None, description='An issue type'),
     label: str | None = Query(None, description='A label slug'),
-    initiative: str | None = Query(None, description='An initiative, by any reference GET /issues/initiatives/{id} accepts'),
+    initiative: str | None = Query(None, description='An initiative, by any reference GET /initiatives/{id} accepts'),
     parent: str | None = Query(None, description='A parent issue number or UUID: its children'),
     priority: int | None = Query(None, ge=0, le=4, description="The issue's own priority"),
     closed_by: str | None = Query(None, description="Issues whose closer starts with this, such as 'claude-code/'"),
@@ -326,30 +322,6 @@ def read_ready(session: DbSession, zone: RequestZone, filters: Annotated[ReadyFi
     if limit is not None:
         issues = issues[:limit]
     return issue_views(session, issues, zone, readiness)
-
-
-@router.get('/vocabulary', response_model=schemas.IssueVocabulary, status_code=status.HTTP_200_OK)
-def read_vocabulary(session: DbSession):
-    """Every value the closed issue fields accept, with the open issue count per label.
-
-    Statuses and types come back in their lifecycle order rather than the
-    table's, so a client can render them as given.
-    """
-    statuses = set(session.scalars(select(models.IssueStatus.name)).all())
-    types = set(session.scalars(select(models.IssueType.name)).all())
-    initiative_statuses = set(session.scalars(select(models.InitiativeStatus.name)).all())
-    return schemas.IssueVocabulary(
-        statuses=in_declared_order(statuses, ISSUE_STATUSES),
-        types=in_declared_order(types, ISSUE_TYPES),
-        priorities=[schemas.IssuePriorityName(value=value, name=name) for value, name in PRIORITIES.items()],
-        initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),
-        labels=label_views(session),
-    )
-
-
-def in_declared_order(values: set[str], declared: list[str]) -> list[str]:
-    """The declared values first in their order, then any the table holds beyond them."""
-    return [v for v in declared if v in values] + sorted(values - set(declared))
 
 
 def refuse_all_but_a_triage_filing(issue: schemas.IssueCreate) -> None:
@@ -414,7 +386,7 @@ def read_one(issue: IssueFromPath, session: DbSession, zone: RequestZone):
 
 
 # What a scoped client's update may carry. slate.issues.close reaches this route to complete an issue
-# whose fix merged, and slate.issues.plan to re-tier an issue or move it between initiatives. A body
+# whose fix merged, and slate.records.plan to re-tier an issue or move it between initiatives. A body
 # naming a close field is a close, and any other is an edit.
 SCOPED_CLOSE_FIELDS = frozenset({'status', 'closed_by'})
 SCOPED_PLAN_FIELDS = frozenset({'priority', 'initiative'})
@@ -439,7 +411,7 @@ def refuse_all_but_a_plan(update_data: dict) -> None:
 def refuse_a_scoped_update(issue: models.Issue, update_data: dict, scopes: frozenset[str]) -> None:
     """Narrow the body to the scope it is aimed at. The route gate admits a client holding either."""
     closing = not SCOPED_CLOSE_FIELDS.isdisjoint(update_data)
-    if ISSUES_PLAN in scopes and not (closing and ISSUES_CLOSE in scopes):
+    if RECORDS_PLAN in scopes and not (closing and ISSUES_CLOSE in scopes):
         refuse_all_but_a_plan(update_data)
     else:
         refuse_all_but_a_close(issue, update_data)
@@ -572,8 +544,15 @@ def path_dependency(dep_id: str, session: DbSession) -> models.Issue:
     return resolve_issue(session, dep_id)
 
 
-@router.delete('/{id}/dependencies/{dep_id}', status_code=status.HTTP_204_NO_CONTENT)
-def remove_dependency(issue: IssueFromPath, depends_on: Annotated[models.Issue, Depends(path_dependency)], session: DbSession):
+@router.delete('/{id}/dependencies/{dep_id}', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def remove_dependency(
+    issue: IssueFromPath,
+    depends_on: Annotated[models.Issue, Depends(path_dependency)],
+    session: DbSession,
+    zone: RequestZone,
+    effects: Effects,
+):
+    """Answer the issue the edge is gone from, so its remaining dependencies and readiness are read with it."""
     edge = session.get(models.IssueDependency, (issue.id, depends_on.id))
     if edge is None:
         raise HTTPException(
@@ -583,7 +562,7 @@ def remove_dependency(issue: IssueFromPath, depends_on: Annotated[models.Issue, 
     session.delete(edge)
     issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
 @router.get('/{id}/comments', response_model=list[schemas.IssueComment], status_code=status.HTTP_200_OK)

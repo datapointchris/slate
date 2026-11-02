@@ -12,12 +12,12 @@ import (
 	"github.com/datapointchris/slate/cli/internal/api"
 )
 
-var labelHints = []string{"List the labels: slate issues labels list"}
+var labelHints = []string{"List the labels: slate labels list"}
 
-func newIssueLabelsCommand() *cobra.Command {
+func newLabelsCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "labels",
-		Short: "Manage the labels --label accepts",
+		Short: "Manage the labels an issue's --label accepts",
 		Long: "An issue carries only labels made here, so a typo is refused rather than\n" +
 			"becoming a label nobody filters on. An issue carries at most one label from\n" +
 			"each group, so area-api and area-cli, both in the area group, never meet on\n" +
@@ -42,7 +42,7 @@ func newLabelsListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List every label, grouped, with its count of unclosed issues",
-		Example: "  slate issues labels list\n  slate issues labels list --json",
+		Example: "  slate labels list\n  slate labels list --json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := newAPIClient(cmd.Context())
@@ -69,7 +69,7 @@ func newLabelsShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show <label>",
 		Short:   "Show one label",
-		Example: "  slate issues labels show area-api",
+		Example: "  slate labels show area-api",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
@@ -103,8 +103,8 @@ func newLabelsCreateCommand() *cobra.Command {
 		Short: "Add a label to the vocabulary",
 		Long: "A slug is lowercase words joined by hyphens. --group makes it exclusive with\n" +
 			"the other labels in that group.",
-		Example: "  slate issues labels create --slug area-db --group area\n" +
-			"  slate issues labels create --slug needs-design --description \"Waiting on a design call\"",
+		Example: "  slate labels create --slug area-db --group area\n" +
+			"  slate labels create --slug needs-design --description \"Waiting on a design call\"",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if slug == "" {
@@ -146,7 +146,7 @@ func newLabelsEditCommand() *cobra.Command {
 		Long: "A label's slug is its name on every issue carrying it, so it does not change.\n" +
 			"An empty value clears a field. Moving a label into a group is refused while an\n" +
 			"issue carries it beside another label of that group.",
-		Example: "  slate issues labels edit area-db --group area\n  slate issues labels edit area-db --group \"\"",
+		Example: "  slate labels edit area-db --group area\n  slate labels edit area-db --group \"\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
@@ -182,11 +182,17 @@ func newLabelsEditCommand() *cobra.Command {
 }
 
 func newLabelsDeleteCommand() *cobra.Command {
-	var yes bool
+	var (
+		yes    bool
+		asJSON bool
+	)
 	cmd := &cobra.Command{
-		Use:     "delete <label>",
-		Short:   "Remove a label from the vocabulary and from every issue",
-		Example: "  slate issues labels delete area-db --yes",
+		Use:   "delete <label> [--yes]",
+		Short: "Remove a label from the vocabulary and from every issue",
+		Long: "Every issue carrying it loses it, closed ones included, and each is printed.\n" +
+			"Putting it back means creating it and labeling each issue again, so it\n" +
+			"prompts unless --yes.",
+		Example: "  slate labels delete area-db --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
@@ -209,20 +215,21 @@ func newLabelsDeleteCommand() *cobra.Command {
 					return nil
 				}
 			}
-			if err := client.DeleteIssueLabel(cmd.Context(), label.Slug); err != nil {
+			deleted, err := client.DeleteIssueLabel(cmd.Context(), label.Slug)
+			if err != nil {
 				return handleAPIError(err)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted label %s\n", label.Slug)
-			return nil
+			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, "Deleted label "+label.Slug)
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
 func printIssueLabels(out io.Writer, labels []api.IssueLabel) {
 	if len(labels) == 0 {
-		_, _ = fmt.Fprintln(out, "No labels. Add one with `slate issues labels create --slug ...`.")
+		_, _ = fmt.Fprintln(out, "No labels. Add one with `slate labels create --slug ...`.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)

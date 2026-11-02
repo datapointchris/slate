@@ -22,6 +22,7 @@ from slate.api.callers import caller_actor
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.claims import end_with_record
 from slate.services.initiative_views import counted
+from slate.services.initiative_views import initiative_detail
 from slate.services.initiative_views import initiative_views
 from slate.services.initiative_views import issue_count_columns
 from slate.services.initiatives import ensure_active_name_available
@@ -113,9 +114,9 @@ def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Ef
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, db_obj))
 
 
-@router.get('/{id:path}', response_model=schemas.Initiative, status_code=status.HTTP_200_OK)
+@router.get('/{id:path}', response_model=schemas.InitiativeDetail, status_code=status.HTTP_200_OK)
 def read_one(initiative: InitiativeFromPath, session: DbSession):
-    return counted(session, initiative)
+    return initiative_detail(session, initiative)
 
 
 def apply_status_transition(

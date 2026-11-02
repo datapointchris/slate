@@ -55,6 +55,20 @@ scope gate reads it. A router left out answers every scoped client with 403.
 and the CLI's service tests read it to check each call a service makes lands on
 a route its scopes reach. Commit the file when the scopes change.
 
+## A command names its noun first, unless it reads every kind
+
+Every command is `slate <noun> <verb>`, and the API serves each noun at a path
+of its own, never nested under another noun's. Three commands sit at the root
+instead:
+
+- **`show` and `search` read every kind.** Ideas, initiatives and issues share
+  one number sequence, so no one noun owns a read across them.
+- **`next` is the order to take the work in**, a question about all of it
+  rather than about one noun.
+
+`vocabulary` is one read of the values every noun's flags accept, so it has no
+second verb to grow. A new command takes a noun unless it reads every kind.
+
 ## Reads derive, writes are audited
 
 - **Every `is_*` flag on an issue, and its effective priority, is derived on

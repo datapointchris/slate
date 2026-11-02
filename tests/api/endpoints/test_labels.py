@@ -4,7 +4,7 @@ from fastapi import status
 from tests.session_database import insert_test_data_transactional
 from tests.util import show_status_and_response
 
-LABELS = '/issues/labels'
+LABELS = '/labels'
 
 
 @pytest.fixture
@@ -41,7 +41,7 @@ def test_create_read_and_delete(client):
         'warnings': [],
     }
     assert ok(client.get(f'{LABELS}/area-vue'))['group_slug'] == 'area'
-    assert client.delete(f'{LABELS}/area-vue').status_code == status.HTTP_204_NO_CONTENT
+    assert ok(client.delete(f'{LABELS}/area-vue'))['deleted']['slug'] == 'area-vue'
     assert client.get(f'{LABELS}/area-vue').status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -61,7 +61,8 @@ def test_moving_a_label_into_a_group_an_issue_already_uses_is_refused(client):
     assert f'#{carrier["number"]}' in response.json()['message']
 
 
-def test_deleting_a_label_takes_it_off_its_issues(client):
+def test_deleting_a_label_takes_it_off_its_issues_and_names_each(client):
     carrier = filed(client, {'title': 'labeled', 'labels': ['area-api']})
-    assert client.delete(f'{LABELS}/area-api').status_code == status.HTTP_204_NO_CONTENT
+    deleted = ok(client.delete(f'{LABELS}/area-api'))
+    assert [(effect['code'], effect['record']) for effect in deleted['side_effects']] == [('label_removed', carrier['number'])]
     assert ok(client.get(f'/issues/{carrier["number"]}'))['labels'] == []

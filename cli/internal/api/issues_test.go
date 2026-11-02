@@ -109,8 +109,8 @@ func TestUpdateIssue_SendsAClearedFieldAsNull(t *testing.T) {
 }
 
 func TestRemoveIssueDependency_NamesBothIssuesInThePath(t *testing.T) {
-	client, method, path, _ := recordRequest(t, ``)
-	if err := client.RemoveIssueDependency(context.Background(), "412", "411"); err != nil {
+	client, method, path, _ := recordRequest(t, `{}`)
+	if _, err := client.RemoveIssueDependency(context.Background(), "412", "411", ""); err != nil {
 		t.Fatalf("RemoveIssueDependency: %v", err)
 	}
 	if *method != http.MethodDelete || *path != "/api/v1/issues/412/dependencies/411" {

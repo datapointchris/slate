@@ -3,7 +3,7 @@
 A work tracker built for coding agents. Ideas hold the work nobody has taken
 on, with their priority and evidence, until promotion makes each an
 initiative. Issues carry their dependencies, labels, comments and the
-initiative they ship toward. `slate issues next` is
+initiative they ship toward. `slate next` is
 the ready queue, ordered by priority. A claim is a lease on a record that
 expires, so two agents never hold the same issue and a dead one never holds it
 for long. Every claim is kept after it ends, as the record's history.
@@ -129,10 +129,10 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading any record by number, listing, searching and showing issues, initiatives and ideas, the ready queue, who holds which claim, and worklogs |
+| `slate.records.read` | reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the ready queue, who holds which claim, and worklogs |
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready queue, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.issues.close` | commenting on an issue, and closing an open one |
-| `slate.issues.plan` | filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
+| `slate.records.plan` | reading the vocabulary, filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 
 No scope deletes anything, and none files or changes an idea.

@@ -11,20 +11,21 @@ from slate.api import API_PREFIX
 
 # The issue update reads these two to decide how far it narrows a scoped client's body.
 ISSUES_CLOSE = 'slate.issues.close'
-ISSUES_PLAN = 'slate.issues.plan'
+RECORDS_PLAN = 'slate.records.plan'
 
 SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # Every read of a record of any kind, and of who holds which. An issue in a series often has no
     # description of its own, so a reader judging it needs its initiative's.
     'slate.records.read': frozenset(
         {
+            ('GET', f'{API_PREFIX}/records'),
             ('GET', f'{API_PREFIX}/records/{{number}}'),
             ('GET', f'{API_PREFIX}/claims'),
             ('GET', f'{API_PREFIX}/ideas'),
             ('GET', f'{API_PREFIX}/ideas/{{id}}'),
+            ('GET', f'{API_PREFIX}/initiatives'),
+            ('GET', f'{API_PREFIX}/initiatives/{{id:path}}'),
             ('GET', f'{API_PREFIX}/issues'),
-            ('GET', f'{API_PREFIX}/issues/initiatives'),
-            ('GET', f'{API_PREFIX}/issues/initiatives/{{id:path}}'),
             ('GET', f'{API_PREFIX}/issues/ready'),
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
             ('GET', f'{API_PREFIX}/worklogs'),
@@ -69,14 +70,14 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # initiative, for a job ordering the queue. A filing reads the vocabulary first. The handlers
     # narrow any other update to an issue's priority and initiative, and a filing to triage under
     # no parent. Nothing here deletes.
-    ISSUES_PLAN: frozenset(
+    RECORDS_PLAN: frozenset(
         {
-            ('GET', f'{API_PREFIX}/issues/vocabulary'),
+            ('GET', f'{API_PREFIX}/vocabulary'),
             ('POST', f'{API_PREFIX}/issues'),
             ('PATCH', f'{API_PREFIX}/issues/{{id}}'),
             ('POST', f'{API_PREFIX}/issues/{{id}}/rank'),
-            ('POST', f'{API_PREFIX}/issues/initiatives'),
-            ('PATCH', f'{API_PREFIX}/issues/initiatives/{{id:path}}'),
+            ('POST', f'{API_PREFIX}/initiatives'),
+            ('PATCH', f'{API_PREFIX}/initiatives/{{id:path}}'),
         }
     ),
 }
