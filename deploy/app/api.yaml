@@ -1,4 +1,4 @@
-# slate's API: a stateless Deployment behind a Service on port 8000.
+# slate's API: a stateless Deployment behind a Service.
 #
 # The cluster supplies what this directory does not create:
 #
@@ -67,13 +67,13 @@ spec:
       # wherever a Service named postgres shares the namespace, and the API reads
       # POSTGRES_PORT as a number.
       enableServiceLinks: false
+      # The image's numeric USER is the uid, so runAsNonRoot can check it.
       securityContext:
         runAsNonRoot: true
-        runAsUser: 10400
-        runAsGroup: 10400
         seccompProfile:
           type: RuntimeDefault
-      # The preStop sleep and uvicorn's ten-second drain, with room to spare.
+      # Covers the preStop sleep plus the Dockerfile's --timeout-graceful-shutdown,
+      # with room to spare. Raise it with that flag.
       terminationGracePeriodSeconds: 30
       containers:
         - name: api
@@ -106,7 +106,8 @@ spec:
               port: http
             periodSeconds: 20
             failureThreshold: 3
-          # About 100 MiB at rest. The limit equals the request, so the pod never
+          # Sized from `docker stats` on the API under `docker compose up`, which is
+          # where to re-measure it. The limit equals the request, so the pod never
           # uses more memory than the scheduler set aside for it.
           resources:
             requests:

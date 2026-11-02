@@ -52,8 +52,6 @@ spec:
       enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
-        runAsUser: 10400
-        runAsGroup: 10400
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -66,8 +64,9 @@ spec:
                 name: slate-settings
             - secretRef:
                 name: slate-settings
-          # About 70 MiB to migrate an empty database. A data migration moving
-          # rows can take more, so the limit sits above the request.
+          # Sized from the migrate service's peak under `docker compose up`, against
+          # an empty database. A data migration moving rows can take more, so the
+          # limit sits above the request.
           resources:
             requests:
               cpu: 50m
