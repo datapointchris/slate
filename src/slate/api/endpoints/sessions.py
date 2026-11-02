@@ -19,7 +19,7 @@ from slate.api.exceptions import NotFoundException
 from slate.services.session_usage import replace_usage
 from slate.services.session_usage import session_view
 from slate.services.write_effects import Effects
-from slate.tracing.work_on_span import name_agent_session
+from slate.tracing.named_work import name_agent_session
 
 logger = structlog.get_logger()
 router = APIRouter()

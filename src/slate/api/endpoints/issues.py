@@ -52,7 +52,7 @@ from slate.services.vocabulary import validate_lookup
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
-from slate.tracing.work_on_span import name_record
+from slate.tracing.named_work import name_record
 
 logger = structlog.get_logger()
 router = APIRouter()

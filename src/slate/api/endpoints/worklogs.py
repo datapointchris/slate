@@ -45,9 +45,9 @@ from slate.services.worklogs import resolve_worklog
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
-from slate.tracing.work_on_span import name_agent_session
-from slate.tracing.work_on_span import name_record
-from slate.tracing.work_on_span import name_worklog
+from slate.tracing.named_work import name_agent_session
+from slate.tracing.named_work import name_record
+from slate.tracing.named_work import name_worklog
 
 logger = structlog.get_logger()
 router = APIRouter()

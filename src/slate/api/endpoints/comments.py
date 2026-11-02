@@ -29,9 +29,9 @@ from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
-from slate.tracing.work_on_span import name_agent_session
-from slate.tracing.work_on_span import name_record
-from slate.tracing.work_on_span import name_worklog
+from slate.tracing.named_work import name_agent_session
+from slate.tracing.named_work import name_record
+from slate.tracing.named_work import name_worklog
 
 logger = structlog.get_logger()
 router = APIRouter()

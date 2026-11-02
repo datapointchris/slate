@@ -31,7 +31,7 @@ from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
-from slate.tracing.work_on_span import name_record
+from slate.tracing.named_work import name_record
 
 logger = structlog.get_logger()
 router = APIRouter()

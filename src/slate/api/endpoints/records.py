@@ -24,7 +24,7 @@ from slate.services.record_changes import record_changes
 from slate.services.record_lists import listed_records
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
-from slate.tracing.work_on_span import name_record
+from slate.tracing.named_work import name_record
 
 router = APIRouter()
 

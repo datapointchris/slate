@@ -17,8 +17,8 @@ from slate.api.time_window import TimeWindowQuery
 from slate.services.record_refs import resolve_record
 from slate.services.work_totals import work_totals
 from slate.services.worklogs import resolve_worklog
-from slate.tracing.work_on_span import name_record
-from slate.tracing.work_on_span import name_worklog
+from slate.tracing.named_work import name_record
+from slate.tracing.named_work import name_worklog
 
 router = APIRouter()
 

@@ -1,4 +1,4 @@
-"""A request continues its caller's trace, and its span names the record it is about."""
+"""A request continues its caller's trace, and its span and request line name the record it is about."""
 
 from fastapi import status
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -6,6 +6,7 @@ from opentelemetry.trace import SpanKind
 from opentelemetry.trace import format_span_id
 from opentelemetry.trace import format_trace_id
 from sqlalchemy import select
+from structlog.testing import capture_logs
 
 from slate import models
 from slate.api.main import create_api
@@ -47,3 +48,19 @@ def test_a_hold_continues_the_callers_trace_and_names_its_record_worklog_and_bag
         (event.name, event.attributes['slate.write_effect.code'], event.attributes.get('slate.record.number')) for event in hold.events
     ]
     assert audited == f'00-{CALLER_TRACE_ID}-{format_span_id(hold.context.span_id)}-01'
+
+
+def test_the_request_line_names_its_record_and_worklog_when_the_callers_sampler_dropped_the_trace():
+    """A caller whose sampler dropped the trace sends flags `00`, so the server span records nothing."""
+    with transactional_api_client(create_api(test_settings, new_tracer_provider([])), caller=lambda: TEST_PERSON) as (client, _):
+        number = client.post('/issues', json={'title': 'Name the record on an unsampled request'}).json()['issue']['number']
+        with capture_logs() as lines:
+            response = client.post(
+                '/claims',
+                json={'record': number, 'holder': 'claude-code/tracer'},
+                headers={'traceparent': f'00-{CALLER_TRACE_ID}-{CALLER_SPAN_ID}-00'},
+            )
+    assert response.status_code == status.HTTP_200_OK, show_status_and_response(response)
+
+    request_line = next(line for line in lines if line['event'] == 'request_completed')
+    assert (request_line['record'], request_line['worklog']) == (number, f'{number}.1')

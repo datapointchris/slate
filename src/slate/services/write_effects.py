@@ -18,7 +18,7 @@ from slate.api.request_zone import CALENDAR_FALLBACK_ZONE
 from slate.api.request_zone import RequestZone
 from slate.schemas.write_effects import WriteEffect
 from slate.schemas.write_effects import Written
-from slate.tracing.work_on_span import RECORD_NUMBER
+from slate.tracing.named_work import RECORD_NUMBER
 
 logger = structlog.get_logger()
 

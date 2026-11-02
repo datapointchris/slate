@@ -64,7 +64,7 @@ attribute with one value is what a filter can match, and a span answering "who
 touched #12" should not also answer for every record #12 points at. A list or
 search names no record.
 
-`src/slate/tracing/work_on_span.py` holds the setters. A path's record is named
+`src/slate/tracing/named_work.py` holds the setters. A path's record is named
 in the dependency that resolves it, so each route under it is covered once.
 
 ## Every other record a write changed is an event on its span
@@ -85,7 +85,9 @@ trace store keeps longer than it should.
 Every log line written under a span carries `trace_id`, `span_id` and
 `trace_flags`, the fields an OpenTelemetry Collector's filelog receiver reads a
 line's trace from. The request line also names the route's template, and the
-record and worklog the route named.
+`record`, `worklog` and `session` the route named. The setters keep those for
+the line apart from the span, so a span the sampler drops still leaves the line
+its record.
 
 Every write's audit row keeps the `traceparent` and `baggage` of the span that
 made it, beside its `request_id`. A record is read long after it was written,
