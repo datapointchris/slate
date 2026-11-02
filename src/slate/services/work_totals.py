@@ -2,9 +2,8 @@
 
 Every figure is derived on read and none is stored. A scope narrows which worklogs a total reaches:
 
-- A record reaches its own worklogs and those of everything under it. An issue reaches every issue
-  under it. An initiative reaches the idea it was promoted from, every issue in it, and every issue
-  under those.
+- A record reaches its own worklogs and those of every record its work reaches through to, which
+  `services/record_reach.py` decides.
 - A worklog reaches itself.
 - A repo reaches its issues' worklogs.
 
@@ -30,47 +29,19 @@ from sqlalchemy import or_
 from sqlalchemy import select
 from sqlalchemy import union
 from sqlalchemy.orm import Session
-from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import SQLCoreOperations
 
 from slate import models
 from slate import schemas
-from slate.models.record import Kind
+from slate.models.worklog import WORKLOG_LINK_KINDS
+from slate.models.worklog import with_worklog_claim
+from slate.services.record_reach import within_reach
 from slate.services.record_summaries import record_summaries
 from slate.services.session_usage import TOKEN_SUMS
 from slate.services.session_usage import summed
 from slate.services.session_usage import tokens_of
 from slate.services.time_window import TimeWindow
 from slate.services.time_window import apply_time_window
-
-# The figure each kind of link is counted under.
-LINK_FIGURES = {'commit': 'commits', 'pull_request': 'pull_requests', 'landing': 'landings'}
-
-
-def issue_tree_numbers(roots: Select) -> Select:
-    """The numbers of the issues whose ids `roots` selects, and of every issue under them.
-
-    `UNION` rather than `UNION ALL`, so a cycle in the parent links ends the walk.
-    """
-    tree = select(models.Issue.id, models.Issue.number).where(models.Issue.id.in_(roots)).cte('issue_tree', recursive=True)
-    child = aliased(models.Issue)
-    tree = tree.union(select(child.id, child.number).join(tree, child.parent_id == tree.c.id))
-    return select(tree.c.number)
-
-
-def reached_by_record(session: Session, record: models.Record) -> ColumnElement[bool]:
-    """Whether a worklog sits on the record or on one the record's total reaches through to."""
-    on = models.Worklog.record_number
-    match record.kind:
-        case Kind.IDEA:
-            return on == record.number
-        case Kind.ISSUE:
-            return on.in_(issue_tree_numbers(select(models.Issue.id).where(models.Issue.number == record.number)))
-        case Kind.INITIATIVE:
-            initiative = session.scalars(select(models.Initiative).where(models.Initiative.number == record.number)).one()
-            own = [initiative.number, *([initiative.idea.number] if initiative.idea is not None else [])]
-            issues = select(models.Issue.id).where(models.Issue.initiative_id == initiative.id)
-            return or_(on.in_(own), on.in_(issue_tree_numbers(issues)))
 
 
 def reached_by_repo(repo: str) -> ColumnElement[bool]:
@@ -83,7 +54,7 @@ def scope_worklog_ids(session: Session, record: models.Record | None, worklog: m
     """The ids of the worklogs the scope reaches, or None when it names nothing and so reaches everything."""
     conditions = []
     if record is not None:
-        conditions.append(reached_by_record(session, record))
+        conditions.append(within_reach(session, record, models.Worklog.record_number))
     if worklog is not None:
         conditions.append(models.Worklog.id == worklog.id)
     if repo is not None:
@@ -119,11 +90,8 @@ def count_distinct(session: Session, *queries: Select) -> int:
 
 def session_count(session: Session, worklog_ids: Select | None, window: TimeWindow, now: dt.datetime) -> int:
     """Sessions that were in one of the worklogs during the window, or spent a token the total counts."""
-    in_worklogs = (
-        select(models.WorklogSpan.session_id)
-        .join(models.WorklogSpan.worklog)
-        .outerjoin(models.Claim, models.Worklog.claim_id == models.Claim.id)
-        .where(*overlapping(models.WorklogSpan.started_ts, models.WorklogSpan.held_until(now), window))
+    in_worklogs = with_worklog_claim(select(models.WorklogSpan.session_id).join(models.WorklogSpan.worklog)).where(
+        *overlapping(models.WorklogSpan.started_ts, models.WorklogSpan.held_until(now), window)
     )
     if worklog_ids is not None:
         in_worklogs = in_worklogs.where(models.WorklogSpan.worklog_id.in_(worklog_ids))
@@ -133,10 +101,8 @@ def session_count(session: Session, worklog_ids: Select | None, window: TimeWind
 
 def worklog_count(session: Session, worklog_ids: Select | None, window: TimeWindow, now: dt.datetime) -> int:
     """Worklogs under way during the window, or that took a link inside it."""
-    under_way = (
-        select(models.Worklog.id)
-        .outerjoin(models.Claim, models.Worklog.claim_id == models.Claim.id)
-        .where(*overlapping(models.Worklog.started_ts, models.Worklog.held_until(now), window))
+    under_way = with_worklog_claim(select(models.Worklog.id)).where(
+        *overlapping(models.Worklog.started_ts, models.Worklog.held_until(now), window)
     )
     linked = apply_time_window(select(models.WorklogLink.worklog_id), models.WorklogLink.linked_ts, window, zone=None)
     if worklog_ids is not None:
@@ -146,7 +112,7 @@ def worklog_count(session: Session, worklog_ids: Select | None, window: TimeWind
 
 
 def link_counts(session: Session, worklog_ids: Select | None, window: TimeWindow) -> dict[str, int]:
-    """Each kind of link's distinct refs, linked inside the window, by the figure it is counted under.
+    """Each link kind's distinct refs linked inside the window, with every kind present and zero where none was.
 
     A ref linked to two worklogs, such as a pull request two goes at one issue both pushed to, counts once.
     """
@@ -154,9 +120,9 @@ def link_counts(session: Session, worklog_ids: Select | None, window: TimeWindow
     if worklog_ids is not None:
         query = query.where(models.WorklogLink.worklog_id.in_(worklog_ids))
     query = apply_time_window(query, models.WorklogLink.linked_ts, window, zone=None)
-    counts = dict.fromkeys(LINK_FIGURES.values(), 0)
+    counts = dict.fromkeys(WORKLOG_LINK_KINDS, 0)
     for kind, refs in session.execute(query):
-        counts[LINK_FIGURES[kind]] = refs
+        counts[kind] = refs
     return counts
 
 
@@ -193,10 +159,16 @@ def work_totals(
 ) -> schemas.WorkTotals:
     """The totals of the work the scope reaches inside the window, as of `now`.
 
-    `now` decides where a span or worklog whose claim ran out stopped, as every other read of one does.
+    `now` decides where a span or worklog whose claim ran out stopped. Where the scope names no
+    record, worklog or repo and its messages were reported, the part outside every worklog is a
+    count, zero when none fell there.
     """
     worklog_ids = scope_worklog_ids(session, record, worklog, repo)
     rows = message_rows(session, worklog_ids, window)
+    tokens = summed(tokens_of(row) for row in rows)
+    outside = None
+    if worklog_ids is None and tokens is not None:
+        outside = sum((tokens_of(row) for row in rows if row.outside), schemas.TokensByKind())
     scope = schemas.TotalsScope(
         record=record_summaries(session, [record.number])[record.number] if record is not None else None,
         worklog=worklog.name if worklog is not None else None,
@@ -206,11 +178,11 @@ def work_totals(
     )
     return schemas.WorkTotals(
         scope=scope,
-        worklogs=worklog_count(session, worklog_ids, window, now),
-        sessions=session_count(session, worklog_ids, window, now),
-        **link_counts(session, worklog_ids, window),
+        worklog_count=worklog_count(session, worklog_ids, window, now),
+        session_count=session_count(session, worklog_ids, window, now),
+        link_counts=link_counts(session, worklog_ids, window),
         message_count=sum(row.messages for row in rows),
-        tokens=summed(tokens_of(row) for row in rows),
-        tokens_outside_worklogs=summed(tokens_of(row) for row in rows if row.outside),
+        tokens=tokens,
+        tokens_outside_worklogs=outside,
         tokens_by_model=model_tokens(rows),
     )

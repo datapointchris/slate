@@ -1,6 +1,9 @@
 """The totals of the work over a record, a worklog, a repo and a window, each figure derived on read."""
 
 import datetime as dt
+from typing import Annotated
+
+from pydantic import Field
 
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
@@ -26,20 +29,19 @@ class ModelTokens(RecordModel):
 
 
 class WorkTotals(RecordModel):
-    """Sessions, worklogs, links, messages and tokens by kind over one scope.
+    """Worklogs, sessions, links, messages and tokens by kind over one scope.
 
-    `docs/totals.md` says what each scope reaches and what each figure counts. A sum over no
-    message is null, so a scope nobody reported for never reads as having spent nothing.
-    `tokens_outside_worklogs` is the part of `tokens` no worklog held, which only a scope naming no
-    record, worklog or repo reaches.
+    `docs/totals.md` says what each scope reaches and what each figure counts. `link_counts` holds
+    every link kind, zero where the scope linked none. `tokens` is null while no message in the
+    scope was reported, so a scope nobody reported for never reads as having spent nothing.
+    `tokens_outside_worklogs` is the part of `tokens` no worklog held. Only a scope naming no
+    record, worklog or repo reaches that part, so it is null on every other scope.
     """
 
     scope: TotalsScope
-    worklogs: int
-    sessions: int
-    commits: int
-    pull_requests: int
-    landings: int
+    worklog_count: int
+    session_count: int
+    link_counts: Annotated[dict[str, int], Field(description="Each link kind's distinct refs, such as {'commit': 2}")]
     message_count: int
     tokens: TokensByKind | None = None
     tokens_outside_worklogs: TokensByKind | None = None

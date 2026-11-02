@@ -1,8 +1,13 @@
 # Totals
 
 `slate totals` sums the work over one scope: how many worklogs, sessions,
-commits, pull requests, landings and messages it holds, and its tokens by kind.
-The API serves it at `GET /api/v1/totals`, and `slate.records.read` reaches it.
+messages and links of each kind it holds, and its tokens by kind. The API
+serves it at `GET /api/v1/totals`, and `slate.records.read` reaches it.
+
+Each count is named `<noun>_count`, as `message_count` is on a session's read,
+because a plural noun in slate's JSON is a list. `link_counts` holds every link
+kind, such as `commit`, `pull_request` and `landing`, zero where the scope
+linked none. A new link kind appears in it with no change here.
 
 ## Every total is derived on read, and none is stored
 
@@ -44,6 +49,11 @@ initiative's worklogs on slate's issues.
   idea the initiative, so the goes at the idea are the same work under its
   earlier number.
 
+Reach is not membership. An issue is in an initiative when its `initiative_id`
+names it, which is what an initiative's counts by status and the queue read.
+`services/record_reach.py` holds the wider set a record's work spans, so any
+read that totals a record's work asks it.
+
 ## A repo's total is its issues' worklogs
 
 A worklog counts toward the repo its record's issue names.
@@ -64,14 +74,14 @@ count in both.
 | Figure | Counted when |
 | --- | --- |
 | messages and tokens | the message was written inside the window |
-| commits, pull requests, landings | the link was made inside the window |
+| links of each kind | the link was made inside the window |
 | sessions | the session was in one of the scope's worklogs while the window was open, or spent a counted token |
 | worklogs | the worklog was under way during the window, or took a link inside it |
 
 A window is half open, as every bounded read is. `since` is the first instant
 inside it, and `until` the first instant past it. A message has one moment, so
 an edge that cuts a span splits the span's tokens exactly. A span or worklog
-whose claim ran out stopped where the claim did, as every read of one gives.
+whose claim ran out stopped where the claim did, though no write has ended it.
 
 A link counts once per ref within a kind. A pull request two goes at one issue
 both linked is one pull request.
@@ -92,16 +102,18 @@ it worked there.
 
 A message no span held belongs to its session alone
 ([sessions.md](sessions.md)). A total that names none of the three counts it,
-and `tokens_outside_worklogs` is that part of `tokens`. A total naming any of
-them reaches only worklogs, so that field is null there.
+and `tokens_outside_worklogs` is that part of `tokens`. Where any message in
+the window was reported, that part is a count, zero when every one fell in a
+worklog. A total naming any of the three reaches only worklogs, so that field
+is null there, and the scope says why.
 
 ## Tokens are counted by kind, and split by model
 
-Each count names one of the four kinds [sessions.md](sessions.md) gives, and
-nothing sums across them. `tokens_by_model` gives each model's messages and
-tokens. A kind's cost differs by model, and pricing happens outside slate, so
-a reader needs the split to price a total. A sum over no message is null,
-never zero.
+Each count names one of the kinds [sessions.md](sessions.md) gives, and nothing
+sums across them. `tokens_by_model` gives each model's messages and tokens. A
+kind's cost differs by model, and pricing happens outside slate, so a reader
+needs the split to price a total. `tokens` is null while no message in the
+scope was reported, never zero.
 
 `slate totals --json` prints the API's answer, so it carries every figure the
 text prints.

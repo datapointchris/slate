@@ -112,8 +112,8 @@ class Claim(Base):
         return and_(cls.ended_ts.is_(None), cls.expires_ts <= now)
 
     def held_until(self, now: dt.datetime) -> dt.datetime:
-        """When holding stops, for a claim ended at `now`: its expiry when the lease ran out first, else `now`."""
-        return self.expires_ts if self.is_expired(now) else now
+        """When holding stops, for a claim ended at `now`: where it already stopped, such as an expiry passed, else `now`."""
+        return self.stopped_holding_at(now) or now
 
     @hybrid_method
     def stopped_holding_at(self, now: dt.datetime) -> dt.datetime | None:

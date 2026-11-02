@@ -23,6 +23,7 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import Identity
 from sqlalchemy import Index
 from sqlalchemy import Integer
+from sqlalchemy import Select
 from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
 from sqlalchemy import and_
@@ -217,3 +218,8 @@ class WorklogLink(Base):
     worklog: Mapped[Worklog] = relationship(back_populates='links')
 
     __table_args__ = (UniqueConstraint('worklog_id', 'kind', 'ref', name='uq_worklog_links_one_per_ref'),)
+
+
+def with_worklog_claim[*Columns](query: Select[*Columns]) -> Select[*Columns]:
+    """Outer-join the claim of the worklog `query` already reads, which each SQL form of a worklog's or span's state reads."""
+    return query.outerjoin(Claim, Worklog.claim_id == Claim.id)

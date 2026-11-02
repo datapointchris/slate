@@ -55,6 +55,8 @@ class AgentSession(RecordModel):
 
     `message_count` counts the messages slate holds for it. `usage_reported_ts` is when a report last
     changed them, and null until one has. Each sum is null while no message it covers was reported.
+    `tokens_outside_worklogs` is a count once the session reported any message, and zero when every
+    one fell in a worklog, so a session working only inside worklogs never reads as unreported.
     """
 
     id: str

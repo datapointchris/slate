@@ -230,6 +230,6 @@ def session_view(session: Session, agent: models.AgentSession, now: dt.datetime)
         usage_reported_ts=agent.usage_reported_ts,
         message_count=sum(row.messages for row in rows),
         tokens=summed(by_span.values()),
-        tokens_outside_worklogs=by_span.get(None),
+        tokens_outside_worklogs=by_span.get(None, schemas.TokensByKind()) if rows else None,
         spans=spans,
     )

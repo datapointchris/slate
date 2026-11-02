@@ -51,13 +51,14 @@ def test_an_initiative_totals_its_issues_and_their_children_and_a_seven_day_wind
 
     whole = ok(client.get('/totals', params={'record': initiative}))
     assert whole['scope']['record']['number'] == initiative
-    assert (whole['worklogs'], whole['sessions'], whole['commits'], whole['pull_requests'], whole['landings']) == (2, 2, 2, 1, 1)
-    assert (whole['message_count'], whole['tokens_outside_worklogs']) == (3, None)
+    assert (whole['worklog_count'], whole['session_count'], whole['message_count']) == (2, 2, 3)
+    assert whole['link_counts'] == {'commit': 2, 'pull_request': 1, 'landing': 1}
+    assert whole['tokens_outside_worklogs'] is None
     assert whole['tokens'] == {'uncached_input': 7, 'cache_write': 70, 'cache_read': 700, 'output': 19}
 
     week = ok(client.get('/totals', params={'since': (until - dt.timedelta(days=7)).isoformat(), 'until': until.isoformat()}))
-    assert (week['worklogs'], week['sessions'], week['commits'], week['pull_requests'], week['landings']) == (2, 3, 2, 1, 1)
-    assert week['message_count'] == 3
+    assert (week['worklog_count'], week['session_count'], week['message_count']) == (2, 3, 3)
+    assert week['link_counts'] == {'commit': 2, 'pull_request': 1, 'landing': 1}
     assert week['tokens'] == {'uncached_input': 13, 'cache_write': 130, 'cache_read': 1_300, 'output': 22}
     assert week['tokens_outside_worklogs'] == {'uncached_input': 8, 'cache_write': 80, 'cache_read': 800, 'output': 9}
     assert [(row['model'], row['message_count']) for row in week['tokens_by_model']] == [('claude-opus-5-5', 3)]

@@ -109,7 +109,10 @@ same way. `GET /sessions/{id}` reads the session back: its message count, and
 its tokens in all, in each span, and outside every worklog. A worklog's read
 sums its spans', and `slate worklogs show` prints that line. A sum over no
 reported message is null, never zero, so a span nobody reported for never
-reads as having spent nothing.
+reads as having spent nothing. The part outside every worklog is a count once
+the session has reported any message, and zero when every one fell in a
+worklog. A session that works only inside worklogs is common, and null there
+would say it never reported.
 
 ## `slate sessions report` counts each message in a Claude Code transcript once
 
