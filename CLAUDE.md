@@ -16,6 +16,8 @@ it and its settings. `docs/index.md` lists the design pages, and
 - `cli/` — its own Go module, `github.com/datapointchris/slate/cli`, built with
   cobra. `internal/api` is the typed client and `internal/cli` the commands
 - `tests/` — pytest, against a Postgres it starts itself
+- `deploy/` — the kustomize base each API release publishes, `migrate/`
+  applied before `app/`
 
 ## Commands
 
@@ -98,3 +100,21 @@ structlog writes one JSON object per line to stdout, through the stdlib root
 logger, so uvicorn's and alembic's lines come out the same way.
 `RequestLoggingMiddleware` logs each request once, under its `X-Request-ID`.
 A client's 4xx logs at warning and only a 5xx at error.
+
+## Releases are two tag streams, each moved by its own paths
+
+`release.yml` versions both with svu, from conventional commits. A `chore:`
+or `docs:` commit releases nothing.
+
+- **`cli/vX.Y.Z` moves on commits touching `cli/`.** `slate update` reads only
+  that prefix.
+- **`vX.Y.Z` moves on commits touching `API_PATHS`** in `release.yml`.
+  A file the Dockerfile starts copying joins that list, or a change to it
+  alone releases nothing.
+- **The API's tag is pushed before its image**, so a re-run finds the tag on
+  its own commit and finishes that release rather than cutting another.
+- **A new setting is an environment variable**, listed in README's table and
+  supplied through `slate-settings`. A value written into `deploy/` would be
+  the same in every cluster that applies it.
+- **`deploy-manifests` in `validate.yml`** renders each path under `deploy/`
+  and runs kubeconform and kube-linter on it, as the release's gate.
