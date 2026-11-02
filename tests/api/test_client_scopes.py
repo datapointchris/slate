@@ -4,6 +4,7 @@
 covered in `test_oidc_auth.py`.
 """
 
+import datetime as dt
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -22,8 +23,8 @@ from slate.api.oidc_auth import ScopedClient
 from slate.api.oidc_auth import get_oidc_identity
 from tests.util import show_status_and_response
 
-ISSUES = 'slate.issues.read'
-CLAIM = 'slate.issues.claim'
+READ = 'slate.records.read'
+CLAIM = 'slate.claims.hold'
 CLOSE = 'slate.issues.close'
 PLAN = 'slate.issues.plan'
 CLOSER = 'worker/close-job@service-box'
@@ -34,6 +35,10 @@ SCOPES_DOCUMENT = Path(__file__).parent / 'testdata' / 'client-scopes.json'
 # One request per read any scope lists, keyed by its template. Search widens the status to all,
 # and show names the issue by number, as the CLI sends them.
 SCOPED_URLS = {
+    f'{API_PREFIX}/records/{{number}}': '/records/{issue}',
+    f'{API_PREFIX}/claims': f'/claims?holder={SERVICE}',
+    f'{API_PREFIX}/ideas': '/ideas',
+    f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
     f'{API_PREFIX}/issues': '/issues?search=scheduler&status=all',
     f'{API_PREFIX}/issues/ready': '/issues/ready',
     f'{API_PREFIX}/issues/vocabulary': '/issues/vocabulary',
@@ -42,16 +47,19 @@ SCOPED_URLS = {
     f'{API_PREFIX}/issues/initiatives/{{id:path}}': '/issues/initiatives/{initiative}',
 }
 
-# Each write a scope lists, as the CLI sends it: the claim holding the issue for the fix agent and
-# its release, the comment saying what landed, the update that completes the issue and names the job
-# closing it, and each edit a planning job makes to the queue.
+# Each write a scope lists, as the CLI sends it: the claim holding the issue for the fix agent, the
+# hold of the queue's head, the extend and release of the claim the fixture seeds, the comment saying
+# what landed, the update that completes the issue and names the job closing it, and each edit a
+# planning job makes to the queue.
 SCOPED_WRITES = {
-    (CLAIM, 'POST', f'{API_PREFIX}/issues/{{id}}/claim'): (
-        '/issues/{issue}/claim',
-        {'claimant': SERVICE, 'minutes': 60},
+    (CLAIM, 'POST', f'{API_PREFIX}/claims'): ('/claims', {'record': '{issue}', 'holder': SERVICE, 'minutes': 60}, status.HTTP_200_OK),
+    (CLAIM, 'POST', f'{API_PREFIX}/claims/next'): ('/claims/next', {'holder': SERVICE}, status.HTTP_200_OK),
+    (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/extend'): ('/claims/{neighbor}/extend', {'holder': SERVICE}, status.HTTP_200_OK),
+    (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/release'): (
+        '/claims/{neighbor}/release',
+        {'released_by': SERVICE},
         status.HTTP_200_OK,
     ),
-    (CLAIM, 'DELETE', f'{API_PREFIX}/issues/{{id}}/claim'): ('/issues/{issue}/claim', None, status.HTTP_200_OK),
     (CLOSE, 'POST', f'{API_PREFIX}/issues/{{id}}/comments'): (
         '/issues/{issue}/comments',
         {'body': 'Landed: a merged fix'},
@@ -93,7 +101,7 @@ def scoped(scope: str) -> ScopedClient:
 
 @pytest.fixture
 def as_caller(txn_api):
-    """Seed two issues of one priority and one initiative.
+    """Seed two issues of one priority, one initiative, one idea, and the service's claim on the neighbor.
 
     `caller(identity)` sets who the token says is calling and returns the client, and `url(template)`
     fills a template with the seeded rows. The initiative is named, as the CLI names one.
@@ -102,7 +110,11 @@ def as_caller(txn_api):
     issue = models.Issue(title='scheduler issue', rank=1.0)
     neighbor = models.Issue(title='scheduler neighbor', rank=2.0)
     initiative = models.Initiative(name='scheduler-initiative')
-    session.add_all([issue, neighbor, initiative])
+    idea = models.Idea(title='scheduler idea')
+    session.add_all([issue, neighbor, initiative, idea])
+    session.flush()
+    now = dt.datetime.now(dt.UTC)
+    session.add(models.Claim(record_number=neighbor.number, holder=SERVICE, started_ts=now, expires_ts=now + dt.timedelta(hours=1)))
     session.flush()
 
     def caller(identity):
@@ -110,7 +122,7 @@ def as_caller(txn_api):
         return client
 
     def url(template):
-        return template.format(issue=issue.number, neighbor=neighbor.number, initiative=initiative.name)
+        return template.format(issue=issue.number, neighbor=neighbor.number, initiative=initiative.name, idea=idea.number)
 
     return SimpleNamespace(caller=caller, url=url, issue=issue, session=session)
 
@@ -129,48 +141,50 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
 @pytest.mark.parametrize(
     ('scope', 'method', 'url'),
     [
-        (ISSUES, 'POST', '/issues'),
-        (ISSUES, 'PATCH', '/issues/{issue}'),
-        (ISSUES, 'DELETE', '/issues/{issue}'),
-        (ISSUES, 'POST', '/issues/ready/claim'),
-        (ISSUES, 'POST', '/issues/{issue}/claim'),
-        (ISSUES, 'POST', '/issues/{issue}/comments'),
-        (ISSUES, 'GET', '/issues/{issue}/comments'),
-        (ISSUES, 'GET', '/issues/vocabulary'),
-        (ISSUES, 'GET', '/issues/labels'),
-        (ISSUES, 'POST', '/issues/initiatives'),
-        (ISSUES, 'PATCH', '/issues/initiatives/{initiative}'),
-        (ISSUES, 'DELETE', '/issues/initiatives/{initiative}'),
+        (READ, 'POST', '/issues'),
+        (READ, 'PATCH', '/issues/{issue}'),
+        (READ, 'DELETE', '/issues/{issue}'),
+        (READ, 'POST', '/claims'),
+        (READ, 'POST', '/issues/{issue}/comments'),
+        (READ, 'GET', '/issues/{issue}/comments'),
+        (READ, 'GET', '/issues/vocabulary'),
+        (READ, 'GET', '/issues/labels'),
+        (READ, 'POST', '/issues/initiatives'),
+        (READ, 'PATCH', '/issues/initiatives/{initiative}'),
+        (READ, 'DELETE', '/issues/initiatives/{initiative}'),
+        (READ, 'POST', '/ideas'),
+        (READ, 'POST', '/ideas/{idea}/promote'),
         (CLOSE, 'GET', '/issues/{issue}'),
         (CLOSE, 'POST', '/issues'),
         (CLOSE, 'DELETE', '/issues/{issue}'),
-        (CLOSE, 'POST', '/issues/{issue}/claim'),
+        (CLOSE, 'POST', '/claims'),
         (CLOSE, 'PATCH', '/issues/initiatives/{initiative}'),
-        (CLAIM, 'POST', '/issues/ready/claim'),
+        (CLAIM, 'GET', '/claims'),
         (CLAIM, 'PATCH', '/issues/{issue}'),
         (PLAN, 'DELETE', '/issues/{issue}'),
         (PLAN, 'DELETE', '/issues/initiatives/{initiative}'),
     ],
     ids=[
-        'issues-create',
-        'issues-update',
-        'issues-delete',
-        'issues-claim-next',
-        'issues-claim-one',
-        'issues-comment',
-        'issues-unlisted-read',
-        'issues-vocabulary',
-        'issues-labels-router',
-        'issues-initiatives-create',
-        'issues-initiatives-update',
-        'issues-initiatives-delete',
+        'read-create',
+        'read-update',
+        'read-delete',
+        'read-hold',
+        'read-comment',
+        'read-unlisted-read',
+        'read-vocabulary',
+        'read-labels-router',
+        'read-initiatives-create',
+        'read-initiatives-update',
+        'read-initiatives-delete',
+        'read-ideas-create',
+        'read-ideas-promote',
         'close-read',
         'close-create',
         'close-delete',
-        'close-claim',
+        'close-hold',
         'close-initiative-update',
-        'claim-the-queues-head',
-        'claim-update',
+        'hold-list',
+        'hold-update',
         'plan-delete',
         'plan-initiative-delete',
     ],
@@ -192,7 +206,7 @@ ONLY_PRIORITY_AND_INITIATIVE = Refusal.SCOPED_CLIENT_ONLY_SETS_PRIORITY_AND_INIT
     [
         ({CLOSE}, {'status': 'completed', 'title': 'renamed'}, ONLY_CLOSES, 'title'),
         ({CLOSE}, {'priority': 0}, ONLY_CLOSES, 'priority'),
-        ({CLOSE}, {'status': 'in_progress'}, ONLY_CLOSES, 'status'),
+        ({CLOSE}, {'status': 'triage'}, ONLY_CLOSES, 'status'),
         ({PLAN}, {'status': 'completed'}, ONLY_PRIORITY_AND_INITIATIVE, 'status'),
         ({PLAN, CLOSE}, {'title': 'renamed'}, ONLY_PRIORITY_AND_INITIATIVE, 'title'),
         ({PLAN, CLOSE}, {'status': 'completed', 'priority': 2}, ONLY_CLOSES, 'priority'),
@@ -231,7 +245,7 @@ def test_the_close_scope_signs_with_its_client_id_and_closes_an_issue_once(as_ca
     url = as_caller.url('/issues/{issue}')
     closed = client.patch(url, json={'status': 'completed'})
     assert closed.status_code == status.HTTP_200_OK, show_status_and_response(closed)
-    assert closed.json()['closed_by'] == SERVICE
+    assert closed.json()['issue']['closed_by'] == SERVICE
 
     moved = client.patch(url, json={'status': 'canceled'})
     assert moved.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(moved)
@@ -239,29 +253,31 @@ def test_the_close_scope_signs_with_its_client_id_and_closes_an_issue_once(as_ca
     assert 'completed' in moved.json()['message']
 
 
-def test_the_claim_scope_holds_an_issue_under_its_own_id_and_frees_only_that(as_caller):
-    """Release frees whoever holds the issue, so without the narrowing a job could free a session's work."""
-    url = as_caller.url('/issues/{issue}/claim')
-    assert as_caller.caller(PERSON).post(url, json={'claimant': 'claude-code/peer'}).status_code == status.HTTP_200_OK
+def test_the_hold_scope_holds_under_its_own_id_and_releases_only_that(as_caller):
+    """A person may release whoever holds a record, so without the narrowing a job could free a session's work."""
+    record = as_caller.url('{issue}')
+    release = as_caller.url('/claims/{issue}/release')
+    held = as_caller.caller(PERSON).post('/claims', json={'record': record, 'holder': 'claude-code/peer'})
+    assert held.status_code == status.HTTP_200_OK, show_status_and_response(held)
 
     service = as_caller.caller(scoped(CLAIM))
-    freed = service.delete(url)
+    freed = service.post(release, json={'released_by': SERVICE})
     assert freed.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(freed)
     assert Refusal.SCOPED_CLIENT_RELEASES_ITS_OWN in freed.json()['message']
     assert 'claimed by claude-code/peer' in freed.json()['message']
 
-    as_caller.caller(PERSON).delete(url)
+    as_caller.caller(PERSON).post(release, json={'released_by': 'claude-code/peer'})
     service = as_caller.caller(scoped(CLAIM))
-    signed = service.post(url, json={'claimant': 'claude-code/peer'})
+    signed = service.post('/claims', json={'record': record, 'holder': 'claude-code/peer'})
     assert signed.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(signed)
     assert Refusal.SCOPED_CLIENT_CLAIMS_AS_ITSELF in signed.json()['message']
 
-    held = service.post(url, json={'claimant': SERVICE})
+    held = service.post('/claims', json={'record': record, 'holder': SERVICE})
     assert held.status_code == status.HTTP_200_OK, show_status_and_response(held)
-    assert held.json()['claimed_by'] == SERVICE
-    released = service.delete(url)
+    assert held.json()['claim']['holder'] == SERVICE
+    released = service.post(release, json={'released_by': SERVICE})
     assert released.status_code == status.HTTP_200_OK, show_status_and_response(released)
-    assert released.json()['status'] == 'open'
+    assert released.json()['claim']['ending'] == 'released'
 
 
 def test_a_scope_the_table_does_not_name_reaches_nothing(as_caller):
@@ -276,14 +292,13 @@ def test_a_person_reaches_a_route_no_scope_lists(as_caller):
 
 
 def test_the_audit_trail_names_who_made_each_edit(as_caller):
-    """A claim is written by a statement the unit of work never sees, so it is audited by hand."""
     edited = as_caller.caller(PERSON).patch(as_caller.url('/issues/{issue}'), json={'title': 'retitled'})
     assert edited.status_code == status.HTTP_200_OK, show_status_and_response(edited)
 
     service = as_caller.caller(ScopedClient(client_id=SERVICE, scopes=frozenset({PLAN, CLAIM})))
     planned = service.patch(as_caller.url('/issues/{issue}'), json={'priority': 2})
     assert planned.status_code == status.HTTP_200_OK, show_status_and_response(planned)
-    claimed = service.post(as_caller.url('/issues/{issue}/claim'), json={'claimant': SERVICE, 'minutes': 60})
+    claimed = service.post('/claims', json={'record': as_caller.url('{issue}'), 'holder': SERVICE, 'minutes': 60})
     assert claimed.status_code == status.HTTP_200_OK, show_status_and_response(claimed)
 
     trail = as_caller.session.scalars(
@@ -292,10 +307,15 @@ def test_the_audit_trail_names_who_made_each_edit(as_caller):
         .where(models.RecordChange.operation == 'update')
         .order_by(models.RecordChange.id)
     ).all()
-    retitle, plan, claim = trail
+    retitle, plan = trail
     assert (retitle.actor, retitle.changes['title']) == (PERSON.subject, {'old': 'scheduler issue', 'new': 'retitled'})
     assert (plan.actor, plan.changes['priority']['new']) == (SERVICE, 2)
-    assert (claim.actor, claim.changes['claimed_by']['new']) == (SERVICE, SERVICE)
+    held = as_caller.session.scalars(
+        select(models.RecordChange).where(
+            models.RecordChange.table_name == 'claims', models.RecordChange.record_id == str(claimed.json()['claim']['id'])
+        )
+    ).one()
+    assert (held.operation, held.actor, held.changes['holder']) == ('insert', SERVICE, {'new': SERVICE})
 
 
 def test_no_credentials_is_401(as_caller):

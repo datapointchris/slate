@@ -1,8 +1,8 @@
-"""Resolve the references a person or an agent types for issues, initiatives and labels.
+"""Resolve the references a person or an agent types for records and labels.
 
-An issue answers to its UUID or its number, an initiative to its UUID, its
-number or its name, and a label to its slug. Each endpoint resolves what it was given inside
-the request that was going to reach the database anyway.
+A record of any kind answers to its number, as `N` or `#N`. An issue or an idea also answers
+to its UUID, an initiative to its UUID or its name, and a label to its slug. Each endpoint resolves
+what it was given inside the request that was going to reach the database anyway.
 """
 
 from uuid import UUID
@@ -27,12 +27,23 @@ def parse_uuid(ref: str) -> UUID | None:
         return None
 
 
-def item_number(ref: str) -> int | None:
-    """The item number `ref` names as `N` or `#N`, or None when it names none."""
+def record_number(ref: str) -> int | None:
+    """The record number `ref` names as `N` or `#N`, or None when it names none."""
     digits = ref.removeprefix('#')
     if digits.isascii() and digits.isdecimal():
         return int(digits)
     return None
+
+
+def resolve_record(session: Session, ref: str | int) -> models.Record:
+    """Fetch the record a number names, whatever kind holds it."""
+    number = ref if isinstance(ref, int) else record_number(ref)
+    if number is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f'{ref!r} is not a record number')
+    record = session.get(models.Record, number)
+    if record is None:
+        raise NotFoundException('record', str(ref), logger)
+    return record
 
 
 def issue_by_number(session: Session, number: int) -> models.Issue | None:
@@ -50,7 +61,7 @@ def resolve_issue(session: Session, ref: str | UUID | int) -> models.Issue:
     # all-digits test. No number will ever be that long.
     elif (issue_id := parse_uuid(ref)) is not None:
         issue = session.get(models.Issue, issue_id)
-    elif (number := item_number(ref)) is not None:
+    elif (number := record_number(ref)) is not None:
         issue = issue_by_number(session, number)
     else:
         raise HTTPException(
@@ -60,6 +71,24 @@ def resolve_issue(session: Session, ref: str | UUID | int) -> models.Issue:
     if issue is None:
         raise NotFoundException('issue', str(ref), logger)
     return issue
+
+
+def resolve_idea(session: Session, ref: str | UUID | int) -> models.Idea:
+    """Fetch an idea by its UUID or its number."""
+    idea: models.Idea | None
+    if isinstance(ref, int):
+        idea = session.scalar(select(models.Idea).where(models.Idea.number == ref))
+    elif isinstance(ref, UUID):
+        idea = session.get(models.Idea, ref)
+    elif (idea_id := parse_uuid(ref)) is not None:
+        idea = session.get(models.Idea, idea_id)
+    elif (number := record_number(ref)) is not None:
+        idea = session.scalar(select(models.Idea).where(models.Idea.number == number))
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f'{ref!r} is not an idea UUID or number')
+    if idea is None:
+        raise NotFoundException('idea', str(ref), logger)
+    return idea
 
 
 def initiative_by_name(session: Session, name: str) -> models.Initiative | None:
@@ -92,7 +121,7 @@ def resolve_initiative(session: Session, ref: str | UUID | int) -> models.Initia
         initiative = session.get(models.Initiative, ref)
     elif (initiative_id := parse_uuid(ref)) is not None:
         initiative = session.get(models.Initiative, initiative_id)
-    elif (number := item_number(ref)) is not None:
+    elif (number := record_number(ref)) is not None:
         initiative = initiative_by_number(session, number)
     else:
         initiative = initiative_by_name(session, ref)

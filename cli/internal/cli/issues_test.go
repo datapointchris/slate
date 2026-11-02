@@ -26,9 +26,14 @@ func TestIssues_AUsageRefusalDoesNotWaitOnTheNetwork(t *testing.T) {
 		name string
 		args []string
 	}{
-		{"a queue flag beside a named issue", []string{"issues", "claim", "412", "--repo", "webapp"}},
-		{"a claim shorter than a minute", []string{"issues", "claim", "--minutes", "0"}},
-		{"a claim with no claimant", []string{"issues", "claim", "--claimant", ""}},
+		{"a queue flag beside a named record", []string{"claims", "hold", "412", "--repo", "webapp"}},
+		{"a hold naming a record and --next", []string{"claims", "hold", "412", "--next"}},
+		{"a hold naming neither", []string{"claims", "hold"}},
+		{"a claim shorter than a minute", []string{"claims", "hold", "--next", "--minutes", "0"}},
+		{"a claim with no holder", []string{"claims", "hold", "--next", "--holder", ""}},
+		{"an unknown claim state", []string{"claims", "list", "--state", "held"}},
+		{"an idea edit changing nothing", []string{"ideas", "edit", "1860"}},
+		{"a promotion into a closed status", []string{"ideas", "promote", "1860", "--status", "completed"}},
 		{"a cancel with no reason", []string{"issues", "cancel", "412"}},
 		{"a comment given twice", []string{"issues", "add-comment", "412", "shipped", "--body", "shipped"}},
 		{"an edit changing nothing", []string{"issues", "edit", "412"}},
@@ -48,6 +53,10 @@ func TestIssues_AUsageRefusalDoesNotWaitOnTheNetwork(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			// An unknown verb exits 2 as well, so a row naming one would pass.
+			if found, _, err := NewRootCommand().Find(tc.args); err != nil || found.HasSubCommands() {
+				t.Fatalf("%v reaches no command: %v", tc.args, err)
+			}
 			unreachableAPI(t)
 			if code := runTree(t, tc.args...); code != 2 {
 				t.Errorf("exit code = %d, want 2", code)
@@ -90,9 +99,10 @@ func TestIssueEdit_EmptyValuesClearEachFieldItsOwnWay(t *testing.T) {
 	}
 }
 
-// Two sessions on one machine must not share a claimant, because a claimant
-// extends its own claim rather than being refused. The prefix is the kind of
-// actor, which is what a reader filters a person's work from a worker's by.
+// Two sessions on one machine must not share a holder, because a hold under a
+// name that already holds the record goes through as already held. The prefix is
+// the kind of actor, which is what a reader filters a person's work from a
+// worker's by.
 func TestActorIdentity_NamesTheKindOfActorBeforeWhoItIs(t *testing.T) {
 	cases := []struct {
 		name, session, attended, worker, want string
@@ -240,11 +250,9 @@ func TestIssueStateNotes_SayWhyAnIssueWaits(t *testing.T) {
 	later := now.Add(2 * time.Hour)
 	tomorrow := now.AddDate(0, 0, 1).Format(dayLayout)
 	yesterday := now.AddDate(0, 0, -1).Format(dayLayout)
-	claimant := "claude-code/abc"
 	issue := api.Issue{
-		Status:            api.IssueStatusInProgress,
-		ClaimedBy:         &claimant,
-		ClaimExpiresTS:    &later,
+		Status:            api.IssueStatusOpen,
+		Claim:             &api.Claim{Holder: "claude-code/abc", ExpiresTS: later, State: api.ClaimStateLive},
 		DeferredUntilDate: &tomorrow,
 		DependsOn: []api.IssueSummary{
 			{Number: 411, Status: api.IssueStatusOpen},
@@ -258,7 +266,7 @@ func TestIssueStateNotes_SayWhyAnIssueWaits(t *testing.T) {
 	}
 
 	issue.DeferredUntilDate = &yesterday
-	issue.ClaimExpiresTS = ptr(now.Add(-time.Minute))
+	issue.Claim.State = api.ClaimStateExpired
 	issue.DependsOn = nil
 	issue.OpenChildCount = 0
 	if got := strings.Join(issueStateNotes(issue, now), "; "); got != "claim by claude-code/abc expired" {

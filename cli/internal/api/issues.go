@@ -9,20 +9,18 @@ import (
 )
 
 // The issue statuses, in lifecycle order. `triage` holds what a machine filed
-// until someone accepts it, and `in_progress` is what a claim sets.
+// until someone accepts it. Whether anyone works an open issue is its claim.
 const (
-	IssueStatusTriage     = "triage"
-	IssueStatusOpen       = "open"
-	IssueStatusInProgress = "in_progress"
-	IssueStatusCompleted  = "completed"
-	IssueStatusCanceled   = "canceled"
-	IssueStatusAll        = "all"
+	IssueStatusTriage    = "triage"
+	IssueStatusOpen      = "open"
+	IssueStatusCompleted = "completed"
+	IssueStatusCanceled  = "canceled"
+	IssueStatusAll       = "all"
 )
 
 // IssueStatuses is what --status accepts, in the order help lists them.
 var IssueStatuses = []string{
-	IssueStatusTriage, IssueStatusOpen, IssueStatusInProgress,
-	IssueStatusCompleted, IssueStatusCanceled, IssueStatusAll,
+	IssueStatusTriage, IssueStatusOpen, IssueStatusCompleted, IssueStatusCanceled, IssueStatusAll,
 }
 
 // IssueTypeDecision is the one type that changes what happens to an issue: it
@@ -88,9 +86,10 @@ type Issue struct {
 	Rank              float64 `json:"rank"`
 	// DeferredUntilDate is a day, so it decodes as the string the API sends. A
 	// time.Time would refuse the bare YYYY-MM-DD and fail the whole list.
-	DeferredUntilDate *string    `json:"deferred_until_date"`
-	ClaimedBy         *string    `json:"claimed_by"`
-	ClaimExpiresTS    *time.Time `json:"claim_expires_ts"`
+	DeferredUntilDate *string `json:"deferred_until_date"`
+	// Claim is the issue's unended claim, live or expired, and nil when nobody
+	// holds it.
+	Claim *Claim `json:"claim"`
 	// Autofix is the issue's own setting. IsAutofixable is false when it, its
 	// initiative's or an unclosed parent's is false, and nil from an API that
 	// predates the field.
@@ -123,11 +122,13 @@ type IssueComment struct {
 	CreatedTS time.Time `json:"created_ts"`
 }
 
-// IssueDetail is one issue with its children and its whole comment thread.
+// IssueDetail is one issue with its children, its whole comment thread and
+// every claim it has had, oldest first.
 type IssueDetail struct {
 	Issue
 	Children []IssueSummary `json:"children"`
 	Comments []IssueComment `json:"comments"`
+	Claims   []Claim        `json:"claims"`
 }
 
 // IssueCreateInput is the body for POST /issues. Only Title is required. The
@@ -153,7 +154,7 @@ type IssueCreateInput struct {
 // IssueUpdateInput is a partial update. A field left nil is not sent. A field
 // to empty goes in the clear list UpdateIssue takes, which sends it as an
 // explicit null. Status changes through here too, and the server stamps
-// closed_ts and drops the claim as the new status requires. ClosedBy names who
+// closed_ts and ends the claim as the new status requires. ClosedBy names who
 // is closing it, and only goes with a closed status; left nil, the server
 // records the signed-in user.
 type IssueUpdateInput struct {
@@ -188,7 +189,6 @@ type IssueFilter struct {
 	Priority    *int
 	Blocked     *bool
 	Autofixable *bool
-	ClaimedBy   string
 	ClosedBy    string
 	Search      string
 }
@@ -201,7 +201,6 @@ func (f IssueFilter) query() url.Values {
 		"label":      f.Label,
 		"initiative": f.Initiative,
 		"parent":     f.Parent,
-		"claimed_by": f.ClaimedBy,
 		"closed_by":  f.ClosedBy,
 		"search":     f.Search,
 	} {
@@ -242,23 +241,6 @@ func (f ReadyFilter) query() url.Values {
 		query.Set("autofixable", strconv.FormatBool(*f.Autofixable))
 	}
 	return query
-}
-
-// IssueClaimInput takes an issue for Minutes. A zero Minutes takes the API's
-// default.
-type IssueClaimInput struct {
-	Claimant string `json:"claimant"`
-	Minutes  int    `json:"minutes,omitempty"`
-}
-
-type readyClaimInput struct {
-	IssueClaimInput
-	ReadyFilter
-}
-
-// IssueClaimResult holds the claimed issue, or nil when nothing was ready.
-type IssueClaimResult struct {
-	Issue *Issue `json:"issue"`
 }
 
 // IssueRankMove places an issue directly before or after another. Exactly one
@@ -321,17 +303,6 @@ func (c *Client) ListReadyIssues(ctx context.Context, filter ReadyFilter, zone D
 	return issues, nil
 }
 
-// ClaimNextIssue takes the head of the ready queue in one request, so two
-// agents asking at once never hold the same issue.
-func (c *Client) ClaimNextIssue(ctx context.Context, claim IssueClaimInput, filter ReadyFilter, zone DayZone) (IssueClaimResult, error) {
-	var result IssueClaimResult
-	path := withQuery("/issues/ready/claim", zoneQuery(zone))
-	if err := c.send(ctx, http.MethodPost, path, readyClaimInput{claim, filter}, &result); err != nil {
-		return IssueClaimResult{}, err
-	}
-	return result, nil
-}
-
 // GetIssue returns one issue by number or UUID, with its children and comments.
 func (c *Client) GetIssue(ctx context.Context, ref string, zone DayZone) (IssueDetail, error) {
 	var issue IssueDetail
@@ -342,69 +313,57 @@ func (c *Client) GetIssue(ctx context.Context, ref string, zone DayZone) (IssueD
 }
 
 // CreateIssue files an issue and returns it.
-func (c *Client) CreateIssue(ctx context.Context, in IssueCreateInput, zone DayZone) (IssueDetail, error) {
-	var issue IssueDetail
-	if err := c.send(ctx, http.MethodPost, withQuery("/issues", zoneQuery(zone)), in, &issue); err != nil {
-		return IssueDetail{}, err
+func (c *Client) CreateIssue(ctx context.Context, in IssueCreateInput, zone DayZone) (IssueWritten, error) {
+	var written IssueWritten
+	if err := c.send(ctx, http.MethodPost, withQuery("/issues", zoneQuery(zone)), in, &written); err != nil {
+		return IssueWritten{}, err
 	}
-	return issue, nil
+	return written, nil
 }
 
 // UpdateIssue applies a partial update. Each field named in clear (API JSON
 // keys) is sent as an explicit null, which is the only way to empty it.
-func (c *Client) UpdateIssue(ctx context.Context, ref string, in IssueUpdateInput, clear []string, zone DayZone) (IssueDetail, error) {
+func (c *Client) UpdateIssue(ctx context.Context, ref string, in IssueUpdateInput, clear []string, zone DayZone) (IssueWritten, error) {
 	body, err := mergeClearNulls(in, clear)
 	if err != nil {
-		return IssueDetail{}, err
+		return IssueWritten{}, err
 	}
-	var issue IssueDetail
-	if err := c.send(ctx, http.MethodPatch, withQuery(issuePath(ref), zoneQuery(zone)), body, &issue); err != nil {
-		return IssueDetail{}, err
+	var written IssueWritten
+	if err := c.send(ctx, http.MethodPatch, withQuery(issuePath(ref), zoneQuery(zone)), body, &written); err != nil {
+		return IssueWritten{}, err
 	}
-	return issue, nil
+	return written, nil
 }
 
-// DeleteIssue removes an issue, its comments and its edges.
-func (c *Client) DeleteIssue(ctx context.Context, ref string) error {
-	return c.send(ctx, http.MethodDelete, issuePath(ref), nil, nil)
-}
-
-// ClaimIssue takes one named issue, or extends the claim held under the same name.
-func (c *Client) ClaimIssue(ctx context.Context, ref string, claim IssueClaimInput, zone DayZone) (Issue, error) {
-	var issue Issue
-	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "claim"), zoneQuery(zone)), claim, &issue); err != nil {
-		return Issue{}, err
+// DeleteIssue removes an issue, its comments, its edges and its claims. The
+// answer names each claim it took and each issue that lost its link to it,
+// giving each time in zone.
+func (c *Client) DeleteIssue(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {
+	var deleted RecordDeleted
+	if err := c.send(ctx, http.MethodDelete, withQuery(issuePath(ref), zoneQuery(zone)), nil, &deleted); err != nil {
+		return RecordDeleted{}, err
 	}
-	return issue, nil
-}
-
-// ReleaseIssue returns an in-progress issue to the ready queue.
-func (c *Client) ReleaseIssue(ctx context.Context, ref string, zone DayZone) (Issue, error) {
-	var issue Issue
-	if err := c.send(ctx, http.MethodDelete, withQuery(issuePath(ref, "claim"), zoneQuery(zone)), nil, &issue); err != nil {
-		return Issue{}, err
-	}
-	return issue, nil
+	return deleted, nil
 }
 
 // RankIssue places an issue directly before or after another.
-func (c *Client) RankIssue(ctx context.Context, ref string, move IssueRankMove, zone DayZone) (Issue, error) {
-	var issue Issue
-	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "rank"), zoneQuery(zone)), move, &issue); err != nil {
-		return Issue{}, err
+func (c *Client) RankIssue(ctx context.Context, ref string, move IssueRankMove, zone DayZone) (IssueWritten, error) {
+	var written IssueWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "rank"), zoneQuery(zone)), move, &written); err != nil {
+		return IssueWritten{}, err
 	}
-	return issue, nil
+	return written, nil
 }
 
 // AddIssueDependency records that ref waits on dependsOn. The API refuses an
 // edge that would leave an issue waiting on itself.
-func (c *Client) AddIssueDependency(ctx context.Context, ref, dependsOn string, zone DayZone) (IssueDetail, error) {
-	var issue IssueDetail
+func (c *Client) AddIssueDependency(ctx context.Context, ref, dependsOn string, zone DayZone) (IssueWritten, error) {
+	var written IssueWritten
 	body := map[string]string{"depends_on": dependsOn}
-	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "dependencies"), zoneQuery(zone)), body, &issue); err != nil {
-		return IssueDetail{}, err
+	if err := c.send(ctx, http.MethodPost, withQuery(issuePath(ref, "dependencies"), zoneQuery(zone)), body, &written); err != nil {
+		return IssueWritten{}, err
 	}
-	return issue, nil
+	return written, nil
 }
 
 // RemoveIssueDependency removes the edge from ref to dependsOn.
@@ -424,16 +383,16 @@ func (c *Client) ListIssueComments(ctx context.Context, ref string, limit *int) 
 }
 
 // AddIssueComment leaves a comment on an issue. A nil author leaves it unsigned.
-func (c *Client) AddIssueComment(ctx context.Context, ref, body string, author *string) (IssueComment, error) {
+func (c *Client) AddIssueComment(ctx context.Context, ref, body string, author *string) (IssueCommentWritten, error) {
 	in := struct {
 		Body   string  `json:"body"`
 		Author *string `json:"author,omitempty"`
 	}{body, author}
-	var comment IssueComment
-	if err := c.send(ctx, http.MethodPost, issuePath(ref, "comments"), in, &comment); err != nil {
-		return IssueComment{}, err
+	var written IssueCommentWritten
+	if err := c.send(ctx, http.MethodPost, issuePath(ref, "comments"), in, &written); err != nil {
+		return IssueCommentWritten{}, err
 	}
-	return comment, nil
+	return written, nil
 }
 
 // RemoveIssueComment deletes one comment from an issue.
@@ -471,22 +430,24 @@ func (c *Client) GetIssueVocabulary(ctx context.Context) (IssueVocabulary, error
 // cover every issue in it. Repos names the repos its issues touch, leaving out
 // canceled issues and keeping completed ones.
 type Initiative struct {
-	ID             string     `json:"id"`
-	Number         int        `json:"number"`
-	Name           string     `json:"name"`
-	Description    *string    `json:"description"`
-	Status         string     `json:"status"`
-	StatusReason   *string    `json:"status_reason"`
-	Priority       int        `json:"priority"`
-	Position       int        `json:"position"`
-	Autofix        bool       `json:"autofix"`
-	CreatedTS      time.Time  `json:"created_ts"`
-	ClosedTS       *time.Time `json:"closed_ts"`
-	IssueCount     int        `json:"issue_count"`
-	OpenCount      int        `json:"open_count"`
-	CompletedCount int        `json:"completed_count"`
-	CanceledCount  int        `json:"canceled_count"`
-	Repos          []string   `json:"repos"`
+	ID             string         `json:"id"`
+	Number         int            `json:"number"`
+	Name           string         `json:"name"`
+	Description    *string        `json:"description"`
+	Status         string         `json:"status"`
+	StatusReason   *string        `json:"status_reason"`
+	Priority       int            `json:"priority"`
+	Position       int            `json:"position"`
+	Autofix        bool           `json:"autofix"`
+	CreatedTS      time.Time      `json:"created_ts"`
+	ClosedTS       *time.Time     `json:"closed_ts"`
+	IssueCount     int            `json:"issue_count"`
+	OpenCount      int            `json:"open_count"`
+	CompletedCount int            `json:"completed_count"`
+	CanceledCount  int            `json:"canceled_count"`
+	Repos          []string       `json:"repos"`
+	Claim          *Claim         `json:"claim"`
+	Idea           *RecordSummary `json:"idea"`
 }
 
 // InitiativeCreateInput is the body for POST /issues/initiatives. A nil
@@ -542,30 +503,37 @@ func (c *Client) GetInitiative(ctx context.Context, ref string) (Initiative, err
 }
 
 // CreateInitiative starts an initiative.
-func (c *Client) CreateInitiative(ctx context.Context, in InitiativeCreateInput) (Initiative, error) {
-	var initiative Initiative
-	if err := c.send(ctx, http.MethodPost, "/issues/initiatives", in, &initiative); err != nil {
-		return Initiative{}, err
+func (c *Client) CreateInitiative(ctx context.Context, in InitiativeCreateInput) (InitiativeWritten, error) {
+	var written InitiativeWritten
+	if err := c.send(ctx, http.MethodPost, "/issues/initiatives", in, &written); err != nil {
+		return InitiativeWritten{}, err
 	}
-	return initiative, nil
+	return written, nil
 }
 
-// UpdateInitiative applies a partial update, sending each field in clear as null.
-func (c *Client) UpdateInitiative(ctx context.Context, ref string, in InitiativeUpdateInput, clear []string) (Initiative, error) {
+// UpdateInitiative applies a partial update, sending each field in clear as
+// null. The answer's messages give each time in zone.
+func (c *Client) UpdateInitiative(ctx context.Context, ref string, in InitiativeUpdateInput, clear []string, zone DayZone) (InitiativeWritten, error) {
 	body, err := mergeClearNulls(in, clear)
 	if err != nil {
-		return Initiative{}, err
+		return InitiativeWritten{}, err
 	}
-	var initiative Initiative
-	if err := c.send(ctx, http.MethodPatch, initiativePath(ref), body, &initiative); err != nil {
-		return Initiative{}, err
+	var written InitiativeWritten
+	if err := c.send(ctx, http.MethodPatch, withQuery(initiativePath(ref), zoneQuery(zone)), body, &written); err != nil {
+		return InitiativeWritten{}, err
 	}
-	return initiative, nil
+	return written, nil
 }
 
-// DeleteInitiative removes an initiative. Its issues stay, belonging to none.
-func (c *Client) DeleteInitiative(ctx context.Context, ref string) error {
-	return c.send(ctx, http.MethodDelete, initiativePath(ref), nil, nil)
+// DeleteInitiative removes an initiative and its claims. Its issues stay,
+// belonging to none, and the answer names each of them, giving each time in
+// zone.
+func (c *Client) DeleteInitiative(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {
+	var deleted RecordDeleted
+	if err := c.send(ctx, http.MethodDelete, withQuery(initiativePath(ref), zoneQuery(zone)), nil, &deleted); err != nil {
+		return RecordDeleted{}, err
+	}
+	return deleted, nil
 }
 
 // IssueLabel is one value of the label vocabulary. Labels sharing a group are
@@ -614,25 +582,25 @@ func (c *Client) GetIssueLabel(ctx context.Context, slug string) (IssueLabel, er
 }
 
 // CreateIssueLabel adds a label to the vocabulary.
-func (c *Client) CreateIssueLabel(ctx context.Context, in IssueLabelCreateInput) (IssueLabel, error) {
-	var label IssueLabel
-	if err := c.send(ctx, http.MethodPost, "/issues/labels", in, &label); err != nil {
-		return IssueLabel{}, err
+func (c *Client) CreateIssueLabel(ctx context.Context, in IssueLabelCreateInput) (IssueLabelWritten, error) {
+	var written IssueLabelWritten
+	if err := c.send(ctx, http.MethodPost, "/issues/labels", in, &written); err != nil {
+		return IssueLabelWritten{}, err
 	}
-	return label, nil
+	return written, nil
 }
 
 // UpdateIssueLabel applies a partial update, sending each field in clear as null.
-func (c *Client) UpdateIssueLabel(ctx context.Context, slug string, in IssueLabelUpdateInput, clear []string) (IssueLabel, error) {
+func (c *Client) UpdateIssueLabel(ctx context.Context, slug string, in IssueLabelUpdateInput, clear []string) (IssueLabelWritten, error) {
 	body, err := mergeClearNulls(in, clear)
 	if err != nil {
-		return IssueLabel{}, err
+		return IssueLabelWritten{}, err
 	}
-	var label IssueLabel
-	if err := c.send(ctx, http.MethodPatch, labelPath(slug), body, &label); err != nil {
-		return IssueLabel{}, err
+	var written IssueLabelWritten
+	if err := c.send(ctx, http.MethodPatch, labelPath(slug), body, &written); err != nil {
+		return IssueLabelWritten{}, err
 	}
-	return label, nil
+	return written, nil
 }
 
 // DeleteIssueLabel removes a label from the vocabulary and from every issue.

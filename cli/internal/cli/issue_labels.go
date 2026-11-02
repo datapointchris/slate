@@ -120,21 +120,17 @@ func newLabelsCreateCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			label, err := client.CreateIssueLabel(cmd.Context(), in)
+			written, err := client.CreateIssueLabel(cmd.Context(), in)
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), label)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Added label %s\n", label.Slug)
-			return nil
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, "Added label "+written.Label.Slug)
 		},
 	}
 	cmd.Flags().StringVar(&slug, "slug", "", "The label, as lowercase-hyphenated words (required)")
 	cmd.Flags().StringVar(&group, "group", "", "Group it is exclusive within")
 	cmd.Flags().StringVar(&description, "description", "", "When the label applies")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the label as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -172,20 +168,16 @@ func newLabelsEditCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			label, err := client.UpdateIssueLabel(cmd.Context(), args[0], in, clear)
+			written, err := client.UpdateIssueLabel(cmd.Context(), args[0], in, clear)
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), label)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated label %s\n", label.Slug)
-			return nil
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, "Updated label "+written.Label.Slug)
 		},
 	}
 	cmd.Flags().StringVar(&group, "group", "", "Group it is exclusive within (empty removes it from its group)")
 	cmd.Flags().StringVar(&description, "description", "", "When the label applies (empty clears)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the label as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 

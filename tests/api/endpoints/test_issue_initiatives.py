@@ -24,12 +24,16 @@ def ok(response, code=status.HTTP_200_OK):
     return response.json()
 
 
+def wrote(response, written, code=status.HTTP_200_OK):
+    return ok(response, code)[written]
+
+
 def names(rows) -> list[str]:
     return [row['name'] for row in rows]
 
 
 def test_lifecycle(client):
-    ApiCrudTester(endpoint=INITIATIVES, new_obj=NEW_INITIATIVE, expected_length=2).test_lifecycle(client)
+    ApiCrudTester(endpoint=INITIATIVES, new_obj=NEW_INITIATIVE, written='initiative', expected_length=2).test_lifecycle(client)
 
 
 def test_active_initiatives_order_by_priority_with_none_last(client):
@@ -63,7 +67,7 @@ def test_an_initiative_answers_to_its_name(client):
 def test_an_initiative_answers_to_its_number(client):
     number = ok(client.get(f'{INITIATIVES}/Ship the issue tracker'))['number']
     assert ok(client.get(f'{INITIATIVES}/{number}'))['name'] == 'Ship the issue tracker'
-    filed = ok(client.post('/issues', json={'title': 'filed by number', 'initiative': f'#{number}'}), status.HTTP_201_CREATED)
+    filed = wrote(client.post('/issues', json={'title': 'filed by number', 'initiative': f'#{number}'}), 'issue', status.HTTP_201_CREATED)
     assert filed['initiative']['number'] == number
 
 
@@ -73,8 +77,8 @@ def test_a_name_holding_a_slash_addresses_its_initiative(client):
     ok(client.post(INITIATIVES, json={'name': 'library/consumer pair'}), status.HTTP_201_CREATED)
     path = f'{INITIATIVES}/library%2Fconsumer%20pair'
     assert ok(client.get(path))['name'] == 'library/consumer pair'
-    assert ok(client.patch(path, json={'priority': 3}))['priority'] == 3
-    assert client.delete(path).status_code == status.HTTP_204_NO_CONTENT
+    assert wrote(client.patch(path, json={'priority': 3}), 'initiative')['priority'] == 3
+    assert client.delete(path).status_code == status.HTTP_200_OK
     assert client.get(path).status_code == status.HTTP_404_NOT_FOUND
 
 
@@ -86,8 +90,10 @@ def test_a_short_name_is_answered_with_the_initiative_it_meant(client):
 
 def test_counts_partition_the_issues_and_repos_name_the_work_done_or_left(client):
     created = {
-        repo: ok(
-            client.post('/issues', json={'title': repo, 'repo': repo, 'initiative': 'Ship the issue tracker'}), status.HTTP_201_CREATED
+        repo: wrote(
+            client.post('/issues', json={'title': repo, 'repo': repo, 'initiative': 'Ship the issue tracker'}),
+            'issue',
+            status.HTTP_201_CREATED,
         )
         for repo in ('webapp', 'dotfiles', 'notes-cli')
     }
@@ -105,9 +111,11 @@ def test_dropping_needs_a_reason(client):
 
 
 def test_closing_stamps_and_reopening_clears(client):
-    closed = ok(client.patch(f'{INITIATIVES}/Retire the old capture path', json={'status': 'dropped', 'status_reason': 'Folded in'}))
+    closed = wrote(
+        client.patch(f'{INITIATIVES}/Retire the old capture path', json={'status': 'dropped', 'status_reason': 'Folded in'}), 'initiative'
+    )
     assert closed['closed_ts'] is not None
-    reopened = ok(client.patch(f'{INITIATIVES}/{closed["id"]}', json={'status': 'active'}))
+    reopened = wrote(client.patch(f'{INITIATIVES}/{closed["id"]}', json={'status': 'active'}), 'initiative')
     assert (reopened['closed_ts'], reopened['status_reason']) == (None, None)
 
 
@@ -118,14 +126,18 @@ def test_only_one_active_initiative_holds_a_name(client):
 
 
 def test_a_closed_initiative_stops_lending_its_priority(client):
-    created = ok(client.post('/issues', json={'title': 'inherits', 'initiative': 'Ship the issue tracker'}), status.HTTP_201_CREATED)
+    created = wrote(
+        client.post('/issues', json={'title': 'inherits', 'initiative': 'Ship the issue tracker'}), 'issue', status.HTTP_201_CREATED
+    )
     assert created['effective_priority'] == 2
     ok(client.patch(f'{INITIATIVES}/Ship the issue tracker', json={'status': 'completed'}))
     assert ok(client.get(f'/issues/{created["number"]}'))['effective_priority'] == 0
 
 
 def test_deleting_an_initiative_keeps_its_issues(client):
-    created = ok(client.post('/issues', json={'title': 'kept', 'initiative': 'Ship the issue tracker'}), status.HTTP_201_CREATED)
-    response = client.delete(f'{INITIATIVES}/Ship the issue tracker')
-    assert response.status_code == status.HTTP_204_NO_CONTENT, show_status_and_response(response)
+    created = wrote(
+        client.post('/issues', json={'title': 'kept', 'initiative': 'Ship the issue tracker'}), 'issue', status.HTTP_201_CREATED
+    )
+    answer = ok(client.delete(f'{INITIATIVES}/Ship the issue tracker'))
+    assert [(effect['code'], effect['record']) for effect in answer['side_effects']] == [('issue_detached', created['number'])]
     assert ok(client.get(f'/issues/{created["number"]}'))['initiative'] is None

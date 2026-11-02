@@ -19,9 +19,13 @@ def ok(response, code=status.HTTP_200_OK):
     return response.json()
 
 
+def filed(client, json) -> dict:
+    return ok(client.post('/issues', json=json), status.HTTP_201_CREATED)['issue']
+
+
 def test_grouped_labels_list_first_with_their_open_counts(client):
-    ok(client.post('/issues', json={'title': 'open', 'labels': ['needs-design']}), status.HTTP_201_CREATED)
-    done = ok(client.post('/issues', json={'title': 'done', 'labels': ['needs-design']}), status.HTTP_201_CREATED)
+    filed(client, {'title': 'open', 'labels': ['needs-design']})
+    done = filed(client, {'title': 'done', 'labels': ['needs-design']})
     ok(client.patch(f'/issues/{done["number"]}', json={'status': 'completed'}))
 
     listed = ok(client.get(LABELS))
@@ -31,7 +35,11 @@ def test_grouped_labels_list_first_with_their_open_counts(client):
 
 def test_create_read_and_delete(client):
     created = ok(client.post(LABELS, json={'slug': 'area-vue', 'group_slug': 'area'}), status.HTTP_201_CREATED)
-    assert created == {'slug': 'area-vue', 'group_slug': 'area', 'description': None, 'open_issue_count': 0}
+    assert created == {
+        'label': {'slug': 'area-vue', 'group_slug': 'area', 'description': None, 'open_issue_count': 0},
+        'side_effects': [],
+        'warnings': [],
+    }
     assert ok(client.get(f'{LABELS}/area-vue'))['group_slug'] == 'area'
     assert client.delete(f'{LABELS}/area-vue').status_code == status.HTTP_204_NO_CONTENT
     assert client.get(f'{LABELS}/area-vue').status_code == status.HTTP_404_NOT_FOUND
@@ -47,13 +55,13 @@ def test_a_slug_is_lowercase_words_joined_by_single_hyphens(client, slug):
 
 
 def test_moving_a_label_into_a_group_an_issue_already_uses_is_refused(client):
-    carrier = ok(client.post('/issues', json={'title': 'both', 'labels': ['area-api', 'needs-design']}), status.HTTP_201_CREATED)
+    carrier = filed(client, {'title': 'both', 'labels': ['area-api', 'needs-design']})
     response = client.patch(f'{LABELS}/needs-design', json={'group_slug': 'area'})
     assert response.status_code == status.HTTP_409_CONFLICT, show_status_and_response(response)
     assert f'#{carrier["number"]}' in response.json()['message']
 
 
 def test_deleting_a_label_takes_it_off_its_issues(client):
-    carrier = ok(client.post('/issues', json={'title': 'labeled', 'labels': ['area-api']}), status.HTTP_201_CREATED)
+    carrier = filed(client, {'title': 'labeled', 'labels': ['area-api']})
     assert client.delete(f'{LABELS}/area-api').status_code == status.HTTP_204_NO_CONTENT
     assert ok(client.get(f'/issues/{carrier["number"]}'))['labels'] == []

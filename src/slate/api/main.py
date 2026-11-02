@@ -23,9 +23,12 @@ from starlette.routing import Match
 
 from slate.api import API_PREFIX
 from slate.api.callers import get_current_caller
+from slate.api.endpoints import claims
+from slate.api.endpoints import ideas
 from slate.api.endpoints import issue_initiatives
 from slate.api.endpoints import issue_labels
 from slate.api.endpoints import issues
+from slate.api.endpoints import records
 from slate.api.protected_resource import add_protected_resource_route
 from slate.api.request_logging import RequestLoggingMiddleware
 from slate.config import Settings
@@ -40,6 +43,9 @@ VALIDATION_SCOPES = ('body', 'query', 'path', 'header', 'cookie')
 # Every resource router and the prefix it serves under `API_PREFIX`. The initiatives and labels
 # routers come ahead of /issues, whose /{id} would otherwise read "initiatives" and "labels" as issues.
 RESOURCE_ROUTERS: tuple[tuple[str, APIRouter], ...] = (
+    ('/claims', claims.router),
+    ('/ideas', ideas.router),
+    ('/records', records.router),
     ('/issues/initiatives', issue_initiatives.router),
     ('/issues/labels', issue_labels.router),
     ('/issues', issues.router),

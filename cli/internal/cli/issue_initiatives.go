@@ -177,15 +177,12 @@ func newInitiativesCreateCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			initiative, err := client.CreateInitiative(cmd.Context(), in)
+			written, err := client.CreateInitiative(cmd.Context(), in)
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), initiative)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Started initiative #%d %q\n", initiative.Number, initiative.Name)
-			return nil
+			initiative := written.Initiative
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Started initiative #%d %q", initiative.Number, initiative.Name))
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "Initiative name, unique among active ones (required)")
@@ -193,7 +190,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
 	cmd.Flags().IntVar(&position, "position", 0, "Place among initiatives of its priority (default last)")
 	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -251,7 +248,7 @@ func newInitiativesEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
 	cmd.Flags().IntVar(&position, "position", 0, "New place among initiatives of its priority")
 	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -262,23 +259,22 @@ func runInitiativeUpdate(cmd *cobra.Command, ref string, in api.InitiativeUpdate
 	if err != nil {
 		return handleAPIError(err)
 	}
-	initiative, err := client.UpdateInitiative(cmd.Context(), ref, in, clear)
+	written, err := client.UpdateInitiative(cmd.Context(), ref, in, clear, issueZone())
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	if asJSON {
-		return encodeJSON(cmd.OutOrStdout(), initiative)
-	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s initiative #%d %q (%s)\n", verb, initiative.Number, initiative.Name, initiative.Status)
-	return nil
+	initiative := written.Initiative
+	summary := fmt.Sprintf("%s initiative #%d %q (%s)", verb, initiative.Number, initiative.Name, initiative.Status)
+	return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
 }
 
 func newInitiativesCompleteCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "complete <initiative>",
-		Short:   "Mark an initiative's outcome reached, which hides it",
-		Long:    "Its issues keep their status, so one still open stays in the queue.",
+		Use:   "complete <initiative>",
+		Short: "Mark an initiative's outcome reached, which hides it",
+		Long: "Its issues keep their status, so one still open stays in the queue. It ends\n" +
+			"the initiative's claim as completed, and prints whose claim it ended.",
 		Example: "  slate issues initiatives complete \"Ship the tracker\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -286,7 +282,7 @@ func newInitiativesCompleteCommand() *cobra.Command {
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &completed}, nil, asJSON, "Completed")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -296,9 +292,11 @@ func newInitiativesDropCommand() *cobra.Command {
 		asJSON bool
 	)
 	cmd := &cobra.Command{
-		Use:     "drop <initiative> --reason <why>",
-		Short:   "Close an initiative whose outcome you no longer want",
-		Long:    "--reason is required. A drop with its reason closes the question, and a bare\ndrop invites it back.",
+		Use:   "drop <initiative> --reason <why>",
+		Short: "Close an initiative whose outcome you no longer want",
+		Long: "--reason is required. A drop with its reason closes the question, and a bare\n" +
+			"drop invites it back. It ends the initiative's claim as dropped, and prints\n" +
+			"whose claim it ended.",
 		Example: "  slate issues initiatives drop \"Rewrite the router\" --reason \"Traefik covers it\"",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -310,7 +308,7 @@ func newInitiativesDropCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Why it is dropped (required)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -332,7 +330,7 @@ func newInitiativesShelveCommand() *cobra.Command {
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &someday}, nil, asJSON, "Shelved")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -349,15 +347,21 @@ func newInitiativesReopenCommand() *cobra.Command {
 			return runInitiativeUpdate(cmd, args[0], api.InitiativeUpdateInput{Status: &active}, nil, asJSON, "Reopened")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
 func newInitiativesDeleteCommand() *cobra.Command {
-	var yes bool
+	var (
+		yes    bool
+		asJSON bool
+	)
 	cmd := &cobra.Command{
-		Use:     "delete <initiative>",
-		Short:   "Delete an initiative, leaving its issues in none",
+		Use:   "delete <initiative>",
+		Short: "Delete an initiative and its claims, leaving its issues in none",
+		Long: "Every claim it has had goes with it, live or ended, with a warning when\n" +
+			"another holder's live claim was one. It prints each claim it took and each\n" +
+			"issue it left in no initiative. Prompts unless --yes.",
 		Example: "  slate issues initiatives delete \"Ship the tracker\" --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -381,14 +385,16 @@ func newInitiativesDeleteCommand() *cobra.Command {
 					return nil
 				}
 			}
-			if err := client.DeleteInitiative(cmd.Context(), initiative.ID); err != nil {
+			deleted, err := client.DeleteInitiative(cmd.Context(), initiative.ID, issueZone())
+			if err != nil {
 				return handleAPIError(err)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted initiative #%d %q\n", initiative.Number, initiative.Name)
-			return nil
+			summary := fmt.Sprintf("Deleted initiative #%d %q", initiative.Number, initiative.Name)
+			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, summary)
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -578,6 +584,12 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	_, _ = fmt.Fprintf(out, "  issues:    %d (%d open, %d done, %d canceled)\n",
 		initiative.IssueCount, initiative.OpenCount, initiative.CompletedCount, initiative.CanceledCount)
 	_, _ = fmt.Fprintf(out, "  repos:     %s\n", repoList(initiative.Repos))
+	if initiative.Claim != nil {
+		_, _ = fmt.Fprintf(out, "  claim:     %s\n", claimNote(*initiative.Claim, time.Now()))
+	}
+	if initiative.Idea != nil {
+		_, _ = fmt.Fprintf(out, "  idea:      #%d %s\n", initiative.Idea.Number, initiative.Idea.Title)
+	}
 	if description := strValue(initiative.Description); description != "" {
 		_, _ = fmt.Fprintf(out, "\nDescription:\n%s\n", indent(description, "  "))
 	}

@@ -10,18 +10,16 @@ from fastapi import HTTPException
 from fastapi import Query
 from fastapi import Response
 from fastapi import status
-from sqlalchemy import and_
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import or_
 from sqlalchemy import select
-from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import Select
 
 from slate import models
 from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
+from slate.api.callers import caller_actor
 from slate.api.client_scopes import ISSUES_CLOSE
 from slate.api.client_scopes import ISSUES_PLAN
 from slate.api.exceptions import ForbiddenException
@@ -30,28 +28,40 @@ from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import ScopedClient
 from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
+from slate.models.initiative import INITIATIVE_STATUSES
+from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.models.issue import INITIATIVE_STATUSES
-from slate.models.issue import ISSUE_PRIORITIES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
-from slate.models.issue import TERMINAL_INITIATIVE_STATUSES
+from slate.models.record import PRIORITIES
+from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
+from slate.schemas.ready_filter import ReadyFilter
+from slate.services.claims import end_with_record
+from slate.services.issue_filters import apply_label_filter
+from slate.services.issue_filters import apply_repo_filter
+from slate.services.issue_filters import autofixable_filtered
 from slate.services.issue_rank import move_issue
 from slate.services.issue_rank import rank_at_end
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
-from slate.services.issue_refs import resolve_initiative
-from slate.services.issue_refs import resolve_issue
-from slate.services.issue_refs import resolve_label
-from slate.services.issue_refs import resolve_labels
 from slate.services.issue_views import ISSUE_LOAD_OPTIONS
 from slate.services.issue_views import calendar_now
-from slate.services.issue_views import issue_detail
+from slate.services.issue_views import fresh_issue_detail
 from slate.services.issue_views import issue_views
 from slate.services.issue_views import label_views
 from slate.services.issue_views import list_order
+from slate.services.ready_queue import ready_issues
+from slate.services.record_deletes import name_issue_delete
+from slate.services.record_refs import resolve_initiative
+from slate.services.record_refs import resolve_issue
+from slate.services.record_refs import resolve_labels
+from slate.services.record_summaries import record_summaries
 from slate.services.row_limit import RowLimit
 from slate.services.time_window import apply_time_window
+from slate.services.vocabulary import validate_lookup
+from slate.services.write_effects import Effects
+from slate.services.write_effects import WriteEffectCode
+from slate.services.write_effects import WriteEffects
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -70,35 +80,6 @@ def path_issue(id: str, session: DbSession) -> models.Issue:
 
 
 IssueFromPath = Annotated[models.Issue, Depends(path_issue)]
-
-
-def validate_lookup(session: Session, model, value: str, noun: str, extra: tuple[str, ...] = ()) -> None:
-    """Reject an unknown vocabulary value by name rather than letting the foreign key raise."""
-    if value in extra or session.get(model, value) is not None:
-        return
-    known = [*session.scalars(select(model.name).order_by(model.name)).all(), *extra]
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail=f'Unknown {noun} {value!r}. Known: {", ".join(known)}',
-    )
-
-
-def apply_repo_filter(query: Select, repo: str | None) -> Select:
-    """Narrow to one repo; an explicit empty string asks for the issues on no repo."""
-    if repo is None:
-        return query
-    if repo == '':
-        return query.where(models.Issue.repo.is_(None))
-    return query.where(models.Issue.repo == repo)
-
-
-def apply_label_filter(query: Select, label: str | None, session: Session) -> Select:
-    if label is None:
-        return query
-    label_row = resolve_label(session, label)
-    return query.where(
-        models.Issue.id.in_(select(models.IssueLabelAssignment.issue_id).where(models.IssueLabelAssignment.label_id == label_row.id))
-    )
 
 
 def waited_on_by(session: Session, issue_id: UUID) -> list[UUID]:
@@ -163,7 +144,7 @@ def ensure_parent_open(parent: models.Issue) -> None:
         )
 
 
-def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime) -> None:
+def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime, effects: WriteEffects) -> None:
     """Return each completed ancestor to open, because a completed issue never holds open work."""
     parent = issue.parent
     while parent is not None and parent.status == 'completed':
@@ -171,13 +152,12 @@ def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime) -> None:
         parent.closed_ts = None
         parent.closed_by = None
         parent.updated_ts = now
-        logger.info('issue_reopened_by_child', number=parent.number, child=issue.number)
+        effects.did(
+            WriteEffectCode.ANCESTOR_REOPENED,
+            f'Reopened #{parent.number}, because its descendant #{issue.number} reopened and a completed issue holds no open work.',
+            parent.number,
+        )
         parent = parent.parent
-
-
-def clear_claim(issue: models.Issue) -> None:
-    issue.claimed_by = None
-    issue.claim_expires_ts = None
 
 
 def numbered(issues: list[models.Issue]) -> str:
@@ -213,16 +193,19 @@ def resulting_reason(issue: models.Issue, update_data: dict, target: str) -> str
     return reason
 
 
-def apply_status_transition(session: Session, issue: models.Issue, update_data: dict, now: dt.datetime, *, signed_in: str) -> None:
+def apply_status_transition(
+    session: Session, issue: models.Issue, update_data: dict, now: dt.datetime, effects: WriteEffects, *, signed_in: str
+) -> None:
     """Validate a status change and apply everything it implies, in one place.
 
-    Closing stamps `closed_ts` and `closed_by` and drops the claim. `closed_by`
-    is the actor the caller named, else `signed_in`, because a token is the
-    user's whichever session or worker holds it. A move between two closed
-    statuses keeps both stamps. Reopening clears them, the reason and any
-    duplicate link, and reopens a completed parent. Leaving `in_progress` for
-    anything but a close releases the claim. The CHECK constraints refuse each
-    of these states too; this exists so a caller gets a 4xx naming the problem.
+    Closing stamps `closed_ts` and `closed_by`, and ends the issue's claim as
+    the status it reached. `closed_by` is the actor the caller named, else
+    `signed_in`, because a token is the user's whichever session or worker
+    holds it. A move between two closed statuses keeps both stamps. Reopening
+    clears them, the reason and any duplicate link, and reopens each completed
+    ancestor. Each ended claim and reopened ancestor is named in `effects`. The
+    CHECK constraints refuse each of these states too; this exists so a caller
+    gets a 4xx naming the problem.
     """
     new_status = update_data.pop('status', None)
     if new_status is not None:
@@ -251,38 +234,21 @@ def apply_status_transition(session: Session, issue: models.Issue, update_data: 
         if closing:
             issue.closed_ts = now
             issue.closed_by = closer or signed_in
-        clear_claim(issue)
     else:
         if issue.is_closed:
-            reopen_completed_ancestors(issue, now)
+            reopen_completed_ancestors(issue, now, effects)
         issue.closed_ts = None
         issue.closed_by = None
-        if target != 'in_progress':
-            clear_claim(issue)
     issue.status = target
     issue.status_reason = reason
     issue.duplicate_of_id = duplicate_id
-
-
-def load_issue(session: Session, issue_id: UUID) -> models.Issue:
-    issue = session.scalars(select(models.Issue).options(*ISSUE_LOAD_OPTIONS).where(models.Issue.id == issue_id)).one()
-    return issue
-
-
-def fresh_issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.IssueDetail:
-    session.expire_all()
-    return issue_detail(session, load_issue(session, issue.id), zone)
-
-
-def single_view(session: Session, issue: models.Issue, zone: str) -> schemas.Issue:
-    session.expire_all()
-    return issue_views(session, [load_issue(session, issue.id)], zone)[0]
+    # After the row is whole, because reading the claim flushes it.
+    if closing:
+        end_with_record(session, issue.number, target, now, issue.closed_by, effects)
 
 
 # `/ready` and `/vocabulary` are declared ahead of `/{id}`, which would
 # otherwise take either segment as an issue reference.
-
-AUTOFIXABLE_FILTER = "True for issues whose own, initiative's and parents' autofix are all on, false for the rest"
 
 
 @router.get('', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
@@ -301,7 +267,6 @@ def read_many(
     initiative: str | None = Query(None, description='An initiative, by any reference GET /issues/initiatives/{id} accepts'),
     parent: str | None = Query(None, description='A parent issue number or UUID: its children'),
     priority: int | None = Query(None, ge=0, le=4, description="The issue's own priority"),
-    claimed_by: str | None = Query(None, description='Issues held by this claimant'),
     closed_by: str | None = Query(None, description="Issues whose closer starts with this, such as 'claude-code/'"),
     search: str | None = Query(None, description='Words that must each appear in the title or description, in any order'),
     blocked: bool | None = Query(None, description='True for issues waiting on an unclosed dependency, false for the rest'),
@@ -333,8 +298,6 @@ def read_many(
         query = query.where(models.Issue.parent_id == resolve_issue(session, parent).id)
     if priority is not None:
         query = query.where(models.Issue.priority == priority)
-    if claimed_by is not None:
-        query = query.where(models.Issue.claimed_by == claimed_by)
     if closed_by:
         query = query.where(models.Issue.closed_by.startswith(closed_by, autoescape=True))
     for word in (search or '').split():
@@ -356,112 +319,13 @@ def read_many(
     return issue_views(session, issues, zone, readiness)
 
 
-def autofixable_filtered(issues: list[models.Issue], readiness: IssueReadiness, autofixable: bool | None) -> list[models.Issue]:
-    if autofixable is None:
-        return issues
-    return [issue for issue in issues if (issue.id in readiness.autofixable) == autofixable]
-
-
-def ready_issues(
-    session: Session,
-    zone: str,
-    *,
-    repo: str | None,
-    type: str | None,
-    label: str | None,
-    initiative: str | UUID | int | None,
-    autofixable: bool | None,
-) -> tuple[list[models.Issue], IssueReadiness]:
-    """The ready queue in the order it is taken, and the readiness it was cut from.
-
-    Decisions wait on a person, so the queue leaves them out unless `type` asks
-    for them by name.
-    """
-    today, now = calendar_now(zone)
-    readiness = measure_readiness(session, today, now)
-    query = select(models.Issue).options(*ISSUE_LOAD_OPTIONS).where(models.Issue.id.in_(readiness.ready))
-    if type is not None:
-        validate_lookup(session, models.IssueType, type, 'issue type')
-        query = query.where(models.Issue.type == type)
-    else:
-        query = query.where(models.Issue.type != 'decision')
-    if initiative is not None:
-        query = query.where(models.Issue.initiative_id == resolve_initiative(session, initiative).id)
-    query = apply_repo_filter(query, repo)
-    query = apply_label_filter(query, label, session)
-    issues = sorted(session.scalars(query).all(), key=readiness.sort_key)
-    return autofixable_filtered(issues, readiness, autofixable), readiness
-
-
 @router.get('/ready', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
-def read_ready(
-    session: DbSession,
-    zone: RequestZone,
-    repo: str | None = Query(None, description='A repo name, or an empty string for issues on no repo'),
-    type: str | None = Query(None, description='An issue type. Decisions are left out unless asked for here.'),
-    label: str | None = Query(None, description='A label slug'),
-    initiative: str | None = Query(None, description='An initiative, by any reference GET /issues/initiatives/{id} accepts'),
-    autofixable: bool | None = Query(None, description=AUTOFIXABLE_FILTER),
-    limit: RowLimit = None,
-):
+def read_ready(session: DbSession, zone: RequestZone, filters: Annotated[ReadyFilter, Query()], limit: RowLimit = None):
     """The issues an agent could take now, in the order to take them; the first row is next."""
-    issues, readiness = ready_issues(session, zone, repo=repo, type=type, label=label, initiative=initiative, autofixable=autofixable)
+    issues, readiness = ready_issues(session, zone, filters)
     if limit is not None:
         issues = issues[:limit]
     return issue_views(session, issues, zone, readiness)
-
-
-def claim_values(claimant: str, minutes: int, now: dt.datetime) -> dict:
-    return {
-        'status': 'in_progress',
-        'claimed_by': claimant,
-        'claim_expires_ts': now + dt.timedelta(minutes=minutes),
-        'updated_ts': now,
-    }
-
-
-def claimable(now: dt.datetime, claimant: str | None = None):
-    """The compare half of the claim's compare-and-set: no live claim by anyone else."""
-    free = or_(
-        models.Issue.status == 'open',
-        and_(models.Issue.status == 'in_progress', models.Issue.claim_expires_ts.is_not(None), models.Issue.claim_expires_ts <= now),
-    )
-    if claimant is None:
-        return free
-    return or_(free, and_(models.Issue.status == 'in_progress', models.Issue.claimed_by == claimant))
-
-
-@router.post('/ready/claim', response_model=schemas.IssueClaimResult, status_code=status.HTTP_200_OK)
-def claim_next(request: schemas.IssueReadyClaimRequest, session: DbSession, zone: RequestZone):
-    """Take the head of the ready queue in one step.
-
-    Each candidate is taken with a compare-and-set, so two agents asking at once
-    never hold the same issue: the loser's update matches no row and it moves on
-    to the next candidate.
-    """
-    issues, _ = ready_issues(
-        session,
-        zone,
-        repo=request.repo,
-        type=request.type,
-        label=request.label,
-        initiative=request.initiative,
-        autofixable=request.autofixable,
-    )
-    now = dt.datetime.now(dt.UTC)
-    for candidate in issues:
-        taken = session.execute(
-            sql_update(models.Issue)
-            .where(models.Issue.id == candidate.id, claimable(now))
-            .values(**claim_values(request.claimant, request.minutes, now))
-            .returning(models.Issue.id),
-            execution_options={'synchronize_session': False},
-        ).scalar_one_or_none()
-        if taken is not None:
-            session.commit()
-            logger.info('issue_claimed', number=candidate.number, claimant=request.claimant)
-            return schemas.IssueClaimResult(issue=single_view(session, candidate, zone))
-    return schemas.IssueClaimResult(issue=None)
 
 
 @router.get('/vocabulary', response_model=schemas.IssueVocabulary, status_code=status.HTTP_200_OK)
@@ -477,7 +341,7 @@ def read_vocabulary(session: DbSession):
     return schemas.IssueVocabulary(
         statuses=in_declared_order(statuses, ISSUE_STATUSES),
         types=in_declared_order(types, ISSUE_TYPES),
-        priorities=[schemas.IssuePriorityName(value=value, name=name) for value, name in ISSUE_PRIORITIES.items()],
+        priorities=[schemas.IssuePriorityName(value=value, name=name) for value, name in PRIORITIES.items()],
         initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),
         labels=label_views(session),
     )
@@ -496,8 +360,8 @@ def refuse_all_but_a_triage_filing(issue: schemas.IssueCreate) -> None:
         raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_FILES_ONLY_INTO_TRIAGE}; this filing starts as {issue.status}', logger)
 
 
-@router.post('', response_model=schemas.IssueDetail, status_code=status.HTTP_201_CREATED)
-def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, caller: CurrentCaller):
+@router.post('', response_model=schemas.IssueWritten, status_code=status.HTTP_201_CREATED)
+def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects):
     if isinstance(caller, ScopedClient):
         refuse_all_but_a_triage_filing(issue)
     if issue.status not in CREATE_STATUSES:
@@ -541,7 +405,7 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
         session.flush()
     session.commit()
     logger.info('issue_created', number=db_issue.number, repo=db_issue.repo)
-    return fresh_issue_detail(session, db_issue, zone)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, db_issue, zone))
 
 
 @router.get('/{id}', response_model=schemas.IssueDetail, status_code=status.HTTP_200_OK)
@@ -581,8 +445,10 @@ def refuse_a_scoped_update(issue: models.Issue, update_data: dict, scopes: froze
         refuse_all_but_a_close(issue, update_data)
 
 
-@router.patch('/{id}', response_model=schemas.IssueDetail, status_code=status.HTTP_200_OK)
-def update(issue: IssueFromPath, update: schemas.IssueUpdate, session: DbSession, zone: RequestZone, caller: CurrentCaller):
+@router.patch('/{id}', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def update(
+    issue: IssueFromPath, update: schemas.IssueUpdate, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects
+):
     update_data = update.model_dump(exclude_unset=True)
     logger.debug('issue_update', number=issue.number, fields=sorted(update_data))
     now = dt.datetime.now(dt.UTC)
@@ -622,114 +488,31 @@ def update(issue: IssueFromPath, update: schemas.IssueUpdate, session: DbSession
     if 'labels' in update_data:
         set_labels(session, issue, update_data.pop('labels'))
 
-    apply_status_transition(session, issue, update_data, now, signed_in=signed_in)
+    apply_status_transition(session, issue, update_data, now, effects, signed_in=signed_in)
 
     for attr, value in update_data.items():
         setattr(issue, attr, value)
     issue.updated_ts = now
     session.commit()
-    return fresh_issue_detail(session, issue, zone)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
-@router.delete('/{id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete(issue: IssueFromPath, session: DbSession):
-    session.delete(issue)
+@router.delete('/{id}', response_model=schemas.RecordDeleted, status_code=status.HTTP_200_OK)
+def delete(issue: IssueFromPath, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Delete the issue's record, which takes the issue, its comments, its edges and its claims with it.
+
+    The answer names each claim it took and each issue that lost its link to this one.
+    """
+    deleted = record_summaries(session, [issue.number])[issue.number]
+    name_issue_delete(session, issue, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
+    session.execute(sql_delete(models.Record).where(models.Record.number == issue.number))
     session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-def claim_conflict(issue: models.Issue) -> str:
-    """Name who holds the issue, so the refused agent can tell whether to wait or move on."""
-    if issue.claimed_by is None or issue.claim_expires_ts is None:
-        # Moved to in_progress by hand, which is a person working it.
-        return f'#{issue.number} is in progress without a claim. Release it to open before claiming it.'
-    until = issue.claim_expires_ts.astimezone(dt.UTC)
-    return f'#{issue.number} is claimed by {issue.claimed_by} until {until:%Y-%m-%d %H:%M} UTC'
-
-
-def unready_reasons(issue: models.Issue, readiness: IssueReadiness) -> list[str]:
-    """Why the ready queue leaves the issue out, a sentence for each reason that holds.
-
-    An issue meeting every condition here and still left out is held: in
-    progress under a live claim, or by a person. That reason is `claim_conflict`.
-    """
-    if issue.is_closed:
-        return [f'#{issue.number} is {issue.status}.']
-    if issue.status == 'triage':
-        return [f'#{issue.number} is in triage. Accept it as open before claiming it.']
-    reasons = []
-    if issue.id in readiness.blocked:
-        blockers = [edge.depends_on for edge in issue.dependencies if not edge.depends_on.is_closed]
-        reasons.append(f'#{issue.number} is blocked by {numbered(blockers)}.')
-    if readiness.open_child_count.get(issue.id):
-        children = [child for child in issue.children if not child.is_closed]
-        reasons.append(f'#{issue.number} waits on its open children: {numbered(children)}.')
-    if issue.id in readiness.deferred:
-        reasons.append(f'#{issue.number} is deferred until {issue.deferred_until_date}.')
-    if issue.id in readiness.shelved and issue.initiative is not None:
-        reasons.append(
-            f'#{issue.number} is in the someday initiative {issue.initiative.name!r}, and nothing outside someday depends on it. '
-            'Reopen the initiative, or make active work depend on it.'
-        )
-    return reasons
-
-
-@router.post('/{id}/claim', response_model=schemas.Issue, status_code=status.HTTP_200_OK)
-def claim(issue: IssueFromPath, request: schemas.IssueClaimRequest, session: DbSession, zone: RequestZone, caller: CurrentCaller):
-    """Take this issue, or extend the claim already held under the same name.
-
-    A named issue is taken only when it is ready, a decision included, so an
-    agent never holds work it could not finish. Only extending a claim skips
-    the readiness check. A scoped client claims under its own client id, which
-    is what lets its release be limited to its own claims.
-    """
-    if isinstance(caller, ScopedClient) and request.claimant != caller.client_id:
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_CLAIMS_AS_ITSELF}, {caller.client_id}, not {request.claimant}', logger)
-    extending = issue.status == 'in_progress' and issue.claimed_by == request.claimant
-    today, now = calendar_now(zone)
-    if not extending:
-        readiness = measure_readiness(session, today, now)
-        if issue.id not in readiness.ready:
-            detail = ' '.join(unready_reasons(issue, readiness)) or claim_conflict(issue)
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
-
-    taken = session.execute(
-        sql_update(models.Issue)
-        .where(models.Issue.id == issue.id, claimable(now, request.claimant))
-        .values(**claim_values(request.claimant, request.minutes, now))
-        .returning(models.Issue.id),
-        execution_options={'synchronize_session': False},
-    ).scalar_one_or_none()
-    if taken is None:
-        session.rollback()
-        session.refresh(issue)
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=claim_conflict(issue))
-    session.commit()
-    logger.info('issue_claimed', number=issue.number, claimant=request.claimant)
-    return single_view(session, issue, zone)
-
-
-@router.delete('/{id}/claim', response_model=schemas.Issue, status_code=status.HTTP_200_OK)
-def release(issue: IssueFromPath, session: DbSession, zone: RequestZone, caller: CurrentCaller):
-    """Give the issue back to the ready queue. Releasing an issue not in progress changes nothing.
-
-    A claim sits only on an in-progress issue, so this one test covers both a
-    claim and work a person moved to in progress by hand. A scoped client lets
-    go only of a claim its own client id holds.
-    """
-    if isinstance(caller, ScopedClient) and issue.status == 'in_progress' and issue.claimed_by != caller.client_id:
-        held = f'claimed by {issue.claimed_by}' if issue.claimed_by else 'in progress by hand'
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_RELEASES_ITS_OWN}; #{issue.number} is {held}', logger)
-    if issue.status == 'in_progress':
-        clear_claim(issue)
-        issue.status = 'open'
-        issue.updated_ts = dt.datetime.now(dt.UTC)
-        session.commit()
-    return single_view(session, issue, zone)
+    logger.info('issue_deleted', number=deleted.number)
+    return effects.answer(schemas.RecordDeleted, deleted=deleted)
 
 
 def priority_phrase(priority: int) -> str:
-    return 'no priority' if priority == 0 else f'{ISSUE_PRIORITIES[priority]} priority'
+    return 'no priority' if priority == 0 else f'{PRIORITIES[priority]} priority'
 
 
 def ensure_same_priority(issue: models.Issue, neighbor: models.Issue, readiness: IssueReadiness) -> None:
@@ -745,8 +528,8 @@ def ensure_same_priority(issue: models.Issue, neighbor: models.Issue, readiness:
         )
 
 
-@router.post('/{id}/rank', response_model=schemas.Issue, status_code=status.HTTP_200_OK)
-def rank(issue: IssueFromPath, move: schemas.IssueRankMove, session: DbSession, zone: RequestZone):
+@router.post('/{id}/rank', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def rank(issue: IssueFromPath, move: schemas.IssueRankMove, session: DbSession, zone: RequestZone, effects: Effects):
     """Place this issue directly before or after another of the same effective priority.
 
     Rank orders issues within one priority. Beside an issue of another priority,
@@ -763,11 +546,13 @@ def rank(issue: IssueFromPath, move: schemas.IssueRankMove, session: DbSession, 
         ensure_same_priority(issue, neighbor, readiness)
     move_issue(session, issue, before=before, after=after)
     session.commit()
-    return single_view(session, issue, zone)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
-@router.post('/{id}/dependencies', response_model=schemas.IssueDetail, status_code=status.HTTP_201_CREATED)
-def add_dependency(issue: IssueFromPath, dependency: schemas.IssueDependencyCreate, session: DbSession, zone: RequestZone):
+@router.post('/{id}/dependencies', response_model=schemas.IssueWritten, status_code=status.HTTP_201_CREATED)
+def add_dependency(
+    issue: IssueFromPath, dependency: schemas.IssueDependencyCreate, session: DbSession, zone: RequestZone, effects: Effects
+):
     depends_on = resolve_issue(session, dependency.depends_on)
     if depends_on.id == issue.id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail='An issue cannot depend on itself')
@@ -780,7 +565,7 @@ def add_dependency(issue: IssueFromPath, dependency: schemas.IssueDependencyCrea
     session.add(models.IssueDependency(issue_id=issue.id, depends_on_id=depends_on.id))
     issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
-    return fresh_issue_detail(session, issue, zone)
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
 def path_dependency(dep_id: str, session: DbSession) -> models.Issue:
@@ -814,14 +599,14 @@ def read_comments(issue: IssueFromPath, session: DbSession, limit: RowLimit = No
     return list(session.scalars(query).all())
 
 
-@router.post('/{id}/comments', response_model=schemas.IssueComment, status_code=status.HTTP_201_CREATED)
-def create_comment(issue: IssueFromPath, comment: schemas.IssueCommentCreate, session: DbSession):
+@router.post('/{id}/comments', response_model=schemas.IssueCommentWritten, status_code=status.HTTP_201_CREATED)
+def create_comment(issue: IssueFromPath, comment: schemas.IssueCommentCreate, session: DbSession, effects: Effects):
     db_comment = models.IssueComment(issue_id=issue.id, body=comment.body, author=comment.author)
     session.add(db_comment)
     issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
     session.refresh(db_comment)
-    return db_comment
+    return effects.answer(schemas.IssueCommentWritten, comment=schemas.IssueComment.model_validate(db_comment))
 
 
 @router.delete('/{id}/comments/{comment_id}', status_code=status.HTTP_204_NO_CONTENT)

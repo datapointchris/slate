@@ -14,11 +14,14 @@ ISSUES_CLOSE = 'slate.issues.close'
 ISSUES_PLAN = 'slate.issues.plan'
 
 SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
-    # The reads `slate issues list`, `search`, `next`, `show`, and `initiatives list` and `show`
-    # make. An issue in a series often has no description of its own, so a reader judging it
-    # needs its initiative's.
-    'slate.issues.read': frozenset(
+    # Every read of a record of any kind, and of who holds which. An issue in a series often has no
+    # description of its own, so a reader judging it needs its initiative's.
+    'slate.records.read': frozenset(
         {
+            ('GET', f'{API_PREFIX}/records/{{number}}'),
+            ('GET', f'{API_PREFIX}/claims'),
+            ('GET', f'{API_PREFIX}/ideas'),
+            ('GET', f'{API_PREFIX}/ideas/{{id}}'),
             ('GET', f'{API_PREFIX}/issues'),
             ('GET', f'{API_PREFIX}/issues/initiatives'),
             ('GET', f'{API_PREFIX}/issues/initiatives/{{id:path}}'),
@@ -26,28 +29,29 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
         }
     ),
-    # What `slate issues claim <issue>` and `release` send, for a job holding an issue while an
-    # agent carries it. The handlers let a scoped client claim only under its own client id and
-    # release only a claim that id holds.
-    'slate.issues.claim': frozenset(
+    # Holding, extending and releasing a claim, for a job holding a record while an agent carries
+    # it. The handlers let a scoped client act only under its own client id and release only a
+    # claim that id holds.
+    'slate.claims.hold': frozenset(
         {
-            ('POST', f'{API_PREFIX}/issues/{{id}}/claim'),
-            ('DELETE', f'{API_PREFIX}/issues/{{id}}/claim'),
+            ('POST', f'{API_PREFIX}/claims'),
+            ('POST', f'{API_PREFIX}/claims/next'),
+            ('POST', f'{API_PREFIX}/claims/{{record}}/extend'),
+            ('POST', f'{API_PREFIX}/claims/{{record}}/release'),
         }
     ),
-    # What `slate issues add-comment` and `complete` send, for a job closing an issue whose fix
-    # merged. The update handler narrows a body naming `status` or `closed_by` to the close of an
-    # open issue.
+    # Commenting on an issue and closing it, for a job closing an issue whose fix merged. The
+    # update handler narrows a body naming `status` or `closed_by` to the close of an open issue.
     ISSUES_CLOSE: frozenset(
         {
             ('POST', f'{API_PREFIX}/issues/{{id}}/comments'),
             ('PATCH', f'{API_PREFIX}/issues/{{id}}'),
         }
     ),
-    # What `slate issues edit --priority` and `--initiative`, `reorder`, `create`, and
-    # `initiatives create`, `edit`, `complete` and `drop` send, for a job ordering the queue.
-    # `create` reads the vocabulary before it files. The handlers narrow any other update to an
-    # issue's priority and initiative, and a filing to triage under no parent. Nothing here deletes.
+    # Filing an issue, setting its priority, initiative and rank, and creating and updating an
+    # initiative, for a job ordering the queue. A filing reads the vocabulary first. The handlers
+    # narrow any other update to an issue's priority and initiative, and a filing to triage under
+    # no parent. Nothing here deletes.
     ISSUES_PLAN: frozenset(
         {
             ('GET', f'{API_PREFIX}/issues/vocabulary'),

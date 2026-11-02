@@ -15,7 +15,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/datapointchris/slate/cli/internal/api"
-	"github.com/datapointchris/slate/cli/internal/config"
 	"github.com/datapointchris/slate/cli/internal/prompt"
 	"github.com/datapointchris/slate/cli/internal/repos"
 )
@@ -24,7 +23,7 @@ import (
 var createStatuses = []string{api.IssueStatusOpen, api.IssueStatusTriage}
 
 // unclosedStatuses are the states complete and cancel act on.
-var unclosedStatuses = []string{api.IssueStatusTriage, api.IssueStatusOpen, api.IssueStatusInProgress}
+var unclosedStatuses = []string{api.IssueStatusTriage, api.IssueStatusOpen}
 
 // --- Create ---
 
@@ -276,15 +275,12 @@ func newIssuesCreateCommand() *cobra.Command {
 				in.Autofix = &autofix
 			}
 
-			issue, err := client.CreateIssue(cmd.Context(), in, issueZone())
+			written, err := client.CreateIssue(cmd.Context(), in, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Filed #%d %s (%s)\n", issue.Number, issue.Title, issue.Status)
-			return nil
+			issue := written.Issue
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Filed #%d %s (%s)", issue.Number, issue.Title, issue.Status))
 		},
 	}
 	f := cmd.Flags()
@@ -302,7 +298,7 @@ func newIssuesCreateCommand() *cobra.Command {
 	f.StringArrayVar(&dependsOn, "depends-on", nil, "Issue this waits on (repeatable)")
 	f.StringVar(&deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD")
 	f.BoolVar(&autofix, "autofix", true, autofixSetHelp)
-	f.BoolVar(&asJSON, "json", false, "Output the filed issue as JSON to stdout")
+	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -361,7 +357,7 @@ func newIssuesEditCommand() *cobra.Command {
 		},
 	}
 	v.register(cmd)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -455,26 +451,33 @@ func runIssueUpdate(cmd *cobra.Command, ref string, in api.IssueUpdateInput, cle
 	if err != nil {
 		return handleAPIError(err)
 	}
-	issue, err := client.UpdateIssue(cmd.Context(), ref, in, clear, issueZone())
+	written, err := client.UpdateIssue(cmd.Context(), ref, in, clear, issueZone())
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	if asJSON {
-		return encodeJSON(cmd.OutOrStdout(), issue)
-	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s #%d %s (%s)\n", verb, issue.Number, issue.Title, issue.Status)
-	return nil
+	return reportIssueWrite(cmd, asJSON, written, verb)
+}
+
+func reportIssueWrite(cmd *cobra.Command, asJSON bool, written api.IssueWritten, verb string) error {
+	issue := written.Issue
+	return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("%s #%d %s (%s)", verb, issue.Number, issue.Title, issue.Status))
 }
 
 func newIssuesDeleteCommand() *cobra.Command {
-	var yes bool
+	var (
+		yes    bool
+		asJSON bool
+	)
 	cmd := &cobra.Command{
 		Use:   "delete <issue>",
-		Short: "Delete an issue, its comments and its edges",
+		Short: "Delete an issue, its comments, its edges and its claims",
 		Long: "For an issue filed by mistake. Work that will not be done is canceled\n" +
-			"instead, which keeps the reason. Its children, the issues found during its\n" +
-			"work and the issues canceled as its duplicates stay, with the link to it\n" +
-			"removed. Prompts unless --yes.",
+			"instead, which keeps the reason. Every claim it has had goes with it, live or\n" +
+			"ended, with a warning when another holder's live claim was one. Its children,\n" +
+			"the issues found during its work and the issues canceled as its duplicates\n" +
+			"stay, with the link to it removed. It prints each claim it took, each child\n" +
+			"left with no parent and each issue that stops depending on it. Prompts\n" +
+			"unless --yes.",
 		Example: "  slate issues delete 412 --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -496,14 +499,15 @@ func newIssuesDeleteCommand() *cobra.Command {
 					return nil
 				}
 			}
-			if err := client.DeleteIssue(cmd.Context(), issue.ID); err != nil {
+			deleted, err := client.DeleteIssue(cmd.Context(), issue.ID, issueZone())
+			if err != nil {
 				return handleAPIError(err)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted #%d %s\n", issue.Number, issue.Title)
-			return nil
+			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, fmt.Sprintf("Deleted #%d %s", issue.Number, issue.Title))
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -525,15 +529,11 @@ func runIssueTransition(cmd *cobra.Command, ref string, from []string, in api.Is
 		return fmt.Errorf("#%d is %s — %s applies to an issue that is %s",
 			current.Number, current.Status, cmd.Name(), strings.Join(from, " or "))
 	}
-	issue, err := client.UpdateIssue(cmd.Context(), current.ID, in, nil, issueZone())
+	written, err := client.UpdateIssue(cmd.Context(), current.ID, in, nil, issueZone())
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	if asJSON {
-		return encodeJSON(cmd.OutOrStdout(), issue)
-	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s #%d %s (%s)\n", verb, issue.Number, issue.Title, issue.Status)
-	return nil
+	return reportIssueWrite(cmd, asJSON, written, verb)
 }
 
 func newIssuesAcceptCommand() *cobra.Command {
@@ -549,7 +549,7 @@ func newIssuesAcceptCommand() *cobra.Command {
 			return runIssueTransition(cmd, args[0], []string{api.IssueStatusTriage}, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -574,10 +574,11 @@ func newIssuesCompleteCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "complete <issue>",
 		Short: "Mark an issue done",
-		Long: "Records when it closed and who closed it, and lets go of any claim. A parent\n" +
-			"is refused while a child is still open. Say what shipped with add-comment, so\n" +
-			"the thread holds it. --closed-by defaults to who is running slate: the Claude\n" +
-			"Code session, the worker $" + actorWorkerEnv + " names, or user@host.",
+		Long: "Records when it closed and who closed it, and ends its claim as completed,\n" +
+			"printing whose claim it ended. A parent is refused while a child is still\n" +
+			"open. Say what shipped with add-comment, so the thread holds it. --closed-by\n" +
+			"defaults to who is running slate: the Claude Code session, the worker\n" +
+			"$" + actorWorkerEnv + " names, or user@host.",
 		Example: "  slate issues complete 412",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -587,7 +588,7 @@ func newIssuesCompleteCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&closedBy, "closed-by", actorIdentity(), closedByHelp)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -602,8 +603,9 @@ func newIssuesCancelCommand() *cobra.Command {
 		Use:   "cancel <issue> --reason <why> | --duplicate-of <issue>",
 		Short: "Close an issue that will not be done",
 		Long: "Canceling needs a reason, the issue this one duplicates, or both. A bare\n" +
-			"cancel invites the same issue back next month. --closed-by defaults to who\n" +
-			"is running slate, as it does for complete.",
+			"cancel invites the same issue back next month. It ends the issue's claim as\n" +
+			"canceled, printing whose. --closed-by defaults to who is running slate, as it\n" +
+			"does for complete.",
 		Example: "  slate issues cancel 412 --reason \"the router rewrite removed the path\"\n" +
 			"  slate issues cancel 413 --duplicate-of 412",
 		Args: cobra.ExactArgs(1),
@@ -624,16 +626,18 @@ func newIssuesCancelCommand() *cobra.Command {
 	cmd.Flags().StringVar(&reason, "reason", "", "Why it will not be done")
 	cmd.Flags().StringVar(&duplicateOf, "duplicate-of", "", "The issue this one duplicates")
 	cmd.Flags().StringVar(&closedBy, "closed-by", actorIdentity(), closedByHelp)
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
 func newIssuesReopenCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "reopen <issue>",
-		Short:   "Return a completed or canceled issue to the queue",
-		Long:    "Clears when and by whom it closed, the cancel reason, and the duplicate link.",
+		Use:   "reopen <issue>",
+		Short: "Return a completed or canceled issue to the queue",
+		Long: "Clears when and by whom it closed, the cancel reason, and the duplicate link.\n" +
+			"A completed issue holds no open work, so each completed ancestor reopens\n" +
+			"with it, and each one reopened prints under the issue.",
 		Example: "  slate issues reopen 412",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -642,154 +646,7 @@ func newIssuesReopenCommand() *cobra.Command {
 			return runIssueTransition(cmd, args[0], closed, api.IssueUpdateInput{Status: &open}, asJSON, "Reopened")
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated issue as JSON to stdout")
-	return cmd
-}
-
-// --- Claims ---
-
-// defaultClaimMinutes is a day, so a session paused overnight on a question
-// still holds its issue. A claim whose holder died is freed by `release`.
-const defaultClaimMinutes = 1440
-
-func newIssuesClaimCommand() *cobra.Command {
-	var (
-		asJSON   bool
-		queue    readyQueueFlags
-		claimant string
-		minutes  int
-	)
-	cmd := &cobra.Command{
-		Use:   "claim [<issue>]",
-		Short: "Take the next ready issue, or the one named",
-		Long: "With no issue, takes the head of the ready queue in one request, so two\n" +
-			"agents asking at once never hold the same one. `next` under the same flags\n" +
-			"shows what it would take. --repo, --type, --label and --initiative narrow\n" +
-			"that queue. Decisions are left out unless --type decision asks for them.\n" +
-			"\n" +
-			"Naming an issue takes that one, a decision included. It is refused while\n" +
-			"someone else holds it, while it is in triage or closed, while it waits on an\n" +
-			"open dependency or an open child, before its deferral day, and while its\n" +
-			"initiative is someday. The refusal names which. Claiming one you already\n" +
-			"hold extends the claim.\n" +
-			"\n" +
-			"A claim sets the issue in progress for --minutes. One that runs out returns\n" +
-			"the issue to the queue. `complete` lets go of it, and `release` hands it back\n" +
-			"unfinished. --claimant defaults to the config file's client_id when\n" +
-			"SLATE_CLIENT_SECRET is set or token_command hands the token, since the API\n" +
-			"takes no other claimant from a service.\n" +
-			"Otherwise it is the Claude Code session when run inside one, else user@host.\n" +
-			"\n" +
-			"An empty queue prints nothing to claim, or null under --json, and exits 0.",
-		Example: "  slate issues claim\n" +
-			"  slate issues claim --repo webapp --json\n" +
-			"  slate issues claim 412 --minutes 60",
-		Args: cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			f := cmd.Flags()
-			if minutes < 1 || minutes > 10080 {
-				return goclikit.UsageError(fmt.Errorf("--minutes %d: a claim lasts 1 to 10080 minutes", minutes))
-			}
-			if !f.Changed("claimant") {
-				if deployment, err := config.Load(cmd.Context(), apiOverride); config.IsService() || deployment.HandsTokens() {
-					if err != nil {
-						return handleAPIError(err)
-					}
-					claimant = deployment.ClientID.Value
-				}
-			}
-			if strings.TrimSpace(claimant) == "" {
-				return goclikit.UsageError(errors.New("--claimant cannot be empty — a claim names who holds it"))
-			}
-			in := api.IssueClaimInput{Claimant: claimant, Minutes: minutes}
-			if len(args) == 1 {
-				for _, name := range readyQueueFlagNames() {
-					if f.Changed(name) {
-						return goclikit.UsageError(fmt.Errorf("--%s narrows the queue an unnamed claim takes from — a named issue is not taken from it", name))
-					}
-				}
-			}
-			filter, err := queue.filter(cmd)
-			if err != nil {
-				return err
-			}
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			var claimed *api.Issue
-			if len(args) == 1 {
-				issue, err := client.ClaimIssue(cmd.Context(), args[0], in, issueZone())
-				if err != nil {
-					return handleArgumentAPIError(err)
-				}
-				claimed = &issue
-			} else {
-				result, err := client.ClaimNextIssue(cmd.Context(), in, filter, issueZone())
-				if err != nil {
-					return handleArgumentAPIError(err)
-				}
-				claimed = result.Issue
-				if claimed != nil {
-					if err := honoredAutofixable(filter.Autofixable, []api.Issue{*claimed}); err != nil {
-						if _, releaseErr := client.ReleaseIssue(cmd.Context(), strconv.Itoa(claimed.Number), issueZone()); releaseErr != nil {
-							return fmt.Errorf("%w; releasing #%d failed too: %w", err, claimed.Number, releaseErr)
-						}
-						return err
-					}
-				}
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), claimed)
-			}
-			if claimed == nil {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Nothing to claim: no issue is ready.")
-				return nil
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Claimed #%d %s as %s until %s\n",
-				claimed.Number, claimed.Title, claimant, claimUntil(*claimed, time.Now()))
-			return nil
-		},
-	}
-	queue.register(cmd)
-	cmd.Flags().StringVar(&claimant, "claimant", actorIdentity(), "Who holds the claim")
-	cmd.Flags().IntVar(&minutes, "minutes", defaultClaimMinutes, "How long the claim holds, 1 to 10080")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the claimed issue as JSON to stdout")
-	return cmd
-}
-
-func claimUntil(issue api.Issue, now time.Time) string {
-	if issue.ClaimExpiresTS == nil {
-		return "released"
-	}
-	return localClock(*issue.ClaimExpiresTS, now)
-}
-
-func newIssuesReleaseCommand() *cobra.Command {
-	var asJSON bool
-	cmd := &cobra.Command{
-		Use:     "release <issue>",
-		Short:   "Let go of a claim, returning the issue to the queue",
-		Long:    "Releases whoever holds it, so a claim left by a session that died is freed now\nrather than when it runs out.",
-		Example: "  slate issues release 412",
-		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := newAPIClient(cmd.Context())
-			if err != nil {
-				return handleAPIError(err)
-			}
-			issue, err := client.ReleaseIssue(cmd.Context(), args[0], issueZone())
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Released #%d %s (%s)\n", issue.Number, issue.Title, issue.Status)
-			return nil
-		},
-	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the released issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -818,24 +675,21 @@ func newIssuesReorderCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			issue, err := client.RankIssue(cmd.Context(), args[0], api.IssueRankMove{Before: before, After: after}, issueZone())
+			written, err := client.RankIssue(cmd.Context(), args[0], api.IssueRankMove{Before: before, After: after}, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
 			}
 			where := "before " + issueRefLabel(before)
 			if after != "" {
 				where = "after " + issueRefLabel(after)
 			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Moved #%d %s %s\n", issue.Number, issue.Title, where)
-			return nil
+			issue := written.Issue
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Moved #%d %s %s", issue.Number, issue.Title, where))
 		},
 	}
 	cmd.Flags().StringVar(&before, "before", "", "Issue to place it directly ahead of")
 	cmd.Flags().StringVar(&after, "after", "", "Issue to place it directly behind")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the moved issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -869,19 +723,17 @@ func newIssuesAddDependencyCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			issue, err := client.AddIssueDependency(cmd.Context(), args[0], dependsOn, issueZone())
+			written, err := client.AddIssueDependency(cmd.Context(), args[0], dependsOn, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "#%d %s now waits on %s\n", issue.Number, issue.Title, strings.Join(dependencyNumbers(issue.DependsOn), ", "))
-			return nil
+			issue := written.Issue
+			summary := fmt.Sprintf("#%d %s now waits on %s", issue.Number, issue.Title, strings.Join(dependencyNumbers(issue.DependsOn), ", "))
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
 		},
 	}
 	cmd.Flags().StringVar(&dependsOn, "depends-on", "", "Issue it waits on (required)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
@@ -971,20 +823,17 @@ func newIssuesAddCommentCommand() *cobra.Command {
 			if readFlagIntent(cmd.Flags(), "author") == flagClears {
 				signedBy = nil
 			}
-			comment, err := client.AddIssueComment(cmd.Context(), args[0], body, signedBy)
+			written, err := client.AddIssueComment(cmd.Context(), args[0], body, signedBy)
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), comment)
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Commented on %s as %s\n", args[0], orDash(strValue(comment.Author)))
-			return nil
+			summary := fmt.Sprintf("Commented on %s as %s", args[0], orDash(strValue(written.Comment.Author)))
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
 		},
 	}
 	cmd.Flags().StringVar(&body, "body", "", "The comment, as markdown, in place of the text after the issue")
 	cmd.Flags().StringVar(&author, "author", actorIdentity(), "Who wrote it (empty leaves it unsigned)")
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the comment as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	// A comment that opens with a bullet parses as a group of short flags.
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		var unknown *pflag.NotExistError

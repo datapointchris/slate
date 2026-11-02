@@ -6,7 +6,7 @@ a child closing. A stored flag would be wrong the moment any of them moved.
 
 An issue is ready when all of these hold:
 
-- it is `open`, or `in_progress` under a claim that has expired
+- it is `open`, and no live claim holds it; an expired claim holds nothing
 - its deferral day, if any, has arrived in the reader's calendar
 - every issue it depends on is closed
 - it has no open children, since a parent is finished by its children
@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.services.claim_views import live_claim_numbers
 
 # The urgency of "no priority": after every real level, which run 1 (urgent)
 # to 4 (low).
@@ -76,12 +77,12 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
     """
     columns = (
         models.Issue.id,
+        models.Issue.number,
         models.Issue.status,
         models.Issue.priority,
         models.Issue.initiative_id,
         models.Issue.parent_id,
         models.Issue.deferred_until_date,
-        models.Issue.claim_expires_ts,
         models.Issue.autofix,
     )
     rows = {row.id: row for row in session.execute(select(*columns)).all()}
@@ -158,14 +159,13 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
 
     shelved = {issue_id for issue_id in unclosed if is_shelved(issue_id)}
 
+    held = live_claim_numbers(session, now)
     ready = set()
     for issue_id in unclosed:
         row = rows[issue_id]
-        takeable = row.status == 'open' or (
-            row.status == 'in_progress' and row.claim_expires_ts is not None and row.claim_expires_ts <= now
-        )
         if (
-            takeable
+            row.status == 'open'
+            and row.number not in held
             and issue_id not in deferred
             and issue_id not in blocked
             and not open_child_count.get(issue_id)

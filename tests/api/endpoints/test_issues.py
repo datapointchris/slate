@@ -3,9 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import status
-from sqlalchemy import update
 
-from slate import models
 from slate import schemas
 from tests.conftest import TEST_PERSON
 from tests.session_database import insert_test_data_transactional
@@ -35,6 +33,11 @@ def ok(response, code=status.HTTP_200_OK):
     return response.json()
 
 
+def wrote(response, code=status.HTTP_200_OK):
+    """The issue a write answers with, beside its side effects and warnings."""
+    return ok(response, code)['issue']
+
+
 def refused(response, code):
     assert response.status_code == code, show_status_and_response(response)
     return response.json()['message']
@@ -49,26 +52,17 @@ def issue(client, title: str) -> dict:
 
 
 def create(client, **fields) -> dict:
-    return ok(client.post(ISSUES, json={'title': 'Created in a test', **fields}), status.HTTP_201_CREATED)
+    return wrote(client.post(ISSUES, json={'title': 'Created in a test', **fields}), status.HTTP_201_CREATED)
 
 
 def patch(client, ref, **fields):
     return client.patch(f'{ISSUES}/{ref}', json=fields)
 
 
-@pytest.fixture
-def crud(seeded):
-    client, _ = seeded
-    return client, ApiCrudTester(endpoint=ISSUES, new_obj=NEW_ISSUE, verify_attr='title', expected_length=6, list_params={'status': 'all'})
-
-
-def test_read_one(crud):
-    client, tester = crud
-    tester.test_read_one(client)
-
-
-def test_lifecycle(crud):
-    client, tester = crud
+def test_lifecycle(client):
+    tester = ApiCrudTester(
+        endpoint=ISSUES, new_obj=NEW_ISSUE, written='issue', verify_attr='title', expected_length=6, list_params={'status': 'all'}
+    )
     tester.test_lifecycle(client)
 
 
@@ -170,7 +164,7 @@ class TestList:
             ('Unattended', {'closed_by': 'claude-code-unattended/c3d4'}),
             ('Browser', {}),
         ):
-            ok(patch(client, create(client, title=title)['number'], status='completed', **closer))
+            wrote(patch(client, create(client, title=title)['number'], status='completed', **closer))
         assert titles(ok(client.get(ISSUES, params={'status': 'completed', 'closed_by': 'claude-code/'}))) == ['Attended']
 
 
@@ -197,21 +191,19 @@ class TestReadyQueue:
 
     def test_an_initiative_raises_its_issues_and_an_own_low_priority_does_not_sink_one(self, client):
         task = issue(client, 'Ready task without priority')
-        updated = ok(patch(client, task['number'], initiative='Ship the issue tracker'))
+        updated = wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
         assert updated['effective_priority'] == 2
         assert updated['initiative']['name'] == 'Ship the issue tracker'
 
         chore = issue(client, 'Ready chore with low priority')
-        updated = ok(patch(client, chore['number'], initiative='Ship the issue tracker'))
+        updated = wrote(patch(client, chore['number'], initiative='Ship the issue tracker'))
         assert (updated['priority'], updated['effective_priority']) == (4, 2)
 
     def test_a_someday_initiatives_issues_wait_until_it_is_reopened(self, client):
         task = issue(client, 'Ready task without priority')
-        ok(patch(client, task['number'], initiative='Ship the issue tracker'))
+        wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
         ok(client.patch(f'{ISSUES}/initiatives/Ship the issue tracker', json={'status': 'someday'}))
         assert task['title'] not in titles(ok(client.get(f'{ISSUES}/ready')))
-        detail = refused(client.post(f'{ISSUES}/{task["number"]}/claim', json={'claimant': 'agent'}), 409)
-        assert 'Ship the issue tracker' in detail
 
         ok(client.patch(f'{ISSUES}/initiatives/Ship the issue tracker', json={'status': 'active'}))
         assert task['title'] in titles(ok(client.get(f'{ISSUES}/ready')))
@@ -219,7 +211,7 @@ class TestReadyQueue:
     def test_active_work_depending_on_a_someday_issue_brings_it_into_the_queue(self, client):
         task = issue(client, 'Ready task without priority')
         bug = issue(client, 'Ready bug with high priority')
-        ok(patch(client, task['number'], initiative='Ship the issue tracker'))
+        wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
         ok(client.patch(f'{ISSUES}/initiatives/Ship the issue tracker', json={'status': 'someday'}))
         ok(client.post(f'{ISSUES}/{bug["number"]}/dependencies', json={'depends_on': task['number']}), status.HTTP_201_CREATED)
 
@@ -227,14 +219,14 @@ class TestReadyQueue:
         assert queue[0]['title'] == task['title']
         assert queue[0]['effective_priority'] == 2
 
-        ok(patch(client, bug['number'], status='completed'))
+        wrote(patch(client, bug['number'], status='completed'))
         assert task['title'] not in titles(ok(client.get(f'{ISSUES}/ready')))
 
     def test_autofix_false_on_an_issue_its_parent_or_its_initiative_keeps_it_from_the_autofixable_queue(self, client):
         bug = issue(client, 'Ready bug with high priority')
         task = issue(client, 'Ready task without priority')
-        ok(patch(client, bug['number'], autofix=False))
-        ok(patch(client, task['number'], initiative='Ship the issue tracker'))
+        wrote(patch(client, bug['number'], autofix=False))
+        wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
         ok(client.patch(f'{ISSUES}/initiatives/Ship the issue tracker', json={'autofix': False}))
         parent = create(client, title='Parent with autofix off', autofix=False)
         child = create(client, title='Child of that parent', parent=parent['number'])
@@ -254,108 +246,37 @@ class TestReadyQueue:
         """UTC+14 and UTC-11 are 25 hours apart, so their calendars never share a day."""
         task = issue(client, 'Ready task without priority')
         ahead = dt.datetime.now(ZoneInfo('Pacific/Kiritimati')).date().isoformat()
-        ok(patch(client, task['number'], deferred_until_date=ahead))
+        wrote(patch(client, task['number'], deferred_until_date=ahead))
         assert task['title'] in titles(ok(client.get(f'{ISSUES}/ready', params={'timezone': 'Pacific/Kiritimati'})))
         assert task['title'] not in titles(ok(client.get(f'{ISSUES}/ready', params={'timezone': 'Pacific/Pago_Pago'})))
 
 
-class TestClaim:
-    def test_claiming_the_queue_takes_each_issue_once_then_none(self, client):
-        taken = [ok(client.post(f'{ISSUES}/ready/claim', json={'claimant': f'agent-{n}'}))['issue'] for n in range(4)]
-        assert [row['title'] if row else None for row in taken] == [
-            'Ready bug with high priority',
-            'Ready chore with low priority',
-            'Ready task without priority',
-            None,
-        ]
-        assert taken[0]['status'] == 'in_progress'
-        assert taken[0]['claimed_by'] == 'agent-0'
-
-    def test_another_claimant_is_refused_by_name(self, client):
-        bug = issue(client, 'Ready bug with high priority')
-        ok(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent-a'}))
-        detail = refused(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent-b'}), 409)
-        assert 'agent-a' in detail
-
-    def test_the_same_claimant_extends_its_claim(self, client):
-        bug = issue(client, 'Ready bug with high priority')
-        first = ok(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent-a', 'minutes': 10}))
-        second = ok(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent-a', 'minutes': 600}))
-        assert dt.datetime.fromisoformat(second['claim_expires_ts']) > dt.datetime.fromisoformat(first['claim_expires_ts'])
-
-    def test_an_expired_claim_returns_the_issue_to_the_queue(self, seeded):
-        client, session = seeded
-        bug = issue(client, 'Ready bug with high priority')
-        ok(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent-gone'}))
-        assert bug['title'] not in titles(ok(client.get(f'{ISSUES}/ready')))
-
-        session.execute(
-            update(models.Issue)
-            .where(models.Issue.number == bug['number'])
-            .values(claim_expires_ts=dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1))
-        )
-        session.flush()
-        assert titles(ok(client.get(f'{ISSUES}/ready')))[0] == bug['title']
-        assert ok(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent-next'}))['claimed_by'] == 'agent-next'
-
-    @pytest.mark.parametrize(
-        ('title', 'reason'),
-        [('Filed by a hook into triage', 'triage'), ('Completed feature', 'completed')],
-    )
-    def test_triage_and_closed_issues_cannot_be_claimed(self, client, title, reason):
-        target = issue(client, title)
-        assert reason in refused(client.post(f'{ISSUES}/{target["number"]}/claim', json={'claimant': 'agent'}), 409)
-
-    def test_a_blocked_issue_names_its_blockers(self, client):
-        bug = issue(client, 'Ready bug with high priority')
-        blocked = create(client, depends_on=[bug['number']])
-        detail = refused(client.post(f'{ISSUES}/{blocked["number"]}/claim', json={'claimant': 'agent'}), 409)
-        assert f'#{bug["number"]}' in detail
-
-    def test_a_parent_with_an_open_child_names_the_child(self, client):
-        """`complete` refuses the parent while the child is open, so a claim on it could never finish."""
-        bug = issue(client, 'Ready bug with high priority')
-        child = create(client, parent=bug['number'])
-        detail = refused(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent'}), 409)
-        assert f'#{child["number"]}' in detail
-
-    def test_a_deferred_issue_is_refused_until_its_day(self, client):
-        task = issue(client, 'Ready task without priority')
-        day = (dt.datetime.now(dt.UTC) + dt.timedelta(days=30)).date().isoformat()
-        ok(patch(client, task['number'], deferred_until_date=day))
-        detail = refused(client.post(f'{ISSUES}/{task["number"]}/claim', json={'claimant': 'agent'}), 409)
-        assert day in detail
-
-    def test_release_puts_the_issue_back_in_the_queue(self, client):
-        bug = issue(client, 'Ready bug with high priority')
-        ok(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent'}))
-        released = ok(client.delete(f'{ISSUES}/{bug["number"]}/claim'))
-        assert (released['status'], released['claimed_by'], released['is_ready']) == ('open', None, True)
-
-
 class TestStatusTransitions:
-    def test_completing_stamps_the_close_and_drops_the_claim(self, client):
+    def test_completing_stamps_the_close_and_ends_the_claim_naming_it(self, client):
         bug = issue(client, 'Ready bug with high priority')
-        ok(client.post(f'{ISSUES}/{bug["number"]}/claim', json={'claimant': 'agent'}))
-        done = ok(patch(client, bug['number'], status='completed'))
+        ok(client.post('/claims', json={'record': bug['number'], 'holder': 'agent'}))
+        answer = ok(patch(client, bug['number'], status='completed', closed_by='claude-code/a1b2'))
+        done = answer['issue']
         assert done['closed_ts'] is not None
-        assert done['claimed_by'] is None
+        assert [(effect['code'], effect['record']) for effect in answer['side_effects']] == [('claim_ended', bug['number'])]
+        assert done['claim'] is None
+        assert [(claim['ending'], claim['ended_by']) for claim in done['claims']] == [('completed', 'claude-code/a1b2')]
 
     def test_a_close_records_the_actor_the_caller_names(self, client):
         bug = issue(client, 'Ready bug with high priority')
-        done = ok(patch(client, bug['number'], status='completed', closed_by='claude-code/a1b2'))
+        done = wrote(patch(client, bug['number'], status='completed', closed_by='claude-code/a1b2'))
         assert done['closed_by'] == 'claude-code/a1b2'
 
     def test_a_close_naming_no_actor_records_the_signed_in_person(self, client):
         """A close naming nobody records the subject of the token it arrives with."""
         bug = issue(client, 'Ready bug with high priority')
-        done = ok(patch(client, bug['number'], status='completed'))
+        done = wrote(patch(client, bug['number'], status='completed'))
         assert done['closed_by'] == TEST_PERSON.subject
 
     def test_a_move_between_closed_statuses_keeps_who_closed_it(self, client):
         task = issue(client, 'Ready task without priority')
-        ok(patch(client, task['number'], status='completed', closed_by='first-closer'))
-        canceled = ok(patch(client, task['number'], status='canceled', status_reason='Not needed'))
+        wrote(patch(client, task['number'], status='completed', closed_by='first-closer'))
+        canceled = wrote(patch(client, task['number'], status='canceled', status_reason='Not needed'))
         assert canceled['closed_by'] == 'first-closer'
 
     def test_closed_by_is_sent_only_with_a_close(self, client):
@@ -366,8 +287,8 @@ class TestStatusTransitions:
     def test_reopening_clears_the_close_the_reason_and_the_duplicate(self, client):
         bug = issue(client, 'Ready bug with high priority')
         task = issue(client, 'Ready task without priority')
-        ok(patch(client, task['number'], status='canceled', status_reason='Same bug', duplicate_of=bug['number']))
-        reopened = ok(patch(client, task['number'], status='open'))
+        wrote(patch(client, task['number'], status='canceled', status_reason='Same bug', duplicate_of=bug['number']))
+        reopened = wrote(patch(client, task['number'], status='open'))
         assert (reopened['closed_ts'], reopened['closed_by'], reopened['status_reason'], reopened['duplicate_of']) == (
             None,
             None,
@@ -379,7 +300,7 @@ class TestStatusTransitions:
         task = issue(client, 'Ready task without priority')
         refused(patch(client, task['number'], status='canceled'), 422)
         bug = issue(client, 'Ready bug with high priority')
-        canceled = ok(patch(client, task['number'], status='canceled', duplicate_of=bug['number']))
+        canceled = wrote(patch(client, task['number'], status='canceled', duplicate_of=bug['number']))
         assert canceled['duplicate_of']['number'] == bug['number']
 
     def test_a_reason_belongs_only_to_a_canceled_issue(self, client):
@@ -402,10 +323,12 @@ class TestStatusTransitions:
         middle = create(client, title='Middle', parent=top['number'])
         bottom = create(client, title='Bottom', parent=middle['number'])
         for finished in (bottom, middle, top):
-            ok(patch(client, finished['number'], status='completed'))
+            wrote(patch(client, finished['number'], status='completed'))
 
-        ok(patch(client, bottom['number'], status='open'))
+        answer = ok(patch(client, bottom['number'], status='open'))
 
+        effects = [(effect['code'], effect['record']) for effect in answer['side_effects']]
+        assert effects == [('ancestor_reopened', middle['number']), ('ancestor_reopened', top['number'])]
         for reopened in (middle, top):
             row = ok(client.get(f'{ISSUES}/{reopened["number"]}'))
             assert (row['status'], row['closed_ts'], row['closed_by']) == ('open', None, None)
@@ -414,10 +337,10 @@ class TestStatusTransitions:
         old = create(client, title='Old parent')
         new = create(client, title='New parent')
         child = create(client, title='Moving child', parent=old['number'])
-        ok(patch(client, child['number'], status='completed'))
-        ok(patch(client, old['number'], status='completed'))
+        wrote(patch(client, child['number'], status='completed'))
+        wrote(patch(client, old['number'], status='completed'))
 
-        ok(patch(client, child['number'], status='open', parent=new['number']))
+        wrote(patch(client, child['number'], status='open', parent=new['number']))
 
         assert ok(client.get(f'{ISSUES}/{old["number"]}'))['status'] == 'completed'
 
@@ -461,13 +384,13 @@ class TestEdges:
         bug = issue(client, 'Ready bug with high priority')
         task = issue(client, 'Ready task without priority')
         ok(client.post(f'{ISSUES}/{bug["number"]}/dependencies', json={'depends_on': task['number']}), status.HTTP_201_CREATED)
-        ok(patch(client, task['number'], status='completed'))
+        wrote(patch(client, task['number'], status='completed'))
         assert issue(client, bug['title'])['is_ready'] is True
 
     def test_relabeling_replaces_the_set(self, client):
         created = create(client, labels=['area-api'])
-        assert ok(patch(client, created['number'], labels=['area-cli', 'needs-design']))['labels'] == ['area-cli', 'needs-design']
-        assert ok(patch(client, created['number'], labels=[]))['labels'] == []
+        assert wrote(patch(client, created['number'], labels=['area-cli', 'needs-design']))['labels'] == ['area-cli', 'needs-design']
+        assert wrote(patch(client, created['number'], labels=[]))['labels'] == []
 
 
 class TestRank:
@@ -518,7 +441,7 @@ class TestComments:
     def test_a_comment_is_deleted_only_through_its_own_issue(self, client):
         bug = issue(client, 'Ready bug with high priority')
         task = issue(client, 'Ready task without priority')
-        comment = ok(client.post(f'{ISSUES}/{bug["number"]}/comments', json={'body': 'Note'}), status.HTTP_201_CREATED)
+        comment = ok(client.post(f'{ISSUES}/{bug["number"]}/comments', json={'body': 'Note'}), status.HTTP_201_CREATED)['comment']
         refused(client.delete(f'{ISSUES}/{task["number"]}/comments/{comment["id"]}'), 404)
         response = client.delete(f'{ISSUES}/{bug["number"]}/comments/{comment["id"]}')
         assert response.status_code == status.HTTP_204_NO_CONTENT, show_status_and_response(response)
@@ -530,6 +453,6 @@ class TestComments:
 
 def test_the_vocabulary_lists_values_in_lifecycle_order(client):
     vocabulary = ok(client.get(f'{ISSUES}/vocabulary'))
-    assert vocabulary['statuses'] == ['triage', 'open', 'in_progress', 'completed', 'canceled']
+    assert vocabulary['statuses'] == ['triage', 'open', 'completed', 'canceled']
     assert vocabulary['priorities'][0] == {'value': 0, 'name': 'none'}
     assert [label['slug'] for label in vocabulary['labels']] == ['area-api', 'area-cli', 'needs-design']

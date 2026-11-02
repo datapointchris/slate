@@ -2,32 +2,41 @@ import datetime as dt
 from typing import Annotated
 from typing import Any
 from typing import Literal
-from uuid import UUID
 
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
-from fastapi import HTTPException
 from fastapi import Query
-from fastapi import Response
 from fastapi import status
 from sqlalchemy import ColumnElement
 from sqlalchemy import case
-from sqlalchemy import distinct
-from sqlalchemy import func
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
+from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
-from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.models.issue import TERMINAL_INITIATIVE_STATUSES
+from slate.api.callers import caller_actor
+from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
+from slate.services.claims import end_with_record
+from slate.services.initiative_views import counted
+from slate.services.initiative_views import initiative_views
+from slate.services.initiative_views import issue_count_columns
+from slate.services.initiatives import ensure_active_name_available
+from slate.services.initiatives import new_initiative
+from slate.services.initiatives import refuse_number_shaped_name
+from slate.services.initiatives import require_reason_when_dropped
+from slate.services.initiatives import validate_status
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
-from slate.services.issue_refs import item_number
-from slate.services.issue_refs import resolve_initiative
+from slate.services.record_deletes import name_initiative_delete
+from slate.services.record_refs import resolve_initiative
+from slate.services.record_summaries import record_summaries
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
+from slate.services.write_effects import Effects
+from slate.services.write_effects import WriteEffects
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -47,85 +56,6 @@ def path_initiative(id: str, session: DbSession) -> models.Initiative:
 
 
 InitiativeFromPath = Annotated[models.Initiative, Depends(path_initiative)]
-
-
-def validate_status(initiative_status: str, session: Session) -> None:
-    if session.get(models.InitiativeStatus, initiative_status) is None:
-        known = session.scalars(select(models.InitiativeStatus.name).order_by(models.InitiativeStatus.name)).all()
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f'Unknown initiative status {initiative_status!r}. Known statuses: {", ".join(known)}, all',
-        )
-
-
-def require_reason_when_dropped(initiative_status: str, reason: str | None) -> None:
-    """A dropped initiative says why, so nobody re-proposes it without reading the reason."""
-    if initiative_status == 'dropped' and not reason:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail='Dropping an initiative requires a reason. Say why it is dropped.',
-        )
-
-
-def refuse_number_shaped_name(name: str) -> None:
-    """A name that reads as `N` or `#N` would resolve to the initiative holding that number."""
-    if (number := item_number(name)) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f'{name!r} reads as the number {number}, so it cannot name an initiative. Name it in words.',
-        )
-
-
-def ensure_active_name_available(session: Session, name: str, exclude_id: UUID | None = None) -> None:
-    """Only active initiatives hold a name, so a finished one never blocks starting a new one."""
-    query = select(models.Initiative).where(models.Initiative.name == name, models.Initiative.status == 'active')
-    if exclude_id is not None:
-        query = query.where(models.Initiative.id != exclude_id)
-    if (existing := session.scalars(query).first()) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'An active initiative named {name!r} already exists ({existing.id}).',
-        )
-
-
-def issue_count_columns():
-    """Every count in one pass over the join, partitioned by whether the issue is closed and how."""
-    unclosed = models.Issue.status.not_in(CLOSED_ISSUE_STATUSES)
-    return (
-        func.count(models.Issue.id).label('issue_count'),
-        func.count(models.Issue.id).filter(unclosed).label('open_count'),
-        func.count(models.Issue.id).filter(models.Issue.status == 'completed').label('completed_count'),
-        func.count(models.Issue.id).filter(models.Issue.status == 'canceled').label('canceled_count'),
-        func.array_agg(distinct(models.Issue.repo))
-        .filter(models.Issue.status != 'canceled', models.Issue.repo.is_not(None))
-        .label('repos'),
-    )
-
-
-def initiative_view(initiative: models.Initiative, issue_count, open_count, completed_count, canceled_count, repos) -> schemas.Initiative:
-    return schemas.Initiative(
-        id=initiative.id,
-        number=initiative.number,
-        name=initiative.name,
-        description=initiative.description,
-        status=initiative.status,
-        status_reason=initiative.status_reason,
-        priority=initiative.priority,
-        position=initiative.position,
-        autofix=initiative.autofix,
-        created_ts=initiative.created_ts,
-        closed_ts=initiative.closed_ts,
-        issue_count=issue_count,
-        open_count=open_count,
-        completed_count=completed_count,
-        canceled_count=canceled_count,
-        repos=sorted(repos) if repos else [],
-    )
-
-
-def counted(session: Session, initiative: models.Initiative) -> schemas.Initiative:
-    counts = select(*issue_count_columns()).where(models.Issue.initiative_id == initiative.id)
-    return initiative_view(initiative, *session.execute(counts).one())
 
 
 @router.get('', response_model=list[schemas.Initiative], status_code=status.HTTP_200_OK)
@@ -171,35 +101,16 @@ def read_many(
     )
     if initiative_status != ALL_STATUSES:
         query = query.where(models.Initiative.status == initiative_status)
-    return [initiative_view(*row) for row in session.execute(apply_row_limit(query, limit)).all()]
+    rows = session.execute(apply_row_limit(query, limit)).all()
+    return initiative_views(session, [(row[0], row[1:]) for row in rows])
 
 
-@router.post('', response_model=schemas.Initiative, status_code=status.HTTP_201_CREATED)
-def create(initiative: schemas.InitiativeCreate, session: DbSession):
-    refuse_number_shaped_name(initiative.name)
-    validate_status(initiative.status, session)
-    require_reason_when_dropped(initiative.status, initiative.status_reason)
-    if initiative.status == 'active':
-        ensure_active_name_available(session, initiative.name)
-
-    position = initiative.position
-    if position is None:
-        position = (session.scalar(select(func.max(models.Initiative.position))) or 0) + 1
-    db_obj = models.Initiative(
-        name=initiative.name,
-        description=initiative.description,
-        status=initiative.status,
-        status_reason=initiative.status_reason,
-        priority=initiative.priority,
-        position=position,
-        autofix=initiative.autofix,
-    )
-    if db_obj.status in TERMINAL_INITIATIVE_STATUSES:
-        db_obj.closed_ts = dt.datetime.now(dt.UTC)
-    session.add(db_obj)
+@router.post('', response_model=schemas.InitiativeWritten, status_code=status.HTTP_201_CREATED)
+def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Effects):
+    db_obj = new_initiative(session, initiative)
     session.commit()
     session.refresh(db_obj)
-    return counted(session, db_obj)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, db_obj))
 
 
 @router.get('/{id:path}', response_model=schemas.Initiative, status_code=status.HTTP_200_OK)
@@ -207,10 +118,14 @@ def read_one(initiative: InitiativeFromPath, session: DbSession):
     return counted(session, initiative)
 
 
-def apply_status_transition(initiative: models.Initiative, update_data: dict, session: Session) -> None:
+def apply_status_transition(
+    initiative: models.Initiative, update_data: dict, session: Session, effects: WriteEffects, *, signed_in: str
+) -> None:
     """Stamp `closed_ts` on the move into a terminal status, and clear it and the reason on any other move.
 
-    `someday` is open work set aside, so it clears them as `active` does.
+    The move into a terminal status also ends the initiative's claim as that
+    status, named in `effects`. `someday` is open work set aside, so it clears
+    them as `active` does.
     """
     new_status = update_data.get('status')
     reason = update_data.get('status_reason', initiative.status_reason)
@@ -223,11 +138,13 @@ def apply_status_transition(initiative: models.Initiative, update_data: dict, se
         update_data['status_reason'] = None
         update_data['closed_ts'] = None
     elif new_status != initiative.status:
-        update_data['closed_ts'] = dt.datetime.now(dt.UTC)
+        now = dt.datetime.now(dt.UTC)
+        update_data['closed_ts'] = now
+        end_with_record(session, initiative.number, new_status, now, signed_in, effects)
 
 
-@router.patch('/{id:path}', response_model=schemas.Initiative, status_code=status.HTTP_200_OK)
-def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, session: DbSession):
+@router.patch('/{id:path}', response_model=schemas.InitiativeWritten, status_code=status.HTTP_200_OK)
+def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, session: DbSession, caller: CurrentCaller, effects: Effects):
     update_data = update.model_dump(exclude_unset=True)
     if 'name' in update_data:
         refuse_number_shaped_name(update_data['name'])
@@ -235,17 +152,23 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
     resulting_name = update_data.get('name', initiative.name)
     if resulting_status == 'active' and (resulting_name != initiative.name or initiative.status != 'active'):
         ensure_active_name_available(session, resulting_name, exclude_id=initiative.id)
-    apply_status_transition(initiative, update_data, session)
+    apply_status_transition(initiative, update_data, session, effects, signed_in=caller_actor(caller))
     for attr, value in update_data.items():
         setattr(initiative, attr, value)
     session.commit()
     session.refresh(initiative)
-    return counted(session, initiative)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
 
 
-@router.delete('/{id:path}', status_code=status.HTTP_204_NO_CONTENT)
-def delete(initiative: InitiativeFromPath, session: DbSession):
-    """Delete the initiative. Its issues stay, and stop inheriting its priority."""
-    session.delete(initiative)
+@router.delete('/{id:path}', response_model=schemas.RecordDeleted, status_code=status.HTTP_200_OK)
+def delete(initiative: InitiativeFromPath, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Delete the initiative's record, and the initiative and its claims with it. Its issues stay, and stop inheriting its priority.
+
+    The answer names each claim it took and each issue it left in no initiative.
+    """
+    deleted = record_summaries(session, [initiative.number])[initiative.number]
+    name_initiative_delete(session, initiative, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
+    session.execute(sql_delete(models.Record).where(models.Record.number == initiative.number))
     session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    logger.info('initiative_deleted', number=deleted.number)
+    return effects.answer(schemas.RecordDeleted, deleted=deleted)

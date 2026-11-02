@@ -1,7 +1,9 @@
 {
-  "slate.issues.claim": [
-    "DELETE /api/v1/issues/{id}/claim",
-    "POST /api/v1/issues/{id}/claim"
+  "slate.claims.hold": [
+    "POST /api/v1/claims",
+    "POST /api/v1/claims/next",
+    "POST /api/v1/claims/{record}/extend",
+    "POST /api/v1/claims/{record}/release"
   ],
   "slate.issues.close": [
     "PATCH /api/v1/issues/{id}",
@@ -15,11 +17,15 @@
     "POST /api/v1/issues/initiatives",
     "POST /api/v1/issues/{id}/rank"
   ],
-  "slate.issues.read": [
+  "slate.records.read": [
+    "GET /api/v1/claims",
+    "GET /api/v1/ideas",
+    "GET /api/v1/ideas/{id}",
     "GET /api/v1/issues",
     "GET /api/v1/issues/initiatives",
     "GET /api/v1/issues/initiatives/{id:path}",
     "GET /api/v1/issues/ready",
-    "GET /api/v1/issues/{id}"
+    "GET /api/v1/issues/{id}",
+    "GET /api/v1/records/{number}"
   ]
 }

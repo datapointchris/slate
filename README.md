@@ -1,19 +1,24 @@
 # slate
 
-A work tracker built for coding agents. Issues carry their dependencies,
-labels, comments and the initiative they ship toward. `slate issues next` is
-the ready queue, ordered by priority. A claim is a compare-and-set that expires,
-so two agents never hold the same issue and a dead one never holds it for long.
+A work tracker built for coding agents. Ideas hold the work nobody has taken
+on, with their priority and evidence, until promotion makes each an
+initiative. Issues carry their dependencies, labels, comments and the
+initiative they ship toward. `slate issues next` is
+the ready queue, ordered by priority. A claim is a lease on a record that
+expires, so two agents never hold the same issue and a dead one never holds it
+for long. Every claim is kept after it ends, as the record's history.
 
 Two parts share this repository:
 
 - **The API**, in `src/slate/`: FastAPI over PostgreSQL, with Alembic
   migrations. It trusts bearer tokens from one OpenID Connect provider.
 - **The CLI**, in `cli/`: a Go client over the API, `slate <noun> <verb>`, with
-  `--json` on every read.
+  `--json` on every read and write. A write prints everything it did beyond
+  the request, and each warning it went through despite.
 
 `docs/issues.md` explains the model: what makes an issue ready, how the queue
-is ordered, how claims work and why some things are not built.
+is ordered and why some things are not built. `docs/claims.md` explains
+claims, `docs/ideas.md` ideas, and `docs/index.md` lists every page.
 
 ## Running the API
 
@@ -123,13 +128,13 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.issues.read` | listing, searching and showing issues and initiatives, and the ready queue |
-| `slate.issues.claim` | claiming an issue under the service's own client id, and releasing that claim |
+| `slate.records.read` | reading any record by number, listing, searching and showing issues, initiatives and ideas, the ready queue, and who holds which claim |
+| `slate.claims.hold` | holding a claim on a record or on the head of the ready queue, and extending and releasing one, under the service's own client id |
 | `slate.issues.close` | commenting on an issue, and closing an open one |
 | `slate.issues.plan` | filing into triage, setting an issue's priority, initiative and rank, and creating and editing initiatives |
 
-No scope deletes anything. `src/slate/api/client_scopes.py` holds the exact
-routes.
+No scope deletes anything, and none files or changes an idea.
+`src/slate/api/client_scopes.py` holds the exact routes.
 
 `--repo` takes a repository name. Where a registry of names exists, the CLI
 refuses one it does not hold, so a typo cannot file work under a repo nobody

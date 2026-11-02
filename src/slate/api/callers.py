@@ -46,5 +46,10 @@ def get_current_caller(
     return identity
 
 
+def caller_actor(caller: OIDCIdentity | ScopedClient) -> str:
+    """The name a caller's writes are signed with, as `bind_actor` records it."""
+    return caller.client_id if isinstance(caller, ScopedClient) else caller.subject
+
+
 DbSession = Annotated[Session, Depends(get_sqlalchemy_session)]
 CurrentCaller = Annotated[OIDCIdentity | ScopedClient, Depends(get_current_caller)]

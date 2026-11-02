@@ -22,6 +22,8 @@ from sqlalchemy.orm import selectinload
 from slate import models
 from slate import schemas
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.services.claim_views import claim_history
+from slate.services.claim_views import unended_claim_views
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_readiness import urgency
@@ -64,7 +66,9 @@ def comment_counts(session: Session, issue_ids: list[UUID]) -> dict[UUID, int]:
     return dict(rows.all())
 
 
-def issue_view(issue: models.Issue, readiness: IssueReadiness, comments: dict[UUID, int]) -> schemas.Issue:
+def issue_view(
+    issue: models.Issue, readiness: IssueReadiness, comments: dict[UUID, int], claims: dict[int, schemas.Claim]
+) -> schemas.Issue:
     initiative = issue.initiative
     return schemas.Issue(
         id=issue.id,
@@ -80,8 +84,7 @@ def issue_view(issue: models.Issue, readiness: IssueReadiness, comments: dict[UU
         effective_priority=readiness.effective_priority.get(issue.id, issue.priority),
         rank=issue.rank,
         deferred_until_date=issue.deferred_until_date,
-        claimed_by=issue.claimed_by,
-        claim_expires_ts=issue.claim_expires_ts,
+        claim=claims.get(issue.number),
         autofix=issue.autofix,
         initiative=None
         if initiative is None
@@ -129,11 +132,12 @@ def list_order(readiness: IssueReadiness):
 
 
 def issue_views(session: Session, issues: list[models.Issue], zone: str, readiness: IssueReadiness | None = None) -> list[schemas.Issue]:
+    today, now = calendar_now(zone)
     if readiness is None:
-        today, now = calendar_now(zone)
         readiness = measure_readiness(session, today, now)
     counts = comment_counts(session, [issue.id for issue in issues])
-    return [issue_view(issue, readiness, counts) for issue in issues]
+    claims = unended_claim_views(session, [issue.number for issue in issues], now)
+    return [issue_view(issue, readiness, counts, claims) for issue in issues]
 
 
 def label_views(session: Session, slug: str | None = None) -> list[schemas.IssueLabel]:
@@ -163,4 +167,15 @@ def issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.Is
         **view.model_dump(),
         children=[schemas.IssueSummary(id=c.id, number=c.number, title=c.title, status=c.status) for c in children],
         comments=[schemas.IssueComment.model_validate(comment) for comment in issue.comments],
+        claims=claim_history(session, issue.number, dt.datetime.now(dt.UTC)),
     )
+
+
+def load_issue(session: Session, issue_id: UUID) -> models.Issue:
+    return session.scalars(select(models.Issue).options(*ISSUE_LOAD_OPTIONS).where(models.Issue.id == issue_id)).one()
+
+
+def fresh_issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.IssueDetail:
+    """The issue's detail read again from the database, so a write answers what it committed."""
+    session.expire_all()
+    return issue_detail(session, load_issue(session, issue.id), zone)
