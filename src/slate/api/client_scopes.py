@@ -29,6 +29,7 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/ideas/{{id}}'),
             ('GET', f'{API_PREFIX}/initiatives'),
             ('GET', f'{API_PREFIX}/initiatives/{{id:path}}'),
+            ('GET', f'{API_PREFIX}/initiatives/progress'),
             ('GET', f'{API_PREFIX}/issues'),
             ('GET', f'{API_PREFIX}/issues/{{id}}'),
             ('GET', f'{API_PREFIX}/queue'),

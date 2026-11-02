@@ -1,16 +1,20 @@
 """Create initiatives, and the checks every create and edit of one makes."""
 
 import datetime as dt
+from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
 from fastapi import status
+from sqlalchemy import ColumnElement
+from sqlalchemy import case
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
+from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.record_refs import record_number
 
 
@@ -41,6 +45,25 @@ def refuse_number_shaped_name(name: str) -> None:
         )
 
 
+def work_order() -> tuple[ColumnElement[Any], ...]:
+    """The order to work initiatives in: the most urgent first, no priority after every level, then by rank."""
+    urgency = case((models.Initiative.priority == 0, NO_PRIORITY_URGENCY), else_=models.Initiative.priority)
+    return urgency.asc(), models.Initiative.rank.asc()
+
+
+# Each is a literal path under /initiatives, which routing reaches before an initiative named for it.
+ROUTED_NAMES = frozenset({'progress'})
+
+
+def refuse_routed_name(name: str) -> None:
+    """A name a route under /initiatives takes could never be read back by name."""
+    if name in ROUTED_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f'{name!r} is the path GET /initiatives/{name} reads, so it cannot name an initiative. Name it in other words.',
+        )
+
+
 def ensure_active_name_available(session: Session, name: str, exclude_id: UUID | None = None) -> None:
     """Only active initiatives hold a name, so a finished one never blocks starting a new one."""
     query = select(models.Initiative).where(models.Initiative.name == name, models.Initiative.status == 'active')
@@ -59,6 +82,7 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
     Promoted from `idea`, it takes the idea's place in the queue. Otherwise its record goes last, as every new one does.
     """
     refuse_number_shaped_name(initiative.name)
+    refuse_routed_name(initiative.name)
     validate_status(initiative.status, session)
     require_reason_when_dropped(initiative.status, initiative.status_reason)
     if initiative.status == 'active':

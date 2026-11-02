@@ -20,8 +20,10 @@ from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
+from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.claims import end_with_record
+from slate.services.initiative_progress import initiatives_progress
 from slate.services.initiative_views import counted
 from slate.services.initiative_views import initiative_detail
 from slate.services.initiative_views import initiative_views
@@ -29,9 +31,10 @@ from slate.services.initiative_views import issue_count_columns
 from slate.services.initiatives import ensure_active_name_available
 from slate.services.initiatives import new_initiative
 from slate.services.initiatives import refuse_number_shaped_name
+from slate.services.initiatives import refuse_routed_name
 from slate.services.initiatives import require_reason_when_dropped
 from slate.services.initiatives import validate_status
-from slate.services.issue_readiness import NO_PRIORITY_URGENCY
+from slate.services.initiatives import work_order
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_initiative_delete
@@ -55,6 +58,8 @@ def path_initiative(id: str, session: DbSession) -> models.Initiative:
 
     The segment is a path, not a single segment, because a name may hold a
     slash: the client escapes it, and the path is decoded before routing.
+    A name `ROUTED_NAMES` holds is refused, because a route reaches its path
+    first.
     """
     return resolve_initiative(session, id)
 
@@ -88,12 +93,11 @@ def read_many(
         (models.Initiative.status == 'completed', 2),
         else_=3,
     )
-    urgency = case((models.Initiative.priority == 0, NO_PRIORITY_URGENCY), else_=models.Initiative.priority)
     counts = issue_count_columns()
     open_count = counts[1]
     orders: dict[str, tuple[ColumnElement[Any], ...]] = {
-        'priority': (urgency.asc(), models.Initiative.rank.asc()),
-        'open': (open_count.desc(), urgency.asc(), models.Initiative.rank.asc()),
+        'priority': work_order(),
+        'open': (open_count.desc(), *work_order()),
         'newest': (models.Initiative.created_ts.desc(),),
     }
     within_class = orders[sort]
@@ -126,6 +130,33 @@ def rank(initiative: InitiativeFromPath, move: schemas.RecordRankMove, session: 
     session.commit()
     session.refresh(initiative)
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
+
+
+# Ahead of `read_one`, whose `{id:path}` would otherwise read `progress` as a name. `refuse_routed_name` keeps it from being one.
+@router.get('/progress', response_model=list[schemas.InitiativeProgress], status_code=status.HTTP_200_OK)
+def read_progress(
+    session: DbSession,
+    zone: RequestZone,
+    window: TimeWindowQuery,
+    initiative: Annotated[
+        list[str] | None,
+        Query(description='An initiative by any reference GET /initiatives/{id} accepts, repeated for several. Omitted, every active one.'),
+    ] = None,
+    limit: RowLimit = None,
+):
+    """Each initiative's progress: its issues counted in one state, those under way and blocked, the queue's head, its closes and totals.
+
+    The initiatives named come in the order named, and with none named every active one comes in
+    the order to work them. The window narrows only the closes, and a bound it leaves out leaves
+    that end open. The totals cover each initiative's whole life.
+    """
+    if initiative:
+        initiatives = [resolve_initiative(session, ref) for ref in initiative]
+        initiatives = initiatives if limit is None else initiatives[:limit]
+    else:
+        active = select(models.Initiative).where(models.Initiative.status == 'active').order_by(*work_order())
+        initiatives = list(session.scalars(apply_row_limit(active, limit)).all())
+    return initiatives_progress(session, initiatives, zone, window)
 
 
 @router.get('/{id:path}', response_model=schemas.InitiativeDetail, status_code=status.HTTP_200_OK)
@@ -163,6 +194,7 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
     update_data = update.model_dump(exclude_unset=True)
     if 'name' in update_data:
         refuse_number_shaped_name(update_data['name'])
+        refuse_routed_name(update_data['name'])
     resulting_status = update_data.get('status', initiative.status)
     resulting_name = update_data.get('name', initiative.name)
     if resulting_status == 'active' and (resulting_name != initiative.name or initiative.status != 'active'):

@@ -40,6 +40,7 @@ func newInitiativesCommand() *cobra.Command {
 	cmd.AddCommand(inGroup(groupReading,
 		newInitiativesListCommand(),
 		newInitiativesShowCommand(),
+		newInitiativesProgressCommand(),
 	)...)
 	cmd.AddCommand(inGroup(groupChanging,
 		newInitiativesCreateCommand(),
@@ -440,19 +441,19 @@ func newInitiativesDeleteCommand() *cobra.Command {
 	return cmd
 }
 
-// progressCells is how many cells the bar of done over open-and-done spans.
+// progressCells is how many cells the list's bar of done over open-and-done spans.
 const progressCells = 10
 
-// progressFilled is how many of the bar's cells are filled. Any finished issue
+// progressFilled is how many of a bar's cells are filled. Any finished issue
 // fills one, and any open issue keeps one empty, so the bar never reads as
 // untouched or finished when it is not.
-func progressFilled(done, open int) int {
+func progressFilled(done, open, cells int) int {
 	total := done + open
 	if done == 0 || total == 0 {
 		return 0
 	}
-	filled := (done*progressCells + total/2) / total
-	ceiling := progressCells
+	filled := (done*cells + total/2) / total
+	ceiling := cells
 	if open > 0 {
 		ceiling--
 	}
@@ -506,7 +507,7 @@ func newInitiativeRows(out io.Writer, initiatives []api.Initiative, sort string)
 func (r initiativeRows) row(initiative api.Initiative) string {
 	p := r.palette
 	open, done := initiative.OpenCount, initiative.CompletedCount
-	filled := progressFilled(done, open)
+	filled := progressFilled(done, open, progressCells)
 
 	cells := []string{"", paint(p.Cyan, strconv.Itoa(initiative.Number), r.number)}
 	used := 2 + r.number

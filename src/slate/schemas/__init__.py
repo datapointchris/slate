@@ -41,6 +41,8 @@ from slate.schemas.initiative import InitiativeDetail
 from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.initiative import InitiativeUpdate
 from slate.schemas.initiative import InitiativeWritten
+from slate.schemas.initiative_progress import InitiativeProgress
+from slate.schemas.initiative_progress import IssueStateCounts
 from slate.schemas.issue import Issue
 from slate.schemas.issue import IssueCreate
 from slate.schemas.issue import IssueDependencyCreate
@@ -115,6 +117,7 @@ __all__ = [
     'Initiative',
     'InitiativeCreate',
     'InitiativeDetail',
+    'InitiativeProgress',
     'InitiativeSummary',
     'InitiativeUpdate',
     'InitiativeWritten',
@@ -127,6 +130,7 @@ __all__ = [
     'IssueLabelDeleted',
     'IssueLabelUpdate',
     'IssueLabelWritten',
+    'IssueStateCounts',
     'IssueSummary',
     'IssueUpdate',
     'IssueWritten',

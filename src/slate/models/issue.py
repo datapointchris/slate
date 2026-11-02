@@ -9,8 +9,6 @@ from sqlalchemy import Boolean
 from sqlalchemy import CheckConstraint
 from sqlalchemy import Date
 from sqlalchemy import DateTime
-from sqlalchemy import Double
-from sqlalchemy import FetchedValue
 from sqlalchemy import ForeignKey
 from sqlalchemy import Identity
 from sqlalchemy import Index
@@ -79,9 +77,6 @@ class Issue(NumberedRecord, Base):
     # Files and directories in `repo` the work changes, normalized by `services/issue_paths.py`.
     # A hold warns about another holder's issue naming an overlapping one.
     paths: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default=text("'{}'"))
-    # The order the API release before `records.rank` reads, kept while the two can overlap in a
-    # rollout. Nothing here reads it. The `issues_rank_from_record` trigger fills it on insert.
-    previous_release_rank: Mapped[float] = mapped_column('rank', Double, nullable=False, server_default=FetchedValue())
     type: Mapped[str] = mapped_column(Text, ForeignKey('issue_types.name'), nullable=False, server_default='task')
     status: Mapped[str] = mapped_column(Text, ForeignKey('issue_statuses.name'), nullable=False, server_default='open')
     # Why the issue was canceled. Completed work says what it shipped in a comment.
@@ -141,7 +136,6 @@ class Issue(NumberedRecord, Base):
         CheckConstraint('discovered_from_id IS NULL OR discovered_from_id <> id', name='issue_not_discovered_from_itself'),
         CheckConstraint('duplicate_of_id IS NULL OR duplicate_of_id <> id', name='issue_not_duplicate_of_itself'),
         Index('idx_issues_status', 'status'),
-        Index('idx_issues_rank', 'rank'),
     )
 
     @property

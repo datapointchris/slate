@@ -57,6 +57,7 @@ SCOPED_URLS = {
     f'{API_PREFIX}/issues/{{id}}': '/issues/{issue}',
     f'{API_PREFIX}/initiatives': '/initiatives',
     f'{API_PREFIX}/initiatives/{{id:path}}': '/initiatives/{initiative}',
+    f'{API_PREFIX}/initiatives/progress': '/initiatives/progress?initiative={initiative}',
     f'{API_PREFIX}/sessions/{{id}}': f'/sessions/{RUN_POD_SESSION}',
     f'{API_PREFIX}/totals': '/totals?record={issue}',
     f'{API_PREFIX}/worklogs': '/worklogs?state=all',
