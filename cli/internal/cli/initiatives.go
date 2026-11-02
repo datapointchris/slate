@@ -118,10 +118,13 @@ func newInitiativesListCommand() *cobra.Command {
 }
 
 func newInitiativesShowCommand() *cobra.Command {
-	var asJSON bool
+	var (
+		asJSON  bool
+		history int
+	)
 	cmd := &cobra.Command{
 		Use:         "show <initiative>",
-		Short:       "Show an initiative, its claims, and its unclosed issues in queue order",
+		Short:       "Show an initiative, its claims, its unclosed issues in queue order, and its history",
 		Example:     "  slate initiatives show 1501\n  slate initiatives show \"Ship the tracker\"",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -134,10 +137,11 @@ func newInitiativesShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			shown, err := readInitiativeIssues(cmd, client, initiative)
+			shown, err := readInitiativeShown(cmd, client, initiative, history)
 			if err != nil {
 				return err
 			}
+			defer noteOlderHistory(cmd, shown.History)
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), shown)
 			}
@@ -145,26 +149,33 @@ func newInitiativesShowCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative and its issues as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative, its issues and its history as JSON to stdout")
+	addHistoryFlag(cmd, &history)
 	return cmd
 }
 
-// initiativeShown is an initiative beside its unclosed issues, as every show of
-// one prints it.
+// initiativeShown is an initiative beside its unclosed issues and its latest
+// changes, as every show of one prints it.
 type initiativeShown struct {
 	api.InitiativeDetail
-	Issues []api.Issue `json:"issues"`
+	Issues  []api.Issue   `json:"issues"`
+	History recordHistory `json:"history"`
 }
 
-// readInitiativeIssues reads the unclosed issues an initiative's show lists.
-func readInitiativeIssues(cmd *cobra.Command, client *api.Client, initiative api.InitiativeDetail) (initiativeShown, error) {
+// readInitiativeShown reads the unclosed issues and the latest changes an
+// initiative's show lists.
+func readInitiativeShown(cmd *cobra.Command, client *api.Client, initiative api.InitiativeDetail, history int) (initiativeShown, error) {
 	// The filter is the initiative's id from the read before, never the
 	// caller's argument, so a refusal here is not theirs to fix.
 	issues, err := client.ListIssues(cmd.Context(), api.IssueFilter{Initiative: initiative.ID}, api.Window{}, issueZone(), nil)
 	if err != nil {
 		return initiativeShown{}, handleAPIError(err)
 	}
-	return initiativeShown{InitiativeDetail: initiative, Issues: issues}, nil
+	changes, err := readHistory(cmd, client, initiative.Number, history)
+	if err != nil {
+		return initiativeShown{}, err
+	}
+	return initiativeShown{InitiativeDetail: initiative, Issues: issues, History: changes}, nil
 }
 
 func printInitiativeShown(cmd *cobra.Command, shown initiativeShown) {
@@ -174,10 +185,11 @@ func printInitiativeShown(cmd *cobra.Command, shown initiativeShown) {
 	_, _ = fmt.Fprintf(out, "\nUnclosed issues (%d):\n", len(shown.Issues))
 	if len(shown.Issues) == 0 {
 		_, _ = fmt.Fprintln(out, "  (none)")
-		return
+	} else {
+		printIssuesTable(out, shown.Issues, now)
+		noteInheritedPriority(cmd, shown.Issues)
 	}
-	printIssuesTable(out, shown.Issues, now)
-	noteInheritedPriority(cmd, shown.Issues)
+	printHistory(out, shown.History, ownRows("initiatives", shown.ID, shown.Number), now)
 }
 
 func newInitiativesCreateCommand() *cobra.Command {

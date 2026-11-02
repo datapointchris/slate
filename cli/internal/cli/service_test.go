@@ -494,6 +494,8 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 	const fixtureSession = "0f6e2a4c-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
 	agentSession := `{"id":"` + fixtureSession + `","first_seen_ts":"2026-11-02T10:00:00Z","message_count":5,"tokens":{},"tokens_outside_worklogs":null,"spans":[]}`
 	reportedSession := `{"session":` + agentSession + `,"side_effects":[],"warnings":[]}`
+	// A record's show reads its history second.
+	history := map[string]string{"/api/v1/records/412/history": `[]`}
 	calls := []struct {
 		args []string
 		body string
@@ -504,9 +506,9 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"issues", "list", "--json"}, `[]`, nil},
 		{[]string{"issues", "list", "--blocked", "--json"}, `[]`, nil},
 		{[]string{"next", "--step", "build", "--json"}, `{"queue":[],"claimed":[]}`, nil},
-		{[]string{"show", "412", "--json"}, `{"kind":"idea","number":412,"record":{}}`, nil},
-		{[]string{"issues", "show", "412", "--json"}, `{}`, nil},
-		{[]string{"issues", "show", "019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b", "--json"}, `{}`, nil},
+		{[]string{"show", "412", "--json"}, `{"kind":"idea","number":412,"record":{"number":412}}`, history},
+		{[]string{"issues", "show", "412", "--json"}, `{"number":412}`, history},
+		{[]string{"issues", "show", "019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b", "--json"}, `{"number":412}`, history},
 		{[]string{"dependencies", "tree", "--json"}, `[]`, nil},
 		{[]string{"initiatives", "list", "--json"}, `[]`, nil},
 		{
@@ -516,7 +518,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		},
 		{[]string{"initiatives", "progress", "Practical help guides", "--json"}, `[]`, nil},
 		{[]string{"ideas", "list", "--json"}, `[]`, nil},
-		{[]string{"ideas", "show", "412", "--json"}, `{}`, nil},
+		{[]string{"ideas", "show", "412", "--json"}, `{"number":412}`, history},
 		{[]string{"documents", "list", "412", "--json"}, `[]`, nil},
 		{[]string{"documents", "show", "412", "plan", "--json"}, `{}`, nil},
 		{[]string{"comments", "list", "412", "--json"}, `[]`, nil},

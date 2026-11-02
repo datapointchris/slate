@@ -8,7 +8,9 @@ versioned, and comments on the record or on one line of a document.
 `slate next` lists every kind of open work in the order to take it, each with
 its step, and the work someone holds apart. A claim is a lease on a record that
 expires, so two agents never hold the same issue and a dead one never holds it
-for long. Every claim is kept after it ends, as the record's history.
+for long. Every claim is kept after it ends, as the record's history. Every
+write is audited, so `slate show` prints who changed what on a record, and
+when.
 
 Two parts share this repository:
 

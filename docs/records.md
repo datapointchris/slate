@@ -55,6 +55,46 @@ worklog is not a record, so its `--json` is `{kind: "worklog", name, record}`,
 named by the name it is read back with, and `slate search --kind` does not
 take `worklog`.
 
+## A record's history is every write to it and to the rows hanging off it
+
+`GET /records/{number}/history` answers the record's rows of `audit_trail`,
+newest first. Each says when it was written, by which actor, to which table
+and key, and the columns it changed with their old and new values. `limit`
+keeps the latest. `slate show` and each kind's own show print the latest 20
+after the record, and `--history` sets how many. Their `--json` carries them as
+`history`.
+
+The read covers the record's own row and its row in `records`, and every row
+hanging off it:
+
+| Kind | Rows |
+| --- | --- |
+| any | claims and their waits, comments, documents and their versions, worklogs and their links |
+| issue | dependencies from either end, label assignments, comments in `issue_comments` |
+| idea | evidence |
+
+A worklog's spans are left out. Each is a session joining or leaving the
+worklog, and every hold and resume writes several. Another issue moving into
+an initiative is that issue's history, not the initiative's.
+
+The trigger stores only the columns an update changed, so the update ending a
+claim names no record. An insert or a delete holds the whole row, so it names
+the row's parent. The read finds each row hanging off the record by the parent
+its insert or delete names, then every write to that row by its key. A GIN
+index over the `changes` of every insert and delete serves each parent column
+through one containment test, `changes @> {"record_number": {"new": 412}}`. So
+a table added later needs no index of its own.
+
+History imported with another tracker's rows keeps the table names, keys and
+actors it was written with. An issue's own rows match on its UUID, which the
+import keeps. Comments on that schema lived in `issue_comments`, keyed by their
+own id there, so the read finds them by the issue each one names. A tracker
+whose audit trail started after its rows did holds deletes with no insert
+before them. The read matches a delete's old parent for that reason.
+
+- *Rejected:* history inside each kind's read. An issue's writes answer that
+  read, so every write would read its whole history back.
+
 ## A search reads every kind and every status
 
 `GET /records?search=<words>` lists each record whose title or description

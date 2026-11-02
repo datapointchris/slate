@@ -110,3 +110,39 @@ func (c *Client) ListRecords(ctx context.Context, filter RecordFilter, limit *in
 	}
 	return records, nil
 }
+
+// RecordChange is one write to a record or to a row hanging off it, as the
+// audit trail stored it. TableName and RecordID name the row written by its
+// table's own key. A row imported from another tracker keeps the table name,
+// key and actor it was written with.
+type RecordChange struct {
+	ID        int                     `json:"id"`
+	ChangedTS time.Time               `json:"changed_ts"`
+	TableName string                  `json:"table_name"`
+	RecordID  string                  `json:"record_id"`
+	Operation string                  `json:"operation"`
+	Changes   map[string]ColumnChange `json:"changes"`
+	Actor     *string                 `json:"actor"`
+	RequestID *string                 `json:"request_id"`
+	JobRunID  *string                 `json:"job_run_id"`
+}
+
+// ColumnChange is one column's value before and after a write, each as the
+// JSON it was stored as. An insert has no Old and a delete no New, which reads
+// apart from a side holding null.
+type ColumnChange struct {
+	Old json.RawMessage `json:"old,omitempty"`
+	New json.RawMessage `json:"new,omitempty"`
+}
+
+// GetRecordHistory returns every write to a record and to each row hanging off
+// it, newest first, so a limit keeps the latest.
+func (c *Client) GetRecordHistory(ctx context.Context, number int, limit *int) ([]RecordChange, error) {
+	query := url.Values{}
+	applyLimit(query, limit)
+	var changes []RecordChange
+	if err := c.get(ctx, withQuery(fmt.Sprintf("/records/%d/history", number), query), &changes); err != nil {
+		return nil, err
+	}
+	return changes, nil
+}

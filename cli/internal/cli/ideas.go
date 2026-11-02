@@ -95,10 +95,13 @@ func newIdeasListCommand() *cobra.Command {
 }
 
 func newIdeasShowCommand() *cobra.Command {
-	var asJSON bool
+	var (
+		asJSON  bool
+		history int
+	)
 	cmd := &cobra.Command{
 		Use:         "show <idea>",
-		Short:       "Show an idea with its evidence, its claims, and the initiative it became",
+		Short:       "Show an idea with its evidence, its claims, the initiative it became, and its history",
 		Example:     "  slate ideas show 1860\n  slate ideas show 1860 --json",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -111,15 +114,41 @@ func newIdeasShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), idea)
+			shown, err := readIdeaShown(cmd, client, idea, history)
+			if err != nil {
+				return err
 			}
-			printIdeaDetail(cmd.OutOrStdout(), idea, time.Now())
+			defer noteOlderHistory(cmd, shown.History)
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), shown)
+			}
+			printIdeaShown(cmd.OutOrStdout(), shown, time.Now())
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the idea as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the idea and its history as JSON to stdout")
+	addHistoryFlag(cmd, &history)
 	return cmd
+}
+
+// ideaShown is an idea beside its latest changes, as every show of one prints
+// it.
+type ideaShown struct {
+	api.IdeaDetail
+	History recordHistory `json:"history"`
+}
+
+func readIdeaShown(cmd *cobra.Command, client *api.Client, idea api.IdeaDetail, history int) (ideaShown, error) {
+	changes, err := readHistory(cmd, client, idea.Number, history)
+	if err != nil {
+		return ideaShown{}, err
+	}
+	return ideaShown{IdeaDetail: idea, History: changes}, nil
+}
+
+func printIdeaShown(out io.Writer, shown ideaShown, now time.Time) {
+	printIdeaDetail(out, shown.IdeaDetail, now)
+	printHistory(out, shown.History, ownRows("ideas", shown.ID, shown.Number), now)
 }
 
 func newIdeasCreateCommand() *cobra.Command {

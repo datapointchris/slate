@@ -311,11 +311,14 @@ func newIssuesListCommand() *cobra.Command {
 // --- Reads of one issue ---
 
 func newIssuesShowCommand() *cobra.Command {
-	var asJSON bool
+	var (
+		asJSON  bool
+		history int
+	)
 	cmd := &cobra.Command{
 		Use:         "show <issue>",
-		Short:       "Show an issue with its edges, children, documents and comments",
-		Example:     "  slate issues show 412\n  slate issues show 412 --json",
+		Short:       "Show an issue with its edges, children, documents, comments and history",
+		Example:     "  slate issues show 412\n  slate issues show 412 --json --history 100",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -327,15 +330,41 @@ func newIssuesShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
+			shown, err := readIssueShown(cmd, client, issue, history)
+			if err != nil {
+				return err
 			}
-			printIssueDetail(cmd.OutOrStdout(), issue, time.Now())
+			defer noteOlderHistory(cmd, shown.History)
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), shown)
+			}
+			printIssueShown(cmd.OutOrStdout(), shown, time.Now())
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the issue as JSON to stdout")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the issue and its history as JSON to stdout")
+	addHistoryFlag(cmd, &history)
 	return cmd
+}
+
+// issueShown is an issue beside its latest changes, as every show of one
+// prints it.
+type issueShown struct {
+	api.IssueDetail
+	History recordHistory `json:"history"`
+}
+
+func readIssueShown(cmd *cobra.Command, client *api.Client, issue api.IssueDetail, history int) (issueShown, error) {
+	changes, err := readHistory(cmd, client, issue.Number, history)
+	if err != nil {
+		return issueShown{}, err
+	}
+	return issueShown{IssueDetail: issue, History: changes}, nil
+}
+
+func printIssueShown(out io.Writer, shown issueShown, now time.Time) {
+	printIssueDetail(out, shown.IssueDetail, now)
+	printHistory(out, shown.History, ownRows("issues", shown.ID, shown.Number), now)
 }
 
 // --- Rendering ---

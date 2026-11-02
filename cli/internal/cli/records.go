@@ -38,7 +38,10 @@ type worklogShown struct {
 }
 
 func newShowCommand() *cobra.Command {
-	var asJSON bool
+	var (
+		asJSON  bool
+		history int
+	)
 	cmd := &cobra.Command{
 		Use:        "show <number>",
 		SuggestFor: []string{"get", "view", "record", "records"},
@@ -46,7 +49,9 @@ func newShowCommand() *cobra.Command {
 		Long: "Ideas, initiatives and issues share one number sequence, so a number names\n" +
 			"one record whatever its kind. A worklog is named under its record's number,\n" +
 			"so 412.2 is the second worklog on #412. It prints what that kind's own show\n" +
-			"prints: `slate show 412` and `slate issues show 412` read the same.",
+			"prints: `slate show 412` and `slate issues show 412` read the same. A record's\n" +
+			"show ends with its history, newest first: each write to it, its claims,\n" +
+			"comments, documents, worklogs, and an issue's dependencies and labels.",
 		Example:     "  slate show 412\n  slate show '#1501' --json\n  slate show 412.2",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -73,23 +78,33 @@ func newShowCommand() *cobra.Command {
 			}
 			shown := recordShown{Kind: record.Kind, Number: record.Number}
 			var print func()
+			var changes recordHistory
 			switch record.Kind {
 			case api.RecordKindIdea:
-				shown.Record = record.Idea
-				print = func() { printIdeaDetail(out, *record.Idea, now) }
-			case api.RecordKindInitiative:
-				initiative, err := readInitiativeIssues(cmd, client, *record.Initiative)
+				idea, err := readIdeaShown(cmd, client, *record.Idea, history)
 				if err != nil {
 					return err
 				}
-				shown.Record = initiative
+				shown.Record, changes = idea, idea.History
+				print = func() { printIdeaShown(out, idea, now) }
+			case api.RecordKindInitiative:
+				initiative, err := readInitiativeShown(cmd, client, *record.Initiative, history)
+				if err != nil {
+					return err
+				}
+				shown.Record, changes = initiative, initiative.History
 				print = func() { printInitiativeShown(cmd, initiative) }
 			case api.RecordKindIssue:
-				shown.Record = record.Issue
-				print = func() { printIssueDetail(out, *record.Issue, now) }
+				issue, err := readIssueShown(cmd, client, *record.Issue, history)
+				if err != nil {
+					return err
+				}
+				shown.Record, changes = issue, issue.History
+				print = func() { printIssueShown(out, issue, now) }
 			default:
 				return fmt.Errorf("#%d is of kind %q, which slate show cannot print", record.Number, record.Kind)
 			}
+			defer noteOlderHistory(cmd, changes)
 			if asJSON {
 				return encodeJSON(out, shown)
 			}
@@ -98,6 +113,7 @@ func newShowCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the kind, the number and the record as JSON to stdout")
+	addHistoryFlag(cmd, &history)
 	return goclikit.WithRecoveryHints(cmd, searchHint, worklogHints[0])
 }
 
