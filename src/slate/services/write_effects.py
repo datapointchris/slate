@@ -69,6 +69,9 @@ class WriteEffectCode(enum.StrEnum):
     CLAIM_STILL_HELD = 'claim_still_held'
     OPEN_WORKLOG = 'open_worklog'
 
+    # A warning on a usage report naming the messages slate already holds for the session.
+    USAGE_UNCHANGED = 'usage_unchanged'
+
     # Warnings on a hold, about the record held and its neighbors.
     RECORD_CLOSED = 'record_closed'
     IN_TRIAGE = 'in_triage'

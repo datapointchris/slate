@@ -1,7 +1,7 @@
-"""Read worklogs back, with each one's state and stage derived from the moment of the read.
+"""Read worklogs back, with each one's state, stage and tokens derived from the moment of the read.
 
-Neither is stored. `models.Worklog` decides the state, and its stage is the furthest its links
-reached.
+None is stored. `models.Worklog` decides the state, its stage is the furthest its links reached,
+and its tokens sum the messages its sessions reported inside its spans.
 """
 
 from __future__ import annotations
@@ -21,6 +21,8 @@ from slate.models.worklog import WorklogStage
 from slate.schemas.worklog import WorklogState
 from slate.services.claim_views import claim_view
 from slate.services.record_summaries import record_summaries
+from slate.services.session_usage import plus
+from slate.services.session_usage import tokens_by_span
 from slate.services.worklogs import open_span
 
 WORKLOG_LOAD_OPTIONS = (
@@ -43,8 +45,23 @@ def worklog_stage(worklog: models.Worklog) -> WorklogStage:
     return max(stages, key=WORKLOG_STAGES.index, default='started')
 
 
-def worklog_view(worklog: models.Worklog, record: schemas.RecordSummary, now: dt.datetime) -> schemas.Worklog:
+def worklog_view(
+    worklog: models.Worklog, record: schemas.RecordSummary, span_tokens: dict[int, schemas.TokensByKind], now: dt.datetime
+) -> schemas.Worklog:
     claim = worklog.claim
+    spans = [
+        schemas.WorklogSpan(
+            session=span.session_id,
+            directory=span.directory,
+            started_ts=span.started_ts,
+            ended_ts=span.ended_ts,
+            tokens=span_tokens.get(span.id, schemas.TokensByKind()),
+        )
+        for span in worklog.spans
+    ]
+    tokens = schemas.TokensByKind()
+    for span in spans:
+        tokens = plus(tokens, span.tokens)
     return schemas.Worklog(
         name=worklog.name,
         record_number=worklog.record_number,
@@ -60,10 +77,8 @@ def worklog_view(worklog: models.Worklog, record: schemas.RecordSummary, now: dt
         stage=worklog_stage(worklog),
         claim=claim_view(claim, now) if claim is not None else None,
         waits=[schemas.ClaimWait.model_validate(wait) for wait in claim.waits] if claim is not None else [],
-        spans=[
-            schemas.WorklogSpan(session=span.session_id, directory=span.directory, started_ts=span.started_ts, ended_ts=span.ended_ts)
-            for span in worklog.spans
-        ],
+        tokens=tokens,
+        spans=spans,
         links=[
             schemas.WorklogLink(
                 kind=link.kind, ref=link.ref, repo=link.repo, session=link.session_id, linked_ts=link.linked_ts, linked_by=link.linked_by
@@ -75,7 +90,8 @@ def worklog_view(worklog: models.Worklog, record: schemas.RecordSummary, now: dt
 
 def worklog_views(session: Session, worklogs: list[models.Worklog], now: dt.datetime) -> list[schemas.Worklog]:
     summaries = record_summaries(session, [worklog.record_number for worklog in worklogs])
-    return [worklog_view(worklog, summaries[worklog.record_number], now) for worklog in worklogs]
+    span_tokens = tokens_by_span(session, (span.id for worklog in worklogs for span in worklog.spans))
+    return [worklog_view(worklog, summaries[worklog.record_number], span_tokens, now) for worklog in worklogs]
 
 
 def current_worklog(session: Session, session_id: str, now: dt.datetime) -> models.Worklog | None:

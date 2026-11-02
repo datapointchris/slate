@@ -30,9 +30,13 @@
     "GET /api/v1/issues/{id}",
     "GET /api/v1/records",
     "GET /api/v1/records/{number}",
+    "GET /api/v1/sessions/{id}",
     "GET /api/v1/worklogs",
     "GET /api/v1/worklogs/current",
     "GET /api/v1/worklogs/{name}"
+  ],
+  "slate.sessions.write": [
+    "PUT /api/v1/sessions/{id}/usage"
   ],
   "slate.worklogs.write": [
     "PATCH /api/v1/worklogs/{name}",

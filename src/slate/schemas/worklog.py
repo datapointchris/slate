@@ -16,6 +16,7 @@ from slate.schemas.record import Actor
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordRef
 from slate.schemas.record import RecordSummary
+from slate.schemas.tokens import TokensByKind
 from slate.schemas.write_effects import Written
 
 # The same three a claim reads as. `live` is under way. `expired` is under a claim that ran out,
@@ -26,12 +27,13 @@ NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)
 
 
 class WorklogSpan(RecordModel):
-    """One session's time in the worklog. `ended_ts` is null while the session is still in it."""
+    """One session's time in the worklog, and the tokens it spent there. `ended_ts` is null while the session is still in it."""
 
     session: str
     directory: str | None = None
     started_ts: dt.datetime
     ended_ts: dt.datetime | None = None
+    tokens: TokensByKind = TokensByKind()
 
 
 class WorklogLink(RecordModel):
@@ -46,8 +48,9 @@ class WorklogLink(RecordModel):
 class Worklog(RecordModel):
     """One go at one record, named `<record>.<sequence>`.
 
-    `state` and `stage` are derived on every read. `claim` is the claim whose hold opened it, and
-    `waits` every stretch that claim's holder spent waiting.
+    `state`, `stage` and `tokens` are derived on every read. `claim` is the claim whose hold opened
+    it, and `waits` every stretch that claim's holder spent waiting. `tokens` sums its spans', as
+    each session last reported them.
     """
 
     name: str
@@ -64,6 +67,7 @@ class Worklog(RecordModel):
     stage: WorklogStage
     claim: Claim | None = None
     waits: list[ClaimWait] = []
+    tokens: TokensByKind = TokensByKind()
     spans: list[WorklogSpan] = []
     links: list[WorklogLink] = []
 

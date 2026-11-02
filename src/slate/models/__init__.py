@@ -1,4 +1,5 @@
 from slate.models.agent_session import AgentSession
+from slate.models.agent_session import MessageTokens
 from slate.models.claim import Claim
 from slate.models.claim import ClaimEnding
 from slate.models.claim import ClaimWait
@@ -39,6 +40,7 @@ __all__ = [
     'IssueLabelAssignment',
     'IssueStatus',
     'IssueType',
+    'MessageTokens',
     'Record',
     'RecordChange',
     'RecordKind',
