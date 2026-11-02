@@ -1,6 +1,7 @@
 """Name everything a record's delete takes or changes, read before the delete runs.
 
-Deleting a record cascades to its claims, worklogs and edges, and clears every other record's link to it.
+Deleting a record cascades to its claims, worklogs, documents, comments and edges, and clears every
+other record's link to it.
 None of that is in the request, so each is named in the answer.
 """
 
@@ -8,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 
+from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -45,9 +47,25 @@ def name_worklogs_deleted(session: Session, number: int, effects: WriteEffects) 
     effects.did(WriteEffectCode.WORKLOGS_DELETED, f'Deleted {noun} {names}, with their spans and links.', number)
 
 
+def name_documents_and_comments_deleted(session: Session, number: int, effects: WriteEffects) -> None:
+    """Name the documents the record takes with it, with their versions, and the comments, line comments included."""
+    names = session.scalars(
+        select(models.Document.name).where(models.Document.record_number == number).order_by(models.Document.name)
+    ).all()
+    if names:
+        listed = ', '.join(f'{number}/{name}' for name in names)
+        noun = 'document' if len(names) == 1 else 'documents'
+        effects.did(WriteEffectCode.DOCUMENTS_DELETED, f'Deleted {noun} {listed}, with every version.', number)
+    comments = session.scalar(select(func.count()).select_from(models.Comment).where(models.Comment.record_number == number)) or 0
+    if comments:
+        noun = 'comment' if comments == 1 else 'comments'
+        effects.did(WriteEffectCode.COMMENTS_DELETED, f'Deleted the {comments} {noun} on #{number} and its documents.', number)
+
+
 def name_issue_delete(session: Session, issue: models.Issue, deleted_by: str, now: dt.datetime, effects: WriteEffects) -> None:
     name_claims_deleted(session, issue.number, deleted_by, now, effects)
     name_worklogs_deleted(session, issue.number, effects)
+    name_documents_and_comments_deleted(session, issue.number, effects)
     children = session.scalars(select(models.Issue.number).where(models.Issue.parent_id == issue.id).order_by(models.Issue.number))
     for child in children:
         effects.did(WriteEffectCode.CHILD_DETACHED, f'#{child} had #{issue.number} as its parent, and has none now.', child)
@@ -66,6 +84,7 @@ def name_initiative_delete(
 ) -> None:
     name_claims_deleted(session, initiative.number, deleted_by, now, effects)
     name_worklogs_deleted(session, initiative.number, effects)
+    name_documents_and_comments_deleted(session, initiative.number, effects)
     issues = session.scalars(select(models.Issue.number).where(models.Issue.initiative_id == initiative.id).order_by(models.Issue.number))
     for issue in issues:
         effects.did(

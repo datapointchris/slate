@@ -40,6 +40,8 @@ class WriteEffectCode(enum.StrEnum):
     # Side effects of deleting a record: what went with it, and each other record it changed.
     CLAIMS_DELETED = 'claims_deleted'
     WORKLOGS_DELETED = 'worklogs_deleted'
+    DOCUMENTS_DELETED = 'documents_deleted'
+    COMMENTS_DELETED = 'comments_deleted'
     CHILD_DETACHED = 'child_detached'
     DEPENDENCY_REMOVED = 'dependency_removed'
     ISSUE_DETACHED = 'issue_detached'
@@ -74,6 +76,10 @@ class WriteEffectCode(enum.StrEnum):
     USAGE_UNCHANGED = 'usage_unchanged'
     USAGE_STALE = 'usage_stale'
     MESSAGES_HELD_BY_ANOTHER_SESSION = 'messages_held_by_another_session'
+
+    # Warnings on writing a document version that wrote nothing, or names no worklog.
+    DOCUMENT_UNCHANGED = 'document_unchanged'
+    NO_WORKLOG = 'no_worklog'
 
     # Warnings on a hold, about the record held and its neighbors.
     RECORD_CLOSED = 'record_closed'

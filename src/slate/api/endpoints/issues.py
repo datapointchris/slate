@@ -8,7 +8,6 @@ from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from fastapi import Query
-from fastapi import Response
 from fastapi import status
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import or_
@@ -23,7 +22,6 @@ from slate.api.callers import caller_actor
 from slate.api.client_scopes import ISSUES_CLOSE
 from slate.api.client_scopes import RECORDS_PLAN
 from slate.api.exceptions import ForbiddenException
-from slate.api.exceptions import NotFoundException
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import ScopedClient
 from slate.api.request_zone import RequestZone
@@ -471,9 +469,9 @@ def update(
 
 @router.delete('/{id}', response_model=schemas.RecordDeleted, status_code=status.HTTP_200_OK)
 def delete(issue: IssueFromPath, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Delete the issue's record, which takes the issue, its comments, its edges and its claims with it.
+    """Delete the issue's record, which takes the issue, its edges, claims, worklogs, documents and comments with it.
 
-    The answer names each claim it took and each issue that lost its link to this one.
+    The answer names what it took and each issue that lost its link to this one.
     """
     deleted = record_summaries(session, [issue.number])[issue.number]
     name_issue_delete(session, issue, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
@@ -563,39 +561,3 @@ def remove_dependency(
     issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
-
-
-@router.get('/{id}/comments', response_model=list[schemas.IssueComment], status_code=status.HTTP_200_OK)
-def read_comments(issue: IssueFromPath, session: DbSession, limit: RowLimit = None):
-    """The issue's comments, oldest first, so a thread reads in the order it was written."""
-    query = (
-        select(models.IssueComment)
-        .where(models.IssueComment.issue_id == issue.id)
-        .order_by(models.IssueComment.created_ts, models.IssueComment.id)
-    )
-    if limit is not None:
-        query = query.limit(limit)
-    return list(session.scalars(query).all())
-
-
-@router.post('/{id}/comments', response_model=schemas.IssueCommentWritten, status_code=status.HTTP_201_CREATED)
-def create_comment(issue: IssueFromPath, comment: schemas.IssueCommentCreate, session: DbSession, effects: Effects):
-    db_comment = models.IssueComment(issue_id=issue.id, body=comment.body, author=comment.author)
-    session.add(db_comment)
-    issue.updated_ts = dt.datetime.now(dt.UTC)
-    session.commit()
-    session.refresh(db_comment)
-    return effects.answer(schemas.IssueCommentWritten, comment=schemas.IssueComment.model_validate(db_comment))
-
-
-@router.delete('/{id}/comments/{comment_id}', status_code=status.HTTP_204_NO_CONTENT)
-def delete_comment(issue: IssueFromPath, comment_id: UUID, session: DbSession):
-    deleted = session.execute(
-        sql_delete(models.IssueComment)
-        .where(models.IssueComment.id == comment_id, models.IssueComment.issue_id == issue.id)
-        .returning(models.IssueComment.id)
-    ).scalar_one_or_none()
-    if deleted is None:
-        raise NotFoundException('comment', str(comment_id), logger)
-    session.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)

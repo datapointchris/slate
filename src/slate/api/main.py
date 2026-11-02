@@ -24,6 +24,8 @@ from starlette.routing import Match
 from slate.api import API_PREFIX
 from slate.api.callers import get_current_caller
 from slate.api.endpoints import claims
+from slate.api.endpoints import comments
+from slate.api.endpoints import documents
 from slate.api.endpoints import ideas
 from slate.api.endpoints import initiatives
 from slate.api.endpoints import issues
@@ -46,6 +48,8 @@ VALIDATION_SCOPES = ('body', 'query', 'path', 'header', 'cookie')
 # Every resource router and the prefix it serves under `API_PREFIX`, one noun each.
 RESOURCE_ROUTERS: tuple[tuple[str, APIRouter], ...] = (
     ('/claims', claims.router),
+    ('/comments', comments.router),
+    ('/documents', documents.router),
     ('/ideas', ideas.router),
     ('/initiatives', initiatives.router),
     ('/issues', issues.router),

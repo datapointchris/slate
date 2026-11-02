@@ -6,6 +6,8 @@ from pydantic import StringConstraints
 from pydantic import model_validator
 
 from slate.schemas.claim import Claim
+from slate.schemas.comment import Comment
+from slate.schemas.document import DocumentSummary
 from slate.schemas.initiative import InitiativeRef
 from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.not_null import NotNull
@@ -123,24 +125,12 @@ class Issue(RecordModel):
     closed_by: str | None = None
 
 
-class IssueCommentCreate(RecordModel):
-    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    author: str | None = None
-
-
-class IssueComment(RecordModel):
-    id: UUID
-    issue_id: UUID
-    body: str
-    author: str | None = None
-    created_ts: dt.datetime
-
-
 class IssueDetail(Issue):
-    """`claims` is every claim the issue has had, ended ones included, oldest first."""
+    """`claims` is every claim the issue has had, ended ones included, and `comments` every comment on it, each oldest first."""
 
     children: list[IssueSummary] = []
-    comments: list[IssueComment] = []
+    comments: list[Comment] = []
+    documents: list[DocumentSummary] = []
     claims: list[Claim] = []
 
 
@@ -183,10 +173,6 @@ class IssueLabel(RecordModel):
 
 class IssueWritten(Written):
     issue: IssueDetail
-
-
-class IssueCommentWritten(Written):
-    comment: IssueComment
 
 
 class IssueLabelWritten(Written):

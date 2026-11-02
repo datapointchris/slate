@@ -8,13 +8,15 @@ class PriorityName(RecordModel):
 
 
 class Vocabulary(RecordModel):
-    """Every value a closed field of an issue or an initiative accepts, for a client building its pickers.
+    """Every value a closed field accepts, for a client building its pickers.
 
-    A list one kind's field alone takes is named for that kind. Every kind shares the priority scale.
+    A list one noun's field alone takes is named for that noun. Every kind shares the priority scale.
     """
 
     issue_statuses: list[str]
     issue_types: list[str]
     priorities: list[PriorityName]
     initiative_statuses: list[str]
+    document_kinds: list[str]
+    worklog_workflows: list[str]
     labels: list[IssueLabel]

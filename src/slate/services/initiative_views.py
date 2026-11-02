@@ -17,6 +17,8 @@ from slate import schemas
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.services.claim_views import claim_history
 from slate.services.claim_views import unended_claim_views
+from slate.services.comment_views import record_comments
+from slate.services.document_views import record_documents
 
 
 def issue_count_columns():
@@ -82,9 +84,13 @@ def counted(session: Session, initiative: models.Initiative) -> schemas.Initiati
 
 
 def initiative_detail(session: Session, initiative: models.Initiative) -> schemas.InitiativeDetail:
-    """The initiative counted, with every claim it has had, as an idea's and an issue's reads carry theirs."""
-    claims = claim_history(session, initiative.number, dt.datetime.now(dt.UTC))
-    return schemas.InitiativeDetail(**counted(session, initiative).model_dump(), claims=claims)
+    """The initiative counted, with every claim, comment and document it has, as an idea's and an issue's reads carry theirs."""
+    return schemas.InitiativeDetail(
+        **counted(session, initiative).model_dump(),
+        claims=claim_history(session, initiative.number, dt.datetime.now(dt.UTC)),
+        comments=record_comments(session, initiative.number),
+        documents=record_documents(session, initiative.number),
+    )
 
 
 def initiatives_of_ideas(session: Session, idea_ids: Sequence[UUID]) -> dict[UUID, schemas.Initiative]:

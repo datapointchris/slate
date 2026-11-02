@@ -24,6 +24,8 @@ from slate import schemas
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.services.claim_views import claim_history
 from slate.services.claim_views import unended_claim_views
+from slate.services.comment_views import record_comments
+from slate.services.document_views import record_documents
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_readiness import urgency
@@ -55,20 +57,19 @@ def by_number(issues: Iterable[models.Issue]) -> list[schemas.IssueSummary]:
     return [schemas.IssueSummary(id=i.id, number=i.number, title=i.title, status=i.status) for i in sorted(issues, key=lambda i: i.number)]
 
 
-def comment_counts(session: Session, issue_ids: list[UUID]) -> dict[UUID, int]:
-    if not issue_ids:
+def comment_counts(session: Session, numbers: list[int]) -> dict[int, int]:
+    """How many comments sit on each record itself, by number. Line comments count on their documents."""
+    if not numbers:
         return {}
     rows = session.execute(
-        select(models.IssueComment.issue_id, func.count())
-        .where(models.IssueComment.issue_id.in_(issue_ids))
-        .group_by(models.IssueComment.issue_id)
+        select(models.Comment.record_number, func.count())
+        .where(models.Comment.record_number.in_(numbers), models.Comment.document_id.is_(None))
+        .group_by(models.Comment.record_number)
     )
     return dict(rows.all())
 
 
-def issue_view(
-    issue: models.Issue, readiness: IssueReadiness, comments: dict[UUID, int], claims: dict[int, schemas.Claim]
-) -> schemas.Issue:
+def issue_view(issue: models.Issue, readiness: IssueReadiness, comments: dict[int, int], claims: dict[int, schemas.Claim]) -> schemas.Issue:
     initiative = issue.initiative
     return schemas.Issue(
         id=issue.id,
@@ -104,7 +105,7 @@ def issue_view(
         blocks=by_number(edge.issue for edge in issue.dependents),
         child_count=readiness.child_count.get(issue.id, 0),
         open_child_count=readiness.open_child_count.get(issue.id, 0),
-        comment_count=comments.get(issue.id, 0),
+        comment_count=comments.get(issue.number, 0),
         is_blocked=issue.id in readiness.blocked,
         is_ready=issue.id in readiness.ready,
         is_autofixable=issue.id in readiness.autofixable,
@@ -135,7 +136,7 @@ def issue_views(session: Session, issues: list[models.Issue], zone: str, readine
     today, now = calendar_now(zone)
     if readiness is None:
         readiness = measure_readiness(session, today, now)
-    counts = comment_counts(session, [issue.id for issue in issues])
+    counts = comment_counts(session, [issue.number for issue in issues])
     claims = unended_claim_views(session, [issue.number for issue in issues], now)
     return [issue_view(issue, readiness, counts, claims) for issue in issues]
 
@@ -166,7 +167,8 @@ def issue_detail(session: Session, issue: models.Issue, zone: str) -> schemas.Is
     return schemas.IssueDetail(
         **view.model_dump(),
         children=[schemas.IssueSummary(id=c.id, number=c.number, title=c.title, status=c.status) for c in children],
-        comments=[schemas.IssueComment.model_validate(comment) for comment in issue.comments],
+        comments=record_comments(session, issue.number),
+        documents=record_documents(session, issue.number),
         claims=claim_history(session, issue.number, dt.datetime.now(dt.UTC)),
     )
 

@@ -12,6 +12,7 @@ from slate.models.worklog import WorkflowName
 from slate.models.worklog import WorklogStage
 from slate.schemas.claim import Claim
 from slate.schemas.claim import ClaimWait
+from slate.schemas.document import DocumentVersionRef
 from slate.schemas.record import Actor
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordRef
@@ -55,6 +56,7 @@ class Worklog(RecordModel):
     `state`, `stage` and `tokens` are derived on every read. `claim` is the claim whose hold opened
     it, and `waits` every stretch that claim's holder spent waiting. `tokens` sums its spans', as
     each session last reported them, and is null while none of its spans holds a reported message.
+    `document_versions` is every version a session wrote while in it, oldest first.
     """
 
     name: str
@@ -74,6 +76,7 @@ class Worklog(RecordModel):
     tokens: TokensByKind | None = None
     spans: list[WorklogSpan] = []
     links: list[WorklogLink] = []
+    document_versions: list[DocumentVersionRef] = []
 
 
 class WorklogStart(RecordModel):

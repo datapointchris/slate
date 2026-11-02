@@ -7,6 +7,8 @@ from pydantic import Field
 from pydantic import StringConstraints
 
 from slate.schemas.claim import Claim
+from slate.schemas.comment import Comment
+from slate.schemas.document import DocumentSummary
 from slate.schemas.initiative import Initiative
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Actor
@@ -85,9 +87,11 @@ class Idea(RecordModel):
 
 
 class IdeaDetail(Idea):
-    """An idea with every claim ever held on it, oldest first."""
+    """An idea with every claim ever held on it and every comment on it, oldest first, and its documents."""
 
     claims: list[Claim] = []
+    comments: list[Comment] = []
+    documents: list[DocumentSummary] = []
 
 
 class IdeaWritten(Written):

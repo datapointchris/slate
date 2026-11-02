@@ -1,7 +1,8 @@
 """Read worklogs back, with each one's state, stage and tokens derived from the moment of the read.
 
-None is stored. `models.Worklog` decides the state, its stage is the furthest its links reached,
-and its tokens sum the messages its sessions reported inside its spans.
+None is stored. `models.Worklog` decides the state. Its stage is the furthest its links reached, or
+`planned` when it wrote a plan document and linked nothing further. Its tokens sum the messages its
+sessions reported inside its spans.
 """
 
 from __future__ import annotations
@@ -14,12 +15,15 @@ from sqlalchemy.orm import selectinload
 
 from slate import models
 from slate import schemas
+from slate.models.document import PLAN
 from slate.models.worklog import STAGE_OF_LINK
+from slate.models.worklog import WORKLOG_PLANNED
 from slate.models.worklog import WORKLOG_STAGES
 from slate.models.worklog import LinkKindName
 from slate.models.worklog import WorklogStage
 from slate.schemas.worklog import WorklogState
 from slate.services.claim_views import claim_view
+from slate.services.document_views import worklog_document_versions
 from slate.services.record_summaries import record_summaries
 from slate.services.session_usage import summed
 from slate.services.session_usage import tokens_by_span
@@ -40,13 +44,19 @@ def worklog_state(worklog: models.Worklog, now: dt.datetime) -> WorklogState:
     return 'ended'
 
 
-def worklog_stage(worklog: models.Worklog) -> WorklogStage:
-    stages = (STAGE_OF_LINK[cast(LinkKindName, link.kind)] for link in worklog.links)
+def worklog_stage(worklog: models.Worklog, versions: list[schemas.DocumentVersionRef]) -> WorklogStage:
+    stages = [STAGE_OF_LINK[cast(LinkKindName, link.kind)] for link in worklog.links]
+    if any(version.kind == PLAN for version in versions):
+        stages.append(WORKLOG_PLANNED)
     return max(stages, key=WORKLOG_STAGES.index, default='started')
 
 
 def worklog_view(
-    worklog: models.Worklog, record: schemas.RecordSummary, span_tokens: dict[int, schemas.TokensByKind], now: dt.datetime
+    worklog: models.Worklog,
+    record: schemas.RecordSummary,
+    span_tokens: dict[int, schemas.TokensByKind],
+    versions: list[schemas.DocumentVersionRef],
+    now: dt.datetime,
 ) -> schemas.Worklog:
     claim = worklog.claim
     spans = [
@@ -71,7 +81,7 @@ def worklog_view(
         outcome=worklog.outcome,
         ended_by=worklog.ended_by,
         state=worklog_state(worklog, now),
-        stage=worklog_stage(worklog),
+        stage=worklog_stage(worklog, versions),
         claim=claim_view(claim, now) if claim is not None else None,
         waits=[schemas.ClaimWait.model_validate(wait) for wait in claim.waits] if claim is not None else [],
         tokens=summed(span.tokens for span in spans),
@@ -82,13 +92,15 @@ def worklog_view(
             )
             for link in worklog.links
         ],
+        document_versions=versions,
     )
 
 
 def worklog_views(session: Session, worklogs: list[models.Worklog], now: dt.datetime) -> list[schemas.Worklog]:
     summaries = record_summaries(session, [worklog.record_number for worklog in worklogs])
     span_tokens = tokens_by_span(session, (span.id for worklog in worklogs for span in worklog.spans))
-    return [worklog_view(worklog, summaries[worklog.record_number], span_tokens, now) for worklog in worklogs]
+    versions = worklog_document_versions(session, [worklog.id for worklog in worklogs])
+    return [worklog_view(worklog, summaries[worklog.record_number], span_tokens, versions.get(worklog.id, []), now) for worklog in worklogs]
 
 
 def current_worklog(session: Session, session_id: str, now: dt.datetime) -> models.Worklog | None:

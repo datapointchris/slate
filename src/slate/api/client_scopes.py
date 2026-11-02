@@ -14,13 +14,17 @@ ISSUES_CLOSE = 'slate.issues.close'
 RECORDS_PLAN = 'slate.records.plan'
 
 SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
-    # Every read of a record of any kind, and of who holds which. An issue in a series often has no
-    # description of its own, so a reader judging it needs its initiative's.
+    # Every read of a record of any kind, of who holds which, and of the documents and comments on
+    # it. An issue in a series often has no description of its own, so a reader judging it needs
+    # its initiative's.
     'slate.records.read': frozenset(
         {
             ('GET', f'{API_PREFIX}/records'),
             ('GET', f'{API_PREFIX}/records/{{number}}'),
             ('GET', f'{API_PREFIX}/claims'),
+            ('GET', f'{API_PREFIX}/comments'),
+            ('GET', f'{API_PREFIX}/documents'),
+            ('GET', f'{API_PREFIX}/documents/{{record}}/{{name}}'),
             ('GET', f'{API_PREFIX}/ideas'),
             ('GET', f'{API_PREFIX}/ideas/{{id}}'),
             ('GET', f'{API_PREFIX}/initiatives'),
@@ -63,14 +67,13 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # report names a session and carries no actor, so where it changes the session, the audit row
     # names the client.
     'slate.sessions.write': frozenset({('PUT', f'{API_PREFIX}/sessions/{{id}}/usage')}),
-    # Commenting on an issue and closing it, for a job closing an issue whose fix merged. The
-    # update handler narrows a body naming `status` or `closed_by` to the close of an open issue.
-    ISSUES_CLOSE: frozenset(
-        {
-            ('POST', f'{API_PREFIX}/issues/{{id}}/comments'),
-            ('PATCH', f'{API_PREFIX}/issues/{{id}}'),
-        }
-    ),
+    # Commenting on a record or a line of its document, for a job saying what its agent did, such
+    # as the fix that merged before it closes the issue. A scoped client's comment is written as
+    # its own client id.
+    'slate.comments.write': frozenset({('POST', f'{API_PREFIX}/comments')}),
+    # Closing an issue, for a job closing an issue whose fix merged. The update handler narrows a
+    # body naming `status` or `closed_by` to the close of an open issue.
+    ISSUES_CLOSE: frozenset({('PATCH', f'{API_PREFIX}/issues/{{id}}')}),
     # Filing an issue, setting its priority, initiative and rank, and creating and updating an
     # initiative, for a job ordering the queue. A filing reads the vocabulary first. The handlers
     # narrow any other update to an issue's priority and initiative, and a filing to triage under

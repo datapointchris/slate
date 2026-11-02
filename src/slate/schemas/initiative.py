@@ -2,6 +2,8 @@ import datetime as dt
 from uuid import UUID
 
 from slate.schemas.claim import Claim
+from slate.schemas.comment import Comment
+from slate.schemas.document import DocumentSummary
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
@@ -73,9 +75,11 @@ class Initiative(RecordModel):
 
 
 class InitiativeDetail(Initiative):
-    """An initiative with every claim ever held on it, oldest first."""
+    """An initiative with every claim ever held on it and every comment on it, oldest first, and its documents."""
 
     claims: list[Claim] = []
+    comments: list[Comment] = []
+    documents: list[DocumentSummary] = []
 
 
 class InitiativeWritten(Written):

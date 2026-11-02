@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime as dt
 from typing import TYPE_CHECKING
 from uuid import UUID
-from uuid import uuid7
 
 from sqlalchemy import Boolean
 from sqlalchemy import CheckConstraint
@@ -116,14 +115,6 @@ class Issue(NumberedRecord, FractionallyRanked, Base):
     labels: Mapped[list[IssueLabel]] = relationship(
         'IssueLabel', secondary='issue_label_assignments', viewonly=True, order_by='IssueLabel.slug'
     )
-    # The uuid7 id breaks a tie on created_ts, which every row written in one
-    # transaction shares.
-    comments: Mapped[list[IssueComment]] = relationship(
-        'IssueComment',
-        back_populates='issue',
-        cascade='all, delete-orphan',
-        order_by=lambda: (IssueComment.created_ts, IssueComment.id),
-    )
 
     __table_args__ = (
         *record_link(RECORD_KIND),
@@ -206,17 +197,3 @@ class IssueLabelAssignment(Base):
     label: Mapped[IssueLabel] = relationship('IssueLabel')
 
     __table_args__ = (Index('idx_issue_label_assignments_label', 'label_id'),)
-
-
-class IssueComment(Base):
-    """A note left on an issue: progress, a handoff, or what closing it shipped."""
-
-    __tablename__ = 'issue_comments'
-    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid7)
-    issue_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey('issues.id', ondelete='CASCADE'), nullable=False, index=True)
-    body: Mapped[str] = mapped_column(Text, nullable=False)
-    # Who wrote it: a claimant's name for an agent, or a person's.
-    author: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
-
-    issue: Mapped[Issue] = relationship('Issue', back_populates='comments')

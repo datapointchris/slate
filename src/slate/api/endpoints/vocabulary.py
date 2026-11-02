@@ -1,4 +1,4 @@
-"""Every closed value a field of an issue or an initiative accepts."""
+"""Every closed value a field accepts."""
 
 from fastapi import APIRouter
 from fastapi import status
@@ -7,10 +7,12 @@ from sqlalchemy import select
 from slate import models
 from slate import schemas
 from slate.api.callers import DbSession
+from slate.models.document import DOCUMENT_KINDS
 from slate.models.initiative import INITIATIVE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
 from slate.models.record import PRIORITIES
+from slate.models.worklog import WORKLOG_WORKFLOWS
 from slate.services.issue_views import label_views
 
 router = APIRouter()
@@ -26,11 +28,15 @@ def read(session: DbSession):
     issue_statuses = set(session.scalars(select(models.IssueStatus.name)).all())
     issue_types = set(session.scalars(select(models.IssueType.name)).all())
     initiative_statuses = set(session.scalars(select(models.InitiativeStatus.name)).all())
+    document_kinds = set(session.scalars(select(models.DocumentKind.name)).all())
+    worklog_workflows = set(session.scalars(select(models.WorklogWorkflow.name)).all())
     return schemas.Vocabulary(
         issue_statuses=in_declared_order(issue_statuses, ISSUE_STATUSES),
         issue_types=in_declared_order(issue_types, ISSUE_TYPES),
         priorities=[schemas.PriorityName(value=value, name=name) for value, name in PRIORITIES.items()],
         initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),
+        document_kinds=in_declared_order(document_kinds, DOCUMENT_KINDS),
+        worklog_workflows=in_declared_order(worklog_workflows, WORKLOG_WORKFLOWS),
         labels=label_views(session),
     )
 
