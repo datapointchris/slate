@@ -95,10 +95,13 @@ func newIdeasListCommand() *cobra.Command {
 }
 
 func newIdeasShowCommand() *cobra.Command {
-	var asJSON bool
+	var (
+		asJSON      bool
+		changeCount int
+	)
 	cmd := &cobra.Command{
 		Use:         "show <idea>",
-		Short:       "Show an idea with its evidence, its claims, and the initiative it became",
+		Short:       "Show an idea with its evidence, its claims, the initiative it became, and its changes",
 		Example:     "  slate ideas show 1860\n  slate ideas show 1860 --json",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -111,15 +114,30 @@ func newIdeasShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), idea)
+			changes, err := readChanges(cmd, client, idea.Number, changeCount, asJSON)
+			if err != nil {
+				return err
 			}
-			printIdeaDetail(cmd.OutOrStdout(), idea, time.Now())
+			defer noteChanges(cmd, changes)
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), ideaShown{IdeaDetail: idea, Changes: changes})
+			}
+			out, now := cmd.OutOrStdout(), time.Now()
+			printIdeaDetail(out, idea, now)
+			printChanges(out, changes, now)
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the idea as JSON to stdout")
+	addChangesFlag(cmd, &changeCount)
 	return cmd
+}
+
+// ideaShown is what every show of an idea prints as JSON: the idea, with the
+// changes the show read beside its own fields.
+type ideaShown struct {
+	api.IdeaDetail
+	Changes *recordChanges `json:"changes,omitempty"`
 }
 
 func newIdeasCreateCommand() *cobra.Command {

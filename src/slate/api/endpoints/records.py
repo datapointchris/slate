@@ -20,6 +20,7 @@ from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
 from slate.services.initiative_views import initiative_detail
 from slate.services.issue_views import fresh_issue_detail
+from slate.services.record_changes import record_changes
 from slate.services.record_lists import listed_records
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
@@ -59,3 +60,9 @@ def read_one(number: str, session: DbSession, zone: RequestZone) -> RecordRead:
         case Kind.IDEA:
             idea = session.scalars(select(models.Idea).options(*IDEA_LOAD_OPTIONS).where(models.Idea.number == record.number)).one()
             return IdeaRecord(number=record.number, record=idea_detail(session, idea))
+
+
+@router.get('/{number}/changes', response_model=list[schemas.RecordChange], status_code=status.HTTP_200_OK)
+def read_changes(number: str, session: DbSession, limit: RowLimit = None) -> list[schemas.RecordChange]:
+    """Every write to the record and to each row hanging off it, newest first, so `limit` keeps the latest."""
+    return record_changes(session, resolve_record(session, number), limit)

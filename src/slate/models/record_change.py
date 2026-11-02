@@ -3,8 +3,8 @@
 A row trigger on each table writes the entry, so every path that reaches the database is audited:
 the ORM, a Core statement, raw SQL, and an `ON DELETE` action Postgres takes itself. The trigger
 reads who is writing from three transaction-local settings, which `name_the_writer` sets each time
-a session begins a transaction. The API binds the person's `sub` or the service client's id to the
-session where it resolves the caller. `request_id` and `job_run_id` come from structlog's context,
+a session begins a transaction. The API binds the caller's actor to the session where it resolves
+the caller: a person's username, else their `sub`, or a service client's id. `request_id` and `job_run_id` come from structlog's context,
 where the request middleware or a batch job binds them.
 
 A table opts out with `'info': {'record_changes': False}` in its `__table_args__`, and a column
@@ -26,6 +26,7 @@ from sqlalchemy import Text
 from sqlalchemy import event
 from sqlalchemy import func
 from sqlalchemy import select
+from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import Session
@@ -42,18 +43,27 @@ class RecordChange(Base):
     """One write to one row of any table, and who made it.
 
     `changes` maps each column the write touched to `{"old": ..., "new": ...}`. An insert carries no
-    `old`, and a delete no `new`.
+    `old`, and a delete no `new`. So an insert or a delete holds the whole row, and only those name
+    the row's parent: a claim's `record_number`, a version's `document_id`.
     """
 
     __tablename__ = 'audit_trail'
     __table_args__ = (
         CheckConstraint("operation IN ('insert', 'update', 'delete')", name='operation_is_a_write'),
-        Index('idx_audit_trail_record', 'table_name', 'record_id', 'changed_at'),
+        Index('idx_audit_trail_record', 'table_name', 'record_id', 'changed_ts'),
+        # Finds the rows naming a parent, through `changes @> {"<column>": {"new": <key>}}`.
+        Index(
+            'idx_audit_trail_whole_rows',
+            'changes',
+            postgresql_using='gin',
+            postgresql_ops={'changes': 'jsonb_path_ops'},
+            postgresql_where=text("operation <> 'update'"),
+        ),
         {'info': {RECORDED: False}},
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    changed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    changed_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     table_name: Mapped[str] = mapped_column(Text, nullable=False)
     record_id: Mapped[str] = mapped_column(Text, nullable=False)
     operation: Mapped[str] = mapped_column(Text, nullable=False)

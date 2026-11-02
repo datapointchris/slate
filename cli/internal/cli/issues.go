@@ -311,11 +311,14 @@ func newIssuesListCommand() *cobra.Command {
 // --- Reads of one issue ---
 
 func newIssuesShowCommand() *cobra.Command {
-	var asJSON bool
+	var (
+		asJSON      bool
+		changeCount int
+	)
 	cmd := &cobra.Command{
 		Use:         "show <issue>",
-		Short:       "Show an issue with its edges, children, documents and comments",
-		Example:     "  slate issues show 412\n  slate issues show 412 --json",
+		Short:       "Show an issue with its edges, children, documents, comments and changes",
+		Example:     "  slate issues show 412\n  slate issues show 412 --json --changes 100",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -327,15 +330,30 @@ func newIssuesShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), issue)
+			changes, err := readChanges(cmd, client, issue.Number, changeCount, asJSON)
+			if err != nil {
+				return err
 			}
-			printIssueDetail(cmd.OutOrStdout(), issue, time.Now())
+			defer noteChanges(cmd, changes)
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), issueShown{IssueDetail: issue, Changes: changes})
+			}
+			out, now := cmd.OutOrStdout(), time.Now()
+			printIssueDetail(out, issue, now)
+			printChanges(out, changes, now)
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the issue as JSON to stdout")
+	addChangesFlag(cmd, &changeCount)
 	return cmd
+}
+
+// issueShown is what every show of an issue prints as JSON: the issue, with
+// the changes the show read beside its own fields.
+type issueShown struct {
+	api.IssueDetail
+	Changes *recordChanges `json:"changes,omitempty"`
 }
 
 // --- Rendering ---

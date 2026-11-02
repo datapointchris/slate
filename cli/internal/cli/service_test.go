@@ -504,7 +504,11 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"issues", "list", "--json"}, `[]`, nil},
 		{[]string{"issues", "list", "--blocked", "--json"}, `[]`, nil},
 		{[]string{"next", "--step", "build", "--json"}, `{"queue":[],"claimed":[]}`, nil},
-		{[]string{"show", "412", "--json"}, `{"kind":"idea","number":412,"record":{}}`, nil},
+		{
+			[]string{"show", "412", "--json", "--changes", "5"},
+			`{"kind":"idea","number":412,"record":{}}`,
+			map[string]string{"/api/v1/records/412/changes": `[]`},
+		},
 		{[]string{"issues", "show", "412", "--json"}, `{}`, nil},
 		{[]string{"issues", "show", "019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b", "--json"}, `{}`, nil},
 		{[]string{"dependencies", "tree", "--json"}, `[]`, nil},

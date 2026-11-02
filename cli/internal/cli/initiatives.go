@@ -118,10 +118,13 @@ func newInitiativesListCommand() *cobra.Command {
 }
 
 func newInitiativesShowCommand() *cobra.Command {
-	var asJSON bool
+	var (
+		asJSON      bool
+		changeCount int
+	)
 	cmd := &cobra.Command{
 		Use:         "show <initiative>",
-		Short:       "Show an initiative, its claims, and its unclosed issues in queue order",
+		Short:       "Show an initiative, its claims, its unclosed issues in queue order, and its changes",
 		Example:     "  slate initiatives show 1501\n  slate initiatives show \"Ship the tracker\"",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -138,6 +141,10 @@ func newInitiativesShowCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if shown.Changes, err = readChanges(cmd, client, initiative.Number, changeCount, asJSON); err != nil {
+				return err
+			}
+			defer noteChanges(cmd, shown.Changes)
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), shown)
 			}
@@ -146,14 +153,16 @@ func newInitiativesShowCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the initiative and its issues as JSON to stdout")
+	addChangesFlag(cmd, &changeCount)
 	return cmd
 }
 
-// initiativeShown is an initiative beside its unclosed issues, as every show of
-// one prints it.
+// initiativeShown is an initiative beside its unclosed issues, and the changes
+// the show read, as every show of one prints it.
 type initiativeShown struct {
 	api.InitiativeDetail
-	Issues []api.Issue `json:"issues"`
+	Issues  []api.Issue    `json:"issues"`
+	Changes *recordChanges `json:"changes,omitempty"`
 }
 
 // readInitiativeIssues reads the unclosed issues an initiative's show lists.
@@ -174,10 +183,11 @@ func printInitiativeShown(cmd *cobra.Command, shown initiativeShown) {
 	_, _ = fmt.Fprintf(out, "\nUnclosed issues (%d):\n", len(shown.Issues))
 	if len(shown.Issues) == 0 {
 		_, _ = fmt.Fprintln(out, "  (none)")
-		return
+	} else {
+		printIssuesTable(out, shown.Issues, now)
+		noteInheritedPriority(cmd, shown.Issues)
 	}
-	printIssuesTable(out, shown.Issues, now)
-	noteInheritedPriority(cmd, shown.Issues)
+	printChanges(out, shown.Changes, now)
 }
 
 func newInitiativesCreateCommand() *cobra.Command {

@@ -45,6 +45,7 @@ SCOPED_BODIES_DOCUMENT = Path(__file__).parent / 'testdata' / 'scoped-bodies.jso
 SCOPED_URLS = {
     f'{API_PREFIX}/records': '/records?search=scheduler',
     f'{API_PREFIX}/records/{{number}}': '/records/{issue}',
+    f'{API_PREFIX}/records/{{number}}/changes': '/records/{issue}/changes',
     f'{API_PREFIX}/claims': f'/claims?holder={SERVICE}',
     f'{API_PREFIX}/comments': '/comments?record={issue}',
     f'{API_PREFIX}/documents': '/documents?record={issue}',

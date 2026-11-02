@@ -191,17 +191,17 @@ def resulting_reason(issue: models.Issue, update_data: dict, target: str) -> str
 
 def apply_status_transition(
     session: Session, issue: models.Issue, update_data: dict, now: dt.datetime, effects: WriteEffects, *, signed_in: str
-) -> None:
-    """Validate a status change and apply everything it implies, in one place.
+) -> bool:
+    """Validate a status change and apply everything it implies to the issue's row, in one place.
 
-    Closing stamps `closed_ts` and `closed_by`, and ends the issue's claim as
-    the status it reached. `closed_by` is the actor the caller named, else
-    `signed_in`, because a token is the user's whichever session or worker
-    holds it. A move between two closed statuses keeps both stamps. Reopening
-    clears them, the reason and any duplicate link, and reopens each completed
-    ancestor. Each ended claim and reopened ancestor is named in `effects`. The
-    CHECK constraints refuse each of these states too; this exists so a caller
-    gets a 4xx naming the problem.
+    Closing stamps `closed_ts` and `closed_by`, and answers True, so the caller
+    ends the issue's claim as the status it reached. `closed_by` is the actor
+    the caller named, else `signed_in`, because a token is the user's whichever
+    session or worker holds it. A move between two closed statuses keeps both
+    stamps. Reopening clears them, the reason and any duplicate link, and
+    reopens each completed ancestor, named in `effects`. The CHECK constraints
+    refuse each of these states too; this exists so a caller gets a 4xx naming
+    the problem.
     """
     new_status = update_data.pop('status', None)
     if new_status is not None:
@@ -238,9 +238,7 @@ def apply_status_transition(
     issue.status = target
     issue.status_reason = reason
     issue.duplicate_of_id = duplicate_id
-    # After the row is whole, because reading the claim flushes it.
-    if closing:
-        end_with_record(session, issue.number, target, now, issue.closed_by, effects)
+    return closing
 
 
 @router.get('', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
@@ -459,11 +457,15 @@ def update(
         set_labels(session, issue, update_data.pop('labels'))
     ensure_paths_have_a_repo(update_data.get('repo', issue.repo), update_data.get('paths', issue.paths))
 
-    apply_status_transition(session, issue, update_data, now, effects, signed_in=signed_in)
+    closing = apply_status_transition(session, issue, update_data, now, effects, signed_in=signed_in)
 
     for attr, value in update_data.items():
         setattr(issue, attr, value)
     issue.updated_ts = now
+    # After the row is whole, because reading the claim flushes it, and a later change would reach
+    # the audit trail as a second write.
+    if closing:
+        end_with_record(session, issue.number, issue.status, now, issue.closed_by, effects)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 

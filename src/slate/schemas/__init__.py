@@ -61,6 +61,7 @@ from slate.schemas.queue import QueueFilter
 from slate.schemas.record import RecordListed
 from slate.schemas.record import RecordRankMove
 from slate.schemas.record import RecordSummary
+from slate.schemas.record_change import RecordChange
 from slate.schemas.record_parts import RecordParts
 from slate.schemas.tokens import TokensByKind
 from slate.schemas.vocabulary import PriorityName
@@ -141,6 +142,7 @@ __all__ = [
     'PriorityName',
     'Queue',
     'QueueFilter',
+    'RecordChange',
     'RecordDeleted',
     'RecordListed',
     'RecordParts',
