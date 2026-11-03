@@ -25,12 +25,16 @@ const (
 	scopeCommentsWrite = "slate.comments.write"
 	scopeWorklogsWrite = "slate.worklogs.write"
 	scopeSessionsWrite = "slate.sessions.write"
+	// scopeWorklogsObserve joins a session to a worklog another client opened.
+	// No command declares it. A job holding it reaches `worklogs join` on a
+	// token its token_command hands, which asks no grant.
+	scopeWorklogsObserve = "slate.worklogs.observe"
 )
 
 // serviceScopes is every scope the API lists, in the order auth status answers for them.
 var serviceScopes = []string{
 	scopeRecordsRead, scopeRecordsPlan, scopeClaimsHold, scopeIssuesClose,
-	scopeCommentsWrite, scopeWorklogsWrite, scopeSessionsWrite,
+	scopeCommentsWrite, scopeWorklogsWrite, scopeSessionsWrite, scopeWorklogsObserve,
 }
 
 // serviceScopesAnnotation is what a command asks a service grant for. Its value

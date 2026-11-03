@@ -160,5 +160,10 @@ a worklog that id opened, because joining another's would stamp that session's
 commits onto it. A hold's worklog comes with the hold, under
 `slate.claims.hold`.
 
+`slate.worklogs.observe` reaches joining alone, and joins any live worklog. It
+is for a session that commits nothing, such as a pull request's reviewer. Such a
+session has no commit to stamp, and joining is how its tokens land on the work
+it served. Its token cannot start, link, edit or finish a worklog.
+
 Deleting a record deletes its worklogs with their spans and links, and the
 answer names them as `worklogs_deleted`.

@@ -12,6 +12,8 @@ from slate.api import API_PREFIX
 # The issue update reads these two to decide how far it narrows a scoped client's body.
 ISSUES_CLOSE = 'slate.issues.close'
 RECORDS_PLAN = 'slate.records.plan'
+# The worklog join reads this one to let a scoped client into a worklog it did not open.
+WORKLOGS_OBSERVE = 'slate.worklogs.observe'
 
 SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # Every read of a record of any kind, of who holds which, of the documents and comments on it,
@@ -66,6 +68,10 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('POST', f'{API_PREFIX}/worklogs/{{name}}/finish'),
         }
     ),
+    # Joining a session to a live worklog another client opened, for a job whose session commits
+    # nothing, such as a pull request's reviewer. A join stamps a session's commits onto the
+    # worklog, so this scope is for a session with none. Its tokens then land on the work it served.
+    WORKLOGS_OBSERVE: frozenset({('POST', f'{API_PREFIX}/worklogs/{{name}}/join')}),
     # Reporting the tokens an agent session spent, for a job whose agent reports its own usage. A
     # report names a session and carries no actor, so where it changes the session, the audit row
     # names the client.

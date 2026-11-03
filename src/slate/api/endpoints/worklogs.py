@@ -5,7 +5,8 @@ one, and record what one produced. `GET /worklogs/current` is the call a commit 
 commit with the worklog its session is in.
 
 A scoped client acts only under its own client id, and joins, edits and finishes only a worklog it
-opened.
+opened. `slate.worklogs.observe` is the one exception: it joins a session that commits nothing to
+any live worklog.
 """
 
 import datetime as dt
@@ -26,6 +27,7 @@ from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import refuse_acting_for_another
+from slate.api.client_scopes import WORKLOGS_OBSERVE
 from slate.api.exceptions import ForbiddenException
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import OIDCIdentity
@@ -188,7 +190,8 @@ def join_worklog(worklog: WorklogFromPath, request: schemas.WorklogJoin, session
     A session is in one worklog at a time, so its spans never overlap. 409 when the worklog ended,
     or its claim ran out or ended.
     """
-    refuse_anothers_worklog(caller, worklog)
+    if not (isinstance(caller, ScopedClient) and WORKLOGS_OBSERVE in caller.scopes):
+        refuse_anothers_worklog(caller, worklog)
     name_agent_session(request.session)
     now = dt.datetime.now(dt.UTC)
     refuse_joining_unless_live(worklog, now, effects)

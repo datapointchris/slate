@@ -48,6 +48,9 @@
   "slate.sessions.write": [
     "PUT /api/v1/sessions/{id}/usage"
   ],
+  "slate.worklogs.observe": [
+    "POST /api/v1/worklogs/{name}/join"
+  ],
   "slate.worklogs.write": [
     "PATCH /api/v1/worklogs/{name}",
     "POST /api/v1/worklogs",

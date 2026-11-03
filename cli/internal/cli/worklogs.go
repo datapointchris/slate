@@ -237,7 +237,8 @@ func newWorklogsJoinCommand() *cobra.Command {
 			"which is printed under the line. Use it to work a worklog another session\n" +
 			"opened, or one `start` opened. Holding or resuming a claim returns the session\n" +
 			"to that claim's worklog. Refused when the worklog ended, or its claim ran out\n" +
-			"or ended.",
+			"or ended. A service joins only a worklog its client opened, unless its token\n" +
+			"holds slate.worklogs.observe, which is for a session that commits nothing.",
 		Example:     "  slate worklogs join 1991.2",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeWorklogsWrite),

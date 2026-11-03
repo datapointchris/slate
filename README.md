@@ -147,6 +147,7 @@ reaches only the routes its scopes list:
 | `slate.issues.close` | closing an open issue |
 | `slate.records.plan` | reading the vocabulary, filing into triage, setting an issue's priority and initiative, moving an issue, initiative or idea in the queue, and creating and editing initiatives |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
+| `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
 
 No scope deletes anything, and none files an idea or edits one. A planning

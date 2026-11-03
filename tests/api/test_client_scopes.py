@@ -33,6 +33,7 @@ COMMENTS = 'slate.comments.write'
 PLAN = 'slate.records.plan'
 WORKLOGS = 'slate.worklogs.write'
 SESSIONS = 'slate.sessions.write'
+OBSERVE = 'slate.worklogs.observe'
 RUN_POD_SESSION = 'run-pod-session'
 CLOSER = 'worker/close-job@service-box'
 SERVICE = 'slate-svc-worker'
@@ -83,6 +84,11 @@ SCOPED_WRITES = {
     (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs'): ('/worklogs', {'record': '{issue}', 'opened_by': SERVICE}, status.HTTP_201_CREATED),
     (WORKLOGS, 'PATCH', f'{API_PREFIX}/worklogs/{{name}}'): ('/worklogs/{worklog}', {'workflow': 'oneshot'}, status.HTTP_200_OK),
     (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs/{{name}}/join'): (
+        '/worklogs/{worklog}/join',
+        {'session': 'run-pod-session'},
+        status.HTTP_200_OK,
+    ),
+    (OBSERVE, 'POST', f'{API_PREFIX}/worklogs/{{name}}/join'): (
         '/worklogs/{worklog}/join',
         {'session': 'run-pod-session'},
         status.HTTP_200_OK,
@@ -229,6 +235,10 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (READ, 'POST', '/worklogs'),
         (WORKLOGS, 'POST', '/claims'),
         (WORKLOGS, 'GET', '/worklogs/{worklog}'),
+        (OBSERVE, 'POST', '/worklogs'),
+        (OBSERVE, 'POST', '/worklogs/{worklog}/finish'),
+        (OBSERVE, 'POST', '/worklogs/{worklog}/links'),
+        (OBSERVE, 'PATCH', '/worklogs/{worklog}'),
     ],
     ids=[
         'read-create',
@@ -260,6 +270,10 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         'read-worklog-start',
         'worklogs-hold',
         'worklogs-read',
+        'observe-start',
+        'observe-finish',
+        'observe-link',
+        'observe-edit',
     ],
 )
 def test_a_scoped_client_is_refused_off_its_scopes(as_caller, scope, method, url):
@@ -372,6 +386,17 @@ def test_the_worklogs_scope_joins_edits_and_finishes_only_a_worklog_its_client_o
     assert refused.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(refused)
     assert Refusal.SCOPED_CLIENT_WRITES_ITS_OWN_WORKLOGS in refused.json()['message']
     assert 'claude-code/peer' in refused.json()['message']
+
+
+def test_the_observe_scope_joins_a_session_to_a_worklog_another_client_opened(as_caller):
+    """A reviewer's pod holds no worklog of its own, so its tokens reach the record only by joining the one its round names."""
+    opened = as_caller.caller(PERSON).post('/worklogs', json={'record': as_caller.url('{issue}'), 'opened_by': 'claude-code/peer'})
+    assert opened.status_code == status.HTTP_201_CREATED, show_status_and_response(opened)
+
+    name = opened.json()['worklog']['name']
+    joined = as_caller.caller(scoped(OBSERVE)).post(f'/worklogs/{name}/join', json={'session': RUN_POD_SESSION})
+    assert joined.status_code == status.HTTP_200_OK, show_status_and_response(joined)
+    assert RUN_POD_SESSION in [span['session'] for span in joined.json()['worklog']['spans']]
 
 
 def test_a_scope_the_table_does_not_name_reaches_nothing(as_caller):
