@@ -94,24 +94,33 @@ with it as a trailer:
 
 ```sh
 #!/bin/sh
+case $(git remote get-url origin 2>/dev/null) in file:*) exit 0 ;; *:*) ;; *) exit 0 ;; esac
 name=$(slate worklogs current) && [ -n "$name" ] &&
-  git interpret-trailers --in-place --if-exists doNothing --trailer "Worklog: $name" "$1"
+  git interpret-trailers --in-place --if-exists doNothing \
+    --trailer "Worklog: $name" --trailer "Agent-Session: $CLAUDE_CODE_SESSION_ID" "$1"
 exit 0
 ```
 
-`--if-exists doNothing` keeps an amend from stamping a second trailer.
+`--if-exists doNothing` keeps an amend from stamping a second trailer. A
+repository whose `origin` has no host asks slate nothing, so a test suite
+committing in fixture repositories reaches no worklog.
 
 A `post-commit` hook records the commit on the worklog, named by its full sha
-and the repository its `origin` names. It reads the worklog from the commit's
-own trailer, so a commit made outside any worklog links nothing and prints
-nothing. A rebase keeps each trailer, so a new sha links to the worklog that
-wrote the commit, whichever session ran the rebase:
+and the repository its `origin` names. It reads the worklog and the session from
+the commit's own trailers, so a commit made outside any worklog links nothing
+and prints nothing. A rebase keeps each trailer, so a new sha links to the
+worklog and the session that wrote the commit, whichever session ran the rebase.
+`--session` is the session that made the commit, and the link's `linked_by`
+names who ran it:
 
 ```sh
 #!/bin/sh
+origin=$(git remote get-url origin 2>/dev/null)
+case $origin in file:*) exit 0 ;; *:*) ;; *) exit 0 ;; esac
 name=$(git log -1 --format='%(trailers:key=Worklog,valueonly)') && [ -n "$name" ] || exit 0
-repo=$(basename "$(git remote get-url origin 2>/dev/null)" .git)
-slate worklogs link "$name" --commit "$(git rev-parse HEAD)" ${repo:+--repo "$repo"} >/dev/null
+session=$(git log -1 --format='%(trailers:key=Agent-Session,valueonly)')
+slate worklogs link "$name" --commit "$(git rev-parse HEAD)" --repo "$(basename "$origin" .git)" \
+  --session "$session" >/dev/null
 ```
 
 `current` reads the session from `CLAUDE_CODE_SESSION_ID`, or `--session`. With
