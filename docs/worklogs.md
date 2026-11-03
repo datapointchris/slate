@@ -102,18 +102,20 @@ exit 0
 `--if-exists doNothing` keeps an amend from stamping a second trailer.
 
 A `post-commit` hook records the commit on the worklog, named by its full sha
-and the repository its `origin` names. It reads `current` first, so a commit
-made outside any worklog links nothing and prints nothing:
+and the repository its `origin` names. It reads the worklog from the commit's
+own trailer, so a commit made outside any worklog links nothing and prints
+nothing. A rebase keeps each trailer, so a new sha links to the worklog that
+wrote the commit, whichever session ran the rebase:
 
 ```sh
 #!/bin/sh
-name=$(slate worklogs current) && [ -n "$name" ] || exit 0
+name=$(git log -1 --format='%(trailers:key=Worklog,valueonly)') && [ -n "$name" ] || exit 0
 repo=$(basename "$(git remote get-url origin 2>/dev/null)" .git)
 slate worklogs link "$name" --commit "$(git rev-parse HEAD)" ${repo:+--repo "$repo"} >/dev/null
 ```
 
-Both read the session from `CLAUDE_CODE_SESSION_ID`, or `--session`. With no
-session, `current` prints nothing without asking the API. A repository whose
+`current` reads the session from `CLAUDE_CODE_SESSION_ID`, or `--session`. With
+no session, it prints nothing without asking the API. A repository whose
 hooks a manager such as pre-commit installs adds these two through it, since
 its install replaces `.git/hooks`. A hook declared in git config elsewhere can
 run the same two commands. The trailer is the commit's own record of its
