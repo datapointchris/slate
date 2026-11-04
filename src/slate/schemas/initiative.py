@@ -77,6 +77,9 @@ class Initiative(RecordModel):
     status_reason: str | None = None
     priority: int
     rank: float
+    pinned_ts: dt.datetime | None = None
+    pinned_by: str | None = None
+    pinned_session: str | None = None
     autofix: bool
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None

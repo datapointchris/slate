@@ -39,6 +39,13 @@ class RecordListed(RecordSummary):
     created_ts: dt.datetime
 
 
+class RecordPin(RecordModel):
+    """Pin a record ahead of every priority. `session` is the agent session pinning it, where one is."""
+
+    session: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] | None = None
+    host: str | None = None
+
+
 class RecordRankMove(RecordModel):
     """Place a record directly before or after another, of any kind, in the queue `slate next` reads."""
 

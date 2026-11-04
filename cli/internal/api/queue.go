@@ -45,6 +45,7 @@ type QueueRow struct {
 	Title      string        `json:"title"`
 	Step       string        `json:"step"`
 	Priority   int           `json:"priority"`
+	Pinned     bool          `json:"pinned"`
 	Holder     *string       `json:"holder"`
 	Overlaps   []PathOverlap `json:"overlaps"`
 	Record     any           `json:"record"`

@@ -33,6 +33,12 @@ class WriteEffectCode(enum.StrEnum):
     CLAIM_ENDED = 'claim_ended'
     EXPIRED_CLAIM_ENDED = 'expired_claim_ended'
     INITIATIVE_CREATED = 'initiative_created'
+    PIN_CLEARED = 'pin_cleared'
+    PIN_CARRIED = 'pin_carried'
+
+    # Warnings on a pin write that changed nothing.
+    ALREADY_PINNED = 'already_pinned'
+    NOT_PINNED = 'not_pinned'
 
     # Side effects on worklogs and a claim's waits.
     WORKLOG_OPENED = 'worklog_opened'

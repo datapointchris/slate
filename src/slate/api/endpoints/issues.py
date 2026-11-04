@@ -42,6 +42,9 @@ from slate.services.issue_views import list_order
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_issue_delete
+from slate.services.record_pins import clear_pin_on_close
+from slate.services.record_pins import pin_record
+from slate.services.record_pins import unpin_record
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_refs import resolve_issue
 from slate.services.record_refs import resolve_labels
@@ -233,6 +236,7 @@ def apply_status_transition(
         if closing:
             issue.closed_ts = now
             issue.closed_by = closer or signed_in
+            clear_pin_on_close(issue, target, effects)
     else:
         if issue.is_closed:
             reopen_completed_ancestors(issue, now, effects)
@@ -503,6 +507,31 @@ def rank(issue: IssueFromPath, move: schemas.RecordRankMove, session: DbSession,
     but beside the record named is refused, naming why.
     """
     move_in_queue(session, zone, issue.record, move)
+    session.commit()
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
+
+
+@router.post('/{id}/pin', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def pin(issue: IssueFromPath, request: schemas.RecordPin, session: DbSession, caller: CurrentCaller, zone: RequestZone, effects: Effects):
+    """Hold this issue ahead of every priority in the queue, a person's choice alone, until unpinned or closed."""
+    if issue.is_closed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f'#{issue.number} is {issue.status}, so the queue has no place to pin.'
+        )
+    if issue.initiative is not None and issue.initiative.status == 'someday':
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f'#{issue.number} is shelved in the someday initiative #{issue.initiative.number}, so no pin would show.',
+        )
+    pin_record(session, issue.record, request, caller_actor(caller), effects)
+    session.commit()
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
+
+
+@router.delete('/{id}/pin', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def unpin(issue: IssueFromPath, session: DbSession, zone: RequestZone, effects: Effects):
+    """Return this issue to the place its priority and rank give it."""
+    unpin_record(issue.record, effects)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 

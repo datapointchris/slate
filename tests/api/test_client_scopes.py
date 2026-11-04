@@ -466,3 +466,13 @@ def test_the_documents_the_cli_reads_hold_what_each_scope_reaches():
             path.write_text(document)
             stale.append(path.name)
     assert not stale, f'{", ".join(stale)} did not hold what the API narrows to each scope and has been rewritten; commit it'
+
+
+@pytest.mark.parametrize(
+    ('method', 'template'),
+    [(method, f'/{noun}/pin') for method in ('POST', 'DELETE') for noun in ('issues/{issue}', 'initiatives/{initiative}', 'ideas/{idea}')],
+)
+def test_no_scope_reaches_a_pin(as_caller, method, template):
+    every_scope = ScopedClient(client_id=SERVICE, scopes=frozenset(SCOPE_ROUTES))
+    response = as_caller.caller(every_scope).request(method, as_caller.url(template), json={})
+    assert response.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(response)

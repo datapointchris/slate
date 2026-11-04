@@ -80,6 +80,9 @@ class Idea(RecordModel):
     description: str | None = None
     priority: int
     rank: float
+    pinned_ts: dt.datetime | None = None
+    pinned_by: str | None = None
+    pinned_session: str | None = None
     created_ts: dt.datetime
     updated_ts: dt.datetime
     evidence: list[IdeaEvidence] = []

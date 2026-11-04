@@ -143,7 +143,10 @@ it as `open`. Work noticed in passing is filed there, with `discovered_from`
 naming the issue it was found during. It is recorded without jumping ahead of
 work someone chose.
 
-## Order is priority, then each initiative's work together, then rank
+## Order is a person's pin, then priority, then each initiative's work together, then rank
+
+A pin puts a record ahead of every priority. [Its own section](#a-pin-holds-a-record-above-every-priority-until-it-is-lifted-or-the-record-closes)
+says what it reaches. Below the pins, priority decides.
 
 Priority uses Linear's scale:
 
@@ -225,6 +228,40 @@ what moves a record past another priority's.
 - *Rejected:* an initiative `position` beside the issues' rank. Ranks in two
   spaces hold no order between an initiative and an issue or an idea, so
   neither could place an initiative's work among the rest of its priority.
+
+## A pin holds a record above every priority until it is lifted or the record closes
+
+`slate issues pin`, `slate initiatives pin` and `slate ideas pin` are the one way
+work crosses a priority. A pin is a term ahead of the priority in the sort key, so
+pinned records still sort among themselves by priority, then rank. `slate next`
+says `pinned` on each row a pin put there, and `pinned` in its JSON says the same.
+`pinned_ts` is set only on the record a person pinned.
+
+```text
+pinned  issue 51
+        initiative 12 ── issue 40 ── issue 44
+urgent  initiative 15 ── issue 41
+high    idea 60
+```
+
+- **An initiative's pin brings all its issues.** That includes one whose own
+  priority would otherwise stand it alone. A pinned issue inside an unpinned
+  initiative stands alone at its pin.
+- **What a pinned issue waits on sorts just ahead of it**, taking the pin with it,
+  by the same rule that raises a blocker. Its effective priority follows.
+- **Only a person pins.** No scope lists the routes, so a scoped client answers
+  403. An automated order can then never pin its own favorite. A token belongs to
+  a person whichever session holds it, so `pinned_session` names the agent session
+  that sent it, where one did, beside `pinned_by`.
+- **A pin ends with the record.** Closing an issue, or finishing or shelving an
+  initiative, clears it and answers `pin_cleared`. A promoted idea's work is its
+  initiative's, so the pin moves there and answers `pin_carried`. Reopening
+  restores no pin.
+- **A record the queue would not show is refused with 409:** a closed issue, an
+  issue in a `someday` initiative, an initiative that is not active, and a
+  promoted idea.
+- **A move across the pin answers 409,** as one across priorities does. Pinning or
+  unpinning is what moves a record past that line.
 
 ## Who is working an issue is its claim, never its status
 

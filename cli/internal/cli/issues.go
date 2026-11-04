@@ -103,6 +103,8 @@ func newIssuesCommand() *cobra.Command {
 	)
 	add(issueGroupOrder,
 		goclikit.WithRecoveryHints(newIssuesReorderCommand(), issueHints...),
+		goclikit.WithRecoveryHints(newIssuesPinCommand(), issueHints...),
+		goclikit.WithRecoveryHints(newIssuesUnpinCommand(), issueHints...),
 	)
 	return cmd
 }

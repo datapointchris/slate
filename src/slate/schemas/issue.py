@@ -135,6 +135,9 @@ class Issue(RecordModel):
     priority: int
     effective_priority: int
     rank: float
+    pinned_ts: dt.datetime | None = None
+    pinned_by: str | None = None
+    pinned_session: str | None = None
     deferred_until_date: dt.date | None = None
     claim: Claim | None = None
     autofix: bool

@@ -30,6 +30,9 @@ type Initiative struct {
 	StatusReason   *string        `json:"status_reason"`
 	Priority       int            `json:"priority"`
 	Rank           float64        `json:"rank"`
+	PinnedTS       *time.Time     `json:"pinned_ts"`
+	PinnedBy       *string        `json:"pinned_by"`
+	PinnedSession  *string        `json:"pinned_session"`
 	Autofix        bool           `json:"autofix"`
 	CreatedTS      time.Time      `json:"created_ts"`
 	ClosedTS       *time.Time     `json:"closed_ts"`

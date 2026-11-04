@@ -72,8 +72,11 @@ type Issue struct {
 	// EffectivePriority is what the ready queue sorts by: the issue's own, else
 	// its parent's or its active initiative's, raised to the most urgent of
 	// anything it blocks.
-	EffectivePriority int     `json:"effective_priority"`
-	Rank              float64 `json:"rank"`
+	EffectivePriority int        `json:"effective_priority"`
+	Rank              float64    `json:"rank"`
+	PinnedTS          *time.Time `json:"pinned_ts"`
+	PinnedBy          *string    `json:"pinned_by"`
+	PinnedSession     *string    `json:"pinned_session"`
 	// DeferredUntilDate is a day, so it decodes as the string the API sends. A
 	// time.Time would refuse the bare YYYY-MM-DD and fail the whole list.
 	DeferredUntilDate *string `json:"deferred_until_date"`

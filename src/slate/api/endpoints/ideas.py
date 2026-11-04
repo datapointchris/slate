@@ -26,6 +26,9 @@ from slate.services.initiatives import new_initiative
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
+from slate.services.record_pins import carry_pin
+from slate.services.record_pins import pin_record
+from slate.services.record_pins import unpin_record
 from slate.services.record_refs import resolve_idea
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
@@ -71,6 +74,29 @@ def create(idea: schemas.IdeaCreate, session: DbSession, effects: Effects):
 def rank(idea: IdeaFromPath, move: schemas.RecordRankMove, session: DbSession, zone: RequestZone, effects: Effects):
     """Place this idea directly before or after another record of its priority in the queue."""
     move_in_queue(session, zone, idea.record, move)
+    session.commit()
+    session.refresh(idea)
+    return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
+
+
+@router.post('/{id}/pin', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
+def pin(idea: IdeaFromPath, request: schemas.RecordPin, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Hold this idea ahead of every priority in the queue, a person's choice alone, until unpinned or promoted."""
+    if idea.initiative is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f'#{idea.number} was promoted to initiative #{idea.initiative.number}, so pin that instead.',
+        )
+    pin_record(session, idea.record, request, caller_actor(caller), effects)
+    session.commit()
+    session.refresh(idea)
+    return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
+
+
+@router.delete('/{id}/pin', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
+def unpin(idea: IdeaFromPath, session: DbSession, effects: Effects):
+    """Return this idea to the place its priority and rank give it."""
+    unpin_record(idea.record, effects)
     session.commit()
     session.refresh(idea)
     return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
@@ -137,6 +163,7 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
         f'Created initiative #{initiative.number} {initiative.name!r} from #{idea.number}.',
         initiative.number,
     )
+    carry_pin(idea, initiative, effects)
     now = dt.datetime.now(dt.UTC)
     end_with_record(session, idea.number, 'promoted', now, caller_actor(caller), effects)
     idea.updated_ts = now

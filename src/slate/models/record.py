@@ -14,12 +14,14 @@ issues are placed against each other in one space. `services/fractional_rank.py`
 
 from __future__ import annotations
 
+import datetime as dt
 import enum
 from typing import Any
 from typing import ClassVar
 
 from sqlalchemy import BigInteger
 from sqlalchemy import CheckConstraint
+from sqlalchemy import DateTime
 from sqlalchemy import Double
 from sqlalchemy import FetchedValue
 from sqlalchemy import ForeignKey
@@ -69,6 +71,11 @@ class Record(Base):
     # Left unset, the `records_rank_at_end` trigger places the record one past the last, so every
     # way a row is inserted lands at the end.
     rank: Mapped[float] = mapped_column(Double, nullable=False, server_default=FetchedValue())
+    # A person's pin, which sorts the record ahead of every priority until it is unpinned or closed.
+    # `pinned_session` is the agent session that pinned it, where one did.
+    pinned_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pinned_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pinned_session: Mapped[str | None] = mapped_column(Text, ForeignKey('agent_sessions.id'), nullable=True)
 
     # The pair each kind's table references, so the kind it declares is the kind recorded here.
     __table_args__ = (
@@ -104,6 +111,19 @@ class NumberedRecord:
     def rank(cls: type[NumberedRecord]) -> Mapped[float]:
         """The record's rank, read with the row. A move writes `record.rank`."""
         return column_property(select(Record.rank).where(Record.number == cls.number).scalar_subquery())
+
+    @declared_attr
+    def pinned_ts(cls: type[NumberedRecord]) -> Mapped[dt.datetime | None]:
+        """When a person pinned the record, read with the row. `services/record_pins.py` writes it on `record`."""
+        return column_property(select(Record.pinned_ts).where(Record.number == cls.number).scalar_subquery())
+
+    @declared_attr
+    def pinned_by(cls: type[NumberedRecord]) -> Mapped[str | None]:
+        return column_property(select(Record.pinned_by).where(Record.number == cls.number).scalar_subquery())
+
+    @declared_attr
+    def pinned_session(cls: type[NumberedRecord]) -> Mapped[str | None]:
+        return column_property(select(Record.pinned_session).where(Record.number == cls.number).scalar_subquery())
 
     def __init__(self, **kwargs: Any) -> None:
         """`rank` places the new record; left out, it goes one past the last."""

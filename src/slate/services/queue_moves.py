@@ -4,6 +4,7 @@ A slot moves among the slots of its priority: an idea, an initiative with its is
 outside any initiative. Placed beside an issue inside an initiative, it goes beside that whole
 initiative. An issue inside an initiative moves only among that initiative's issues. An issue sorting
 just ahead of what waits on it moves with that, so its only neighbors are the issues sorting there too.
+A slot never moves across the pin, which only pinning or unpinning crosses.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from slate import schemas
 from slate.models.record import PRIORITIES
 from slate.models.record import Kind
 from slate.services.fractional_rank import move_record
+from slate.services.issue_readiness import PINNED
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import QueueKey
 from slate.services.issue_readiness import measure_readiness
@@ -33,12 +35,13 @@ class Standing:
     """Where a record sits: the slot holding it, that slot's urgency, and for an unclosed issue its place.
 
     `inside` names the initiative an issue sits inside. `raised_by` is the issue whose wait puts it
-    ahead of its own place.
+    ahead of its own place. `pin` is the pin term of the slot holding it.
     """
 
     record: models.Record
     slot: int
     urgency: int
+    pin: int
     key: QueueKey | None = None
     inside: str | None = None
     raised_by: int | None = None
@@ -54,18 +57,19 @@ def standing(session: Session, readiness: IssueReadiness, record: models.Record)
                 raise outside_the_queue(record, f'a {issue.status} issue')
             slot = readiness.slot_of[issue.id]
             inside = issue.initiative.name if slot != record.number and issue.initiative is not None else None
-            return Standing(record, slot, readiness.home_key[issue.id].urgency, key, inside, readiness.raised_by.get(issue.id))
+            home = readiness.home_key[issue.id]
+            return Standing(record, slot, home.urgency, home.pin, key, inside, readiness.raised_by.get(issue.id))
         case Kind.INITIATIVE:
             if (key := readiness.slot_key_by_number.get(record.number)) is None:
                 initiative = session.scalars(select(models.Initiative).where(models.Initiative.number == record.number)).one()
                 raise outside_the_queue(record, f'a {initiative.status} initiative')
-            return Standing(record, record.number, key.urgency, key)
+            return Standing(record, record.number, key.urgency, key.pin, key)
         case Kind.IDEA:
             if (key := readiness.slot_key_by_number.get(record.number)) is None:
                 idea = session.scalars(select(models.Idea).where(models.Idea.number == record.number)).one()
                 promoted_to = f'#{idea.initiative.number}' if idea.initiative is not None else 'an initiative'
                 raise outside_the_queue(record, f'an idea promoted to {promoted_to}')
-            return Standing(record, record.number, key.urgency, key)
+            return Standing(record, record.number, key.urgency, key.pin, key)
 
 
 def conflict(detail: str) -> HTTPException:
@@ -85,7 +89,7 @@ def placement(session: Session, mover: Standing, beside: Standing) -> models.Rec
     """The record to rank `mover` beside, so it lands directly beside `beside` in the queue."""
     m, a = mover.record.number, beside.record.number
     if mover.raised_by is not None:
-        if mover.key is not None and beside.key is not None and beside.key[:6] == mover.key[:6]:
+        if mover.key is not None and beside.key is not None and beside.key.place_before_ties == mover.key.place_before_ties:
             return beside.record
         raise conflict(
             f'#{m} sorts just ahead of #{mover.raised_by}, which waits on it, so it moves with #{mover.raised_by}. '
@@ -106,6 +110,12 @@ def placement(session: Session, mover: Standing, beside: Standing) -> models.Rec
     if beside.slot == m:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f'#{a} sits inside #{m}, so #{m} cannot be placed beside it.'
+        )
+    if beside.pin != mover.pin:
+        pinned, unpinned = (m, a) if mover.pin == PINNED else (a, m)
+        raise conflict(
+            f'#{pinned} is pinned and #{unpinned} is not, so a move cannot place one beside the other. '
+            f'Pinning or unpinning #{m} is what moves it past #{a}.'
         )
     if beside.urgency != mover.urgency:
         raise conflict(

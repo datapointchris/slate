@@ -720,7 +720,8 @@ func newReorderCommand(kind, rule, example string, rank rankRecord) *cobra.Comma
 			"--priority` moves a record across priorities. A record moves among the\n" +
 			"records of its priority: ideas, initiatives with their issues, and issues in\n" +
 			"no initiative. Named beside an issue inside an initiative, it goes beside\n" +
-			"that whole initiative. " + rule,
+			"that whole initiative. A pinned record moves only among pinned ones, and\n" +
+			"`pin` and `unpin` cross that line. " + rule,
 		Example:     example,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),

@@ -94,3 +94,81 @@ def test_a_ready_issue_names_each_held_issue_changing_the_same_code(client):
 
     (row,) = ok(client.get(QUEUE))['queue']
     assert [(overlap['number'], overlap['holder'], overlap['paths']) for overlap in row['overlaps']] == [(held, 'agent-a', ['src/api'])]
+
+
+def pin(client, noun: str, ref: int, **body) -> dict:
+    return ok(client.post(f'/{noun}/{ref}/pin', json=body))
+
+
+def test_a_pin_leads_every_priority_and_an_initiative_brings_its_issues(client):
+    issue(client, 'Patch the outage', priority=1)
+    free = issue(client, 'Water the plants', priority=4)
+    idea = ok(client.post('/ideas', json={'title': 'Try a layout', 'priority': 4}), status.HTTP_201_CREATED)['idea']['number']
+    importer = initiative(client, 'Ship the importer', priority=4)
+    issue(client, 'Import stage 1', initiative=importer)
+    by_priority = ['Patch the outage', 'Water the plants', 'Try a layout', 'Import stage 1']
+    assert [title for title, _, _ in rows(client)] == by_priority
+
+    assert pin(client, 'issues', free, session='s1', host='box')['issue']['pinned_session'] == 's1'
+    pin(client, 'ideas', idea)
+    pin(client, 'initiatives', importer)
+
+    queue = ok(client.get(QUEUE))['queue']
+    assert [row['title'] for row in queue] == ['Water the plants', 'Try a layout', 'Import stage 1', 'Patch the outage']
+    assert [row['pinned'] for row in queue] == [True, True, True, False]
+    assert queue[0]['record']['pinned_ts'] is not None
+    assert queue[0]['record']['pinned_by'] is not None
+    assert queue[2]['record']['pinned_ts'] is None
+
+    for noun, ref in (('issues', free), ('ideas', idea), ('initiatives', importer)):
+        ok(client.delete(f'/{noun}/{ref}/pin'))
+    assert [title for title, _, _ in rows(client)] == by_priority
+
+
+def test_a_blocker_of_a_pinned_issue_sorts_just_ahead_of_it(client):
+    gated = issue(client, 'Ship it', priority=4)
+    blocker = issue(client, 'Fix the build', priority=4)
+    ok(client.post(f'/issues/{gated}/dependencies', json={'depends_on': blocker}), status.HTTP_201_CREATED)
+    issue(client, 'Patch the outage', priority=1)
+
+    pin(client, 'issues', gated)
+
+    head = ok(client.get(QUEUE))['queue'][0]
+    assert (head['title'], head['pinned']) == ('Fix the build', True)
+
+
+def test_a_pin_ends_with_the_record_and_each_ending_says_so(client):
+    closing = issue(client, 'Water the plants')
+    pin(client, 'issues', closing)
+    closed = ok(client.patch(f'/issues/{closing}', json={'status': 'completed'}))
+    assert closed['issue']['pinned_ts'] is None
+    assert [effect['code'] for effect in closed['side_effects']] == ['pin_cleared']
+
+    shelving = initiative(client, 'Ship the importer')
+    pin(client, 'initiatives', shelving)
+    shelved = ok(client.patch(f'/initiatives/{shelving}', json={'status': 'someday'}))
+    assert shelved['initiative']['pinned_ts'] is None
+    assert [effect['code'] for effect in shelved['side_effects']] == ['pin_cleared']
+
+    idea = ok(client.post('/ideas', json={'title': 'Try a layout'}), status.HTTP_201_CREATED)['idea']['number']
+    pin(client, 'ideas', idea)
+    promoted = ok(client.post(f'/ideas/{idea}/promote', json={}))
+    assert 'pin_carried' in [effect['code'] for effect in promoted['side_effects']]
+    assert promoted['idea']['pinned_ts'] is None
+    assert promoted['idea']['initiative']['pinned_ts'] is not None
+
+
+def test_a_move_across_the_pin_and_a_pin_on_what_the_queue_cannot_hold_are_refused(client):
+    pinned = issue(client, 'Water the plants', priority=2)
+    plain = issue(client, 'Patch the outage', priority=2)
+    pin(client, 'issues', pinned)
+    moved = client.post(f'/issues/{plain}/rank', json={'before': pinned})
+    assert moved.status_code == status.HTTP_409_CONFLICT, show_status_and_response(moved)
+    assert f'#{pinned} is pinned' in moved.json()['message']
+
+    ok(client.patch(f'/issues/{plain}', json={'status': 'completed'}))
+    someday = initiative(client, 'Measure everything', status='someday')
+    shelved = issue(client, 'Count the tokens', initiative=someday)
+    for path in (f'/issues/{plain}/pin', f'/initiatives/{someday}/pin', f'/issues/{shelved}/pin'):
+        refused = client.post(path, json={})
+        assert refused.status_code == status.HTTP_409_CONFLICT, show_status_and_response(refused)

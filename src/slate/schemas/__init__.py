@@ -59,6 +59,7 @@ from slate.schemas.queue import PathOverlap
 from slate.schemas.queue import Queue
 from slate.schemas.queue import QueueFilter
 from slate.schemas.record import RecordListed
+from slate.schemas.record import RecordPin
 from slate.schemas.record import RecordRankMove
 from slate.schemas.record import RecordSummary
 from slate.schemas.record_change import RecordChange
@@ -146,6 +147,7 @@ __all__ = [
     'RecordDeleted',
     'RecordListed',
     'RecordParts',
+    'RecordPin',
     'RecordRankMove',
     'RecordSummary',
     'SessionSpan',

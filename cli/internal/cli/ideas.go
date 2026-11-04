@@ -47,6 +47,8 @@ func newIdeasCommand() *cobra.Command {
 		goclikit.WithRecoveryHints(newIdeasLinkCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasPromoteCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasReorderCommand(), ideaHints...),
+		goclikit.WithRecoveryHints(newIdeasPinCommand(), ideaHints...),
+		goclikit.WithRecoveryHints(newIdeasUnpinCommand(), ideaHints...),
 	)...)
 	return cmd
 }

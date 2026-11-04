@@ -42,6 +42,7 @@ from slate.services.issue_filters import apply_label_filter
 from slate.services.issue_filters import apply_repo_filter
 from slate.services.issue_filters import autofixable_filtered
 from slate.services.issue_paths import held_overlaps
+from slate.services.issue_readiness import PINNED
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import QueueKey
 from slate.services.issue_readiness import measure_readiness
@@ -104,6 +105,7 @@ def queue_as_measured(
     claimed: list[tuple[str, QueueKey, Row]] = []
 
     def place(key: QueueKey, row: Row) -> None:
+        row.pinned = key.pin == PINNED
         claim = held.get(row.number)
         if claim is None:
             queued.append((key, row))

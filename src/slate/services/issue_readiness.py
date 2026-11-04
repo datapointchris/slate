@@ -20,9 +20,11 @@ may take the issue now, which `ready` answers.
 
 The queue is ordered in slots. A slot is an active initiative with the issues
 it holds, or a record standing alone: an idea, an initiative with no issues, or
-an issue outside any initiative. Slots sort by urgency, then by their record's
-rank. Inside an initiative its issues sort by rank. An issue whose own priority
-is more urgent than its initiative's stands alone at its own.
+an issue outside any initiative. Slots sort by pin, then urgency, then their
+record's rank. Inside an initiative its issues sort by rank. An issue whose own
+priority is more urgent than its initiative's stands alone at its own, unless
+the initiative is pinned, which brings all its issues with it. A pinned issue
+stands alone at its own pin.
 
 An issue something waits on, a dependent or its parent, sorts just ahead of the
 earliest of them when that is earlier than its own place, at any depth. That
@@ -56,6 +58,10 @@ NO_PRIORITY_URGENCY = 5
 # A slot's own record sorts ahead of whatever the slot holds.
 AHEAD_OF_ITS_ISSUES = float('-inf')
 
+# A pinned slot sorts ahead of every unpinned one, whatever its priority.
+PINNED = 0
+UNPINNED = 1
+
 
 def urgency(priority: int) -> int:
     return priority or NO_PRIORITY_URGENCY
@@ -65,6 +71,10 @@ def priority_of(urgency_value: int) -> int:
     return 0 if urgency_value == NO_PRIORITY_URGENCY else urgency_value
 
 
+def pin_term(pinned_ts: dt.datetime | None) -> int:
+    return UNPINNED if pinned_ts is None else PINNED
+
+
 class QueueKey(NamedTuple):
     """Where a record sorts. The slot comes first, then the place inside it.
 
@@ -72,6 +82,7 @@ class QueueKey(NamedTuple):
     `tie_rank` and `tie_number` order the issues sorting at the same step.
     """
 
+    pin: int
     urgency: int
     slot_rank: float
     slot_number: int
@@ -81,18 +92,24 @@ class QueueKey(NamedTuple):
     tie_rank: float
     tie_number: int
 
+    @property
+    def place_before_ties(self) -> tuple:
+        """The key up to the tie, which every issue sorting at one step ahead of a waiter shares."""
+        return self[:7]
 
-def slot_key(urgency_value: int, rank: float, number: int) -> QueueKey:
+
+def slot_key(urgency_value: int, rank: float, number: int, pin: int = UNPINNED) -> QueueKey:
     """The key of a record standing as its own slot: an idea, an initiative, or an issue outside one."""
-    return QueueKey(urgency_value, rank, number, AHEAD_OF_ITS_ISSUES, 0, 0, 0.0, 0)
+    return QueueKey(pin, urgency_value, rank, number, AHEAD_OF_ITS_ISSUES, 0, 0, 0.0, 0)
 
 
 def just_ahead_of(waiter: QueueKey, rank: float, number: int) -> QueueKey:
-    return QueueKey(*waiter[:5], waiter.ahead - 1, rank, number)
+    return waiter._replace(ahead=waiter.ahead - 1, tie_rank=rank, tie_number=number)
 
 
 class ActiveInitiative(NamedTuple):
     number: int
+    pin: int
     urgency: int
     rank: float
 
@@ -143,26 +160,28 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
         models.Issue.deferred_until_date,
         models.Issue.autofix,
         models.Record.rank,
+        models.Record.pinned_ts,
     )
     query = select(*columns).join(models.Record, models.Record.number == models.Issue.number)
     rows = {row.id: row for row in session.execute(query).all()}
     active_initiatives = {
-        row.id: ActiveInitiative(row.number, urgency(row.priority), row.rank)
+        row.id: ActiveInitiative(row.number, pin_term(row.pinned_ts), urgency(row.priority), row.rank)
         for row in session.execute(
-            select(models.Initiative.id, models.Initiative.number, models.Initiative.priority, models.Record.rank)
+            select(models.Initiative.id, models.Initiative.number, models.Initiative.priority, models.Record.rank, models.Record.pinned_ts)
             .join(models.Record, models.Record.number == models.Initiative.number)
             .where(models.Initiative.status == 'active')
         ).all()
     }
     slot_key_by_number = {
-        initiative.number: slot_key(initiative.urgency, initiative.rank, initiative.number) for initiative in active_initiatives.values()
+        initiative.number: slot_key(initiative.urgency, initiative.rank, initiative.number, initiative.pin)
+        for initiative in active_initiatives.values()
     }
-    for number, priority, rank in session.execute(
-        select(models.Idea.number, models.Idea.priority, models.Record.rank)
+    for number, priority, rank, pinned_ts in session.execute(
+        select(models.Idea.number, models.Idea.priority, models.Record.rank, models.Record.pinned_ts)
         .join(models.Record, models.Record.number == models.Idea.number)
         .where(is_open(Kind.IDEA))
     ).all():
-        slot_key_by_number[number] = slot_key(urgency(priority), rank, number)
+        slot_key_by_number[number] = slot_key(urgency(priority), rank, number, pin_term(pinned_ts))
     someday_initiatives = set(session.scalars(select(models.Initiative.id).where(models.Initiative.status == 'someday')).all())
     no_autofix_initiatives = set(session.scalars(select(models.Initiative.id).where(models.Initiative.autofix.is_(False))).all())
     edges = session.execute(select(models.IssueDependency.issue_id, models.IssueDependency.depends_on_id)).all()
@@ -189,11 +208,14 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
     for issue_id in unclosed:
         row = rows[issue_id]
         initiative = active_initiatives.get(row.initiative_id)
-        if initiative is not None and urgency(row.priority) >= initiative.urgency:
-            home_key[issue_id] = QueueKey(initiative.urgency, initiative.rank, initiative.number, row.rank, row.number, 0, 0.0, 0)
+        stays_inside = initiative is not None and (initiative.pin == PINNED or urgency(row.priority) >= initiative.urgency)
+        if initiative is not None and stays_inside and row.pinned_ts is None:
+            home_key[issue_id] = QueueKey(
+                initiative.pin, initiative.urgency, initiative.rank, initiative.number, row.rank, row.number, 0, 0.0, 0
+            )
             slot_of[issue_id] = initiative.number
         else:
-            home_key[issue_id] = slot_key(urgency(row.priority), row.rank, row.number)
+            home_key[issue_id] = slot_key(urgency(row.priority), row.rank, row.number, pin_term(row.pinned_ts))
             slot_of[issue_id] = row.number
 
     queue_key: dict[UUID, QueueKey] = {}

@@ -6,6 +6,7 @@ from typing import Literal
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import HTTPException
 from fastapi import Query
 from fastapi import status
 from sqlalchemy import ColumnElement
@@ -38,6 +39,9 @@ from slate.services.initiatives import work_order
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_initiative_delete
+from slate.services.record_pins import clear_pin_on_close
+from slate.services.record_pins import pin_record
+from slate.services.record_pins import unpin_record
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_summaries import record_summaries
 from slate.services.row_limit import RowLimit
@@ -136,6 +140,29 @@ def rank(initiative: InitiativeFromPath, move: schemas.RecordRankMove, session: 
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
 
 
+@router.post('/{id:path}/pin', response_model=schemas.InitiativeWritten, status_code=status.HTTP_200_OK)
+def pin(initiative: InitiativeFromPath, request: schemas.RecordPin, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Hold this initiative and its issues ahead of every priority, a person's choice alone, until unpinned, finished or shelved."""
+    if initiative.status != 'active':
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f'#{initiative.number} is a {initiative.status} initiative, so the queue has no place to pin. Reopen it first.',
+        )
+    pin_record(session, initiative.record, request, caller_actor(caller), effects)
+    session.commit()
+    session.refresh(initiative)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
+
+
+@router.delete('/{id:path}/pin', response_model=schemas.InitiativeWritten, status_code=status.HTTP_200_OK)
+def unpin(initiative: InitiativeFromPath, session: DbSession, effects: Effects):
+    """Return this initiative to the place its priority and rank give it."""
+    unpin_record(initiative.record, effects)
+    session.commit()
+    session.refresh(initiative)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
+
+
 # Ahead of `read_one`, whose `{id:path}` would otherwise read `progress` as a name. `refuse_routed_name` keeps it from being one.
 @router.get('/progress', response_model=list[schemas.InitiativeProgress], status_code=status.HTTP_200_OK)
 def read_progress(
@@ -186,6 +213,8 @@ def apply_status_transition(
         return
     validate_status(new_status, session)
     require_reason_when_dropped(new_status, reason)
+    if new_status != 'active':
+        clear_pin_on_close(initiative, new_status, effects)
     if new_status not in TERMINAL_INITIATIVE_STATUSES:
         update_data['status_reason'] = None
         update_data['closed_ts'] = None

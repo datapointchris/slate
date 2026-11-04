@@ -50,6 +50,8 @@ func newInitiativesCommand() *cobra.Command {
 		newInitiativesShelveCommand(),
 		newInitiativesReopenCommand(),
 		newInitiativesReorderCommand(),
+		newInitiativesPinCommand(),
+		newInitiativesUnpinCommand(),
 		newInitiativesDeleteCommand(),
 	)...)
 	return cmd

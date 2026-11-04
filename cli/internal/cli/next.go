@@ -47,7 +47,9 @@ func newNextCommand() *cobra.Command {
 			"nothing, so hold what you take before working it.\n" +
 			"\n" +
 			"The priority column is the one the queue sorts by, and a * marks one inherited\n" +
-			"from what the issue blocks, its parent, or its initiative.",
+			"from what the issue blocks, its parent, or its initiative. A pin sorts ahead of\n" +
+			"every priority, and a row it put there says `pinned`: the pinned record, its\n" +
+			"initiative's issues, and what they wait on.",
 		Example: "  slate next\n" +
 			"  slate next --step build --limit 1\n" +
 			"  slate next --step build --repo webapp --json\n" +
@@ -186,6 +188,9 @@ func queueRowNotes(row api.QueueRow, now time.Time) []string {
 	}
 	for _, overlap := range row.Overlaps {
 		notes = append(notes, fmt.Sprintf("overlaps #%d held by %s on %s", overlap.Number, overlap.Holder, strings.Join(overlap.Paths, ", ")))
+	}
+	if row.Pinned {
+		notes = append([]string{"pinned"}, notes...)
 	}
 	return notes
 }

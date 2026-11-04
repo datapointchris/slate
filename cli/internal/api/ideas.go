@@ -20,17 +20,20 @@ type IdeaEvidence struct {
 // Idea is work nobody has taken on yet. Initiative is the one it was promoted
 // into, with that initiative's progress, and nil until then.
 type Idea struct {
-	ID          string         `json:"id"`
-	Number      int            `json:"number"`
-	Title       string         `json:"title"`
-	Description *string        `json:"description"`
-	Priority    int            `json:"priority"`
-	Rank        float64        `json:"rank"`
-	CreatedTS   time.Time      `json:"created_ts"`
-	UpdatedTS   time.Time      `json:"updated_ts"`
-	Evidence    []IdeaEvidence `json:"evidence"`
-	Initiative  *Initiative    `json:"initiative"`
-	Claim       *Claim         `json:"claim"`
+	ID            string         `json:"id"`
+	Number        int            `json:"number"`
+	Title         string         `json:"title"`
+	Description   *string        `json:"description"`
+	Priority      int            `json:"priority"`
+	Rank          float64        `json:"rank"`
+	PinnedTS      *time.Time     `json:"pinned_ts"`
+	PinnedBy      *string        `json:"pinned_by"`
+	PinnedSession *string        `json:"pinned_session"`
+	CreatedTS     time.Time      `json:"created_ts"`
+	UpdatedTS     time.Time      `json:"updated_ts"`
+	Evidence      []IdeaEvidence `json:"evidence"`
+	Initiative    *Initiative    `json:"initiative"`
+	Claim         *Claim         `json:"claim"`
 }
 
 // IdeaDetail is an idea with its claims, comments and documents.
