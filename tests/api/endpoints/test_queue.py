@@ -134,7 +134,7 @@ def test_a_blocker_of_a_pinned_issue_sorts_just_ahead_of_it(client):
     pin(client, 'issues', gated)
 
     head = ok(client.get(QUEUE))['queue'][0]
-    assert (head['title'], head['pinned']) == ('Fix the build', True)
+    assert (head['title'], head['pinned'], head['raised_by']) == ('Fix the build', True, gated)
 
 
 def test_a_pin_ends_with_the_record_and_each_ending_says_so(client):

@@ -40,7 +40,8 @@ class QueueRowBase(BaseModel):
     `holder` is who holds a claimed row, and null in the queue. `overlaps` names each issue under
     a live claim whose paths meet this issue's, so the collision shows before anyone takes it.
     `pinned` says a pin put the row ahead of every priority: its own, its initiative's, or that of
-    what waits on it. The record's `pinned_ts` is set only where its own pin is.
+    what waits on it. The record's `pinned_ts` is set only where its own pin is. `raised_by` is
+    the issue whose wait put this one ahead of its own place, which refuses a rank move beside it.
     """
 
     number: int
@@ -48,6 +49,7 @@ class QueueRowBase(BaseModel):
     step: Step
     priority: int
     pinned: bool = False
+    raised_by: int | None = None
     holder: str | None = None
     overlaps: list[PathOverlap] = []
 

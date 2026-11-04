@@ -124,6 +124,7 @@ def queue_as_measured(
                 title=issue.title,
                 step=issue_step(issue.type),
                 priority=view.effective_priority,
+                raised_by=readiness.raised_by.get(issue.id),
                 overlaps=[
                     schemas.PathOverlap(
                         number=overlap.number,
