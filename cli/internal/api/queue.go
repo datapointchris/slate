@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -24,6 +25,8 @@ var QueueSteps = []string{QueueStepDiscuss, QueueStepPlan, QueueStepDecide, Queu
 type QueueFilter struct {
 	ReadyFilter
 	Step string
+	// For reads one record's work and everything it transitively waits on, when set.
+	For int
 }
 
 // PathOverlap is another issue under a live claim whose paths meet a row's:
@@ -49,6 +52,7 @@ type QueueRow struct {
 	RaisedBy   *int          `json:"raised_by"`
 	Holder     *string       `json:"holder"`
 	Overlaps   []PathOverlap `json:"overlaps"`
+	Unblocks   []int         `json:"unblocks"`
 	Record     any           `json:"record"`
 	Issue      *Issue        `json:"-"`
 	Initiative *Initiative   `json:"-"`
@@ -95,6 +99,9 @@ func (c *Client) GetQueue(ctx context.Context, filter QueueFilter, zone DayZone)
 	query := filter.query()
 	if filter.Step != "" {
 		query.Set("step", filter.Step)
+	}
+	if filter.For != 0 {
+		query.Set("for_record", strconv.Itoa(filter.For))
 	}
 	setZone(query, zone)
 	var queue Queue

@@ -22,6 +22,10 @@ class QueueFilter(ReadyFilter):
 
     step: Step | None = Field(None, description='Only rows at this step: discuss, plan, decide or build')
     type: str | None = Field(None, description='An issue type. Leaves out every idea and initiative.')
+    for_record: int | None = Field(
+        None,
+        description='A record number. Reads its own open work and every open issue it transitively waits on, ready or not, in queue order.',
+    )
 
 
 class PathOverlap(BaseModel):
@@ -42,6 +46,7 @@ class QueueRowBase(BaseModel):
     `pinned` says a pin put the row ahead of every priority: its own, its initiative's, or that of
     what waits on it. The record's `pinned_ts` is set only where its own pin is. `raised_by` is
     the issue whose wait put this one ahead of its own place, which refuses a rank move beside it.
+    `unblocks` is filled only under `for_record`: each issue in that record's work waiting on this one directly.
     """
 
     number: int
@@ -52,6 +57,7 @@ class QueueRowBase(BaseModel):
     raised_by: int | None = None
     holder: str | None = None
     overlaps: list[PathOverlap] = []
+    unblocks: list[int] = []
 
 
 class IssueRow(QueueRowBase):

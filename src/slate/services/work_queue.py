@@ -51,6 +51,7 @@ from slate.services.issue_views import calendar_now
 from slate.services.issue_views import issue_views
 from slate.services.open_records import is_open
 from slate.services.record_refs import resolve_initiative
+from slate.services.record_work import record_work
 from slate.services.vocabulary import validate_lookup
 
 type Row = IssueRow | InitiativeRow | IdeaRow
@@ -69,14 +70,23 @@ def wanted(filters: schemas.QueueFilter, step: Step) -> bool:
 
 
 def queued_issues(
-    session: Session, readiness: IssueReadiness, filters: ReadyFilter, step: Step | None, held: Collection[int] = ()
+    session: Session,
+    readiness: IssueReadiness,
+    filters: ReadyFilter,
+    step: Step | None,
+    held: Collection[int] = (),
+    within: Collection[int] | None = None,
 ) -> list[models.Issue]:
     """The ready issues at `step`, and the unclosed ones `held` names, narrowed by `filters`, in queue order.
 
-    `GET /queue` lists them, and `POST /claims/next` holds the first of them at step `build`.
+    `within` replaces the first two with these numbers, ready or not. `GET /queue` lists them, and
+    `POST /claims/next` holds the first of them at step `build`.
     """
     query = select(models.Issue).options(*ISSUE_LOAD_OPTIONS)
-    query = query.where(or_(models.Issue.id.in_(readiness.ready), models.Issue.number.in_(list(held)) & is_open(Kind.ISSUE)))
+    if within is not None:
+        query = query.where(models.Issue.number.in_(list(within)) & is_open(Kind.ISSUE))
+    else:
+        query = query.where(or_(models.Issue.id.in_(readiness.ready), models.Issue.number.in_(list(held)) & is_open(Kind.ISSUE)))
     if filters.type is not None:
         validate_lookup(session, models.IssueType, filters.type, 'issue type')
         query = query.where(models.Issue.type == filters.type)
@@ -113,10 +123,16 @@ def queue_as_measured(
             row.holder = claim.holder
             claimed.append((claim.holder, key, row))
 
+    work = record_work(session, filters.for_record) if filters.for_record is not None else None
+    reads_other_kinds = not reads_only_issues(filters)
     initiative = resolve_initiative(session, filters.initiative) if filters.initiative is not None else None
+    if work is not None:
+        reads_other_kinds = reads_other_kinds and work.kind != Kind.ISSUE
+        if work.kind == Kind.INITIATIVE and initiative is None:
+            initiative = resolve_initiative(session, work.number)
 
     if filters.step not in ('discuss', 'plan'):
-        issues = queued_issues(session, readiness, filters, filters.step, held)
+        issues = queued_issues(session, readiness, filters, filters.step, held, None if work is None else work.unblocks)
         overlaps = held_overlaps(session, issues, now)
         for issue, view in zip(issues, issue_views(session, issues, zone, readiness), strict=True):
             issue_row = IssueRow(
@@ -135,11 +151,12 @@ def queue_as_measured(
                     )
                     for overlap in overlaps.get(issue.number, [])
                 ],
+                unblocks=[] if work is None else work.unblocks.get(issue.number, []),
                 record=view,
             )
             place(readiness.sort_key(issue), issue_row)
 
-    if not reads_only_issues(filters) and filters.step in (None, 'plan', 'build'):
+    if reads_other_kinds and filters.step in (None, 'plan', 'build') and (work is None or work.kind == Kind.INITIATIVE):
         for initiative_view in open_initiatives(session, initiative):
             step: Step = 'build' if initiative_view.open_count else 'plan'
             queued_alone = step == 'plan' and initiative_view.number in readiness.slot_key_by_number
@@ -154,8 +171,11 @@ def queue_as_measured(
             )
             place(readiness.record_sort_key(initiative_view.number, initiative_view.priority, initiative_view.rank), initiative_row)
 
-    if not reads_only_issues(filters) and initiative is None and wanted(filters, 'discuss'):
-        ideas = session.scalars(select(models.Idea).options(*IDEA_LOAD_OPTIONS).where(is_open(Kind.IDEA))).all()
+    if reads_other_kinds and initiative is None and wanted(filters, 'discuss'):
+        query = select(models.Idea).options(*IDEA_LOAD_OPTIONS).where(is_open(Kind.IDEA))
+        if work is not None:
+            query = query.where(models.Idea.number == work.number)
+        ideas = session.scalars(query).all()
         for idea_view in idea_views(session, ideas):
             idea_row = IdeaRow(
                 number=idea_view.number, title=idea_view.title, step='discuss', priority=idea_view.priority, record=idea_view

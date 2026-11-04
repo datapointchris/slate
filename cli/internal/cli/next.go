@@ -22,10 +22,11 @@ const defaultNextLimit = 10
 
 func newNextCommand() *cobra.Command {
 	var (
-		asJSON bool
-		queue  readyQueueFlags
-		step   string
-		limit  int
+		asJSON    bool
+		queue     readyQueueFlags
+		step      string
+		limit     int
+		forRecord int
 	)
 	cmd := &cobra.Command{
 		Use:   "next",
@@ -49,8 +50,13 @@ func newNextCommand() *cobra.Command {
 			"The priority column is the one the queue sorts by, and a * marks one inherited\n" +
 			"from what the issue blocks, its parent, or its initiative. A pin sorts ahead of\n" +
 			"every priority, and a row it put there says `pinned`: the pinned record, its\n" +
-			"initiative's issues, and what they wait on.",
+			"initiative's issues, and what they wait on.\n" +
+			"\n" +
+			"--for reads the plan of one record: its own open work and every open issue it\n" +
+			"transitively waits on, in any initiative or repo, ready or not, in queue order.\n" +
+			"Each row says which of them it unblocks, and every row shows unless -n caps it.",
 		Example: "  slate next\n" +
+			"  slate next --for 1544\n" +
 			"  slate next --step build --limit 1\n" +
 			"  slate next --step build --repo webapp --json\n" +
 			"  slate next --step decide\n" +
@@ -69,9 +75,12 @@ func newNextCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			read, err := client.GetQueue(cmd.Context(), api.QueueFilter{ReadyFilter: filter, Step: step}, issueZone())
+			read, err := client.GetQueue(cmd.Context(), api.QueueFilter{ReadyFilter: filter, Step: step, For: forRecord}, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
+			}
+			if cmd.Flags().Changed("for") && !cmd.Flags().Changed("limit") {
+				limit = len(read.Queue)
 			}
 			shown := read.Queue[:min(limit, len(read.Queue))]
 			if asJSON {
@@ -95,6 +104,7 @@ func newNextCommand() *cobra.Command {
 	queue.register(cmd)
 	cmd.Flags().StringVar(&step, "step", "", "Only rows at this step: "+strings.Join(api.QueueSteps, ", "))
 	withFlagValues(cmd, "step", api.QueueSteps...)
+	cmd.Flags().IntVar(&forRecord, "for", 0, "Only this record's open work and every open issue it transitively waits on")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the queue and the claimed work as JSON to stdout")
 	addCapFlag(cmd, &limit, defaultNextLimit, "Maximum number of queued records to show; claimed work is always shown")
 	return cmd
@@ -188,6 +198,13 @@ func queueRowNotes(row api.QueueRow, now time.Time) []string {
 	}
 	for _, overlap := range row.Overlaps {
 		notes = append(notes, fmt.Sprintf("overlaps #%d held by %s on %s", overlap.Number, overlap.Holder, strings.Join(overlap.Paths, ", ")))
+	}
+	if len(row.Unblocks) > 0 {
+		waiting := make([]string, len(row.Unblocks))
+		for i, number := range row.Unblocks {
+			waiting[i] = "#" + strconv.Itoa(number)
+		}
+		notes = append(notes, "unblocks "+strings.Join(waiting, ", "))
 	}
 	if row.Pinned {
 		notes = append([]string{"pinned"}, notes...)

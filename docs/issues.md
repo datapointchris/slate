@@ -63,6 +63,14 @@ first row next. `limit` caps `queue` and never `claimed`.
 One function in `services/work_queue.py` selects and orders the issues for
 both, so the preview and the hold cannot disagree.
 
+**`for_record` reads one plan whole.** A coordinator taking a plan to done needs its issues and
+everything they wait on, in any initiative or repo. `initiative` cannot answer that, because it
+drops a dependency held elsewhere. So `slate next --for <record>` reads the transitive closure from
+the record's open issues, as `bazel query 'deps(//target)'` reads a build graph. An issue waits on
+what it depends on and on its children, and the walk stops at a closed issue. The rows include work
+that is not ready yet, because that is the plan, and each names in `unblocks` which rows wait on it
+directly. The CLI's default cap does not apply, since a cut plan reads as a smaller one.
+
 ## A decision waits on a person, so it is decided rather than built
 
 The `decision` type is the one type that changes what happens to an issue.

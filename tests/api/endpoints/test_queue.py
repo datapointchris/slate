@@ -87,6 +87,32 @@ def test_a_decision_the_work_waits_on_is_decided_at_that_works_priority(client):
     assert rows(client) == [('Choose the wire format', 'decide', 2)]
 
 
+def test_a_records_work_holds_everything_it_transitively_waits_on_with_what_each_unblocks(client):
+    """A coordinator taking this plan to done reads it whole, across initiatives, ready or not."""
+    plan = initiative(client, 'Ship the importer', priority=2)
+    other = initiative(client, 'Ship the exporter', priority=3)
+    first = issue(client, 'Import stage 1', initiative=plan)
+    second = issue(client, 'Import stage 2', initiative=plan)
+    outside = issue(client, 'Shared parser', initiative=other)
+    deeper = issue(client, 'Parser grammar', priority=4)
+    child = issue(client, 'Grammar test corpus', parent=deeper)
+    finished = issue(client, 'Finished work')
+    unrelated = issue(client, 'Patch the outage', priority=1)
+    for waiter, waited_on in ((first, outside), (outside, deeper), (second, first), (second, finished)):
+        ok(client.post(f'/issues/{waiter}/dependencies', json={'depends_on': waited_on}), status.HTTP_201_CREATED)
+    ok(client.patch(f'/issues/{finished}', json={'status': 'completed'}))
+
+    read = ok(client.get(QUEUE, params={'for_record': plan}))['queue']
+    unblocks = {row['number']: row['unblocks'] for row in read}
+
+    assert unblocks == {first: [second], second: [], outside: [first], deeper: [outside], child: [deeper]}
+    assert [row['number'] for row in read] == [child, deeper, outside, first, second]
+    assert unrelated not in unblocks and finished not in unblocks
+
+    assert {row['number'] for row in ok(client.get(QUEUE, params={'for_record': outside}))['queue']} == {outside, deeper, child}
+    assert ok(client.get(QUEUE, params={'for_record': 999999}), status.HTTP_404_NOT_FOUND)
+
+
 def test_a_ready_issue_names_each_held_issue_changing_the_same_code(client):
     held = issue(client, 'Rework the router', repo='webapp', paths=['src/api'])
     hold(client, held, 'agent-a')
