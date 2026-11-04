@@ -119,8 +119,22 @@ SCOPED_WRITES = {
         status.HTTP_201_CREATED,
     ),
     (CLOSE, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): ('/issues/{issue}', {'status': 'completed', 'closed_by': CLOSER}, status.HTTP_200_OK),
-    (PLAN, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): ('/issues/{issue}', {'priority': 2, 'initiative': '{initiative}'}, status.HTTP_200_OK),
+    (PLAN, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): (
+        '/issues/{issue}',
+        {'priority': 2, 'initiative': '{initiative}', 'acceptance': 'It answers 200', 'paths': ['src/slate']},
+        status.HTTP_200_OK,
+    ),
     (PLAN, 'POST', f'{API_PREFIX}/issues/{{id}}/rank'): ('/issues/{issue}/rank', {'after': '{neighbor}'}, status.HTTP_200_OK),
+    (PLAN, 'POST', f'{API_PREFIX}/issues/{{id}}/dependencies'): (
+        '/issues/{issue}/dependencies',
+        {'depends_on': '{neighbor}'},
+        status.HTTP_201_CREATED,
+    ),
+    (PLAN, 'DELETE', f'{API_PREFIX}/issues/{{id}}/dependencies/{{dep_id}}'): (
+        '/issues/{neighbor}/dependencies/{blocker}',
+        None,
+        status.HTTP_200_OK,
+    ),
     (PLAN, 'POST', f'{API_PREFIX}/issues'): (
         '/issues',
         {'title': 'left of the initiative', 'initiative': '{initiative}', 'status': 'triage'},
@@ -166,12 +180,14 @@ def as_caller(txn_api):
     fills a template with the seeded rows. The initiative is named, as the CLI names one.
     """
     client, session = txn_api
-    issue = models.Issue(title='scheduler issue', rank=1.0)
+    issue = models.Issue(title='scheduler issue', repo='scheduler-repo', rank=1.0)
     neighbor = models.Issue(title='scheduler neighbor', rank=2.0)
+    blocker = models.Issue(title='what the neighbor waits on', rank=3.0)
     initiative = models.Initiative(name='scheduler-initiative')
     idea = models.Idea(title='scheduler idea')
-    session.add_all([issue, neighbor, initiative, idea])
+    session.add_all([issue, neighbor, blocker, initiative, idea])
     session.flush()
+    session.add(models.IssueDependency(issue_id=neighbor.id, depends_on_id=blocker.id))
     now = dt.datetime.now(dt.UTC)
     session.add(models.Claim(record_number=neighbor.number, holder=SERVICE, started_ts=now, expires_ts=now + dt.timedelta(hours=1)))
     session.add(models.Worklog(record_number=issue.number, sequence=1, opened_by=SERVICE, started_ts=now))
@@ -186,7 +202,12 @@ def as_caller(txn_api):
 
     def url(template):
         return template.format(
-            issue=issue.number, neighbor=neighbor.number, initiative=initiative.name, idea=idea.number, worklog=f'{issue.number}.1'
+            issue=issue.number,
+            neighbor=neighbor.number,
+            blocker=blocker.number,
+            initiative=initiative.name,
+            idea=idea.number,
+            worklog=f'{issue.number}.1',
         )
 
     return SimpleNamespace(caller=caller, url=url, issue=issue, session=session)
@@ -285,7 +306,7 @@ def test_a_scoped_client_is_refused_off_its_scopes(as_caller, scope, method, url
 
 
 ONLY_CLOSES = Refusal.SCOPED_CLIENT_ONLY_CLOSES
-ONLY_PRIORITY_AND_INITIATIVE = Refusal.SCOPED_CLIENT_ONLY_SETS_PRIORITY_AND_INITIATIVE
+ONLY_PLAN_FIELDS = Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS
 
 
 @pytest.mark.parametrize(
@@ -294,8 +315,9 @@ ONLY_PRIORITY_AND_INITIATIVE = Refusal.SCOPED_CLIENT_ONLY_SETS_PRIORITY_AND_INIT
         ({CLOSE}, {'status': 'completed', 'title': 'renamed'}, ONLY_CLOSES, 'title'),
         ({CLOSE}, {'priority': 0}, ONLY_CLOSES, 'priority'),
         ({CLOSE}, {'status': 'triage'}, ONLY_CLOSES, 'status'),
-        ({PLAN}, {'status': 'completed'}, ONLY_PRIORITY_AND_INITIATIVE, 'status'),
-        ({PLAN, CLOSE}, {'title': 'renamed'}, ONLY_PRIORITY_AND_INITIATIVE, 'title'),
+        ({PLAN}, {'status': 'completed'}, ONLY_PLAN_FIELDS, 'status'),
+        ({PLAN}, {'description': 'rewritten', 'acceptance': 'It answers 200'}, ONLY_PLAN_FIELDS, 'description'),
+        ({PLAN, CLOSE}, {'title': 'renamed'}, ONLY_PLAN_FIELDS, 'title'),
         ({PLAN, CLOSE}, {'status': 'completed', 'priority': 2}, ONLY_CLOSES, 'priority'),
     ],
     ids=[
@@ -303,11 +325,12 @@ ONLY_PRIORITY_AND_INITIATIVE = Refusal.SCOPED_CLIENT_ONLY_SETS_PRIORITY_AND_INIT
         'close-an-edit-alone',
         'close-a-status-that-keeps-it-open',
         'plan-a-close',
+        'plan-a-description',
         'both-a-title',
         'both-an-edit-beside-a-close',
     ],
 )
-def test_a_scoped_update_is_a_close_or_sets_only_priority_and_initiative(as_caller, scopes, body, refusal, refused):
+def test_a_scoped_update_is_a_close_or_sets_only_the_plan_fields(as_caller, scopes, body, refusal, refused):
     client = as_caller.caller(ScopedClient(client_id=SERVICE, scopes=frozenset(scopes)))
     response = client.patch(as_caller.url('/issues/{issue}'), json=body)
     assert response.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(response)

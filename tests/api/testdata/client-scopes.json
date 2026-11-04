@@ -14,6 +14,7 @@
     "PATCH /api/v1/issues/{id}"
   ],
   "slate.records.plan": [
+    "DELETE /api/v1/issues/{id}/dependencies/{dep_id}",
     "GET /api/v1/vocabulary",
     "PATCH /api/v1/initiatives/{id:path}",
     "PATCH /api/v1/issues/{id}",
@@ -21,6 +22,7 @@
     "POST /api/v1/initiatives",
     "POST /api/v1/initiatives/{id:path}/rank",
     "POST /api/v1/issues",
+    "POST /api/v1/issues/{id}/dependencies",
     "POST /api/v1/issues/{id}/rank"
   ],
   "slate.records.read": [

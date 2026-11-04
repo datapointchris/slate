@@ -396,10 +396,10 @@ def read_one(issue: IssueFromPath, session: DbSession, zone: RequestZone):
 
 
 # What a scoped client's update may carry. slate.issues.close reaches this route to complete an issue
-# whose fix merged, and slate.records.plan to re-tier an issue or move it between initiatives. A body
-# naming a close field is a close, and any other is an edit.
+# whose fix merged, and slate.records.plan to re-tier an issue, move it between initiatives or specify
+# it. A body naming a close field is a close, and any other is an edit.
 SCOPED_CLOSE_FIELDS = frozenset({'status', 'closed_by'})
-SCOPED_PLAN_FIELDS = frozenset({'priority', 'initiative'})
+SCOPED_PLAN_FIELDS = frozenset({'priority', 'initiative', 'acceptance', 'paths'})
 
 
 def refuse_all_but_a_close(issue: models.Issue, update_data: dict) -> None:
@@ -413,9 +413,7 @@ def refuse_all_but_a_close(issue: models.Issue, update_data: dict) -> None:
 
 def refuse_all_but_a_plan(update_data: dict) -> None:
     if extra := sorted(set(update_data) - SCOPED_PLAN_FIELDS):
-        raise ForbiddenException(
-            f'{Refusal.SCOPED_CLIENT_ONLY_SETS_PRIORITY_AND_INITIATIVE}; this update also sets {", ".join(extra)}', logger
-        )
+        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS}; this update also sets {", ".join(extra)}', logger)
 
 
 def refuse_a_scoped_update(issue: models.Issue, update_data: dict, scopes: frozenset[str]) -> None:

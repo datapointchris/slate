@@ -25,7 +25,7 @@ class Refusal(enum.StrEnum):
     SCOPED_CLIENT_WRITES_ITS_OWN_WORKLOGS = 'A service client may only join, edit or finish a worklog it opened'
     SCOPED_CLIENT_FILES_ONLY_INTO_TRIAGE = 'A service client may only file an issue into triage, under no parent'
     SCOPED_CLIENT_ONLY_CLOSES = 'A service client may only close an open issue'
-    SCOPED_CLIENT_ONLY_SETS_PRIORITY_AND_INITIATIVE = "A service client's edit may only set an issue's priority and initiative"
+    SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS = "A service client's edit may only set an issue's priority, initiative, acceptance and paths"
     SCOPED_CLIENT_RELEASES_ITS_OWN = 'A service client may only release a claim it holds'
     SCOPED_CLIENT_WRITES_WORKLOGS_AS_ITSELF = 'A service client may only start, finish or link a worklog under its own client id'
 

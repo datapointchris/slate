@@ -12,7 +12,9 @@
     },
     "slate.records.plan": {
       "fields": [
+        "acceptance",
         "initiative",
+        "paths",
         "priority"
       ]
     }

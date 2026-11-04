@@ -83,16 +83,20 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # Closing an issue, for a job closing an issue whose fix merged. The update handler narrows a
     # body naming `status` or `closed_by` to the close of an open issue.
     ISSUES_CLOSE: frozenset({('PATCH', f'{API_PREFIX}/issues/{{id}}')}),
-    # Filing an issue, setting its priority and initiative, creating and updating an initiative,
-    # and moving an issue, initiative or idea in the queue, for a job ordering the queue. A filing
-    # reads the vocabulary first. The handlers narrow any other update to an issue's priority and
-    # initiative, and a filing to triage under no parent. Nothing here deletes.
+    # Filing an issue, setting its priority, initiative, acceptance and paths, adding and removing
+    # what it waits on, creating and updating an initiative, and moving an issue, initiative or idea
+    # in the queue, for a job ordering and specifying the work. A filing reads the vocabulary first.
+    # The handlers narrow any other update to those four fields, and a filing to triage under no
+    # parent. A description stays out, because a person and a worker read it as the issue's meaning.
+    # Nothing here deletes a record.
     RECORDS_PLAN: frozenset(
         {
             ('GET', f'{API_PREFIX}/vocabulary'),
             ('POST', f'{API_PREFIX}/issues'),
             ('PATCH', f'{API_PREFIX}/issues/{{id}}'),
             ('POST', f'{API_PREFIX}/issues/{{id}}/rank'),
+            ('POST', f'{API_PREFIX}/issues/{{id}}/dependencies'),
+            ('DELETE', f'{API_PREFIX}/issues/{{id}}/dependencies/{{dep_id}}'),
             ('POST', f'{API_PREFIX}/initiatives'),
             ('PATCH', f'{API_PREFIX}/initiatives/{{id:path}}'),
             ('POST', f'{API_PREFIX}/initiatives/{{id:path}}/rank'),

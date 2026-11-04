@@ -45,7 +45,7 @@ func newDependenciesAddCommand() *cobra.Command {
 			"a parent, is refused, and the refusal prints the path.",
 		Example:     "  slate dependencies add 412 --depends-on 411",
 		Args:        cobra.ExactArgs(1),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if dependsOn == "" {
 				return goclikit.UsageError(errors.New("--depends-on is required"))
@@ -80,7 +80,7 @@ func newDependenciesRemoveCommand() *cobra.Command {
 			"leaves is printed with what it still waits on.",
 		Example:     "  slate dependencies remove 412 --depends-on 411",
 		Args:        cobra.ExactArgs(1),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if dependsOn == "" {
 				return goclikit.UsageError(errors.New("--depends-on is required"))
