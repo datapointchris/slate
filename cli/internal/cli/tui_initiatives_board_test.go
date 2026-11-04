@@ -1,0 +1,122 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/datapointchris/goclikit"
+	"github.com/datapointchris/gotermboard"
+	"github.com/datapointchris/gotermstyle"
+
+	"github.com/datapointchris/slate/cli/internal/api"
+)
+
+// boardFromServer is a board that has read initiatives from a stand-in for the API.
+func boardFromServer(t *testing.T, read api.InitiativeBoard, scope boardScope) *initiativesBoard {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/initiatives/board":
+			_ = json.NewEncoder(w).Encode(read)
+		case "/api/v1/initiatives/progress":
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	t.Cleanup(server.Close)
+	board := newInitiativesBoard(api.New(server.URL, server.Client()), "", scope)
+	if err := board.readOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return board
+}
+
+// sevenHighAndTwoLow is a board of nine initiatives numbered in list order.
+func sevenHighAndTwoLow() api.InitiativeBoard {
+	read := api.InitiativeBoard{ReadTS: time.Now(), Tiers: []api.BoardTier{{Priority: 2}, {Priority: 4}, {Priority: 0}}}
+	read.Totals.InitiativeCount = 9
+	read.Tiers[0].InitiativeCount, read.Tiers[1].InitiativeCount = 7, 2
+	for number := 1; number <= 9; number++ {
+		priority := 2
+		if number > 7 {
+			priority = 4
+		}
+		read.Initiatives = append(read.Initiatives, api.BoardInitiative{Number: number, Name: "initiative " + strconv.Itoa(number), Status: "active", Priority: priority})
+	}
+	return read
+}
+
+func TestAScopeCutsTheBoardInTheClient(t *testing.T) {
+	for _, test := range []struct {
+		scope  boardScope
+		shown  []int
+		tier   string
+		hidden string
+	}{
+		{boardScope{kind: scopePerTier, perTier: 5}, []int{1, 2, 3, 4, 5, 8, 9}, "high · 5 of 7", "none ·"},
+		{boardScope{kind: scopeFirstInList, first: 3}, []int{1, 2, 3}, "high · 3 of 7", "low ·"},
+		{boardScope{kind: scopeEveryInitiative}, []int{1, 2, 3, 4, 5, 6, 7, 8, 9}, "high · 7", "none ·"},
+	} {
+		board := boardFromServer(t, sevenHighAndTwoLow(), test.scope)
+		if got := board.snapshot().Shown; !slices.Equal(got, test.shown) {
+			t.Errorf("%s shows %v, want %v", test.scope.label(), got, test.shown)
+		}
+		screen := gotermboard.Once(board, gotermstyle.NewPalette(false), 120, 40)
+		if !strings.Contains(screen, test.tier) || !strings.Contains(screen, "TOTAL · 9") {
+			t.Errorf("%s should label its tier %q under the whole total:\n%s", test.scope.label(), test.tier, screen)
+		}
+		if strings.Contains(screen, test.hidden) {
+			t.Errorf("%s draws a tier showing nothing, %q:\n%s", test.scope.label(), test.hidden, screen)
+		}
+	}
+}
+
+func TestABarHasOneCellPerIssueAndLeavesTheCanceledOff(t *testing.T) {
+	counts := api.BoardCounts{
+		IssueCount: 50, OpenCount: 29,
+		States: api.IssueStateCounts{Completed: 19, Canceled: 2, Running: 3, Waiting: 11, Blocked: 8, Ready: 7},
+	}
+	cells := func(line gotermboard.Line) []int {
+		widths := make([]int, len(line))
+		for i, cell := range line {
+			widths[i] = len([]rune(cell.Text))
+		}
+		return widths
+	}
+	if got, want := cells(issueBar(counts)), []int{19, 14, 8, 7}; !slices.Equal(got, want) {
+		t.Errorf("done, under way, blocked and the rest take %v cells, want %v", got, want)
+	}
+	total := 0
+	scaled := cells(scaledBar(counts))
+	for _, width := range scaled {
+		total += width
+	}
+	if total != progressBarCells || slices.Contains(scaled, 0) {
+		t.Errorf("a scaled bar takes %v cells, want %d in all with none of the kinds lost", scaled, progressBarCells)
+	}
+}
+
+func TestTUIWithNoTerminalRefusesAndNamesBothWaysToPrint(t *testing.T) {
+	unreachableAPI(t)
+	root := NewRootCommand()
+	root.SetArgs([]string{"tui"})
+	err := root.Execute()
+	if !errors.Is(err, goclikit.ErrUsage) {
+		t.Fatalf("got %v, want a usage error", err)
+	}
+	for _, flag := range []string{"--once", "--json"} {
+		if !strings.Contains(err.Error(), flag) {
+			t.Errorf("the refusal %q should name %s", err, flag)
+		}
+	}
+}

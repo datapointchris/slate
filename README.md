@@ -130,6 +130,10 @@ verify:
 cd cli && go build -o slate . && ./slate --help
 ```
 
+`slate tui` opens a live board of the initiatives, with the total, each priority
+tier and each initiative's progress on one set of columns. `docs/live-board.md`
+says why it has that shape.
+
 `slate auth login https://slate.example.com` reads the API's RFC 9728 metadata
 for the provider, logs in with the device authorization grant as
 `slate-cli-<short hostname>`, and writes `~/.config/slate/config.toml`. The

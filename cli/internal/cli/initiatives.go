@@ -81,7 +81,8 @@ func newInitiativesListCommand() *cobra.Command {
 			"Someday, completed and dropped ones are hidden until --status asks for them,\n" +
 			"and come after the active ones, finished ones latest first.\n\n" +
 			"Each row leads with the initiative's number, which every initiative command\n" +
-			"and --initiative flag accepts. The bar is its issues done over done and open.",
+			"and --initiative flag accepts. The bar is its issues done over done and open.\n\n" +
+			"`slate tui` opens the same initiatives as a board that keeps itself current.",
 		Example:     "  slate initiatives list\n  slate initiatives list --sort open\n  slate initiatives list --status all --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),

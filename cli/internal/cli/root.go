@@ -92,8 +92,9 @@ func NewRootCommand() *cobra.Command {
 			"The noun comes first and the verb last, so `slate issues list` becomes\n" +
 			"`slate issues edit` by changing the last word. These take no noun:\n" +
 			"`slate next` is the order to take the work in, `slate show <number>`\n" +
-			"and `slate search <words>` read every kind, and `slate totals` sums the\n" +
-			"work over any record, worklog, repo or window.\n" +
+			"and `slate search <words>` read every kind, `slate totals` sums the work\n" +
+			"over any record, worklog, repo or window, and `slate tui` opens a live board\n" +
+			"with a tab per view.\n" +
 			"\n" +
 			"Ideas, initiatives and issues share one number sequence, so a number names\n" +
 			"one record whatever its kind. A worklog is named under its record's number:\n" +
@@ -155,6 +156,7 @@ func NewRootCommand() *cobra.Command {
 		withAPIFlag(newShowCommand()),
 		withAPIFlag(newSearchCommand()),
 		withAPIFlag(newTotalsCommand()),
+		withAPIFlag(newTUICommand()),
 	)...)
 	root.AddCommand(inGroup(groupPlanning,
 		withAPIFlag(newIdeasCommand()),

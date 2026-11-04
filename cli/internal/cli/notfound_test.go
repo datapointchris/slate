@@ -183,7 +183,7 @@ func TestTheClassifierReportsOnlyABodiedNotFound(t *testing.T) {
 	}
 }
 
-// The setup commands reach no record, and search and vocabulary name none, so
+// The setup commands reach no record, and search, vocabulary and tui name none, so
 // none of them has a missing record to recover from.
 var resourceExempt = map[string]bool{
 	"auth":       true,
@@ -191,6 +191,7 @@ var resourceExempt = map[string]bool{
 	"update":     true,
 	"search":     true,
 	"vocabulary": true,
+	"tui":        true,
 }
 
 // A resource added without hints is the way this regresses: the code keeps

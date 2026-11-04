@@ -162,28 +162,39 @@ func progressBar(p gotermstyle.Palette, s api.IssueStateCounts, done, open int) 
 // issue, and the total, done in green, the work under way in yellow and the
 // blocked work in red.
 func stateCountsLine(p gotermstyle.Palette, s api.IssueStateCounts, total int) string {
-	plain := func(text string) string { return text }
-	parts := []string{p.Green(strconv.Itoa(s.Completed) + " done")}
-	for _, state := range []struct {
-		n     int
-		name  string
-		color func(string) string
-	}{
-		{s.Running, "running", p.Yellow},
-		{s.Waiting, "waiting", p.Yellow},
-		{s.Blocked, "blocked", p.Red},
-		{s.Ready, "ready", plain},
-		{s.Triage, "in triage", plain},
-		{s.Deferred, "deferred", plain},
-		{s.Shelved, "shelved", plain},
-		{s.OpenChildren, "with open children", plain},
-		{s.Canceled, "canceled", plain},
-	} {
-		if state.n > 0 {
-			parts = append(parts, state.color(strconv.Itoa(state.n)+" "+state.name))
-		}
+	parts := make([]string, 0, 11)
+	for _, count := range stateCounts(s) {
+		parts = append(parts, p.Paint(count.code, strconv.Itoa(count.n)+" "+count.name))
 	}
 	return strings.Join(append(parts, strconv.Itoa(total)+" "+plural(total, "issue", "issues")), " · ")
+}
+
+// stateCount is one state's issues, its name and its color.
+type stateCount struct {
+	n    int
+	name string
+	code string
+}
+
+// stateCounts is the done count always, then every other state holding an issue.
+func stateCounts(s api.IssueStateCounts) []stateCount {
+	counts := []stateCount{{s.Completed, "done", gotermstyle.CodeGreen}}
+	for _, state := range []stateCount{
+		{s.Running, "running", gotermstyle.CodeYellow},
+		{s.Waiting, "waiting", gotermstyle.CodeYellow},
+		{s.Blocked, "blocked", gotermstyle.CodeRed},
+		{s.Ready, "ready", ""},
+		{s.Triage, "in triage", ""},
+		{s.Deferred, "deferred", ""},
+		{s.Shelved, "shelved", ""},
+		{s.OpenChildren, "with open children", ""},
+		{s.Canceled, "canceled", ""},
+	} {
+		if state.n > 0 {
+			counts = append(counts, state)
+		}
+	}
+	return counts
 }
 
 // progressRow is one issue or record under a section heading. Cells sit
