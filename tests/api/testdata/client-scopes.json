@@ -10,6 +10,9 @@
   "slate.comments.write": [
     "POST /api/v1/comments"
   ],
+  "slate.documents.write": [
+    "PUT /api/v1/documents/{record}/{name}"
+  ],
   "slate.issues.close": [
     "PATCH /api/v1/issues/{id}"
   ],

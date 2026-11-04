@@ -494,6 +494,10 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 	const fixtureSession = "0f6e2a4c-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
 	agentSession := `{"id":"` + fixtureSession + `","first_seen_ts":"2026-11-02T10:00:00Z","message_count":5,"tokens":{},"tokens_outside_worklogs":null,"spans":[]}`
 	reportedSession := `{"session":` + agentSession + `,"side_effects":[],"warnings":[]}`
+	plan := filepath.Join(t.TempDir(), "plan.md")
+	if err := os.WriteFile(plan, []byte("# Plan\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	calls := []struct {
 		args []string
 		body string
@@ -549,6 +553,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"sessions", "show", fixtureSession, "--json"}, agentSession, nil},
 		{[]string{"sessions", "report", "--transcript", "../transcript/testdata/project/" + fixtureSession + ".jsonl"}, reportedSession, nil},
 		{[]string{"comments", "add", "412", "--body", "Landed: a merged fix"}, `{"comment":{"id":1,"record_number":412}}`, nil},
+		{[]string{"documents", "write", "412", "plan", "--file", plan}, `{}`, nil},
 		{[]string{"issues", "complete", "412"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--priority", "none", "--initiative", "Practical help guides"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--acceptance", "It answers 200", "--path", "src/slate"}, openIssue, nil},
@@ -638,10 +643,6 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 	triageIssue := strings.Replace(openIssue, `"open"`, `"triage"`, 1)
 	completedIssue := strings.Replace(openIssue, `"open"`, `"completed"`, 1)
 	idea := `{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5d","number":1860,"title":"t","status":"open"}`
-	plan := filepath.Join(t.TempDir(), "plan.md")
-	if err := os.WriteFile(plan, []byte("# Plan\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	personOnlyCalls := []struct {
 		args []string
 		body string
@@ -655,7 +656,6 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"ideas", "edit", "1860", "--priority", "urgent"}, idea},
 		{[]string{"ideas", "link", "1860", "inbox:4102"}, idea},
 		{[]string{"ideas", "promote", "1860"}, idea},
-		{[]string{"documents", "write", "412", "plan", "--file", plan}, `{}`},
 		{[]string{"comments", "remove", "57", "--yes"}, `{}`},
 		{[]string{"issues", "delete", "412", "--yes"}, openIssue},
 		{[]string{"issues", "pin", "412"}, openIssue},

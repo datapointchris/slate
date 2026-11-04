@@ -158,7 +158,7 @@ func newDocumentsWriteCommand() *cobra.Command {
 		Example: "  slate documents write 412 plan --file plan.md\n" +
 			"  slate documents write 412 humanlayer --kind research < research.md",
 		Args:        cobra.ExactArgs(2),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeDocumentsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[1]
 			if !cmd.Flags().Changed("kind") && slices.Contains(api.DocumentKinds, name) {

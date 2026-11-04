@@ -18,13 +18,14 @@ import (
 // The scopes the API lists for a service client. src/slate/api/client_scopes.py
 // holds the routes each one reaches.
 const (
-	scopeRecordsRead   = "slate.records.read"
-	scopeRecordsPlan   = "slate.records.plan"
-	scopeClaimsHold    = "slate.claims.hold"
-	scopeIssuesClose   = "slate.issues.close"
-	scopeCommentsWrite = "slate.comments.write"
-	scopeWorklogsWrite = "slate.worklogs.write"
-	scopeSessionsWrite = "slate.sessions.write"
+	scopeRecordsRead    = "slate.records.read"
+	scopeRecordsPlan    = "slate.records.plan"
+	scopeClaimsHold     = "slate.claims.hold"
+	scopeIssuesClose    = "slate.issues.close"
+	scopeCommentsWrite  = "slate.comments.write"
+	scopeDocumentsWrite = "slate.documents.write"
+	scopeWorklogsWrite  = "slate.worklogs.write"
+	scopeSessionsWrite  = "slate.sessions.write"
 	// scopeWorklogsObserve joins a session to a worklog another client opened.
 	// No command declares it. A job holding it reaches `worklogs join` on a
 	// token its token_command hands, which asks no grant.
@@ -34,7 +35,7 @@ const (
 // serviceScopes is every scope the API lists, in the order auth status answers for them.
 var serviceScopes = []string{
 	scopeRecordsRead, scopeRecordsPlan, scopeClaimsHold, scopeIssuesClose,
-	scopeCommentsWrite, scopeWorklogsWrite, scopeSessionsWrite, scopeWorklogsObserve,
+	scopeCommentsWrite, scopeDocumentsWrite, scopeWorklogsWrite, scopeSessionsWrite, scopeWorklogsObserve,
 }
 
 // serviceScopesAnnotation is what a command asks a service grant for. Its value

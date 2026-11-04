@@ -30,6 +30,7 @@ READ = 'slate.records.read'
 CLAIM = 'slate.claims.hold'
 CLOSE = 'slate.issues.close'
 COMMENTS = 'slate.comments.write'
+DOCUMENTS = 'slate.documents.write'
 PLAN = 'slate.records.plan'
 WORKLOGS = 'slate.worklogs.write'
 SESSIONS = 'slate.sessions.write'
@@ -116,6 +117,11 @@ SCOPED_WRITES = {
     (COMMENTS, 'POST', f'{API_PREFIX}/comments'): (
         '/comments',
         {'record': '{issue}', 'body': 'Landed: a merged fix'},
+        status.HTTP_201_CREATED,
+    ),
+    (DOCUMENTS, 'PUT', f'{API_PREFIX}/documents/{{record}}/{{name}}'): (
+        '/documents/{issue}/research',
+        {'body': 'What earlier work found', 'kind': 'research'},
         status.HTTP_201_CREATED,
     ),
     (CLOSE, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): ('/issues/{issue}', {'status': 'completed', 'closed_by': CLOSER}, status.HTTP_200_OK),
@@ -489,6 +495,17 @@ def test_the_documents_the_cli_reads_hold_what_each_scope_reaches():
             path.write_text(document)
             stale.append(path.name)
     assert not stale, f'{", ".join(stale)} did not hold what the API narrows to each scope and has been rewritten; commit it'
+
+
+def test_the_documents_scope_adds_a_version_as_its_client_id_and_only_it_reaches_the_write(as_caller):
+    url = as_caller.url('/documents/{issue}/plan')
+    refused = as_caller.caller(scoped(COMMENTS)).put(url, json={'body': '2. Fix it better'})
+    assert refused.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(refused)
+
+    written = as_caller.caller(scoped(DOCUMENTS)).put(url, json={'body': '2. Fix it better'})
+    assert written.status_code == status.HTTP_200_OK, show_status_and_response(written)
+    version = written.json()['document']['version']
+    assert (version['version'], version['written_by']) == (2, SERVICE)
 
 
 @pytest.mark.parametrize(

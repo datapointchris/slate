@@ -80,6 +80,10 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # as the fix that merged before it closes the issue. A scoped client's comment is written as
     # its own client id.
     'slate.comments.write': frozenset({('POST', f'{API_PREFIX}/comments')}),
+    # Writing a document's next version, for a job writing research or a plan on the record it
+    # serves. Each write adds a version, so nothing a service writes overwrites what a person wrote,
+    # and the version is written as its own client id.
+    'slate.documents.write': frozenset({('PUT', f'{API_PREFIX}/documents/{{record}}/{{name}}')}),
     # Closing an issue, for a job closing an issue whose fix merged. The update handler narrows a
     # body naming `status` or `closed_by` to the close of an open issue.
     ISSUES_CLOSE: frozenset({('PATCH', f'{API_PREFIX}/issues/{{id}}')}),
