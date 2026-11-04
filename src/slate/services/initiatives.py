@@ -16,6 +16,8 @@ from slate import models
 from slate import schemas
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
+from slate.services.issue_readiness import PINNED
+from slate.services.issue_readiness import UNPINNED
 from slate.services.record_refs import record_number
 
 # The status a list read takes to answer every status.
@@ -50,9 +52,10 @@ def refuse_number_shaped_name(name: str) -> None:
 
 
 def work_order() -> tuple[ColumnElement[Any], ...]:
-    """The order to work initiatives in: the most urgent first, no priority after every level, then by rank."""
+    """The order to work initiatives in: pinned first, then the most urgent, no priority after every level, then by rank."""
+    pin = case((models.Initiative.pinned_ts.is_(None), UNPINNED), else_=PINNED)
     urgency = case((models.Initiative.priority == 0, NO_PRIORITY_URGENCY), else_=models.Initiative.priority)
-    return urgency.asc(), models.Initiative.rank.asc()
+    return pin.asc(), urgency.asc(), models.Initiative.rank.asc()
 
 
 def listing_order(*within_status: ColumnElement[Any]) -> tuple[ColumnElement[Any], ...]:

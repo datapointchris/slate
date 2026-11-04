@@ -119,6 +119,7 @@ def test_a_pin_leads_every_priority_and_an_initiative_brings_its_issues(client):
     assert queue[0]['record']['pinned_ts'] is not None
     assert queue[0]['record']['pinned_by'] is not None
     assert queue[2]['record']['pinned_ts'] is None
+    assert ok(client.get('/initiatives'))[0]['number'] == importer
 
     for noun, ref in (('issues', free), ('ideas', idea), ('initiatives', importer)):
         ok(client.delete(f'/{noun}/{ref}/pin'))

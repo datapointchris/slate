@@ -235,7 +235,8 @@ what moves a record past another priority's.
 work crosses a priority. A pin is a term ahead of the priority in the sort key, so
 pinned records still sort among themselves by priority, then rank. `slate next`
 says `pinned` on each row a pin put there, and `pinned` in its JSON says the same.
-`pinned_ts` is set only on the record a person pinned.
+`pinned_ts` is set only on the record a person pinned. `slate initiatives list`
+sorts by the same term, so a pinned initiative lists first.
 
 ```text
 pinned  issue 51
