@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from fastapi import status
 from sqlalchemy import ColumnElement
+from sqlalchemy import Select
 from sqlalchemy import case
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,6 +17,9 @@ from slate import schemas
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.record_refs import record_number
+
+# The status a list read takes to answer every status.
+ALL_STATUSES = 'all'
 
 
 def validate_status(initiative_status: str, session: Session) -> None:
@@ -51,8 +55,32 @@ def work_order() -> tuple[ColumnElement[Any], ...]:
     return urgency.asc(), models.Initiative.rank.asc()
 
 
+def listing_order(*within_status: ColumnElement[Any]) -> tuple[ColumnElement[Any], ...]:
+    """Active initiatives, then someday, completed and dropped ones, finished ones latest first and the rest as `within_status` says."""
+    status_class = case(
+        (models.Initiative.status == 'active', 0),
+        (models.Initiative.status == 'someday', 1),
+        (models.Initiative.status == 'completed', 2),
+        else_=3,
+    )
+    return status_class.asc(), models.Initiative.closed_ts.desc().nullsfirst(), *within_status
+
+
+def narrowed_to_status(query: Select, initiative_status: str, session: Session) -> Select:
+    """Narrow to one status, refusing one that does not exist. `ALL_STATUSES` leaves every one."""
+    if initiative_status == ALL_STATUSES:
+        return query
+    validate_status(initiative_status, session)
+    return query.where(models.Initiative.status == initiative_status)
+
+
+def listed_initiatives(query: Select, initiative_status: str, session: Session) -> Select:
+    """`query` over initiatives, narrowed to a status and in the order to list them."""
+    return narrowed_to_status(query, initiative_status, session).order_by(*listing_order(*work_order()))
+
+
 # Each is a literal path under /initiatives, which routing reaches before an initiative named for it.
-ROUTED_NAMES = frozenset({'progress'})
+ROUTED_NAMES = frozenset({'progress', 'board', 'board/text'})
 
 
 def refuse_routed_name(name: str) -> None:

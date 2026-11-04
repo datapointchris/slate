@@ -6,7 +6,6 @@ from typing import get_args
 
 import pytest
 
-from slate.api.endpoints import initiatives
 from slate.api.endpoints import issues
 from slate.api.endpoints.claims import ClaimStateFilter
 from slate.api.endpoints.initiatives import InitiativeSort
@@ -21,6 +20,7 @@ from slate.models.record import Kind
 from slate.models.worklog import WORKLOG_LINK_KINDS
 from slate.models.worklog import WORKLOG_WORKFLOWS
 from slate.schemas.queue import Step
+from slate.services import initiatives
 
 VOCABULARIES_DOCUMENT = Path(__file__).parent / 'testdata' / 'cli-vocabularies.json'
 

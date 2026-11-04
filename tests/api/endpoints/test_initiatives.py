@@ -1,9 +1,14 @@
 import datetime as dt
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import status
+from sqlalchemy import event
+from sqlalchemy import update
 
+from slate import models
 from slate import schemas
+from slate.services.initiatives import ROUTED_NAMES
 from tests.session_database import insert_test_data_transactional
 from tests.util import show_status_and_response
 
@@ -205,7 +210,136 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     assert [row['initiative']['number'] for row in every_active] == [row['number'] for row in ok(client.get(INITIATIVES))]
 
 
-def test_an_initiative_cannot_take_the_name_of_the_progress_route(client):
-    """`GET /initiatives/progress` is reached before an initiative named `progress` could be read by name."""
-    assert ok(client.post(INITIATIVES, json={'name': 'progress'}), status.HTTP_422_UNPROCESSABLE_CONTENT)
-    assert ok(client.patch(f'{INITIATIVES}/Ship the issue tracker', json={'name': 'progress'}), status.HTTP_422_UNPROCESSABLE_CONTENT)
+@pytest.mark.parametrize('routed', sorted(ROUTED_NAMES))
+def test_an_initiative_cannot_take_the_name_of_a_route(client, routed):
+    """Each path under `/initiatives` is reached before an initiative named for it could be read by name."""
+    assert ok(client.post(INITIATIVES, json={'name': routed}), status.HTTP_422_UNPROCESSABLE_CONTENT)
+    assert ok(client.patch(f'{INITIATIVES}/Ship the issue tracker', json={'name': routed}), status.HTTP_422_UNPROCESSABLE_CONTENT)
+
+
+def test_the_board_counts_each_issue_in_one_state_rolls_them_up_and_counts_only_completed_issues_as_closes(client, txn_api_logged_in):
+    """A canceled issue and a close at no known time are in the counts and in no window. A close's day is the reader's."""
+    _, session = txn_api_logged_in
+
+    def created(name: str, **fields) -> int:
+        return wrote(client.post(INITIATIVES, json={'name': name, **fields}), 'initiative', status.HTTP_201_CREATED)['number']
+
+    urgent, low, someday = created('Urgent board', priority=1), created('Low board', priority=4), created('Later', status='someday')
+
+    def filed(initiative: int, title: str, **fields) -> int:
+        issue = {'title': title, 'initiative': initiative, 'repo': 'zeta', **fields}
+        return wrote(client.post('/issues', json=issue), 'issue', status.HTTP_201_CREATED)['number']
+
+    blocker = filed(urgent, 'Blocker', repo='alpha')
+    blocked = filed(urgent, 'Blocked', depends_on=[blocker])
+    running = filed(urgent, 'Running')
+    completed, older, untimed = (
+        filed(urgent, 'Completed'),
+        filed(urgent, 'Completed eight days ago'),
+        filed(urgent, 'Completed at no known time'),
+    )
+    canceled = filed(urgent, 'Canceled', repo='left-out')
+    filed(low, 'Low')
+    filed(someday, 'Shelved')
+    ok(client.post('/claims', json={'record': running, 'holder': 'claude-code/s1'}))
+    ok(client.post('/claims', json={'record': urgent, 'holder': 'claude-code/s2'}))
+    ok(client.patch(f'/issues/{canceled}', json={'status': 'canceled', 'status_reason': 'not needed'}))
+    for number in (completed, older, untimed):
+        ok(client.patch(f'/issues/{number}', json={'status': 'completed'}))
+    new_york = ZoneInfo('America/New_York')
+    today = dt.datetime.now(new_york).date()
+    # Half past eleven at night in New York is already the next day in UTC.
+    older_day = today - dt.timedelta(days=8)
+    older_close = dt.datetime.combine(older_day, dt.time(23, 30), new_york)
+    session.execute(update(models.Issue).where(models.Issue.number == older).values(closed_ts=older_close))
+    session.execute(update(models.Issue).where(models.Issue.number == untimed).values(closed_ts=None))
+    session.flush()
+
+    board = ok(client.get(f'{INITIATIVES}/board', params={'timezone': 'America/New_York'}))
+    assert (board['zone'], board['days'][-1], len(board['days'])) == ('America/New_York', today.isoformat(), 14)
+
+    listed = ok(client.get(INITIATIVES))
+    assert numbers(board['initiatives']) == numbers(listed)
+    row = next(row for row in board['initiatives'] if row['number'] == urgent)
+    assert (row['issue_count'], row['open_count'], row['repos']) == (7, 3, ['alpha', 'zeta'])
+    assert row['claim']['holder'] == 'claude-code/s2'
+    assert sum(row['states'].values()) == row['issue_count']
+    assert (row['states']['running'], row['states']['blocked'], row['states']['ready']) == (1, 1, 1)
+    assert (row['states']['completed'], row['states']['canceled']) == (3, 1)
+    assert numbers(row['issues'])[:3] == [blocker, blocked, running]
+    assert set(numbers(row['issues'])[3:]) == {completed, older, canceled, untimed}
+    assert next(issue for issue in row['issues'] if issue['number'] == running)['holder'] == 'claude-code/s1'
+    assert next(issue for issue in row['issues'] if issue['number'] == blocker)['effective_priority'] == 1
+
+    closes = row['closes']
+    assert (closes['last_24h'], closes['last_7d'], closes['last_30d'], sum(closes['by_day'])) == (1, 1, 2, 2)
+    assert closes['by_day'][-1] == closes['by_day'][board['days'].index(older_day.isoformat())] == 1
+    assert closes['last_closed_ts'] is not None
+
+    tiers = {tier['priority']: tier for tier in board['tiers']}
+    assert [tier['priority'] for tier in board['tiers']] == [1, 2, 3, 4, 0]
+    assert (tiers[1]['initiative_count'], tiers[1]['issue_count'], tiers[1]['closes']['last_30d']) == (1, 7, 2)
+    assert sum(tier['initiative_count'] for tier in board['tiers']) == board['totals']['initiative_count'] == len(listed)
+    assert sum(tier['issue_count'] for tier in board['tiers']) == board['totals']['issue_count']
+
+    shelved = ok(client.get(f'{INITIATIVES}/board', params={'status': 'someday'}))
+    assert numbers(shelved['initiatives']) == [someday]
+    assert shelved['initiatives'][0]['issues'][0]['state'] == 'shelved'
+    assert ok(client.get(f'{INITIATIVES}/board', params={'status': 'nonsense'}), status.HTTP_422_UNPROCESSABLE_CONTENT)
+
+
+def test_the_board_asks_the_same_queries_however_many_initiatives_it_answers(client, txn_api_logged_in):
+    """A poll every 15 seconds pays each query four times a minute, so a query per initiative is the failure this pins."""
+    _, session = txn_api_logged_in
+
+    def filed_initiatives(count: int, prefix: str) -> None:
+        for at in range(count):
+            number = wrote(client.post(INITIATIVES, json={'name': f'{prefix} {at}'}), 'initiative', status.HTTP_201_CREATED)['number']
+            ok(client.post('/issues', json={'title': f'{prefix} {at} issue', 'initiative': number}), status.HTTP_201_CREATED)
+
+    def queries_to_read(path: str) -> int:
+        statements: list[str] = []
+
+        def asked(_conn, _cursor, statement, *_rest):
+            statements.append(statement)
+
+        engine = session.get_bind()
+        event.listen(engine, 'before_cursor_execute', asked)
+        try:
+            ok(client.get(f'{INITIATIVES}/{path}'))
+        finally:
+            event.remove(engine, 'before_cursor_execute', asked)
+        return len(statements)
+
+    filed_initiatives(1, 'First')
+    board, text = queries_to_read('board'), queries_to_read('board/text')
+    filed_initiatives(5, 'More')
+    assert (queries_to_read('board'), queries_to_read('board/text')) == (board, text)
+
+
+def test_the_board_text_holds_each_description_and_an_excerpt_of_its_first_paragraph_of_prose(client):
+    long_paragraph = 'word ' * 100
+    marked = (
+        '## What this is\n\n```text\nnot prose\n\nstill not prose\n```\n\n'
+        '- **Bold** with `code` and a [link](https://example.com/a), *emphasis* and a *.go glob\ncarrying on.\n\nSecond paragraph.'
+    )
+    number = wrote(client.post(INITIATIVES, json={'name': 'Text', 'description': long_paragraph}), 'initiative', status.HTTP_201_CREATED)[
+        'number'
+    ]
+
+    def filed(title: str, **fields) -> int:
+        return wrote(client.post('/issues', json={'title': title, 'initiative': number, **fields}), 'issue', status.HTTP_201_CREATED)[
+            'number'
+        ]
+
+    with_text, bare = filed('Marked', description=marked), filed('Bare')
+
+    text = ok(client.get(f'{INITIATIVES}/board/text'))
+    row = next(row for row in text['initiatives'] if row['number'] == number)
+    assert row['description'] == long_paragraph
+    assert row['excerpt'].endswith('word…')
+    assert len(row['excerpt']) <= 301
+    assert row['issues'] == [
+        {'number': with_text, 'excerpt': 'Bold with code and a link, emphasis and a *.go glob carrying on.'},
+        {'number': bare, 'excerpt': None},
+    ]

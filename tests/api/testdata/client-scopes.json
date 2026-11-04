@@ -36,6 +36,8 @@
     "GET /api/v1/ideas",
     "GET /api/v1/ideas/{id}",
     "GET /api/v1/initiatives",
+    "GET /api/v1/initiatives/board",
+    "GET /api/v1/initiatives/board/text",
     "GET /api/v1/initiatives/progress",
     "GET /api/v1/initiatives/{id:path}",
     "GET /api/v1/issues",

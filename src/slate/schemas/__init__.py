@@ -41,6 +41,15 @@ from slate.schemas.initiative import InitiativeDetail
 from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.initiative import InitiativeUpdate
 from slate.schemas.initiative import InitiativeWritten
+from slate.schemas.initiative_board import BoardCloses
+from slate.schemas.initiative_board import BoardInitiative
+from slate.schemas.initiative_board import BoardInitiativeText
+from slate.schemas.initiative_board import BoardIssue
+from slate.schemas.initiative_board import BoardIssueText
+from slate.schemas.initiative_board import BoardRollup
+from slate.schemas.initiative_board import BoardTier
+from slate.schemas.initiative_board import InitiativeBoard
+from slate.schemas.initiative_board import InitiativeBoardText
 from slate.schemas.initiative_progress import InitiativeProgress
 from slate.schemas.initiative_progress import IssueStateCounts
 from slate.schemas.issue import Issue
@@ -85,6 +94,13 @@ from slate.schemas.write_effects import Written
 
 __all__ = [
     'AgentSession',
+    'BoardCloses',
+    'BoardInitiative',
+    'BoardInitiativeText',
+    'BoardIssue',
+    'BoardIssueText',
+    'BoardRollup',
+    'BoardTier',
     'Claim',
     'ClaimExtend',
     'ClaimHold',
@@ -117,6 +133,8 @@ __all__ = [
     'IdeaUpdate',
     'IdeaWritten',
     'Initiative',
+    'InitiativeBoard',
+    'InitiativeBoardText',
     'InitiativeCreate',
     'InitiativeDetail',
     'InitiativeProgress',

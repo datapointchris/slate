@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from fastapi import Query
 from fastapi import status
 from sqlalchemy import ColumnElement
-from sqlalchemy import case
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,12 +23,16 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.claims import end_with_record
+from slate.services.initiative_board import initiative_board
+from slate.services.initiative_board import initiative_board_text
 from slate.services.initiative_progress import initiatives_progress
 from slate.services.initiative_views import counted
 from slate.services.initiative_views import initiative_detail
 from slate.services.initiative_views import initiative_views
 from slate.services.initiative_views import issue_count_columns
 from slate.services.initiatives import ensure_active_name_available
+from slate.services.initiatives import listing_order
+from slate.services.initiatives import narrowed_to_status
 from slate.services.initiatives import new_initiative
 from slate.services.initiatives import refuse_number_shaped_name
 from slate.services.initiatives import refuse_routed_name
@@ -53,9 +56,12 @@ from slate.tracing.named_work import name_record
 logger = structlog.get_logger()
 router = APIRouter()
 
-ALL_STATUSES = 'all'
-
 InitiativeSort = Literal['priority', 'open', 'newest']
+
+InitiativeStatusQuery = Annotated[
+    str,
+    Query(alias='status', description="An initiative status, or 'all'. Finished initiatives are hidden by default."),
+]
 
 
 def path_initiative(id: str, session: DbSession) -> models.Initiative:
@@ -77,10 +83,7 @@ InitiativeFromPath = Annotated[models.Initiative, Depends(path_initiative)]
 @router.get('', response_model=list[schemas.Initiative], status_code=status.HTTP_200_OK)
 def read_many(
     session: DbSession,
-    initiative_status: Annotated[
-        str,
-        Query(alias='status', description="An initiative status, or 'all'. Finished initiatives are hidden by default."),
-    ] = 'active',
+    initiative_status: InitiativeStatusQuery = 'active',
     sort: Annotated[
         InitiativeSort,
         Query(description='priority: the order the queue takes them in. open: most unclosed issues first. newest: latest started first.'),
@@ -92,14 +95,6 @@ def read_many(
     Finished ones come latest first whatever the sort. Priority 0 is no priority
     and sorts after every level, as it does on issues.
     """
-    if initiative_status != ALL_STATUSES:
-        validate_status(initiative_status, session)
-    status_class = case(
-        (models.Initiative.status == 'active', 0),
-        (models.Initiative.status == 'someday', 1),
-        (models.Initiative.status == 'completed', 2),
-        else_=3,
-    )
     counts = issue_count_columns()
     open_count = counts[1]
     orders: dict[str, tuple[ColumnElement[Any], ...]] = {
@@ -107,16 +102,13 @@ def read_many(
         'open': (open_count.desc(), *work_order()),
         'newest': (models.Initiative.created_ts.desc(),),
     }
-    within_class = orders[sort]
     query = (
         select(models.Initiative, *counts)
         .outerjoin(models.Issue, models.Issue.initiative_id == models.Initiative.id)
         .group_by(models.Initiative.id)
-        .order_by(status_class.asc(), models.Initiative.closed_ts.desc().nullsfirst(), *within_class)
+        .order_by(*listing_order(*orders[sort]))
     )
-    if initiative_status != ALL_STATUSES:
-        query = query.where(models.Initiative.status == initiative_status)
-    rows = session.execute(apply_row_limit(query, limit)).all()
+    rows = session.execute(apply_row_limit(narrowed_to_status(query, initiative_status, session), limit)).all()
     return initiative_views(session, [(row[0], row[1:]) for row in rows])
 
 
@@ -163,7 +155,19 @@ def unpin(initiative: InitiativeFromPath, session: DbSession, effects: Effects):
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
 
 
-# Ahead of `read_one`, whose `{id:path}` would otherwise read `progress` as a name. `refuse_routed_name` keeps it from being one.
+# Ahead of `read_one`, whose `{id:path}` would otherwise read each of these paths as a name. `refuse_routed_name` keeps it from being one.
+@router.get('/board', response_model=schemas.InitiativeBoard, status_code=status.HTTP_200_OK)
+def read_board(session: DbSession, zone: RequestZone, initiative_status: InitiativeStatusQuery = 'active'):
+    """Every initiative's counts, closes and slim issue rows, with their rollups overall and per priority, cheap enough to poll."""
+    return initiative_board(session, initiative_status, zone)
+
+
+@router.get('/board/text', response_model=schemas.InitiativeBoardText, status_code=status.HTTP_200_OK)
+def read_board_text(session: DbSession, initiative_status: InitiativeStatusQuery = 'active'):
+    """Each board initiative's description, and an excerpt of it and of each of its issues, apart so a board's poll never carries them."""
+    return initiative_board_text(session, initiative_status)
+
+
 @router.get('/progress', response_model=list[schemas.InitiativeProgress], status_code=status.HTTP_200_OK)
 def read_progress(
     session: DbSession,

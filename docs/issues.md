@@ -417,6 +417,45 @@ cells are yellow for the work under way and red for the blocked. So without
 color it still reads as done over done and open. `--json` prints an array,
 one entry per initiative, carrying every figure the text shows.
 
+## The board read answers every initiative's counts, closes and issues, cheap enough to poll
+
+`GET /initiatives/board` is what a live board polls. For each initiative at the
+`status` asked for, active by default and in the order `GET /initiatives` lists
+them, it answers the counts by state above, the repos, the pin, the live claim,
+the closes, and a slim row per issue: the unclosed in queue order, then the
+closed, latest first. `totals` and `tiers` roll the same counts and closes up over
+every initiative and per priority. Every priority is in `tiers`, whether or not
+an initiative is at it.
+
+Its queries do not grow with the initiatives. One readiness pass, one read of the
+live claims and one read of the issues serve them all, and everything else folds
+those rows in memory. It builds no `issue_views` row, because that loads labels,
+dependencies and comments a board does not draw. A poll pays this many times a
+minute, for as long as a board stays open, so a test pins the query count.
+
+**A close is a completed issue.** `closes` counts back from the moment of the read
+over `last_24h`, `last_7d` and `last_30d`. `by_day` counts one entry per day of the
+answer's `days`, the last 14 calendar days in the request's `timezone`. A canceled
+issue never counts as a close, because the question is how much work finished. A
+completed issue whose close has no recorded time counts in `states` and in no window.
+
+**Long text is a second read.** `GET /initiatives/board/text` answers each
+initiative's whole description, and an excerpt of it and of each of its issues.
+Descriptions are most of what a list of initiatives weighs, so the poll never
+carries them and a board reads text less often. An excerpt is the first paragraph
+holding prose, with headings, code, table rows and rules skipped and inline
+markdown stripped, cut at a word near 300 characters. It is derived on read, and
+walking a description is too cheap to be worth storing. An issue's whole
+description stays on `GET /issues/{id}`.
+
+The paths `board` and `board/text` are names no initiative may take, as `progress` is.
+
+- *Rejected:* polling `GET /initiatives/progress`. It answers whole issues with
+  everything they join, and its `totals` walk each initiative's issue tree for
+  worklogs and tokens, which a board draws for one row at most.
+- *Rejected:* a `limit`. `totals` and `tiers` need every initiative whatever the
+  board shows, so a board cuts its scope in the client.
+
 ## Not built
 
 - **Due dates.** An issue is ordered by priority and rank, never by a date it
