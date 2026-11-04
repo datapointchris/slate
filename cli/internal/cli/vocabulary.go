@@ -22,7 +22,7 @@ func newVocabularyCommand() *cobra.Command {
 			"are made with `slate labels create`, so they are the one list that grows.",
 		Example:     "  slate vocabulary\n  slate vocabulary --json",
 		Args:        cobra.NoArgs,
-		Annotations: scopesForService(scopeRecordsPlan),
+		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := newAPIClient(cmd)
 			if err != nil {

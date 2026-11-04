@@ -141,12 +141,12 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, a session's tokens, and the work's totals |
+| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, a session's tokens, and the work's totals |
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready issues, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.comments.write` | commenting on any record, or on one line of its document, under the service's own client id |
 | `slate.documents.write` | writing the next version of a document on any record, under the service's own client id, which keeps every earlier version |
 | `slate.issues.close` | closing an open issue |
-| `slate.records.plan` | reading the vocabulary, filing into triage, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives |
+| `slate.records.plan` | filing into triage, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 | `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
@@ -190,6 +190,17 @@ refuses one it does not hold, so a typo cannot file work under a repo nobody
 reads. It reads `$SLATE_REPOS_REGISTRY`, then `repos_registry` in
 `~/.config/slate/config.yml`, then `~/.local/share/slate/repos.json`. With no
 registry, any name passes.
+
+The exit status says who has to act, so a program calling slate never reads the
+message:
+
+| Status | Means |
+| --- | --- |
+| 0 | it worked |
+| 1 | slate answered and refused, or the record is not there |
+| 2 | the command line was wrong |
+| 4 | no answer came: unreachable, timed out, or a 429 or 5xx, so the same command run later can succeed |
+| 5 | a login, token or scope stopped the request, so a person has to fix the credential |
 
 ## Releases
 

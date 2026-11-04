@@ -77,6 +77,12 @@ type exitCode int
 
 func (e exitCode) Error() string { return "" }
 
+// The statuses a composer branches on, beside 1 for a refusal and 2 for usage.
+const (
+	statusNoAnswer          = 4
+	statusCredentialRefused = 5
+)
+
 func NewRootCommand() *cobra.Command {
 	root := goclikit.AsNamespace(&cobra.Command{
 		Use:   "slate",
@@ -202,9 +208,10 @@ func run(root *cobra.Command, config autoupdate.Config) error {
 	return goclikit.Execute(withParentTrace(context.Background()), root, config, goclikit.WithNotFound(notFound))
 }
 
-// exitCodeFor maps a command error to a process exit code: 0 success, 2 for a
-// usage mistake (bad flag/args), an explicit exitCode's own value, else 1 for a
-// runtime failure. Pure so it can be unit-tested without running the tree.
+// exitCodeFor maps a command error to a process exit code. 0 is success, and 2 a
+// usage mistake. 4 means no answer came, and 5 a credential a person has to fix,
+// and neither says anything about the request. An explicit exitCode keeps its own
+// value, and anything else the API or the command refused is 1.
 func exitCodeFor(err error) int {
 	if err == nil {
 		return 0
@@ -217,6 +224,13 @@ func exitCodeFor(err error) int {
 	// before any RunE runs, or by the command that refused it.
 	if errors.Is(err, goclikit.ErrUsage) {
 		return 2
+	}
+	var credential credentialRefused
+	if errors.As(err, &credential) {
+		return statusCredentialRefused
+	}
+	if noAnswer(err) {
+		return statusNoAnswer
 	}
 	return 1
 }

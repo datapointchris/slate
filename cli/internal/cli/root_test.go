@@ -2,13 +2,18 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/datapointchris/goselfupdate/autoupdate"
+
+	"github.com/datapointchris/slate/cli/internal/api"
 )
 
 func TestExitCodeFor(t *testing.T) {
@@ -19,6 +24,13 @@ func TestExitCodeFor(t *testing.T) {
 	}{
 		{"exitCode carries its own value", exitCode(1), 1},
 		{"generic runtime error is 1", errors.New("boom"), 1},
+		{"a refused connection is no answer", fmt.Errorf("reach the slate API at x: %w", &url.Error{Op: "Get", URL: "x", Err: errors.New("refused")}), statusNoAnswer},
+		{"a 503 is no answer", &api.APIError{StatusCode: http.StatusServiceUnavailable}, statusNoAnswer},
+		{"a 429 is no answer", &api.APIError{StatusCode: http.StatusTooManyRequests}, statusNoAnswer},
+		{"a 401 needs a person", handleAPIError(&api.APIError{StatusCode: http.StatusUnauthorized}), statusCredentialRefused},
+		{"no login needs a person", handleAPIError(errNeedsLogin), statusCredentialRefused},
+		{"a 409 the API explained is a refusal", handleAPIError(&api.APIError{StatusCode: http.StatusConflict, Message: "no"}), 1},
+		{"a 404 is a refusal", &api.APIError{StatusCode: http.StatusNotFound}, 1},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

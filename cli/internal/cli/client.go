@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
@@ -28,8 +29,11 @@ var errNeedsLogin = errors.New("not logged in")
 // a credential failure from what the client was built from.
 func newAPIClient(cmd *cobra.Command) (*api.Client, error) {
 	deployment, err := config.Load(cmd.Context(), apiOverride)
-	if err != nil {
+	if noAnswer(err) {
 		return nil, err
+	}
+	if err != nil {
+		return nil, credentialRefused{err}
 	}
 	service := config.IsService()
 	carry := func(err error) error { return &builtFrom{deployment: deployment, service: service, err: err} }
@@ -41,7 +45,7 @@ func newAPIClient(cmd *cobra.Command) (*api.Client, error) {
 		return nil, carry(fmt.Errorf("prepare API client: %w", err))
 	}
 	httpClient := oauth2.NewClient(cmd.Context(), source)
-	httpClient.Transport = carryingTrace(httpClient.Transport)
+	httpClient.Transport = retryingTransport{next: carryingTrace(httpClient.Transport), pause: randomPause}
 	return api.New(deployment.API.Value, httpClient, api.WrapErrors(carry)), nil
 }
 
@@ -83,14 +87,15 @@ func tokenSource(cmd *cobra.Command, d goclilogin.Deployment) (oauth2.TokenSourc
 	return source, err
 }
 
-// handleAPIError maps an error from a resource command to a message and exit
-// code: not-logged-in, a token endpoint that refused the refresh, and 401 all
-// point at `slate auth login` (exit 1); everything else is a runtime error (exit 1
-// via Execute). A service client is never pointed at a login, because none
-// exists for it. Returns the error to return from RunE.
+// handleAPIError maps an error from a resource command to its message and its
+// exit status. A missing login, a token refused and a scope refused are a
+// credentialRefused, which `exitCodeFor` gives its own status, because a person
+// fixes those and nothing about the request was judged. A service client is never
+// pointed at a login, because none exists for it. Returns the error to return
+// from RunE.
 func handleAPIError(err error) error {
 	if errors.Is(err, errNeedsLogin) {
-		return fmt.Errorf("not logged in — run `slate auth login`")
+		return credentialRefused{errors.New("not logged in — run `slate auth login`")}
 	}
 	var (
 		apiErr *api.APIError
@@ -103,11 +108,11 @@ func handleAPIError(err error) error {
 		var failed *goclilogin.TokenCommandError
 		switch {
 		case errors.As(err, &failed):
-			return fmt.Errorf("token_command in %s handed no token: %w", d.Path, failed)
+			return credentialRefused{fmt.Errorf("token_command in %s handed no token: %w", d.Path, failed)}
 		case errors.As(err, &apiErr) && apiErr.Unauthorized():
-			return fmt.Errorf("%s rejected the token %q handed", d.API.Value, d.TokenCommand)
+			return credentialRefused{fmt.Errorf("%s rejected the token %q handed", d.API.Value, d.TokenCommand)}
 		case errors.As(err, &apiErr) && apiErr.Forbidden() && apiErr.Message != "":
-			return fmt.Errorf("the token %q handed: %s", d.TokenCommand, apiErr.Message)
+			return credentialRefused{fmt.Errorf("the token %q handed: %s", d.TokenCommand, apiErr.Message)}
 		}
 	}
 	// A service has no login to renew, so it is pointed at the scopes it lacks,
@@ -117,28 +122,45 @@ func handleAPIError(err error) error {
 		var refused *scopesRefused
 		switch {
 		case errors.As(err, &refused):
-			return refused
+			return credentialRefused{refused}
 		case goclilogin.IsSessionRejected(err):
-			return refusedServiceClient(d)
+			return credentialRefused{refusedServiceClient(d)}
 		case errors.As(err, &apiErr) && apiErr.Unauthorized():
-			return fmt.Errorf("%s rejected the token issued to service client %s", d.API.Value, d.ClientID.Value)
+			return credentialRefused{fmt.Errorf("%s rejected the token issued to service client %s", d.API.Value, d.ClientID.Value)}
 		case errors.As(err, &apiErr) && apiErr.Forbidden() && apiErr.Message != "":
-			return fmt.Errorf("service client %s: %s", d.ClientID.Value, apiErr.Message)
+			return credentialRefused{fmt.Errorf("service client %s: %s", d.ClientID.Value, apiErr.Message)}
 		}
 	}
 	// A refusal at the token endpoint arrives as the transport error of the
 	// request that triggered the refresh, so the URL and the raw OAuth error
 	// description are what reach the terminal unless they are named here.
 	if goclilogin.IsSessionRejected(err) {
-		return fmt.Errorf("session expired — run `slate auth login`")
+		return credentialRefused{errors.New("session expired — run `slate auth login`")}
 	}
 	if errors.As(err, &apiErr) && apiErr.Unauthorized() {
-		return fmt.Errorf("session rejected by the API — run `slate auth login` to re-authenticate")
+		return credentialRefused{errors.New("session rejected by the API — run `slate auth login` to re-authenticate")}
 	}
 	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusConflict && apiErr.Message != "" {
 		return refusal{apiErr}
 	}
 	return err
+}
+
+// credentialRefused is a login, a token, a scope or the config naming them, which
+// the request never got past.
+type credentialRefused struct{ error }
+
+func (c credentialRefused) Unwrap() error { return c.error }
+
+// noAnswer is a request the API never judged: it could not be reached, or it
+// answered 429 or 5xx. The same command run later can succeed.
+func noAnswer(err error) bool {
+	var apiErr *api.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.StatusCode == http.StatusTooManyRequests || apiErr.StatusCode >= http.StatusInternalServerError
+	}
+	var transport *url.Error
+	return errors.As(err, &transport)
 }
 
 // refusedServiceClient is the provider refusing the service client itself,
