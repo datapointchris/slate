@@ -28,6 +28,10 @@ class TimeWindow:
     since: dt.datetime | None = None
     until: dt.datetime | None = None
 
+    def holds(self, moment: dt.datetime | None) -> bool:
+        """Whether `moment` is inside the window, for rows already read, as `apply_time_window` narrows a timestamp column."""
+        return moment is not None and (self.since is None or moment >= self.since) and (self.until is None or moment < self.until)
+
 
 def is_date_column(column: InstrumentedAttribute) -> bool:
     return isinstance(column.type, sa.Date) and not isinstance(column.type, sa.DateTime)

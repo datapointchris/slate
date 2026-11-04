@@ -84,6 +84,18 @@ def counted(session: Session, initiative: models.Initiative) -> schemas.Initiati
     return initiative_views(session, [(initiative, counts)])[0]
 
 
+def counted_initiatives(session: Session, initiatives: Sequence[models.Initiative]) -> list[schemas.Initiative]:
+    """Each initiative counted, in the order given, in one query for all of them."""
+    query = (
+        select(models.Initiative.id, *issue_count_columns())
+        .outerjoin(models.Issue, models.Issue.initiative_id == models.Initiative.id)
+        .where(models.Initiative.id.in_([initiative.id for initiative in initiatives]))
+        .group_by(models.Initiative.id)
+    )
+    counts = {row[0]: row[1:] for row in session.execute(query).all()}
+    return initiative_views(session, [(initiative, counts[initiative.id]) for initiative in initiatives])
+
+
 def initiative_detail(session: Session, initiative: models.Initiative) -> schemas.InitiativeDetail:
     """The initiative counted, with every claim, comment and document it has, as an idea's and an issue's reads carry theirs."""
     return schemas.InitiativeDetail(

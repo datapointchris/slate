@@ -50,8 +50,13 @@ def reached_by_repo(repo: str) -> ColumnElement[bool]:
     return models.Worklog.record_number.in_(select(models.Issue.number).where(on_repo))
 
 
-def scope_worklog_ids(session: Session, record: models.Record | None, worklog: models.Worklog | None, repo: str | None) -> Select | None:
-    """The ids of the worklogs the scope reaches, or None when it names nothing and so reaches everything."""
+def scope_worklog_ids(
+    session: Session, record: models.Record | None, worklog: models.Worklog | None, repo: str | None
+) -> Sequence[int] | None:
+    """The ids of the worklogs the scope reaches, or None when it names nothing and so reaches everything.
+
+    They are read once, because a record's reach walks its issue tree and every figure narrows by it.
+    """
     conditions = []
     if record is not None:
         conditions.append(within_reach(session, record, models.Worklog.record_number))
@@ -59,7 +64,7 @@ def scope_worklog_ids(session: Session, record: models.Record | None, worklog: m
         conditions.append(models.Worklog.id == worklog.id)
     if repo is not None:
         conditions.append(reached_by_repo(repo))
-    return select(models.Worklog.id).where(*conditions) if conditions else None
+    return session.scalars(select(models.Worklog.id).where(*conditions)).all() if conditions else None
 
 
 def overlapping(
@@ -74,7 +79,7 @@ def overlapping(
     return conditions
 
 
-def counted_messages(query: Select, worklog_ids: Select | None, window: TimeWindow) -> Select:
+def counted_messages(query: Select, worklog_ids: Sequence[int] | None, window: TimeWindow) -> Select:
     """Narrow a query on `message_tokens` to the messages a total counts: in its worklogs' spans, and written in its window."""
     if worklog_ids is not None:
         query = query.join(models.WorklogSpan, models.MessageTokens.span_id == models.WorklogSpan.id).where(
@@ -88,7 +93,7 @@ def count_distinct(session: Session, *queries: Select) -> int:
     return session.scalar(select(func.count()).select_from(union(*queries).subquery())) or 0
 
 
-def session_count(session: Session, worklog_ids: Select | None, window: TimeWindow, now: dt.datetime) -> int:
+def session_count(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow, now: dt.datetime) -> int:
     """Sessions that were in one of the worklogs during the window, or spent a token the total counts."""
     in_worklogs = with_worklog_claim(select(models.WorklogSpan.session_id).join(models.WorklogSpan.worklog)).where(
         *overlapping(models.WorklogSpan.started_ts, models.WorklogSpan.held_until(now), window)
@@ -99,7 +104,7 @@ def session_count(session: Session, worklog_ids: Select | None, window: TimeWind
     return count_distinct(session, in_worklogs, spent)
 
 
-def worklog_count(session: Session, worklog_ids: Select | None, window: TimeWindow, now: dt.datetime) -> int:
+def worklog_count(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow, now: dt.datetime) -> int:
     """Worklogs under way during the window, or that took a link inside it."""
     under_way = with_worklog_claim(select(models.Worklog.id)).where(
         *overlapping(models.Worklog.started_ts, models.Worklog.held_until(now), window)
@@ -111,7 +116,7 @@ def worklog_count(session: Session, worklog_ids: Select | None, window: TimeWind
     return count_distinct(session, under_way, linked)
 
 
-def link_counts(session: Session, worklog_ids: Select | None, window: TimeWindow) -> dict[str, int]:
+def link_counts(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow) -> dict[str, int]:
     """Each link kind's distinct refs linked inside the window, with every kind present and zero where none was.
 
     A ref linked to two worklogs, such as a pull request two goes at one issue both pushed to, counts once.
@@ -126,7 +131,7 @@ def link_counts(session: Session, worklog_ids: Select | None, window: TimeWindow
     return counts
 
 
-def message_rows(session: Session, worklog_ids: Select | None, window: TimeWindow) -> Sequence[Row]:
+def message_rows(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow) -> Sequence[Row]:
     """The counted messages' count and tokens by kind, grouped by model and by whether no worklog held them."""
     outside = models.MessageTokens.span_id.is_(None).label('outside')
     query = select(models.MessageTokens.model, outside, func.count().label('messages'), *TOKEN_SUMS)
