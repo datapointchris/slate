@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -25,7 +26,18 @@ func (s *scriptedTransport) RoundTrip(req *http.Request) (*http.Response, error)
 	if err, ok := answer.(error); ok {
 		return nil, err
 	}
+	if _, ok := answer.(cutShortBody); ok {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(cutShortBody{}), Header: http.Header{}}, nil
+	}
 	return &http.Response{StatusCode: answer.(int), Body: io.NopCloser(strings.NewReader("")), Header: http.Header{}}, nil
+}
+
+// cutShortBody breaks as an HTTP/2 stream reset does, with an error that is neither
+// a network error nor EOF.
+type cutShortBody struct{}
+
+func (cutShortBody) Read([]byte) (int, error) {
+	return 0, errors.New("stream error: stream ID 1; INTERNAL_ERROR; received from peer")
 }
 
 func TestARetrySendsOnlyWhatCannotHappenTwice(t *testing.T) {
@@ -43,6 +55,9 @@ func TestARetrySendsOnlyWhatCannotHappenTwice(t *testing.T) {
 		{"a read takes a 404 as the answer", http.MethodGet, []any{404}, 1, 404},
 		{"a read retries a lost lookup", http.MethodGet, []any{lookup, 200}, 2, 200},
 		{"a read retries a lost connection", http.MethodGet, []any{reset, 200}, 2, 200},
+		{"a read retries an answer cut short", http.MethodGet, []any{cutShortBody{}, 200}, 2, 200},
+		{"a read gives up on answers cut short", http.MethodGet, []any{cutShortBody{}}, requestAttempts, 0},
+		{"a write never repeats an answer cut short", http.MethodPatch, []any{cutShortBody{}}, 1, 0},
 		{"a write retries a lost lookup and keeps its body", http.MethodPatch, []any{lookup, 200}, 2, 200},
 		{"a write takes a 503 as the answer", http.MethodPatch, []any{503}, 1, 503},
 		{"a write never repeats a lost connection", http.MethodPatch, []any{reset}, 1, 0},

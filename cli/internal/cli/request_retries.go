@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"net"
@@ -16,8 +18,10 @@ const (
 )
 
 // retryingTransport tries a request again where the API gave no answer. A read
-// retries any failure to reach it and a 429, 502, 503 or 504. A write retries only
-// a failure before it was sent, because a retry after that could do it twice.
+// retries any failure to reach it, an answer cut short, and a 429, 502, 503 or 504.
+// A write retries only a failure before it was sent, because a retry after that
+// could do it twice. Every answer is read whole here, so one cut short is a failure
+// of the request rather than a decode error.
 type retryingTransport struct {
 	next  http.RoundTripper
 	pause func(attempt int, resp *http.Response) time.Duration
@@ -26,6 +30,11 @@ type retryingTransport struct {
 func (t retryingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	for attempt := 1; ; attempt++ {
 		resp, err := t.next.RoundTrip(req)
+		if err == nil {
+			if err = readWhole(resp); err != nil {
+				resp = nil
+			}
+		}
 		if attempt == requestAttempts || !worthRetrying(req.Method, resp, err) {
 			return resp, err
 		}
@@ -50,10 +59,26 @@ func (t retryingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 }
 
+// answerCutShort is a body that broke after its status arrived.
+type answerCutShort struct{ error }
+
+func (c answerCutShort) Unwrap() error { return c.error }
+
+func readWhole(resp *http.Response) error {
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return answerCutShort{fmt.Errorf("read the answer: %w", err)}
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	return nil
+}
+
 func worthRetrying(method string, resp *http.Response, err error) bool {
 	read := method == http.MethodGet
 	if err != nil {
-		return neverSent(err) || (read && unreachable(err))
+		var cut answerCutShort
+		return neverSent(err) || (read && (unreachable(err) || errors.As(err, &cut)))
 	}
 	if !read {
 		return false

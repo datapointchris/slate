@@ -199,7 +199,7 @@ message:
 | 0 | it worked |
 | 1 | slate answered and refused, or the record is not there |
 | 2 | the command line was wrong |
-| 4 | no answer came: unreachable, timed out, or a 429 or 5xx, so the same command run later can succeed |
+| 4 | no whole answer came: unreachable, timed out, cut short, or a 429 or 5xx, so the same command run later can succeed |
 | 5 | a login, token or scope stopped the request, so a person has to fix the credential |
 
 ## Releases
