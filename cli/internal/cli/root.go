@@ -83,6 +83,21 @@ const (
 	statusCredentialRefused = 5
 )
 
+// runRoot answers `slate` bare with its help, and refuses a word naming no
+// command the way every namespace does. `slate version` is refused too, with
+// the flag that prints the version named under it, because the version is a
+// flag rather than a command.
+func runRoot(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+	refused := goclikit.UnknownCommand(cmd, args[0])
+	if args[0] == "version" {
+		return fmt.Errorf("%w\n\nThe version is a flag: %s --version", refused, cmd.CommandPath())
+	}
+	return refused
+}
+
 func NewRootCommand() *cobra.Command {
 	root := goclikit.AsNamespace(&cobra.Command{
 		Use:   "slate",
@@ -121,6 +136,7 @@ func NewRootCommand() *cobra.Command {
 		// "unknown command" error (exit 1). Subcommands, having a parent, are
 		// exempt from that validator.
 		Args: cobra.ArbitraryArgs,
+		RunE: runRoot,
 	})
 	// Flag mistakes are marked goclikit.ErrUsage, so they exit 2. Inherited by subcommands.
 	// goclikit.Execute composes with this rather than replacing it, and keeping

@@ -19,8 +19,18 @@ func withFlagValues(cmd *cobra.Command, flag string, values ...string) {
 	}
 }
 
-// explainUnknownFlag names the flag an unknown long flag on cmd is a value of,
-// when one of cmd's flags takes it. The hint wraps pflag's error, so goclikit
+// jobsOfAnotherCommand names, by command path and then flag name, the command
+// that does what a flag the command does not take would have done. An
+// initiative's place in the queue is moved relative to another, so no flag on
+// create or edit sets it.
+var jobsOfAnotherCommand = map[string]map[string]string{
+	"slate initiatives create": {"position": "slate initiatives reorder <initiative> --before <initiative> (or --after)"},
+	"slate initiatives edit":   {"position": "slate initiatives reorder <initiative> --before <initiative> (or --after)"},
+}
+
+// explainUnknownFlag names the command that does what an unknown long flag on
+// cmd was typed for, where another command does it, and the flag it is a value
+// of, when one of cmd's flags takes it. The hint wraps pflag's error, so goclikit
 // still adds any flag spelled near it. Any other flag error comes back as it was.
 func explainUnknownFlag(cmd *cobra.Command, err error) error {
 	var missing *pflag.NotExistError
@@ -29,6 +39,9 @@ func explainUnknownFlag(cmd *cobra.Command, err error) error {
 	}
 	typed := missing.GetSpecifiedName()
 	var hints []string
+	if command, ok := jobsOfAnotherCommand[cmd.CommandPath()][typed]; ok {
+		hints = append(hints, fmt.Sprintf("--%s is not a flag of %s: %s", typed, cmd.CommandPath(), command))
+	}
 	cmd.Flags().VisitAll(func(flag *pflag.Flag) {
 		complete, ok := cmd.GetFlagCompletionFunc(flag.Name)
 		if !ok || flag.Hidden {
