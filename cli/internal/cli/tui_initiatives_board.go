@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/gotermboard"
+	"github.com/datapointchris/gotermboard/markdown"
 
 	"github.com/datapointchris/slate/cli/internal/api"
 )
@@ -118,6 +119,10 @@ type initiativesBoard struct {
 	text        *gotermboard.Source[api.InitiativeBoardText]
 	cursorRow   *gotermboard.Source[cursorRowReads]
 	cursor      atomic.Pointer[string]
+	// markdown, records and recordsReadAt belong to the program's goroutine, with the keys and Frame.
+	markdown      *markdown.Renderer
+	records       map[int]bool
+	recordsReadAt time.Time
 	// readFailure is the board read's last failure, for --once and --json to exit on,
 	// since a source keeps only its sentence.
 	readFailure error
@@ -126,6 +131,7 @@ type initiativesBoard struct {
 func newInitiativesBoard(client *api.Client, status string, scope boardScope) *initiativesBoard {
 	zone := issueZone()
 	b := &initiativesBoard{status: status, scope: scope, described: map[int]bool{}}
+	b.markdown = markdown.New(b.colorRecordNumbers)
 	b.initiatives = gotermboard.NewSource("initiatives", boardReadEvery, func(ctx context.Context) (api.InitiativeBoard, string, error) {
 		read, err := client.ReadInitiativeBoard(ctx, status, zone)
 		b.readFailure = err

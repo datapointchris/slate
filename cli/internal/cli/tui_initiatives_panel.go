@@ -2,10 +2,10 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/datapointchris/gotermboard"
 
@@ -15,9 +15,8 @@ import (
 // A description in the panel stops here, so what follows it stays on screen. d and enter
 // open the whole of it in place.
 const (
-	panelDescriptionParagraphs = 5
-	panelDescriptionRunes      = 1100
-	panelNextRows              = 4
+	panelDescriptionRows = 18
+	panelNextRows        = 4
 )
 
 func heading(text string) gotermboard.Line {
@@ -70,13 +69,15 @@ func tierPanel(label string, tier api.BoardTier, now time.Time) []gotermboard.Li
 	return append(lines, closesLines(tier.Closes, now)...)
 }
 
-func initiativePanel(initiative api.BoardInitiative, long api.BoardInitiativeText, rows cursorRowReads, read api.InitiativeBoard, now time.Time) []gotermboard.Line {
+func (b *initiativesBoard) initiativePanel(initiative api.BoardInitiative, long api.BoardInitiativeText, rows cursorRowReads, read api.InitiativeBoard, now time.Time, width int) []gotermboard.Line {
 	lines := []gotermboard.Line{
 		{gotermboard.C(strconv.Itoa(initiative.Number)+"  ", gotermboard.Bold), gotermboard.C(priorityName(initiative.Priority), tierCode(initiative.Priority)+gotermboard.Bold)},
-		plainLine(initiative.Name),
-		{},
-		stateCountsCells(initiative.States),
+		heading(initiative.Name),
 	}
+	if summary := strValue(long.Summary); summary != "" {
+		lines = append(lines, plainLine(summary))
+	}
+	lines = append(lines, gotermboard.Line{}, stateCountsCells(initiative.States))
 	if initiative.States.Canceled > 0 {
 		lines = append(lines, plainLine(strconv.Itoa(initiative.States.Canceled)+" canceled, not on the bar"))
 	}
@@ -93,11 +94,14 @@ func initiativePanel(initiative api.BoardInitiative, long api.BoardInitiativeTex
 	if initiative.PinnedBy != nil {
 		lines = append(lines, gotermboard.Line{gotermboard.C("pinned by "+*initiative.PinnedBy, gotermboard.MarkCode)})
 	}
+	if len(initiative.Repos) > 0 {
+		lines = append(lines, dimLine(strings.Join(initiative.Repos, ", ")))
+	}
 	lines = append(lines, gotermboard.Line{})
 	lines = append(lines, closesLines(initiative.Closes, now)...)
 	if long.Description != nil {
 		lines = append(lines, gotermboard.Line{}, heading("Description"))
-		lines = append(lines, panelDescription(*long.Description, "d opens the whole of it")...)
+		lines = append(lines, b.panelDescription(*long.Description, "d opens the whole of it", width)...)
 	}
 	lines = append(lines, gotermboard.Line{}, heading("Next"))
 	progress, held := rows.progress[initiative.Number]
@@ -135,7 +139,7 @@ func tokenLines(totals api.WorkTotals) []gotermboard.Line {
 		totals.SessionCount, plural(totals.SessionCount, "session", "sessions"))))
 }
 
-func issuePanel(issue api.BoardIssue, excerpt, description string, read bool, now time.Time) []gotermboard.Line {
+func (b *initiativesBoard) issuePanel(issue api.BoardIssue, excerpt, description string, read bool, now time.Time, width int) []gotermboard.Line {
 	facts := []string{issue.Type, priorityName(issue.EffectivePriority)}
 	if issue.Repo != nil {
 		facts = append(facts, *issue.Repo)
@@ -159,30 +163,17 @@ func issuePanel(issue api.BoardIssue, excerpt, description string, read bool, no
 		}
 		return append(lines, dimLine("reading…"))
 	}
-	return append(lines, panelDescription(description, "enter opens the whole of it")...)
+	return append(lines, b.panelDescription(description, "enter opens the whole of it", width)...)
 }
 
-// panelDescription is a description's first paragraphs, cut at a word where they run long.
-func panelDescription(description, more string) []gotermboard.Line {
-	paragraphs := descriptionParagraphs(description)
-	if len(paragraphs) == 0 {
+// panelDescription is a description's first rows.
+func (b *initiativesBoard) panelDescription(description, more string, width int) []gotermboard.Line {
+	if strings.TrimSpace(description) == "" {
 		return []gotermboard.Line{dimLine("No description.")}
 	}
-	var lines []gotermboard.Line
-	left := panelDescriptionRunes
-	for at, paragraph := range paragraphs {
-		if at == panelDescriptionParagraphs || left <= 0 {
-			return append(lines, dimLine(more))
-		}
-		if utf8.RuneCountInString(paragraph) > left {
-			cut := string([]rune(paragraph)[:left])
-			if space := strings.LastIndex(cut, " "); space > 0 {
-				cut = cut[:space]
-			}
-			return append(lines, plainLine(cut+"…"), dimLine(more))
-		}
-		lines = append(lines, plainLine(paragraph))
-		left -= utf8.RuneCountInString(paragraph)
+	lines := b.descriptionLines(description, width)
+	if len(lines) <= panelDescriptionRows {
+		return lines
 	}
-	return lines
+	return slices.Concat(lines[:panelDescriptionRows], []gotermboard.Line{dimLine(more)})
 }

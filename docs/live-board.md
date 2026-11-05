@@ -20,23 +20,25 @@ one-program TUI at a view. A flag shows in `--help`, where an optional argument 
 With no terminal and neither flag the command refuses and names both, so an agent reads what
 a person reads rather than waiting on a screen that never draws.
 
-## Each initiative is three lines on columns the totals share
+## Each initiative is two lines: its name, then dim repos beside its counts
 
 ```text
-                        DONE  24H   7D  30D  LAST  RUN  BLK  RDY  ISSUES
-   TOTAL · 85       588/1175   27  125  372   16m   23  207  281  ▰▰▰▰▰▱▱▱▱▱ 50%  ▅ ▂▁  ▇█▄▃▂▅
+                                    DONE  24H   7D  30D  LAST  RUN  BLK  RDY  ISSUES
+   TOTAL · 85                   588/1175   27  125  372   16m   23  207  281  ▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱ 50%  ▅ ▂▁
 
- ▾ high · 5 of 50    453/786   24   87  294   16m   22  135  128  ▰▰▰▰▱▱▱▱▱▱  ▆ ▂▂  ▇█▆▅▄█
-›  ▸ 1544              19/48    9   11   19    3h   14    8    7  ▰▰▰▰▰▰▰▰▱▱▱▱▱
-     An agent keeps the queue ordered toward its goals as proposals a person steers
-     api, cli, docs, web, worker, +4
+ ▾ high · 5 of 50                453/786   24   87  294   16m   22  135  128  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  ▆ ▂▂
+›  ▸ 1544  An agent keeps the queue ordered toward its goals as proposals a person steers
+           api, cli, docs, +6      19/48    9   11   19    3h   14    8    7  ▰▰▰▰▰▰▰▰▱▱▱▱▱
 ```
 
-Columns let the eye run down one figure across every initiative, and a tier's totals line
-up over the rows they sum. A name and its repos are too long for a column, so they take
-lines of their own. Repos end in `+N`, because a repo cut in half at the screen's edge names
-nothing. The width they have moves with the side panel, so the draw works out the `+N`.
+A number and a name are what a person scans for, so they lead, the name in bold, and a name wraps
+under itself rather than being cut. Columns let the eye run down one figure across every initiative,
+and a tier's totals line up over the rows they sum. Repos are read when acting on a row rather
+than when scanning, so they stay dim in the first column and end in `+N`, because a repo cut in
+half names nothing. The side panel lists them all, and the filter matches every one.
 
+- *Rejected:* three lines, keeping every repo on one of its own. Repos were the loudest line on
+  the board, and a screen holds a third fewer initiatives.
 - *Rejected:* a first line of words, `19 in 24h · 3 running`. It reads well once and cannot
   be compared down the screen.
 - *Rejected:* name and repos on one line. Either one long value pushes the other off.
@@ -80,13 +82,28 @@ reads only the row it stops on. A row read once draws at once when the cursor re
 ## Opening a row uses separate keys
 
 `enter` unfolds an initiative's issues and opens an issue's description. `d` opens an
-initiative's description in place, and `f` adds first lines under the initiative and each
-issue. Each answers a different question, so one key that cycled through them would make the
-reader step past two answers to reach the third. Unfolded issues go open first, running at
-the top and then in queue order, with `done` and `canceled` folded beneath.
+initiative's description in place, and `f` adds the initiative's summary and each issue's
+first paragraph. Each answers a different question, so one key that cycled through them would
+make the reader step past two answers to reach the third. Unfolded issues go open first, running
+at the top and then in queue order, with `done` and `canceled` folded beneath.
 
-From 160 columns a side panel follows the cursor, with the description, the closes, what is
-next and the tokens, so a wide terminal answers without a key. `p` hides it.
+From 160 columns a side panel follows the cursor, with the summary, the repos, the closes, the
+start of the description, what is next and the tokens, so a wide terminal answers without a key.
+`p` hides it.
 
 The board is read-only. Pinning and reordering stay in the CLI, where a write says everything
 it did.
+
+## A description is rendered markdown, on a renderer of our own
+
+Descriptions are written as markdown, with headings, lists, code, tables and diagrams, and a
+person opens one to read it. So `d`, `enter` and the panel all draw it through gotermboard's
+`markdown` package: colored headings, bullets whose wrapped lines hang under their text, tables
+that keep a short column whole, boxes of code highlighted in the terminal's own colors. A number
+in prose draws in the color the board gives records, where it names a record on the board.
+
+- *Rejected:* glamour. Its wrapped bullet lines fall back to the margin, lists are in most
+  descriptions, and it answers one styled string that a board cannot color or wrap further.
+- *Rejected:* `glow` as a subprocess. It needs a binary on the path, and its margins and heading
+  bands fight a board's own layout.
+- *Rejected:* a description's first paragraph as its summary. `docs/issues.md` says why it is a field.

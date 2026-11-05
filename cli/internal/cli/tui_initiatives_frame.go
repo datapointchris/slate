@@ -3,6 +3,7 @@ package cli
 import (
 	"cmp"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,8 +20,18 @@ const dimCode = "\033[2m"
 // sparkGlyphs are a spark line's heights, lowest first.
 const sparkGlyphs = "▁▂▃▄▅▆▇█"
 
+// boardFirstColumnWidth is the room the repos have beside an initiative's counts, past its
+// number. A wider one would take cells from the bars.
+const boardFirstColumnWidth = 30
+
+// readingWidth is the most a description spreads across, because long lines of prose read badly.
+const readingWidth = 100
+
+// tierBarCells leaves a tier's bar room for its percent and its 14-day spark at 120 columns.
+const tierBarCells = 20
+
 var boardColumns = []gotermboard.Column{
-	{Title: ""},
+	{Title: "", Min: boardFirstColumnWidth},
 	{Title: "DONE", Right: true},
 	{Title: "24H", Right: true},
 	{Title: "7D", Right: true},
@@ -56,6 +67,9 @@ func (b *initiativesBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 	if read.ReadTS.IsZero() {
 		frame.Strip = []gotermboard.Line{b.stripLine(now, 0, 0)}
 		return frame
+	}
+	if !read.ReadTS.Equal(b.recordsReadAt) {
+		b.records, b.recordsReadAt = recordNumbers(read), read.ReadTS
 	}
 	ordered, shown := b.orderedAndShown(read)
 	showing := 0
@@ -136,57 +150,111 @@ func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInit
 		FilterOnly: showing == 0,
 		Gap:        true,
 		Groups:     children,
-		Panel:      tierPanel(label, tier, now),
+		Panel:      func(int) []gotermboard.Line { return tierPanel(label, tier, now) },
 	}
 }
 
 func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, beyondScope bool, text boardText, rows cursorRowReads, read api.InitiativeBoard, now time.Time) gotermboard.Group {
 	long := text.initiatives[initiative.Number]
 	description := strValue(long.Description)
-	below := []gotermboard.Line{{gotermboard.C(initiative.Name, "")}}
-	if len(initiative.Repos) > 0 {
-		below = append(below, gotermboard.Items(gotermboard.Blue, initiative.Repos...))
-	}
 	return gotermboard.Group{
 		Key:        initiativeKey(initiative.Number),
 		Title:      gotermboard.Line{gotermboard.C(strconv.Itoa(initiative.Number), gotermboard.Cyan)},
+		Span:       gotermboard.Line{gotermboard.C(initiative.Name, gotermboard.Bold)},
+		Beside:     gotermboard.Items(dimCode, initiative.Repos...),
 		Cells:      boardCells(initiative.BoardCounts, now),
 		WrapLast:   issueBar(initiative.BoardCounts),
-		Below:      below,
 		Under:      gotermboard.C(strValue(long.Summary), ""),
-		Paragraphs: b.describedParagraphs(initiative.Number, description, len(text.initiatives) > 0),
+		Document:   b.openDescription(initiative.Number, description, len(text.initiatives) > 0),
 		Folded:     true,
 		FilterOnly: beyondScope,
-		Groups:     issueGroups(initiative, text, rows, now),
+		Groups:     b.issueGroups(initiative, text, rows, now),
 		Text:       description + " " + strValue(long.StatusReason),
-		Panel:      initiativePanel(initiative, long, rows, read, now),
+		Panel: func(width int) []gotermboard.Line {
+			return b.initiativePanel(initiative, long, rows, read, now, width)
+		},
 	}
 }
 
-// describedParagraphs is the description while d holds it open.
-func (b *initiativesBoard) describedParagraphs(number int, description string, read bool) []gotermboard.Cell {
+// openDescription is the description under the row while d holds it open.
+func (b *initiativesBoard) openDescription(number int, description string, read bool) gotermboard.Document {
 	if !b.described[number] {
 		return nil
 	}
-	if !read {
-		return []gotermboard.Cell{gotermboard.C("reading…", dimCode)}
+	return func(width int) []gotermboard.Line {
+		switch {
+		case !read:
+			return []gotermboard.Line{dimLine("reading…")}
+		case strings.TrimSpace(description) == "":
+			return []gotermboard.Line{dimLine("No description.")}
+		}
+		return slices.Concat(b.descriptionLines(description, width), []gotermboard.Line{dimLine("d closes the description")})
 	}
-	var cells []gotermboard.Cell
-	for _, paragraph := range descriptionParagraphs(description) {
-		cells = append(cells, gotermboard.C(paragraph, ""))
+}
+
+func (b *initiativesBoard) descriptionLines(description string, width int) []gotermboard.Line {
+	return b.markdown.Lines(description, min(width, readingWidth))
+}
+
+// recordNumbers is every record a frame can name, so prose colors only a number that is one.
+func recordNumbers(read api.InitiativeBoard) map[int]bool {
+	numbers := map[int]bool{}
+	for _, initiative := range read.Initiatives {
+		numbers[initiative.Number] = true
+		for _, issue := range initiative.Issues {
+			numbers[issue.Number] = true
+		}
 	}
-	if len(cells) == 0 {
-		cells = []gotermboard.Cell{gotermboard.C("No description.", dimCode)}
+	return numbers
+}
+
+// numberInProse is a run of digits as long as a record's number can read in a sentence.
+var numberInProse = regexp.MustCompile(`#?\b\d{3,6}\b`)
+
+// colorRecordNumbers draws a number in prose in the color the board draws records in, where
+// it names one. A number inside a date, a version or a time names none, whatever its digits.
+func (b *initiativesBoard) colorRecordNumbers(text, code string) gotermboard.Line {
+	var line gotermboard.Line
+	at := 0
+	for _, match := range numberInProse.FindAllStringIndex(text, -1) {
+		number, err := strconv.Atoi(strings.TrimPrefix(text[match[0]:match[1]], "#"))
+		if err != nil || !b.records[number] || insideALargerValue(text, match[0], match[1]) {
+			continue
+		}
+		if match[0] > at {
+			line = append(line, gotermboard.C(text[at:match[0]], code))
+		}
+		line = append(line, gotermboard.C(text[match[0]:match[1]], gotermboard.Cyan))
+		at = match[1]
 	}
-	return append(cells, gotermboard.C("d closes the description", dimCode))
+	if at < len(text) {
+		line = append(line, gotermboard.C(text[at:], code))
+	}
+	return line
+}
+
+func insideALargerValue(text string, from, to int) bool {
+	if from > 0 && strings.ContainsRune(".-/:", rune(text[from-1])) {
+		return true
+	}
+	if to == len(text) {
+		return false
+	}
+	switch text[to] {
+	case '-', '/', ':', '%':
+		return true
+	case '.':
+		return to+1 < len(text) && text[to+1] >= '0' && text[to+1] <= '9'
+	}
+	return false
 }
 
 // issueGroups is an initiative's issues unfolded: the open first, running at the top and
 // then in queue order, with the done and the canceled folded beneath.
-func issueGroups(initiative api.BoardInitiative, text boardText, rows cursorRowReads, now time.Time) []gotermboard.Group {
+func (b *initiativesBoard) issueGroups(initiative api.BoardInitiative, text boardText, rows cursorRowReads, now time.Time) []gotermboard.Group {
 	var running, waiting, queued, done, canceled []gotermboard.Row
 	for _, issue := range initiative.Issues {
-		row := issueRow(issue, text, rows, now)
+		row := b.issueRow(issue, text, rows, now)
 		switch issue.State {
 		case api.BoardStateRunning:
 			running = append(running, row)
@@ -234,30 +302,30 @@ func issueGroups(initiative api.BoardInitiative, text boardText, rows cursorRowR
 	return groups
 }
 
-func issueRow(issue api.BoardIssue, text boardText, rows cursorRowReads, now time.Time) gotermboard.Row {
+func (b *initiativesBoard) issueRow(issue api.BoardIssue, text boardText, rows cursorRowReads, now time.Time) gotermboard.Row {
 	excerpt := text.issues[issue.Number]
 	description, read := rows.descriptions[issue.Number]
-	var detail []gotermboard.Cell
-	if read {
-		for _, paragraph := range descriptionParagraphs(description) {
-			detail = append(detail, gotermboard.C(paragraph, ""))
-		}
-		if len(detail) == 0 {
-			detail = []gotermboard.Cell{gotermboard.C("No description.", dimCode)}
-		}
-	} else {
-		detail = []gotermboard.Cell{gotermboard.C(cmp.Or(excerpt, "reading…"), dimCode)}
-	}
 	lead := gotermboard.C(padRight(boardStateWord(issue.State), issueStateWidth)+" ", issueStateCode(issue.State))
 	if issue.ClosedTS != nil {
 		lead = gotermboard.Ticking(padLeft(ageOf(issue.ClosedTS, now), issueStateWidth)+" ", dimCode)
 	}
 	return gotermboard.Row{
-		Key:    issueKey(issue.Number),
-		Span:   gotermboard.Line{lead, gotermboard.C(strconv.Itoa(issue.Number), gotermboard.Cyan), gotermboard.C("  "+issue.Title, "")},
-		Under:  gotermboard.C(excerpt, ""),
-		Detail: detail,
-		Panel:  issuePanel(issue, excerpt, description, read, now),
+		Key:   issueKey(issue.Number),
+		Span:  gotermboard.Line{lead, gotermboard.C(strconv.Itoa(issue.Number), gotermboard.Cyan), gotermboard.C("  "+issue.Title, "")},
+		Under: gotermboard.C(excerpt, ""),
+		Text:  description,
+		Document: func(width int) []gotermboard.Line {
+			switch {
+			case !read:
+				return []gotermboard.Line{dimLine(cmp.Or(excerpt, "reading…"))}
+			case strings.TrimSpace(description) == "":
+				return []gotermboard.Line{dimLine("No description.")}
+			}
+			return b.descriptionLines(description, width)
+		},
+		Panel: func(width int) []gotermboard.Line {
+			return b.issuePanel(issue, excerpt, description, read, now, width)
+		},
 	}
 }
 
@@ -341,7 +409,7 @@ func issueBar(counts api.BoardCounts) gotermboard.Line {
 	return barLine(counts.States.Completed, underWay, counts.States.Blocked, max(counts.OpenCount-underWay-counts.States.Blocked, 0))
 }
 
-// scaledBar is issueBar's kinds shared over progressBarCells, for a row holding too many
+// scaledBar is issueBar's kinds shared over tierBarCells, for a row holding too many
 // issues to draw one cell each. A kind holding any issue keeps a cell, so a blocked issue
 // never rounds away.
 func scaledBar(counts api.BoardCounts) gotermboard.Line {
@@ -352,12 +420,12 @@ func scaledBar(counts api.BoardCounts) gotermboard.Line {
 		total += n
 	}
 	if total == 0 {
-		return barLine(0, 0, 0, progressBarCells)
+		return barLine(0, 0, 0, tierBarCells)
 	}
 	cells := make([]int, len(kinds))
-	left := progressBarCells
+	left := tierBarCells
 	for i, n := range kinds {
-		cells[i] = n * progressBarCells / total
+		cells[i] = n * tierBarCells / total
 		if n > 0 {
 			cells[i] = max(cells[i], 1)
 		}
@@ -384,17 +452,4 @@ func sparkLine(days []int) string {
 		b.WriteRune(glyphs[min(len(glyphs)-1, (closes*len(glyphs)-1)/most)])
 	}
 	return b.String()
-}
-
-// descriptionParagraphs is a description as lines to wrap, with its blank lines and its
-// bold markers out, because each line is drawn on its own in a narrow column.
-func descriptionParagraphs(description string) []string {
-	var paragraphs []string
-	for line := range strings.Lines(description) {
-		line = strings.TrimSpace(strings.ReplaceAll(line, "**", ""))
-		if line != "" {
-			paragraphs = append(paragraphs, line)
-		}
-	}
-	return paragraphs
 }

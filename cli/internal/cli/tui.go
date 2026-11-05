@@ -41,13 +41,14 @@ func newTUICommand() *cobra.Command {
 			"last good read with that read's age, so a rollout leaves the board drawn. Tab\n" +
 			"cycles the tabs once there is more than one.\n\n" +
 			"initiatives is the total, each priority tier and each initiative on one set of\n" +
-			"columns: done over done and open, the issues completed in 24 hours, 7 days and 30\n" +
-			"days, the age of the last close, the issues running or waiting, blocked and ready,\n" +
+			"columns, an initiative's number and name above them: done over done and open, the\n" +
+			"issues completed in 24 hours, 7 days and 30 days, the age of the last close, the\n" +
+			"issues running or waiting, blocked and ready,\n" +
 			"then a bar with one cell per issue. Canceled issues stay off the bar. 1 shows the\n" +
 			"first of each tier, 2 the first in list order, 3 all of them, and + and - change\n" +
 			"the count. / searches past what the scope shows. enter unfolds an initiative's\n" +
 			"issues and opens an issue's description, d opens an initiative's description, f\n" +
-			"adds first lines, and s cycles the sort within a tier. ? lists every key and every\n" +
+			"adds summaries, and s cycles the sort within a tier. ? lists every key and every\n" +
 			"read. From 160 columns a side panel follows the cursor, and p hides it.\n\n" +
 			"--once prints one frame at COLUMNS by LINES, and --json the snapshot it is drawn\n" +
 			"from, so an agent reads what a person reads. With no terminal and neither flag it\n" +

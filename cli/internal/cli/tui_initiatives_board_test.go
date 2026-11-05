@@ -81,6 +81,32 @@ func TestAScopeCutsTheBoardInTheClient(t *testing.T) {
 	}
 }
 
+func TestANumberInProseColorsOnlyWhereItNamesARecord(t *testing.T) {
+	board := &initiativesBoard{records: map[int]bool{1888: true, 2026: true}}
+	for text, want := range map[string]string{
+		"ahead of 1888.":       "1888",
+		"see #1888, then 2026": "#18882026",
+		"set on 2026-11-03":    "",
+		"at v1.2026":           "",
+		"grew 1888%":           "",
+		"run 799 failed":       "",
+	} {
+		var colored strings.Builder
+		line := board.colorRecordNumbers(text, "")
+		for _, cell := range line {
+			if cell.Code == gotermboard.Cyan {
+				colored.WriteString(cell.Text)
+			}
+		}
+		if colored.String() != want {
+			t.Errorf("%q colored %q, want %q", text, colored.String(), want)
+		}
+		if line.Text() != text {
+			t.Errorf("%q drew as %q", text, line.Text())
+		}
+	}
+}
+
 func TestABarHasOneCellPerIssueAndLeavesTheCanceledOff(t *testing.T) {
 	counts := api.BoardCounts{
 		IssueCount: 50, OpenCount: 29,
@@ -101,8 +127,8 @@ func TestABarHasOneCellPerIssueAndLeavesTheCanceledOff(t *testing.T) {
 	for _, width := range scaled {
 		total += width
 	}
-	if total != progressBarCells || slices.Contains(scaled, 0) {
-		t.Errorf("a scaled bar takes %v cells, want %d in all with none of the kinds lost", scaled, progressBarCells)
+	if total != tierBarCells || slices.Contains(scaled, 0) {
+		t.Errorf("a scaled bar takes %v cells, want %d in all with none of the kinds lost", scaled, tierBarCells)
 	}
 }
 
