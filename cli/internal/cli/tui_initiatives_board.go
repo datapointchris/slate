@@ -281,12 +281,6 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 		}
 	}
 	hasCount := func(*gotermboard.Model) bool { return b.scope.kind != scopeEveryInitiative }
-	scroll := func(by func(*gotermboard.Model) int) func(*gotermboard.Model) tea.Cmd {
-		return func(m *gotermboard.Model) tea.Cmd {
-			m.ScrollBy(by(m))
-			return nil
-		}
-	}
 	return []gotermboard.Action{
 		{Keys: []string{"1"}, Label: "show the first of each priority tier", Footer: "1/2/3 scope", Run: scoped(scopePerTier)},
 		{Keys: []string{"2"}, Label: "show the first in list order", Run: scoped(scopeFirstInList)},
@@ -317,8 +311,6 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 				return nil
 			},
 		},
-		{Keys: []string{"ctrl+d", "pgdown"}, Label: "scroll half a screen down, to read text taller than the screen", Run: scroll(func(m *gotermboard.Model) int { return m.HalfScreen() })},
-		{Keys: []string{"ctrl+u", "pgup"}, Label: "scroll half a screen up", Run: scroll(func(m *gotermboard.Model) int { return -m.HalfScreen() })},
 	}
 }
 

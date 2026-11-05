@@ -8,7 +8,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.1
 	github.com/datapointchris/goclikit v0.5.2
 	github.com/datapointchris/goselfupdate v0.11.0
-	github.com/datapointchris/gotermboard v0.4.1
+	github.com/datapointchris/gotermboard v0.5.0
 	github.com/datapointchris/gotermstyle v0.2.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.10.2
