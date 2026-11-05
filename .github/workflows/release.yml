@@ -32,7 +32,6 @@ permissions:
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
-  queue: max
 
 # A named bash runs with pipefail, so a failed command early in a pipeline fails
 # its step rather than handing the next command an empty answer.
