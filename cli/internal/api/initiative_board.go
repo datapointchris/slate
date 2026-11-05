@@ -97,8 +97,8 @@ type BoardIssueText struct {
 // BoardInitiativeText is an initiative's long text.
 type BoardInitiativeText struct {
 	Number       int              `json:"number"`
+	Summary      *string          `json:"summary"`
 	Description  *string          `json:"description"`
-	Excerpt      *string          `json:"excerpt"`
 	StatusReason *string          `json:"status_reason"`
 	Issues       []BoardIssueText `json:"issues"`
 }

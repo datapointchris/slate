@@ -23,7 +23,9 @@ def issue(client, title: str, **fields) -> int:
 
 
 def initiative(client, name: str, **fields) -> int:
-    return ok(client.post('/initiatives', json={'name': name, **fields}), status.HTTP_201_CREATED)['initiative']['number']
+    return ok(client.post('/initiatives', json={'summary': 'It is done.', 'name': name, **fields}), status.HTTP_201_CREATED)['initiative'][
+        'number'
+    ]
 
 
 def hold(client, record: int, holder: str) -> None:
@@ -73,7 +75,7 @@ def test_ideas_promote_after_ideas_reorder_keeps_the_place_the_reorder_gave(clie
         for title in ('Schedule review rounds', 'Mirror the backups', 'Trim the test suite')
     )
     ok(client.post(f'/ideas/{moved}/rank', json={'before': first}))
-    ok(client.post(f'/ideas/{moved}/promote', json={}))
+    ok(client.post(f'/ideas/{moved}/promote', json={'summary': 'It is done.'}))
     assert rows(client) == [
         ('Trim the test suite', 'plan', 2),
         ('Schedule review rounds', 'discuss', 2),
@@ -179,7 +181,7 @@ def test_a_pin_ends_with_the_record_and_each_ending_says_so(client):
 
     idea = ok(client.post('/ideas', json={'title': 'Try a layout'}), status.HTTP_201_CREATED)['idea']['number']
     pin(client, 'ideas', idea)
-    promoted = ok(client.post(f'/ideas/{idea}/promote', json={}))
+    promoted = ok(client.post(f'/ideas/{idea}/promote', json={'summary': 'It is done.'}))
     assert 'pin_carried' in [effect['code'] for effect in promoted['side_effects']]
     assert promoted['idea']['pinned_ts'] is None
     assert promoted['idea']['initiative']['pinned_ts'] is not None

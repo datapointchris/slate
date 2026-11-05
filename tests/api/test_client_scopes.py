@@ -150,7 +150,7 @@ SCOPED_WRITES = {
     ),
     (PLAN, 'POST', f'{API_PREFIX}/initiatives'): (
         '/initiatives',
-        {'name': 'grouped by a planning job'},
+        {'name': 'grouped by a planning job', 'summary': 'A planning job grouped it.'},
         status.HTTP_201_CREATED,
     ),
     (PLAN, 'PATCH', f'{API_PREFIX}/initiatives/{{id:path}}'): (

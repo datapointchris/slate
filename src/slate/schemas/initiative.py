@@ -1,7 +1,9 @@
 import datetime as dt
+from typing import Annotated
 from typing import Any
 from uuid import UUID
 
+from pydantic import StringConstraints
 from pydantic import model_validator
 
 from slate.schemas.claim import Claim
@@ -14,6 +16,11 @@ from slate.schemas.write_effects import Written
 
 # An initiative answers to its UUID, its number or its name, and the API resolves each.
 InitiativeRef = UUID | int | str
+
+SUMMARY_CHARS = 240
+
+# What is true when the work is done, on one line a board draws under the name.
+SummaryText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=SUMMARY_CHARS, pattern=r'^[^\r\n]+$')]
 
 
 class InitiativeSummary(RecordModel):
@@ -41,6 +48,7 @@ class InitiativeWrite(RecordModel):
 
 class InitiativeCreate(InitiativeWrite):
     name: str
+    summary: SummaryText
     description: str | None = None
     status: str = 'active'
     status_reason: str | None = None
@@ -52,6 +60,7 @@ class InitiativeUpdate(InitiativeWrite):
     """`closed_ts` is stamped on the move into a terminal status and cleared on reopen."""
 
     name: NotNull[str] = None
+    summary: NotNull[SummaryText] = None
     description: str | None = None
     status: NotNull[str] = None
     status_reason: str | None = None
@@ -72,6 +81,7 @@ class Initiative(RecordModel):
     id: UUID
     number: int
     name: str
+    summary: str | None = None
     description: str | None = None
     status: str
     status_reason: str | None = None

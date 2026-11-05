@@ -153,7 +153,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, beyon
 		Cells:      boardCells(initiative.BoardCounts, now),
 		WrapLast:   issueBar(initiative.BoardCounts),
 		Below:      below,
-		Under:      gotermboard.C(strValue(long.Excerpt), ""),
+		Under:      gotermboard.C(strValue(long.Summary), ""),
 		Paragraphs: b.describedParagraphs(initiative.Number, description, len(text.initiatives) > 0),
 		Folded:     true,
 		FilterOnly: beyondScope,

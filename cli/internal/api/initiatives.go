@@ -25,6 +25,7 @@ type Initiative struct {
 	ID             string         `json:"id"`
 	Number         int            `json:"number"`
 	Name           string         `json:"name"`
+	Summary        *string        `json:"summary"`
 	Description    *string        `json:"description"`
 	Status         string         `json:"status"`
 	StatusReason   *string        `json:"status_reason"`
@@ -55,6 +56,7 @@ type InitiativeDetail struct {
 // last, and RankInitiative moves it.
 type InitiativeCreateInput struct {
 	Name        string  `json:"name"`
+	Summary     string  `json:"summary"`
 	Description *string `json:"description,omitempty"`
 	Priority    *int    `json:"priority,omitempty"`
 	Autofix     *bool   `json:"autofix,omitempty"`
@@ -63,6 +65,7 @@ type InitiativeCreateInput struct {
 // InitiativeUpdateInput is a partial update, cleared the way IssueUpdateInput is.
 type InitiativeUpdateInput struct {
 	Name         *string `json:"name,omitempty"`
+	Summary      *string `json:"summary,omitempty"`
 	Description  *string `json:"description,omitempty"`
 	Status       *string `json:"status,omitempty"`
 	StatusReason *string `json:"status_reason,omitempty"`

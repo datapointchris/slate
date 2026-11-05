@@ -288,6 +288,7 @@ func newIdeasLinkCommand() *cobra.Command {
 
 func newIdeasPromoteCommand() *cobra.Command {
 	var (
+		summary     string
 		name        string
 		description string
 		priority    string
@@ -296,16 +297,17 @@ func newIdeasPromoteCommand() *cobra.Command {
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
-		Use:   "promote <idea> [flags]",
+		Use:   "promote <idea> --summary <summary> [flags]",
 		Short: "Create the initiative an idea becomes",
 		Long: "Creates an initiative that names the idea, and prints it under the line naming\n" +
-			"the promotion. Each flag left out takes the idea's own: its title as the name,\n" +
-			"its description, its priority. The idea's claim ends as promoted, printed\n" +
+			"the promotion. --summary is required, because an idea has none. Each other flag\n" +
+			"left out takes the idea's own: its title as the name, its description, its\n" +
+			"priority. The idea's claim ends as promoted, printed\n" +
 			"under the line too, since its work is the initiative's now. An idea already\n" +
 			"promoted is refused, naming its initiative. --status someday creates it set\n" +
 			"aside.",
-		Example: "  slate ideas promote 1860\n" +
-			"  slate ideas promote 1860 --name \"Scheduled review rounds\" --status someday",
+		Example: "  slate ideas promote 1860 --summary \"Review rounds run on a schedule\"\n" +
+			"  slate ideas promote 1860 --name \"Scheduled review rounds\" --summary \"Review rounds run on a schedule\" --status someday",
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -316,7 +318,11 @@ func newIdeasPromoteCommand() *cobra.Command {
 			if readFlagIntent(f, "name") == flagClears {
 				return goclikit.UsageError(errors.New("--name cannot be empty — leave it out to take the idea's title"))
 			}
+			if strings.TrimSpace(summary) == "" {
+				return goclikit.UsageError(errors.New("--summary is required: " + initiativeSummaryHelp))
+			}
 			in := api.IdeaPromoteInput{
+				Summary:     summary,
 				Name:        valuedStrFlag(f, "name", &name),
 				Description: valuedStrFlag(f, "description", &description),
 				Status:      status,
@@ -342,6 +348,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 			return reportWrite(cmd, asJSON, written, written.WriteEffects, ideaLine("Promoted", written.Idea))
 		},
 	}
+	cmd.Flags().StringVar(&summary, "summary", "", initiativeSummaryHelp+" (required)")
 	cmd.Flags().StringVar(&name, "name", "", "The initiative's name (default the idea's title)")
 	cmd.Flags().StringVar(&description, "description", "", "The initiative's outcome (default the idea's description)")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default the idea's)")

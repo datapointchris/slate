@@ -138,8 +138,8 @@ def link_evidence(idea: IdeaFromPath, link: schemas.IdeaEvidenceLink, session: D
 def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession, caller: CurrentCaller, effects: Effects):
     """Create the initiative the idea becomes, naming the idea. A promoted idea is refused with 409.
 
-    Each field the request leaves out takes the idea's own: its title as the name, its
-    description, its priority. The answer is the idea, which then shows the initiative.
+    The summary is required, because an idea has none. Each other field the request leaves
+    out takes the idea's own: its title as the name, its description, its priority. The answer is the idea, which then shows the initiative.
     The idea's claim ends as `promoted`, because its work is the initiative's now.
     """
     if idea.initiative is not None:
@@ -151,6 +151,7 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
         session,
         schemas.InitiativeCreate(
             name=request.name or idea.title,
+            summary=request.summary,
             description=request.description if request.description is not None else idea.description,
             status=request.status,
             priority=request.priority if request.priority is not None else idea.priority,

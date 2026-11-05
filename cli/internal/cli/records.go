@@ -138,9 +138,9 @@ func newSearchCommand() *cobra.Command {
 		Use:        "search <words>...",
 		SuggestFor: []string{"find", "grep"},
 		Short:      "Find ideas, initiatives and issues by title or description",
-		Long: "Every word must appear in the title or the description, in any order. Every\n" +
-			"status is searched, because the record you remember may be the one that\n" +
-			"closed. Unclosed records come first, then the most urgent, then the newest.",
+		Long: "Every word must appear in the title, the description or an initiative's\n" +
+			"summary, in any order. Every status is searched, because the record you\n" +
+			"remember may be the one that closed. Unclosed records come first, then the most urgent, then the newest.",
 		Example: "  slate search rank renumber\n" +
 			"  slate search \"device login\" --kind issue --json",
 		Args:        cobra.MinimumNArgs(1),

@@ -164,7 +164,7 @@ def read_board(session: DbSession, zone: RequestZone, initiative_status: Initiat
 
 @router.get('/board/text', response_model=schemas.InitiativeBoardText, status_code=status.HTTP_200_OK)
 def read_board_text(session: DbSession, initiative_status: InitiativeStatusQuery = 'active'):
-    """Each board initiative's description, and an excerpt of it and of each of its issues, apart so a board's poll never carries them."""
+    """Each board initiative's summary and description, and an excerpt of each of its issues, apart so a board's poll never carries them."""
     return initiative_board_text(session, initiative_status)
 
 

@@ -89,7 +89,7 @@ def test_the_changes_read_every_write_to_an_issue_and_its_rows_with_imported_his
 
 def test_an_ideas_changes_hold_the_initiative_its_promotion_created_and_nothing_after(client):
     idea = ok(client.post('/ideas', json={'title': 'Promote me'}), status.HTTP_201_CREATED)['idea']['number']
-    initiative = ok(client.post(f'/ideas/{idea}/promote', json={}))['idea']['initiative']['number']
+    initiative = ok(client.post(f'/ideas/{idea}/promote', json={'summary': 'It is done.'}))['idea']['initiative']['number']
     ok(client.patch(f'/initiatives/{initiative}', json={'description': 'Its own write'}))
 
     changes = ok(client.get(f'/records/{idea}/changes'))
@@ -98,7 +98,9 @@ def test_an_ideas_changes_hold_the_initiative_its_promotion_created_and_nothing_
 
 def test_a_search_reads_every_kind_closed_ones_included_and_unclosed_first(client):
     idea = ok(client.post('/ideas', json={'title': 'Quarry the backlog'}), status.HTTP_201_CREATED)['idea']['number']
-    initiative = ok(client.post('/initiatives', json={'name': 'Quarry ideas'}), status.HTTP_201_CREATED)['initiative']['number']
+    initiative = ok(client.post('/initiatives', json={'summary': 'It is done.', 'name': 'Quarry ideas'}), status.HTTP_201_CREATED)[
+        'initiative'
+    ]['number']
     closed = ok(client.post('/issues', json={'title': 'Old quarry', 'priority': 1}), status.HTTP_201_CREATED)['issue']['number']
     ok(client.patch(f'/issues/{closed}', json={'status': 'completed'}))
     urgent = ok(client.post('/issues', json={'title': 'A', 'description': 'quarry it', 'priority': 1}), status.HTTP_201_CREATED)

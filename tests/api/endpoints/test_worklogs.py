@@ -78,7 +78,7 @@ def test_a_worklog_started_with_no_claim_warns_of_another_open_one_and_ends_by_h
     finished = ok(client.post(f'{WORKLOGS}/{idea}.2/finish', json={'finished_by': 'chris@desk'}))['worklog']
     assert (finished['outcome'], finished['ended_by'], finished['state']) == ('finished', 'chris@desk', 'ended')
 
-    promoted = ok(client.post(f'/ideas/{idea}/promote', json={}))
+    promoted = ok(client.post(f'/ideas/{idea}/promote', json={'summary': 'It is done.'}))
     assert ('worklog_ended', idea) in codes(promoted['side_effects'])
     ended = ok(client.get(f'{WORKLOGS}/{idea}.1'))
     assert (ended['outcome'], [span['ended_ts'] for span in ended['spans']]) == ('promoted', [ended['ended_ts']])

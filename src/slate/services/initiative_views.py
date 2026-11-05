@@ -42,6 +42,7 @@ def initiative_view(
         id=initiative.id,
         number=initiative.number,
         name=initiative.name,
+        summary=initiative.summary,
         description=initiative.description,
         status=initiative.status,
         status_reason=initiative.status_reason,

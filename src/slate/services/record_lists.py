@@ -7,6 +7,7 @@ that closed. A promoted idea lists among the closed, since its work is its initi
 from __future__ import annotations
 
 import datetime as dt
+from typing import Any
 
 from sqlalchemy import Select
 from sqlalchemy import case
@@ -15,6 +16,7 @@ from sqlalchemy import null
 from sqlalchemy import or_
 from sqlalchemy import select
 from sqlalchemy import union_all
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm import Session
 
 from slate import models
@@ -26,10 +28,12 @@ from slate.services.row_limit import apply_row_limit
 
 
 def kind_query(kind: Kind, words: list[str]) -> Select[int, str, str, str | None, int, dt.datetime, bool]:
-    """Each record of `kind` whose title or description holds every word, in any order, and whether it is closed."""
+    """Each record of `kind` whose title, summary or description holds every word, in any order, and whether it is closed."""
+    searched: tuple[InstrumentedAttribute[Any], ...]
     match kind:
         case Kind.ISSUE:
-            title, description = models.Issue.title, models.Issue.description
+            title = models.Issue.title
+            searched = (title, models.Issue.description)
             query = select(
                 models.Issue.number,
                 literal(kind.value),
@@ -40,7 +44,8 @@ def kind_query(kind: Kind, words: list[str]) -> Select[int, str, str, str | None
                 ~is_open(kind),
             )
         case Kind.INITIATIVE:
-            title, description = models.Initiative.name, models.Initiative.description
+            title = models.Initiative.name
+            searched = (title, models.Initiative.summary, models.Initiative.description)
             query = select(
                 models.Initiative.number,
                 literal(kind.value),
@@ -51,12 +56,13 @@ def kind_query(kind: Kind, words: list[str]) -> Select[int, str, str, str | None
                 ~is_open(kind),
             )
         case Kind.IDEA:
-            title, description = models.Idea.title, models.Idea.description
+            title = models.Idea.title
+            searched = (title, models.Idea.description)
             query = select(
                 models.Idea.number, literal(kind.value), title, null(), models.Idea.priority, models.Idea.created_ts, ~is_open(kind)
             )
     for word in words:
-        query = query.where(or_(title.icontains(word, autoescape=True), description.icontains(word, autoescape=True)))
+        query = query.where(or_(*(column.icontains(word, autoescape=True) for column in searched)))
     return query
 
 

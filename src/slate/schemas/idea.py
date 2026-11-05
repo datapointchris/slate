@@ -8,6 +8,7 @@ from pydantic import StringConstraints
 
 from slate.schemas.claim import Claim
 from slate.schemas.initiative import Initiative
+from slate.schemas.initiative import SummaryText
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
@@ -48,8 +49,9 @@ class IdeaEvidenceLink(RecordModel):
 
 
 class IdeaPromote(RecordModel):
-    """The initiative a promotion creates. Each field left out takes the idea's own."""
+    """The initiative a promotion creates. An idea has no summary, so one is required. Each other field left out takes the idea's own."""
 
+    summary: SummaryText
     name: Title | None = None
     description: str | None = None
     priority: Priority | None = None

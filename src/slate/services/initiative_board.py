@@ -197,6 +197,7 @@ def initiative_board_text(session: Session, initiative_status: str) -> schemas.I
     columns = select(
         models.Initiative.id,
         models.Initiative.number,
+        models.Initiative.summary,
         models.Initiative.description,
         models.Initiative.status_reason,
     )
@@ -214,8 +215,8 @@ def initiative_board_text(session: Session, initiative_status: str) -> schemas.I
         initiatives=[
             schemas.BoardInitiativeText(
                 number=initiative.number,
+                summary=initiative.summary,
                 description=initiative.description,
-                excerpt=description_excerpt(initiative.description),
                 status_reason=initiative.status_reason,
                 issues=texts_in[initiative.id],
             )

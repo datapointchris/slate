@@ -24,7 +24,9 @@ def message(key: str, written: dt.datetime, uncached_input: int, cache_write: in
 
 def test_an_initiative_totals_its_issues_and_their_children_and_a_seven_day_window_counts_time_outside_every_worklog(client):
     """The window ends a minute into the span s1 holds, so the span's tokens split at the edge."""
-    initiative = ok(client.post('/initiatives', json={'name': 'Totals'}), status.HTTP_201_CREATED)['initiative']['number']
+    initiative = ok(client.post('/initiatives', json={'summary': 'It is done.', 'name': 'Totals'}), status.HTTP_201_CREATED)['initiative'][
+        'number'
+    ]
     issue = ok(client.post('/issues', json={'title': 'In it', 'initiative': initiative}), status.HTTP_201_CREATED)['issue']['number']
     child = ok(client.post('/issues', json={'title': 'Under it', 'parent': issue}), status.HTTP_201_CREATED)['issue']['number']
 

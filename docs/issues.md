@@ -365,6 +365,13 @@ Only an active initiative lends its priority and groups its issues, so
 completing or dropping one leaves each issue still open inside it standing
 alone.
 
+**A summary says what is true when it is done.** It is one line of at most 240
+characters, in words the name does not use, and quotes, dates and history stay in
+the description. A create and a promotion require it, and an edit can change it
+but never clear it. It is a field rather than the description's first paragraph,
+so a program reads it and the schema holds its shape, where a parse would have to
+guess which words were meant as the summary.
+
 ## An initiative's progress counts each of its issues in one state
 
 `GET /initiatives/progress` answers how far each initiative has come, and
@@ -449,12 +456,12 @@ issue never counts as a close, because the question is how much work finished. A
 completed issue whose close has no recorded time counts in `states` and in no window.
 
 **Long text is a second read.** `GET /initiatives/board/text` answers each
-initiative's whole description, and an excerpt of it and of each of its issues.
+initiative's summary and whole description, and an excerpt of each of its issues.
 Descriptions are most of what a list of initiatives weighs, so the poll never
-carries them and a board reads text less often. An excerpt is the first paragraph
-holding prose, with headings, code, table rows and rules skipped and inline
-markdown stripped, cut at a word near 300 characters. It is derived on read, and
-walking a description is too cheap to be worth storing. An issue's whole
+carries them and a board reads text less often. An issue's excerpt is the first
+paragraph holding prose, with headings, code, table rows and rules skipped and
+inline markdown stripped, cut at a word near 300 characters. It is derived on
+read, and walking a description is too cheap to be worth storing. An issue's whole
 description stays on `GET /issues/{id}`.
 
 The paths `board` and `board/text` are names no initiative may take, as `progress` is.

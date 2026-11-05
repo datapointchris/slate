@@ -16,7 +16,7 @@ from .crud_test import ApiCrudTester
 
 INITIATIVES = '/initiatives'
 
-NEW_INITIATIVE = schemas.InitiativeCreate(name='Move dev items into issues', priority=1)
+NEW_INITIATIVE = schemas.InitiativeCreate(name='Move dev items into issues', summary='Every dev item is an issue.', priority=1)
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def test_lifecycle(client):
 
 
 def test_active_initiatives_order_by_priority_with_none_last(client):
-    ok(client.post(INITIATIVES, json={'name': 'Urgent cleanup', 'priority': 1}), status.HTTP_201_CREATED)
+    ok(client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Urgent cleanup', 'priority': 1}), status.HTTP_201_CREATED)
     assert names(ok(client.get(INITIATIVES))) == ['Urgent cleanup', 'Ship the issue tracker', 'Retire the old capture path']
 
 
@@ -58,12 +58,15 @@ def test_active_initiatives_order_by_priority_with_none_last(client):
 def test_a_sort_reorders_the_active_initiatives(client, sort, expected):
     for title, initiative in (('a', 'Retire the old capture path'), ('b', 'Retire the old capture path'), ('c', 'Ship the issue tracker')):
         ok(client.post('/issues', json={'title': title, 'initiative': initiative}), status.HTTP_201_CREATED)
-    ok(client.post(INITIATIVES, json={'name': 'Started last'}), status.HTTP_201_CREATED)
+    ok(client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Started last'}), status.HTTP_201_CREATED)
     assert names(ok(client.get(INITIATIVES, params={'sort': sort}))) == expected
 
 
 def test_someday_initiatives_sit_between_the_active_and_the_finished(client):
-    ok(client.post(INITIATIVES, json={'name': 'Urgent idea', 'status': 'someday', 'priority': 1}), status.HTTP_201_CREATED)
+    ok(
+        client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Urgent idea', 'status': 'someday', 'priority': 1}),
+        status.HTTP_201_CREATED,
+    )
     assert names(ok(client.get(INITIATIVES, params={'status': 'all'})))[-2:] == ['Urgent idea', 'Finished migration']
 
 
@@ -81,7 +84,7 @@ def test_an_initiative_answers_to_its_number(client):
 # The path is decoded before routing, so an escaped `%2F` arrives as a slash,
 # and a route taking one segment answers 404.
 def test_a_name_holding_a_slash_addresses_its_initiative(client):
-    ok(client.post(INITIATIVES, json={'name': 'library/consumer pair'}), status.HTTP_201_CREATED)
+    ok(client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'library/consumer pair'}), status.HTTP_201_CREATED)
     path = f'{INITIATIVES}/library%2Fconsumer%20pair'
     assert ok(client.get(path))['name'] == 'library/consumer pair'
     assert wrote(client.patch(path, json={'priority': 3}), 'initiative')['priority'] == 3
@@ -127,9 +130,9 @@ def test_closing_stamps_and_reopening_clears(client):
 
 
 def test_only_one_active_initiative_holds_a_name(client):
-    response = client.post(INITIATIVES, json={'name': 'Ship the issue tracker'})
+    response = client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Ship the issue tracker'})
     assert response.status_code == status.HTTP_409_CONFLICT, show_status_and_response(response)
-    ok(client.post(INITIATIVES, json={'name': 'Finished migration'}), status.HTTP_201_CREATED)
+    ok(client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Finished migration'}), status.HTTP_201_CREATED)
 
 
 def test_a_closed_initiative_stops_lending_its_priority(client):
@@ -156,7 +159,9 @@ def numbers(rows) -> list[int]:
 
 def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_blocked_comes_next_and_closed(client):
     """The running issue and the triage issue each depend on an open one, and neither counts as blocked."""
-    initiative = wrote(client.post(INITIATIVES, json={'name': 'Progress', 'priority': 2}), 'initiative', status.HTTP_201_CREATED)['number']
+    initiative = wrote(
+        client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Progress', 'priority': 2}), 'initiative', status.HTTP_201_CREATED
+    )['number']
 
     def filed(title: str, **fields) -> int:
         issue = {'title': title, 'initiative': initiative, **fields}
@@ -213,7 +218,7 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
 @pytest.mark.parametrize('routed', sorted(ROUTED_NAMES))
 def test_an_initiative_cannot_take_the_name_of_a_route(client, routed):
     """Each path under `/initiatives` is reached before an initiative named for it could be read by name."""
-    assert ok(client.post(INITIATIVES, json={'name': routed}), status.HTTP_422_UNPROCESSABLE_CONTENT)
+    assert ok(client.post(INITIATIVES, json={'summary': 'It is done.', 'name': routed}), status.HTTP_422_UNPROCESSABLE_CONTENT)
     assert ok(client.patch(f'{INITIATIVES}/Ship the issue tracker', json={'name': routed}), status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 
@@ -222,7 +227,9 @@ def test_the_board_counts_each_issue_in_one_state_rolls_them_up_and_counts_only_
     _, session = txn_api_logged_in
 
     def created(name: str, **fields) -> int:
-        return wrote(client.post(INITIATIVES, json={'name': name, **fields}), 'initiative', status.HTTP_201_CREATED)['number']
+        return wrote(
+            client.post(INITIATIVES, json={'summary': 'It is done.', 'name': name, **fields}), 'initiative', status.HTTP_201_CREATED
+        )['number']
 
     urgent, low, someday = created('Urgent board', priority=1), created('Low board', priority=4), created('Later', status='someday')
 
@@ -294,7 +301,9 @@ def test_the_board_asks_the_same_queries_however_many_initiatives_it_answers(cli
 
     def filed_initiatives(count: int, prefix: str) -> None:
         for at in range(count):
-            number = wrote(client.post(INITIATIVES, json={'name': f'{prefix} {at}'}), 'initiative', status.HTTP_201_CREATED)['number']
+            number = wrote(
+                client.post(INITIATIVES, json={'summary': 'It is done.', 'name': f'{prefix} {at}'}), 'initiative', status.HTTP_201_CREATED
+            )['number']
             ok(client.post('/issues', json={'title': f'{prefix} {at} issue', 'initiative': number}), status.HTTP_201_CREATED)
 
     def queries_to_read(path: str) -> int:
@@ -317,29 +326,44 @@ def test_the_board_asks_the_same_queries_however_many_initiatives_it_answers(cli
     assert (queries_to_read('board'), queries_to_read('board/text')) == (board, text)
 
 
-def test_the_board_text_holds_each_description_and_an_excerpt_of_its_first_paragraph_of_prose(client):
+def test_the_board_text_holds_each_summary_and_description_and_an_issue_excerpt_of_its_first_paragraph_of_prose(client):
     long_paragraph = 'word ' * 100
     marked = (
         '## What this is\n\n```text\nnot prose\n\nstill not prose\n```\n\n'
         '- **Bold** with `code` and a [link](https://example.com/a), *emphasis* and a *.go glob\ncarrying on.\n\nSecond paragraph.'
     )
-    number = wrote(client.post(INITIATIVES, json={'name': 'Text', 'description': long_paragraph}), 'initiative', status.HTTP_201_CREATED)[
-        'number'
-    ]
+    number = wrote(
+        client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Text', 'description': 'Whole.'}),
+        'initiative',
+        status.HTTP_201_CREATED,
+    )['number']
 
     def filed(title: str, **fields) -> int:
         return wrote(client.post('/issues', json={'title': title, 'initiative': number, **fields}), 'issue', status.HTTP_201_CREATED)[
             'number'
         ]
 
-    with_text, bare = filed('Marked', description=marked), filed('Bare')
+    with_text, bare, long = filed('Marked', description=marked), filed('Bare'), filed('Long', description=long_paragraph)
 
     text = ok(client.get(f'{INITIATIVES}/board/text'))
     row = next(row for row in text['initiatives'] if row['number'] == number)
-    assert row['description'] == long_paragraph
-    assert row['excerpt'].endswith('word…')
-    assert len(row['excerpt']) <= 301
-    assert row['issues'] == [
-        {'number': with_text, 'excerpt': 'Bold with code and a link, emphasis and a *.go glob carrying on.'},
-        {'number': bare, 'excerpt': None},
+    assert (row['summary'], row['description']) == ('It is done.', 'Whole.')
+    first, second, third = row['issues']
+    assert first == {'number': with_text, 'excerpt': 'Bold with code and a link, emphasis and a *.go glob carrying on.'}
+    assert second == {'number': bare, 'excerpt': None}
+    assert third['number'] == long
+    assert third['excerpt'].endswith('word…')
+    assert len(third['excerpt']) <= 301
+
+
+def test_a_summary_is_one_short_required_line_an_edit_can_change_and_never_clear(client):
+    for refused in ({}, {'summary': ''}, {'summary': 'one\ntwo'}, {'summary': 'x' * 241}):
+        ok(client.post(INITIATIVES, json={'name': 'Refused', **refused}), status.HTTP_422_UNPROCESSABLE_CONTENT)
+
+    number = wrote(client.post(INITIATIVES, json={'name': 'Kept', 'summary': '  It is done.  '}), 'initiative', status.HTTP_201_CREATED)[
+        'number'
     ]
+    assert ok(client.get(f'{INITIATIVES}/{number}'))['summary'] == 'It is done.'
+    changed = wrote(client.patch(f'{INITIATIVES}/{number}', json={'summary': 'Still done.'}), 'initiative', status.HTTP_200_OK)
+    assert changed['summary'] == 'Still done.'
+    ok(client.patch(f'{INITIATIVES}/{number}', json={'summary': None}), status.HTTP_422_UNPROCESSABLE_CONTENT)

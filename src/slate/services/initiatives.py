@@ -121,6 +121,7 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
 
     db_obj = models.Initiative(
         name=initiative.name,
+        summary=initiative.summary,
         description=initiative.description,
         status=initiative.status,
         status_reason=initiative.status_reason,

@@ -69,9 +69,11 @@ type IdeaEvidenceInput struct {
 	LinkedBy *string  `json:"linked_by,omitempty"`
 }
 
-// IdeaPromoteInput shapes the initiative a promotion creates. Each nil field
-// takes the idea's own, and an empty Status takes active.
+// IdeaPromoteInput shapes the initiative a promotion creates. An idea has no
+// summary, so Summary is required. Each nil field takes the idea's own, and an
+// empty Status takes active.
 type IdeaPromoteInput struct {
+	Summary     string  `json:"summary"`
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Priority    *int    `json:"priority,omitempty"`

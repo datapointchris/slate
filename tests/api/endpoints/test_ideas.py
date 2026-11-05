@@ -42,7 +42,7 @@ def test_an_idea_with_two_rows_linked_shows_both_as_evidence(client):
 def test_promoting_an_idea_a_session_researched_under_a_claim_creates_its_initiative_and_ends_the_claim(client):
     idea = new_idea(client, priority=2, description='So no round waits on a person to start it')
     ok(client.post('/claims', json={'record': idea['number'], 'holder': 'claude-code/research'}))
-    promoted = ok(client.post(f'{IDEAS}/{idea["number"]}/promote', json={}))
+    promoted = ok(client.post(f'{IDEAS}/{idea["number"]}/promote', json={'summary': 'It is done.'}))
     initiative = promoted['idea']['initiative']
     assert [(effect['code'], effect['record']) for effect in promoted['side_effects']] == [
         ('initiative_created', initiative['number']),
@@ -54,7 +54,7 @@ def test_promoting_an_idea_a_session_researched_under_a_claim_creates_its_initia
     assert initiative['idea'] == {'number': idea['number'], 'kind': 'idea', 'title': idea['title'], 'status': None}
     assert ok(client.get(f'{INITIATIVES}/{initiative["number"]}'))['idea']['number'] == idea['number']
 
-    refused = client.post(f'{IDEAS}/{idea["number"]}/promote', json={})
+    refused = client.post(f'{IDEAS}/{idea["number"]}/promote', json={'summary': 'It is done.'})
     assert refused.status_code == status.HTTP_409_CONFLICT, show_status_and_response(refused)
 
     held = ok(client.post('/claims', json={'record': idea['number'], 'holder': 'claude-code/a1b2'}))
