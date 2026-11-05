@@ -196,6 +196,28 @@ func (b *initiativesBoard) descriptionLines(description string, width int) []got
 	return b.markdown.Lines(description, min(width, readingWidth))
 }
 
+// readTallDescription opens an initiative's description on the reader where it runs past
+// the screen, and says whether it did.
+func (b *initiativesBoard) readTallDescription(m *gotermboard.Model, number int) bool {
+	long, read := indexBoardText(b.text.Value()).initiatives[number]
+	if !read || b.described[number] {
+		return false
+	}
+	description := strValue(long.Description)
+	document := func(width int) []gotermboard.Line { return b.descriptionLines(description, width) }
+	if !m.Tall(document) {
+		return false
+	}
+	title := strconv.Itoa(number)
+	for _, initiative := range b.initiatives.Value().Initiatives {
+		if initiative.Number == number {
+			title += "  " + initiative.Name
+		}
+	}
+	m.Read(title, document)
+	return true
+}
+
 // recordNumbers is every record a frame can name, so prose colors only a number that is one.
 func recordNumbers(read api.InitiativeBoard) map[int]bool {
 	numbers := map[int]bool{}

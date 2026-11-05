@@ -82,10 +82,13 @@ reads only the row it stops on. A row read once draws at once when the cursor re
 ## Opening a row uses separate keys
 
 `enter` unfolds an initiative's issues and opens an issue's description. `d` opens an
-initiative's description in place, and `f` adds the initiative's summary and each issue's
-first paragraph. Each answers a different question, so one key that cycled through them would
-make the reader step past two answers to reach the third. Unfolded issues go open first, running
-at the top and then in queue order, with `done` and `canceled` folded beneath.
+initiative's description, and `f` adds the initiative's summary and each issue's first
+paragraph. Each answers a different question, so one key that cycled through them would make the
+reader step past two answers to reach the third. Unfolded issues go open first, running at the
+top and then in queue order, with `done` and `canceled` folded beneath.
+
+A description that fits opens under its row. One that runs past the screen opens on a full-screen
+reader, where `[` and `]` jump between its headings, `/` searches it, and `esc` returns to the row.
 
 From 160 columns a side panel follows the cursor, with the summary, the repos, the closes, the
 start of the description, what is next and the tokens, so a wide terminal answers without a key.

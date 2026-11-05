@@ -292,13 +292,15 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 			Footer: "enter issues", Run: (*gotermboard.Model).Toggle,
 		},
 		{
-			Keys: []string{"d"}, Label: "open or close the initiative's description in place", Footer: "d description",
+			Keys: []string{"d"}, Label: "read the initiative's description, full screen where it runs past the screen", Footer: "d description",
 			Run: func(m *gotermboard.Model) tea.Cmd {
-				if number, ok := numberFromKey(m.Cursor(), initiativeKeyPrefix); ok {
-					b.described[number] = !b.described[number]
-					m.Rebuild()
-					m.Reveal()
+				number, ok := numberFromKey(m.Cursor(), initiativeKeyPrefix)
+				if !ok || b.readTallDescription(m, number) {
+					return nil
 				}
+				b.described[number] = !b.described[number]
+				m.Rebuild()
+				m.Reveal()
 				return nil
 			},
 			Applies: func(m *gotermboard.Model) bool { return strings.HasPrefix(m.Cursor(), initiativeKeyPrefix) },
