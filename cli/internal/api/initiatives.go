@@ -25,7 +25,7 @@ type Initiative struct {
 	ID             string         `json:"id"`
 	Number         int            `json:"number"`
 	Name           string         `json:"name"`
-	Summary        *string        `json:"summary"`
+	Summary        string         `json:"summary"`
 	Description    *string        `json:"description"`
 	Status         string         `json:"status"`
 	StatusReason   *string        `json:"status_reason"`

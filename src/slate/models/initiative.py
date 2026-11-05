@@ -55,7 +55,7 @@ class Initiative(NumberedRecord, Base):
     # Unique among ACTIVE initiatives only, so a finished initiative's name can be reused.
     name: Mapped[str] = mapped_column(Text, nullable=False)
     # What is true when the work is done, in one line. The request schema holds its shape.
-    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, ForeignKey('initiative_statuses.name'), nullable=False, server_default='active')
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

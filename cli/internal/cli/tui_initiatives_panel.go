@@ -74,8 +74,8 @@ func (b *initiativesBoard) initiativePanel(initiative api.BoardInitiative, long 
 		{gotermboard.C(strconv.Itoa(initiative.Number)+"  ", gotermboard.Bold), gotermboard.C(priorityName(initiative.Priority), tierCode(initiative.Priority)+gotermboard.Bold)},
 		heading(initiative.Name),
 	}
-	if summary := strValue(long.Summary); summary != "" {
-		lines = append(lines, plainLine(summary))
+	if long.Summary != "" {
+		lines = append(lines, plainLine(long.Summary))
 	}
 	lines = append(lines, gotermboard.Line{}, stateCountsCells(initiative.States))
 	if initiative.States.Canceled > 0 {

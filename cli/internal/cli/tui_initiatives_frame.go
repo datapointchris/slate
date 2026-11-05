@@ -164,7 +164,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, beyon
 		Beside:     gotermboard.Items(dimCode, initiative.Repos...),
 		Cells:      boardCells(initiative.BoardCounts, now),
 		WrapLast:   issueBar(initiative.BoardCounts),
-		Under:      gotermboard.C(strValue(long.Summary), ""),
+		Under:      gotermboard.C(long.Summary, ""),
 		Document:   b.openDescription(initiative.Number, description, len(text.initiatives) > 0),
 		Folded:     true,
 		FilterOnly: beyondScope,

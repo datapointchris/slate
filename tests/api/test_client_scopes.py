@@ -191,7 +191,7 @@ def as_caller(txn_api):
     issue = models.Issue(title='scheduler issue', repo='scheduler-repo', rank=1.0)
     neighbor = models.Issue(title='scheduler neighbor', rank=2.0)
     blocker = models.Issue(title='what the neighbor waits on', rank=3.0)
-    initiative = models.Initiative(name='scheduler-initiative')
+    initiative = models.Initiative(name='scheduler-initiative', summary='The scheduler can reach it.')
     idea = models.Idea(title='scheduler idea')
     session.add_all([issue, neighbor, blocker, initiative, idea])
     session.flush()

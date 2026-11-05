@@ -638,9 +638,7 @@ func printInitiativesTable(out io.Writer, initiatives []api.Initiative, sort str
 func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	p := gotermstyle.PaletteFor(out)
 	_, _ = fmt.Fprintf(out, "%s  %s\n", p.Cyan("#"+strconv.Itoa(initiative.Number)), p.Bold(initiative.Name))
-	if summary := strValue(initiative.Summary); summary != "" {
-		_, _ = fmt.Fprintf(out, "  summary:   %s\n", summary)
-	}
+	_, _ = fmt.Fprintf(out, "  summary:   %s\n", initiative.Summary)
 	status := initiative.Status
 	if initiative.ClosedTS != nil {
 		status += " (" + localDay(*initiative.ClosedTS) + ")"

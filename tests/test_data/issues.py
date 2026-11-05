@@ -35,12 +35,20 @@ BASE_DATA: list[Issue] = [
 INITIATIVES: list[Initiative] = [
     Initiative(
         name='Ship the issue tracker',
+        summary='Issues live apart from projects.',
         description='Issues apart from projects',
         priority=2,
         created_ts=dt.datetime(2026, 6, 1, 12, 0, tzinfo=dt.UTC),
     ),
-    Initiative(name='Retire the old capture path', priority=0, created_ts=dt.datetime(2026, 7, 1, 12, 0, tzinfo=dt.UTC)),
-    Initiative(name='Finished migration', status='completed', closed_ts=dt.datetime(2026, 8, 1, 12, 0, tzinfo=dt.UTC)),
+    Initiative(
+        name='Retire the old capture path',
+        summary='Nothing writes through it.',
+        priority=0,
+        created_ts=dt.datetime(2026, 7, 1, 12, 0, tzinfo=dt.UTC),
+    ),
+    Initiative(
+        name='Finished migration', summary='Every row moved.', status='completed', closed_ts=dt.datetime(2026, 8, 1, 12, 0, tzinfo=dt.UTC)
+    ),
 ]
 
 LABELS: list[IssueLabel] = [

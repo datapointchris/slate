@@ -81,7 +81,7 @@ class Initiative(RecordModel):
     id: UUID
     number: int
     name: str
-    summary: str | None = None
+    summary: str
     description: str | None = None
     status: str
     status_reason: str | None = None

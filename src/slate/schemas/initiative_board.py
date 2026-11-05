@@ -100,7 +100,7 @@ class BoardInitiativeText(RecordModel):
     """An initiative's long text: its summary, its whole description, and why it was set aside where a reason was given."""
 
     number: int
-    summary: str | None
+    summary: str
     description: str | None
     status_reason: str | None
     issues: list[BoardIssueText]
