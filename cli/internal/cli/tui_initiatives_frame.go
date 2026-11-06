@@ -167,6 +167,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, beyon
 		Under:      gotermboard.C(long.Summary, ""),
 		Document:   b.openDescription(initiative.Number, description, len(text.initiatives) > 0),
 		Folded:     true,
+		Gap:        true,
 		FilterOnly: beyondScope,
 		Groups:     b.issueGroups(initiative, text, rows, now),
 		Text:       description + " " + strValue(long.StatusReason),
