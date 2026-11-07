@@ -14,6 +14,7 @@ write finds it. So a claim's history says when it stopped holding, not when some
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 
 import structlog
 from fastapi import HTTPException
@@ -27,6 +28,7 @@ from slate import schemas
 from slate.models.claim import ONE_UNENDED_CLAIM_PER_RECORD
 from slate.services import worklogs
 from slate.services.claim_neighbors import warn_about_neighbors
+from slate.services.claim_neighbors import warn_about_passed_over
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
 from slate.services.claim_views import unended_claims
@@ -152,7 +154,13 @@ def hold(
 
 
 def hold_next(
-    session: Session, candidates: list[models.Issue], lease: schemas.ClaimLease, now: dt.datetime, today: dt.date, effects: WriteEffects
+    session: Session,
+    candidates: list[models.Issue],
+    passed_over: Mapping[int, models.Claim],
+    lease: schemas.ClaimLease,
+    now: dt.datetime,
+    today: dt.date,
+    effects: WriteEffects,
 ) -> models.Claim | None:
     """Hold the first candidate no other hold takes first, so two callers never hold the same one."""
     for issue in candidates:
@@ -160,7 +168,10 @@ def hold_next(
             return hold(session, issue.record, lease, now, today, effects)
         except ClaimRefused:
             continue
-    effects.warn(WriteEffectCode.NOTHING_READY, 'Nothing in the ready queue matched, so nothing was held.')
+    if passed_over:
+        warn_about_passed_over(session, passed_over, effects)
+    else:
+        effects.warn(WriteEffectCode.NOTHING_READY, 'Nothing in the ready queue matched, so nothing was held.')
     return None
 
 

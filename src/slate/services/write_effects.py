@@ -72,6 +72,7 @@ class WriteEffectCode(enum.StrEnum):
     ALREADY_HELD = 'already_held'
     CLAIM_HAD_EXPIRED = 'claim_had_expired'
     NOTHING_READY = 'nothing_ready'
+    PASSED_OVER_PLAN = 'passed_over_plan'
     NOTHING_TO_RELEASE = 'nothing_to_release'
     RELEASED_ANOTHERS_CLAIM = 'released_anothers_claim'
     ALREADY_WAITING = 'already_waiting'

@@ -141,6 +141,28 @@ def test_holding_an_issue_in_a_claimed_initiative_goes_through_and_names_its_hol
     assert 'claude-code/lead' in warning['message']
 
 
+def test_a_worker_outside_a_held_plan_is_told_whose_it_is_on_hold_next_and_on_holding_a_dependency_outside_the_initiative(client):
+    task = number(client, 'Ready task without priority')
+    ok(client.patch(f'{ISSUES}/{task}', json={'initiative': 'Ship the issue tracker'}))
+    plan = initiative_number(client, 'Ship the issue tracker')
+    dependency = ok(client.post(ISSUES, json={'title': 'Shared parser'}), status.HTTP_201_CREATED)['issue']['number']
+    ok(client.post(f'{ISSUES}/{task}/dependencies', json={'depends_on': dependency}), status.HTTP_201_CREATED)
+    ok(client.post(ISSUES, json={'title': 'Document the tracker', 'initiative': plan}), status.HTTP_201_CREATED)
+    hold(client, plan, 'claude-code/lead')
+
+    passed_over = ok(client.post(f'{CLAIMS}/next', json={'holder': 'claude-code/worker', 'initiative': plan}))
+    assert passed_over['claim'] is None
+    (warning,) = passed_over['warnings']
+    assert (warning['code'], warning['record']) == ('passed_over_plan', plan)
+    assert 'claude-code/lead' in warning['message']
+
+    held = hold(client, dependency, 'claude-code/worker')
+    assert held['claim']['holder'] == 'claude-code/worker'
+    (warning,) = [warning for warning in held['warnings'] if warning['code'] == 'claimed_initiative']
+    assert warning['record'] == plan
+    assert 'claude-code/lead' in warning['message']
+
+
 def test_holding_an_initiative_names_each_issue_in_it_another_holds(client):
     task = number(client, 'Ready task without priority')
     ok(client.patch(f'{ISSUES}/{task}', json={'initiative': 'Ship the issue tracker'}))

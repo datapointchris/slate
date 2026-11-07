@@ -85,9 +85,9 @@ the answer carries a warning for each thing:
 | `open_dependency` | the issue depends on an unclosed issue, one warning each |
 | `open_children` | the issue has open children |
 | `idea_promoted` | the idea was promoted; the warning names its initiative |
-| `claimed_initiative` | another holder claims the issue's initiative, or the initiative an idea became |
+| `claimed_initiative` | another holder claims the issue's initiative, an initiative whose plan holds the issue, or the initiative an idea became |
 | `claimed_parent`, `claimed_child`, `claimed_dependent` | another holder claims an issue beside it |
-| `claimed_issue_in_initiative` | another holder claims an issue in the initiative held |
+| `claimed_issue_in_initiative` | another holder claims an issue in the plan of the initiative held |
 | `claimed_overlapping_paths` | another holder claims an issue on the same repo whose paths meet this issue's, one warning each |
 
 `WriteEffectCode` in `services/write_effects.py` holds every code, the hold
@@ -99,6 +99,38 @@ initiative and its issues is one actor working one plan.
 Triage, closed, blocked and deferred work are warnings rather than refusals.
 Each is a judgment the holder can make with the fact in hand. A second holder
 is not: two sessions editing one record collide.
+
+## A live claim on an initiative takes its plan out of the queue
+
+A coordinator holds the initiative it runs, and its workers hold the issues. So
+`GET /queue` lists each ready issue to build in that initiative's plan under
+`claimed`, with the initiative's holder as `holder` and the initiative as
+`held_through`. The plan is what `for_record` reads: the initiative's open
+issues and every open issue they wait on, in any initiative. Two plans sharing
+an issue leave it with the earlier claim. `POST /claims/next` passes over the
+same issues, unless the caller holds the initiative. Where that leaves it nothing
+to hold, it warns `passed_over_plan`, naming each initiative, its holder and the
+issues, in place of `nothing_ready`.
+
+A row held this way has no claim of its own, so `holder` holds the initiative and
+cannot extend or release the issue.
+
+This is multiple-granularity locking, with the initiative claim as the
+intention lock over the issue claims, except that it refuses nothing:
+
+- **An explicit hold goes through and warns `claimed_initiative`,** because each
+  of the coordinator's workers holds its issue under its own session. The warning
+  names the plan's initiative, and the issue's own initiative too where another
+  holder claims that.
+- **Readiness ignores the claim,** so the issue reads ready and a worker's queued
+  stage is not held by its coordinator's claim.
+- **`for_record` keeps the plan in `queue`,** because a coordinator reads its own
+  plan there, and `GET /initiatives/progress` names the next issues of the plan.
+- **A decision stays in `queue`,** because it waits on a person whoever
+  coordinates.
+
+A dead coordinator's plan comes back when its lease runs out, so a coordinator
+extends the claim as it works.
 
 ## Nothing extends or ends a claim silently
 

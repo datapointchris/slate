@@ -96,11 +96,12 @@ func newClaimsHoldCommand() *cobra.Command {
 			"--json gives it as claim.worklog. The Claude Code session joins it, leaving any\n" +
 			"other worklog it was in, which is printed too. `slate worklogs` reads it.\n" +
 			"\n" +
-			"--next holds the head of `slate next --step build` under the same flags, in\n" +
-			"one request, so two callers asking at once never hold the same issue. A\n" +
-			"decision waits on a person, so --type decision is refused: `slate next --step\n" +
-			"decide` lists them, and a hold naming one takes it. An empty queue warns and\n" +
-			"exits 0.\n" +
+			"--next holds the first issue at step build that `slate next` would offer you\n" +
+			"under the same flags, including the plan of an initiative you hold, in one\n" +
+			"request, so two callers asking at once never hold the same issue. A decision\n" +
+			"waits on a person, so --type decision is refused: `slate next --step decide`\n" +
+			"lists them, and a hold naming one takes it. Finding nothing to hold warns and\n" +
+			"exits 0, and the warning names any initiative whose plan it passed over.\n" +
 			"\n" +
 			"--holder " + narrowedActorHelp + " The claim also records the Claude Code session\n" +
 			"from $CLAUDE_CODE_SESSION_ID, this host, and the working directory.",

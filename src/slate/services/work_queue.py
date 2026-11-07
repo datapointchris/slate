@@ -13,12 +13,18 @@ initiative is set aside, so neither it nor its shelved issues are rows. The orde
 
 A live claim says someone is working the record, so a held record is listed under its holder rather
 than at its place in the queue. Held rows are whatever the record is, ready or not.
+
+A live claim on an initiative says someone is running its plan, so each ready issue in that plan to
+build is listed under that holder too, naming the initiative as `held_through`. A decision stays
+queued, because it waits on a person whoever coordinates. Readiness ignores the initiative's claim,
+so a worker's own claim and every other reader of readiness see the issue as ready.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Collection
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import or_
@@ -34,6 +40,7 @@ from slate.schemas.queue import IssueRow
 from slate.schemas.queue import Step
 from slate.schemas.ready_filter import ReadyFilter
 from slate.services.claim_views import live_claims_on_every_record
+from slate.services.held_plans import held_plans
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_views
 from slate.services.initiative_views import initiative_views
@@ -101,22 +108,50 @@ def queued_issues(
     return autofixable_filtered(issues, readiness, filters.autofixable)
 
 
+@dataclass(frozen=True)
+class HoldCandidates:
+    """`passed_over` holds each ready issue another holder's plan keeps from `issues`, with that holder's claim."""
+
+    issues: list[models.Issue]
+    passed_over: dict[int, models.Claim]
+
+
+def candidates_to_hold(session: Session, readiness: IssueReadiness, filters: ReadyFilter, holder: str, now: dt.datetime) -> HoldCandidates:
+    """The issues `POST /claims/next` may hold, in queue order: step `build`, less the plan of an initiative another holder claims."""
+    plans = held_plans(session, live_claims_on_every_record(session, now))
+    ready = queued_issues(session, readiness, filters, 'build')
+    passed_over = {issue.number: plans[issue.number] for issue in ready if issue.number in plans and plans[issue.number].holder != holder}
+    return HoldCandidates(issues=[issue for issue in ready if issue.number not in passed_over], passed_over=passed_over)
+
+
 def read_queue(session: Session, zone: str, filters: schemas.QueueFilter, limit: int | None) -> schemas.Queue:
     today, now = calendar_now(zone)
     return queue_as_measured(session, zone, now, measure_readiness(session, today, now), filters, limit)
 
 
 def queue_as_measured(
-    session: Session, zone: str, now: dt.datetime, readiness: IssueReadiness, filters: schemas.QueueFilter, limit: int | None
+    session: Session,
+    zone: str,
+    now: dt.datetime,
+    readiness: IssueReadiness,
+    filters: schemas.QueueFilter,
+    limit: int | None,
+    plans_hold: bool = True,
 ) -> schemas.Queue:
-    """The queue from readiness already measured at `now`, so a read that needs readiness for more shares its pass and its order."""
+    """The queue from readiness already measured at `now`, so a read that needs readiness for more shares its pass and its order.
+
+    `plans_hold` lists a held initiative's plan under its holder. `for_record` reads one plan whole, so nothing moves under it.
+    """
     held = live_claims_on_every_record(session, now)
+    plans = held_plans(session, held) if plans_hold and filters.for_record is None else {}
     queued: list[tuple[QueueKey, Row]] = []
     claimed: list[tuple[str, QueueKey, Row]] = []
 
     def place(key: QueueKey, row: Row) -> None:
         row.pinned = key.pin == PINNED
         claim = held.get(row.number)
+        if claim is None and row.step == 'build' and (claim := plans.get(row.number)) is not None:
+            row.held_through = claim.record_number
         if claim is None:
             queued.append((key, row))
         else:

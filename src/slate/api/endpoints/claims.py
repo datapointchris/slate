@@ -39,7 +39,7 @@ from slate.services.issue_views import calendar_now
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
-from slate.services.work_queue import queued_issues
+from slate.services.work_queue import candidates_to_hold
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffects
 from slate.tracing.named_work import name_agent_session
@@ -125,14 +125,15 @@ def hold_next_claim(request: schemas.ClaimHoldNext, session: DbSession, zone: Re
     """Hold the head of `GET /queue?step=build`, narrowed by the same filters.
 
     Two callers asking at once never hold the same issue: the one that loses
-    the insert moves on to the next. With nothing ready, `claim` is null and a
-    warning says so.
+    the insert moves on to the next. It passes over the plan of an initiative
+    another holder claims, as the queue does. With nothing to hold, `claim` is
+    null and a warning says whether nothing was ready or whose plan it passed over.
     """
     refuse_claiming_for_another(caller, request.holder)
     name_agent_session(request.session)
     today, now = calendar_now(zone)
-    issues = queued_issues(session, measure_readiness(session, today, now), request, 'build')
-    return written(session, hold_next(session, issues, request, now, today, effects), now, effects)
+    candidates = candidates_to_hold(session, measure_readiness(session, today, now), request, request.holder, now)
+    return written(session, hold_next(session, candidates.issues, candidates.passed_over, request, now, today, effects), now, effects)
 
 
 @router.post('/{record}/extend', response_model=schemas.ClaimWritten, status_code=status.HTTP_200_OK)

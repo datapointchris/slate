@@ -40,23 +40,25 @@ type PathOverlap struct {
 }
 
 // QueueRow is one record in the queue, of any kind. Priority is the one it
-// sorts at. Holder is set on a claimed row. Record holds whichever of Issue,
-// Initiative and Idea Kind names, and the other two are nil.
+// sorts at. Holder is set on a claimed row, and HeldThrough is the initiative
+// whose claim holds it where the row's own claim does not. Record holds
+// whichever of Issue, Initiative and Idea Kind names, and the other two are nil.
 type QueueRow struct {
-	Kind       string        `json:"kind"`
-	Number     int           `json:"number"`
-	Title      string        `json:"title"`
-	Step       string        `json:"step"`
-	Priority   int           `json:"priority"`
-	Pinned     bool          `json:"pinned"`
-	RaisedBy   *int          `json:"raised_by"`
-	Holder     *string       `json:"holder"`
-	Overlaps   []PathOverlap `json:"overlaps"`
-	Unblocks   []int         `json:"unblocks"`
-	Record     any           `json:"record"`
-	Issue      *Issue        `json:"-"`
-	Initiative *Initiative   `json:"-"`
-	Idea       *Idea         `json:"-"`
+	Kind        string        `json:"kind"`
+	Number      int           `json:"number"`
+	Title       string        `json:"title"`
+	Step        string        `json:"step"`
+	Priority    int           `json:"priority"`
+	Pinned      bool          `json:"pinned"`
+	RaisedBy    *int          `json:"raised_by"`
+	Holder      *string       `json:"holder"`
+	HeldThrough *int          `json:"held_through"`
+	Overlaps    []PathOverlap `json:"overlaps"`
+	Unblocks    []int         `json:"unblocks"`
+	Record      any           `json:"record"`
+	Issue       *Issue        `json:"-"`
+	Initiative  *Initiative   `json:"-"`
+	Idea        *Idea         `json:"-"`
 }
 
 // UnmarshalJSON decodes `record` into the read its `kind` names.

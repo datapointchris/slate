@@ -115,6 +115,29 @@ def test_a_records_work_holds_everything_it_transitively_waits_on_with_what_each
     assert ok(client.get(QUEUE, params={'for_record': 999999}), status.HTTP_404_NOT_FOUND)
 
 
+def test_a_claim_on_an_initiative_takes_its_whole_plan_out_of_the_queue_for_everyone_but_its_holder(client):
+    plan = initiative(client, 'Ship the importer', priority=2)
+    blocked = issue(client, 'Write the importer', initiative=plan)
+    ready = issue(client, 'Document the importer', initiative=plan)
+    question = issue(client, 'Pick the format', initiative=plan, type='decision')
+    dependency = issue(client, 'Shared parser', priority=4)
+    free = issue(client, 'Patch the outage', priority=4)
+    ok(client.post(f'/issues/{blocked}/dependencies', json={'depends_on': dependency}), status.HTTP_201_CREATED)
+    hold(client, plan, 'coordinator')
+
+    read = ok(client.get(QUEUE))
+    assert {row['number'] for row in read['queue']} == {question, free}
+    plan_rows = {row['number']: (row['holder'], row['held_through']) for row in read['claimed'] if row['kind'] == 'issue'}
+    assert plan_rows == {ready: ('coordinator', plan), dependency: ('coordinator', plan)}
+
+    assert {ready, dependency, blocked} <= {row['number'] for row in ok(client.get(QUEUE, params={'for_record': plan}))['queue']}
+    (progress,) = ok(client.get('/initiatives/progress', params={'initiative': plan}))
+    assert ready in {row['number'] for row in progress['next']}
+
+    assert ok(client.post('/claims/next', json={'holder': 'someone-else'}))['claim']['record_number'] == free
+    assert ok(client.post('/claims/next', json={'holder': 'coordinator'}))['claim']['record_number'] in {ready, dependency}
+
+
 def test_a_ready_issue_names_each_held_issue_changing_the_same_code(client):
     held = issue(client, 'Rework the router', repo='webapp', paths=['src/api'])
     hold(client, held, 'agent-a')

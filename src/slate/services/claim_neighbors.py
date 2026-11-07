@@ -4,16 +4,19 @@ None of these refuses the hold. Another holder's live claim on the record itself
 conflict that does, in `claims.take`. A neighbor the same holder claims is that holder's own work,
 so it goes unnamed.
 
-An issue's neighbors are its initiative, its parent, its children, what it depends on, what
-depends on it, and every issue on its repo naming a path that overlaps one of its own. An
-initiative's are its unclosed issues. An idea's is the initiative it became.
+An issue's neighbors are its initiative, any initiative whose plan holds it, its parent, its
+children, what it depends on, what depends on it, and every issue on its repo naming a path that
+overlaps one of its own. An initiative's are the issues in its plan. An idea's is the initiative
+it became.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+from collections import defaultdict
 from collections.abc import Callable
 from collections.abc import Iterable
+from collections.abc import Mapping
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,13 +24,15 @@ from sqlalchemy.orm import selectinload
 
 from slate import models
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
-from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
+from slate.services.claim_views import live_claims_on_every_record
+from slate.services.held_plans import held_plans
 from slate.services.issue_paths import held_overlaps
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_views import ISSUE_LOAD_OPTIONS
+from slate.services.record_work import record_work
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -56,6 +61,28 @@ def claimed_by_others(session: Session, numbers: Iterable[int], holder: str, now
 
 def numbered(issues: Iterable[models.Issue]) -> str:
     return ', '.join(f'#{issue.number}' for issue in sorted(issues, key=lambda issue: issue.number))
+
+
+def initiative_named(session: Session, number: int) -> str:
+    return f'#{number} {session.scalar(select(models.Initiative.name).where(models.Initiative.number == number))!r}'
+
+
+def warn_about_passed_over(session: Session, passed_over: Mapping[int, models.Claim], effects: WriteEffects) -> None:
+    """Name each plan `POST /claims/next` passed over, so a caller finding nothing to hold knows the work exists and whose it is."""
+    by_initiative: defaultdict[int, list[int]] = defaultdict(list)
+    claims: dict[int, models.Claim] = {}
+    for number, claim in passed_over.items():
+        by_initiative[claim.record_number].append(number)
+        claims[claim.record_number] = claim
+    for initiative, numbers in sorted(by_initiative.items()):
+        issues = ', '.join(f'#{number}' for number in sorted(numbers))
+        effects.warn(
+            WriteEffectCode.PASSED_OVER_PLAN,
+            f'Nothing was held. Ready, and in the plan of initiative {initiative_named(session, initiative)}, '
+            f'claimed by {held_by(claims[initiative], effects)}: {issues}. '
+            f'`slate next --for {initiative}` lists them, and a hold naming one takes it.',
+            initiative,
+        )
 
 
 def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetime, today: dt.date, effects: WriteEffects) -> None:
@@ -118,6 +145,15 @@ def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetim
             f'#{number} is in initiative #{initiative.number} {initiative.name!r}, which is claimed by {holding}.',
             initiative.number,
         )
+    plan_claim = held_plans(session, live_claims_on_every_record(session, now)).get(number)
+    own_initiative = issue.initiative.number if issue.initiative is not None else None
+    if plan_claim is not None and plan_claim.holder != holder and plan_claim.record_number != own_initiative:
+        effects.warn(
+            WriteEffectCode.CLAIMED_INITIATIVE,
+            f'#{number} is in the plan of initiative {initiative_named(session, plan_claim.record_number)}, '
+            f'which is claimed by {held_by(plan_claim, effects)}.',
+            plan_claim.record_number,
+        )
     for overlap in held_overlaps(session, [issue], now).get(number, []):
         if overlap.claim.holder == holder:
             continue
@@ -135,14 +171,11 @@ def warn_about_initiative(session: Session, number: int, holder: str, now: dt.da
         effects.warn(WriteEffectCode.RECORD_CLOSED, f'#{number} is {initiative.status}, so a claim on it holds no open work.', number)
     elif initiative.status == 'someday':
         effects.warn(WriteEffectCode.SHELVED, f'#{number} is someday, set aside until it is taken on.', number)
-    unclosed = session.scalars(
-        select(models.Issue.number).where(models.Issue.initiative_id == initiative.id, models.Issue.status.not_in(CLOSED_ISSUE_STATUSES))
-    ).all()
-    claimed = claimed_by_others(session, unclosed, holder, now)
+    claimed = claimed_by_others(session, record_work(session, number).unblocks, holder, now)
     for issue_number in sorted(claimed):
         effects.warn(
             WriteEffectCode.CLAIMED_ISSUE_IN_INITIATIVE,
-            f'#{issue_number}, in #{number} {initiative.name!r}, is claimed by {held_by(claimed[issue_number], effects)}.',
+            f'#{issue_number}, in the plan of #{number} {initiative.name!r}, is claimed by {held_by(claimed[issue_number], effects)}.',
             issue_number,
         )
 

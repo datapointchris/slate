@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -30,9 +31,15 @@ class RecordWork:
     unblocks: dict[int, list[int]]
 
 
-def record_work(session: Session, number: int) -> RecordWork:
-    record = resolve_record(session, number)
-    kind = Kind(record.kind)
+@dataclass(frozen=True)
+class WorkGraph:
+    """Every open issue by id, and the issues each one waits on. A read walking several records loads it once."""
+
+    by_id: dict[UUID, Any]
+    waits_on: dict[UUID, list[UUID]]
+
+
+def read_work_graph(session: Session) -> WorkGraph:
     rows = session.execute(
         select(models.Issue.id, models.Issue.number, models.Issue.status, models.Issue.parent_id, models.Issue.initiative_id)
     ).all()
@@ -44,6 +51,14 @@ def record_work(session: Session, number: int) -> RecordWork:
     for row in by_id.values():
         if row.parent_id is not None:
             waits_on.setdefault(row.parent_id, []).append(row.id)
+    return WorkGraph(by_id=by_id, waits_on=waits_on)
+
+
+def record_work(session: Session, number: int, graph: WorkGraph | None = None) -> RecordWork:
+    record = resolve_record(session, number)
+    kind = Kind(record.kind)
+    work_graph = graph or read_work_graph(session)
+    by_id, waits_on = work_graph.by_id, work_graph.waits_on
 
     if kind == Kind.INITIATIVE:
         initiative_id = session.scalar(select(models.Initiative.id).where(models.Initiative.number == number))
