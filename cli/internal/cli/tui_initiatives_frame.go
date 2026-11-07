@@ -161,19 +161,20 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, beyon
 	long := text.initiatives[initiative.Number]
 	description := strValue(long.Description)
 	return gotermboard.Group{
-		Key:        initiativeKey(initiative.Number),
-		Title:      gotermboard.Line{gotermboard.C(strconv.Itoa(initiative.Number), gotermboard.Cyan)},
-		Span:       gotermboard.Line{gotermboard.C(initiative.Name, gotermboard.Bold)},
-		Beside:     gotermboard.Items(dimCode, initiative.Repos...),
-		Cells:      boardCells(initiative.BoardCounts, now),
-		WrapLast:   issueBar(initiative.BoardCounts),
-		Under:      gotermboard.C(long.Summary, ""),
-		Document:   b.openDescription(initiative.Number, description, len(text.initiatives) > 0),
-		Folded:     true,
-		Rule:       true,
-		FilterOnly: beyondScope,
-		Groups:     b.issueGroups(initiative, text, rows, now),
-		Text:       description + " " + strValue(long.StatusReason),
+		Key:            initiativeKey(initiative.Number),
+		Title:          gotermboard.Line{gotermboard.C(strconv.Itoa(initiative.Number), gotermboard.Cyan)},
+		Span:           gotermboard.Line{gotermboard.C(initiative.Name, gotermboard.Bold)},
+		Beside:         gotermboard.Items(dimCode, initiative.Repos...),
+		Cells:          boardCells(initiative.BoardCounts, now),
+		WrapLast:       issueBar(initiative.BoardCounts),
+		Under:          gotermboard.C(long.Summary, ""),
+		Document:       b.openDescription(initiative.Number, description, len(text.initiatives) > 0),
+		Folded:         true,
+		Rule:           true,
+		BlankAboveRule: true,
+		FilterOnly:     beyondScope,
+		Groups:         b.issueGroups(initiative, text, rows, now),
+		Text:           description + " " + strValue(long.StatusReason),
 		Panel: func(width int) []gotermboard.Line {
 			return b.initiativePanel(initiative, long, rows, read, now, width)
 		},
