@@ -106,7 +106,7 @@ def initiatives_progress(
     views = dict(zip((issue.id for issue in shown), issue_views(session, shown, zone, readiness), strict=True))
 
     only_one = {'initiative': initiatives[0].id} if len(initiatives) == 1 else {}
-    queue = queue_as_measured(session, zone, now, readiness, schemas.QueueFilter.model_validate(only_one), None)
+    queue = queue_as_measured(session, zone, now, readiness, schemas.QueueFilter.model_validate(only_one), None, plans_hold=False)
     next_in = next_rows(queue)
 
     def in_state(initiative: models.Initiative, state: IssueState) -> list[schemas.Issue]:

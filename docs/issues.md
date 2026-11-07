@@ -56,8 +56,10 @@ kind's own read as `record`. `priority` is the one the row sorts at: an
 issue's effective priority, else the record's own.
 
 A live claim says someone is working the record, so a held record is listed
-apart in `claimed`, by holder, whatever its readiness. The rest are `queue`,
-first row next. `limit` caps `queue` and never `claimed`.
+apart in `claimed`, by holder, whatever its readiness. A live claim on an
+initiative lists the ready issues to build in its plan there too, and
+[claims.md](claims.md) says what that holds and what it leaves alone. The rest
+are `queue`, first row next. `limit` caps `queue` and never `claimed`.
 
 `POST /claims/next` holds the head of the `build` rows under the same filters.
 One function in `services/work_queue.py` selects and orders the issues for

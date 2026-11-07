@@ -100,6 +100,31 @@ Triage, closed, blocked and deferred work are warnings rather than refusals.
 Each is a judgment the holder can make with the fact in hand. A second holder
 is not: two sessions editing one record collide.
 
+## A live claim on an initiative takes its plan out of the queue
+
+A coordinator holds the initiative it runs, and its workers hold the issues. So
+`GET /queue` lists each ready issue to build in that initiative's plan under
+`claimed`, with the initiative's holder as `holder` and the initiative as
+`held_through`. The plan is what `for_record` reads: the initiative's open
+issues and every open issue they wait on, in any initiative. Two plans sharing
+an issue leave it with the earlier claim. `POST /claims/next` passes over the
+same issues, unless the caller holds the initiative.
+
+This is multiple-granularity locking, with the initiative claim as the
+intention lock over the issue claims, except that it refuses nothing:
+
+- **An explicit hold goes through and warns `claimed_initiative`,** because each
+  of the coordinator's workers holds its issue under its own session.
+- **Readiness does not change,** so the issue reads ready and a worker's queued
+  stage is not held by its coordinator's claim.
+- **`for_record` keeps the plan in `queue`,** because a coordinator reads its own
+  plan there, and `GET /initiatives/{id}/progress` still names the next issues.
+- **A decision stays in `queue`,** because it waits on a person whoever
+  coordinates.
+
+A dead coordinator's plan comes back when its lease runs out, so a coordinator
+extends the claim as it works.
+
 ## Nothing extends or ends a claim silently
 
 Holding a record already held under the same name leaves the claim as it was,

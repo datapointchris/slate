@@ -39,6 +39,7 @@ from slate.services.issue_views import calendar_now
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
+from slate.services.work_queue import others_plans
 from slate.services.work_queue import queued_issues
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffects
@@ -125,13 +126,16 @@ def hold_next_claim(request: schemas.ClaimHoldNext, session: DbSession, zone: Re
     """Hold the head of `GET /queue?step=build`, narrowed by the same filters.
 
     Two callers asking at once never hold the same issue: the one that loses
-    the insert moves on to the next. With nothing ready, `claim` is null and a
-    warning says so.
+    the insert moves on to the next. It passes over the plan of an initiative
+    another holder claims, as the queue does. With nothing ready, `claim` is
+    null and a warning says so.
     """
     refuse_claiming_for_another(caller, request.holder)
     name_agent_session(request.session)
     today, now = calendar_now(zone)
-    issues = queued_issues(session, measure_readiness(session, today, now), request, 'build')
+    passed_over = others_plans(session, now, request.holder)
+    ready = queued_issues(session, measure_readiness(session, today, now), request, 'build')
+    issues = [issue for issue in ready if issue.number not in passed_over]
     return written(session, hold_next(session, issues, request, now, today, effects), now, effects)
 
 

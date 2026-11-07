@@ -39,8 +39,10 @@ func newNextCommand() *cobra.Command {
 			"\n" +
 			"An issue is ready when it is open, unblocked, not deferred past today, and has\n" +
 			"no open children. Work a live claim holds is listed apart under Claimed, by\n" +
-			"holder. A row naming paths that a held issue on its repo also changes says\n" +
-			"so, so the collision shows before anyone takes it.\n" +
+			"holder. A live claim on an initiative holds the ready issues to build in its\n" +
+			"plan the same way, and `slate claims hold --next` passes over them. A row\n" +
+			"naming paths that a held issue on its repo also changes says so, so the\n" +
+			"collision shows before anyone takes it.\n" +
 			"\n" +
 			"--repo, --type, --label and --autofixable read only issues, so each leaves the\n" +
 			"ideas and initiatives out. `slate claims hold --next` holds the head of\n" +
@@ -54,7 +56,8 @@ func newNextCommand() *cobra.Command {
 			"\n" +
 			"--for reads the plan of one record: its own open work and every open issue it\n" +
 			"transitively waits on, in any initiative or repo, ready or not, in queue order.\n" +
-			"Each row says which of them it unblocks, and every row shows unless -n caps it.",
+			"Each row says which of them it unblocks, and every row shows unless -n caps it.\n" +
+			"An initiative's claim moves nothing under --for, so its holder reads the plan whole.",
 		Example: "  slate next\n" +
 			"  slate next --for 1544\n" +
 			"  slate next --step build --limit 1\n" +
@@ -184,6 +187,9 @@ func queueRowNotes(row api.QueueRow, now time.Time) []string {
 	switch {
 	case row.Issue != nil:
 		notes = issueStateNotes(*row.Issue, now)
+		if row.HeldThrough != nil {
+			notes = append(notes, "in the plan of #"+strconv.Itoa(*row.HeldThrough))
+		}
 	case row.Initiative != nil:
 		if row.Initiative.Claim != nil {
 			notes = append(notes, claimNote(*row.Initiative.Claim, now))
