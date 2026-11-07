@@ -78,7 +78,7 @@ func (b *initiativesBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 			showing++
 		}
 	}
-	frame.Strip = []gotermboard.Line{b.stripLine(now, showing, read.Totals.InitiativeCount)}
+	frame.Strip = []gotermboard.Line{b.stripLine(now, showing, read.Totals.InitiativeCount), {}}
 	frame.StartAt = b.openingKey(read)
 	frame.Groups = append(frame.Groups, totalGroup(read, now))
 	text := indexBoardText(b.text.Value())
@@ -114,13 +114,14 @@ func totalGroup(read api.InitiativeBoard, now time.Time) gotermboard.Group {
 	}
 	wrapped := append(scaledBar(counts), gotermboard.C(fmt.Sprintf(" %d%%  ", percent), ""), gotermboard.C(sparkLine(counts.Closes.ByDay), gotermboard.Green))
 	return gotermboard.Group{
-		Key:      "total",
-		Title:    gotermboard.Line{gotermboard.C("TOTAL · "+strconv.Itoa(read.Totals.InitiativeCount), gotermboard.Bold)},
-		Cells:    boardCells(counts, now),
-		WrapLast: wrapped,
-		Still:    true,
-		Heading:  true,
-		Gap:      true,
+		Key:       "total",
+		Title:     gotermboard.Line{gotermboard.C("TOTAL · "+strconv.Itoa(read.Totals.InitiativeCount), totalTone)},
+		Cells:     toned(boardCells(counts, now), totalTone),
+		WrapLast:  wrapped,
+		Still:     true,
+		Underline: gotermboard.RuleThin,
+		Heading:   true,
+		Gap:       true,
 	}
 }
 
@@ -143,12 +144,14 @@ func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInit
 	counts := tier.BoardCounts
 	return gotermboard.Group{
 		Key:        "tier:" + strconv.Itoa(tier.Priority),
-		Title:      gotermboard.Line{gotermboard.C(label, tierCode(tier.Priority)+gotermboard.Bold)},
-		Cells:      boardCells(counts, now),
+		Title:      gotermboard.Line{gotermboard.C(label, tierTone)},
+		Cells:      toned(boardCells(counts, now), tierTone),
 		WrapLast:   append(scaledBar(counts), gotermboard.C("  ", ""), gotermboard.C(sparkLine(counts.Closes.ByDay), gotermboard.Green)),
 		Heading:    true,
 		FilterOnly: showing == 0,
 		Gap:        true,
+		Overline:   gotermboard.RuleDouble,
+		Tone:       tierTone,
 		Groups:     children,
 		Panel:      func(int) []gotermboard.Line { return tierPanel(label, tier, now) },
 	}
@@ -167,7 +170,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, beyon
 		Under:      gotermboard.C(long.Summary, ""),
 		Document:   b.openDescription(initiative.Number, description, len(text.initiatives) > 0),
 		Folded:     true,
-		Gap:        true,
+		Rule:       true,
 		FilterOnly: beyondScope,
 		Groups:     b.issueGroups(initiative, text, rows, now),
 		Text:       description + " " + strValue(long.StatusReason),
@@ -475,4 +478,17 @@ func sparkLine(days []int) string {
 		b.WriteRune(glyphs[min(len(glyphs)-1, (closes*len(glyphs)-1)/most)])
 	}
 	return b.String()
+}
+
+// totalTone and tierTone are the codes a heading's whole line is drawn in.
+const (
+	totalTone = "\033[1;97m"
+	tierTone  = gotermboard.BoldYellow
+)
+
+func toned(cells []gotermboard.Cell, code string) []gotermboard.Cell {
+	for i := range cells {
+		cells[i].Code = code
+	}
+	return cells
 }
