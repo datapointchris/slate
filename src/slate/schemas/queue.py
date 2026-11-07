@@ -42,8 +42,10 @@ class QueueRowBase(BaseModel):
     """`priority` is the one the row sorts at: an issue's effective priority, else the record's own.
 
     `holder` is who holds a claimed row, and null in the queue. `held_through` is the initiative
-    whose live claim holds it, and null where the row's own claim does or nothing does. `overlaps`
-    names each issue under a live claim whose paths meet this issue's, so the collision shows before anyone takes it.
+    whose live claim holds it, and null where the row's own claim does or nothing does. A row with
+    `held_through` has no claim of its own, so `holder` holds the initiative and cannot extend or
+    release the issue. `overlaps` names each issue under a live claim whose paths meet this issue's,
+    so the collision shows before anyone takes it.
     `pinned` says a pin put the row ahead of every priority: its own, its initiative's, or that of
     what waits on it. The record's `pinned_ts` is set only where its own pin is. `raised_by` is
     the issue whose wait put this one ahead of its own place, which refuses a rank move beside it.

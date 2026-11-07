@@ -16,15 +16,15 @@ than at its place in the queue. Held rows are whatever the record is, ready or n
 
 A live claim on an initiative says someone is running its plan, so each ready issue in that plan to
 build is listed under that holder too, naming the initiative as `held_through`. A decision stays
-queued, because it waits on a person whoever coordinates. Readiness does not change, so a worker's
-own claim, and anything else reading readiness, sees the issue as before.
+queued, because it waits on a person whoever coordinates. Readiness ignores the initiative's claim,
+so a worker's own claim and every other reader of readiness see the issue as ready.
 """
 
 from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Collection
-from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import or_
@@ -40,6 +40,7 @@ from slate.schemas.queue import IssueRow
 from slate.schemas.queue import Step
 from slate.schemas.ready_filter import ReadyFilter
 from slate.services.claim_views import live_claims_on_every_record
+from slate.services.held_plans import held_plans
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_views
 from slate.services.initiative_views import initiative_views
@@ -107,20 +108,20 @@ def queued_issues(
     return autofixable_filtered(issues, readiness, filters.autofixable)
 
 
-def held_plans(session: Session, held: Mapping[int, models.Claim]) -> dict[int, models.Claim]:
-    """Each issue in the plan of an initiative under a live claim, with that claim. The earlier claim keeps an issue two plans share."""
-    numbers = session.scalars(select(models.Initiative.number).where(models.Initiative.number.in_(list(held)))).all()
-    plans: dict[int, models.Claim] = {}
-    for claim in sorted((held[number] for number in numbers), key=lambda claim: claim.started_ts):
-        for number in record_work(session, claim.record_number).unblocks:
-            plans.setdefault(number, claim)
-    return plans
+@dataclass(frozen=True)
+class HoldCandidates:
+    """`passed_over` holds each ready issue another holder's plan keeps from `issues`, with that holder's claim."""
+
+    issues: list[models.Issue]
+    passed_over: dict[int, models.Claim]
 
 
-def others_plans(session: Session, now: dt.datetime, holder: str) -> frozenset[int]:
-    """The issues in the plan of an initiative another holder claims, which `POST /claims/next` passes over."""
+def candidates_to_hold(session: Session, readiness: IssueReadiness, filters: ReadyFilter, holder: str, now: dt.datetime) -> HoldCandidates:
+    """The issues `POST /claims/next` may hold, in queue order: step `build`, less the plan of an initiative another holder claims."""
     plans = held_plans(session, live_claims_on_every_record(session, now))
-    return frozenset(number for number, claim in plans.items() if claim.holder != holder)
+    ready = queued_issues(session, readiness, filters, 'build')
+    passed_over = {issue.number: plans[issue.number] for issue in ready if issue.number in plans and plans[issue.number].holder != holder}
+    return HoldCandidates(issues=[issue for issue in ready if issue.number not in passed_over], passed_over=passed_over)
 
 
 def read_queue(session: Session, zone: str, filters: schemas.QueueFilter, limit: int | None) -> schemas.Queue:

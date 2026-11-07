@@ -40,9 +40,9 @@ func newNextCommand() *cobra.Command {
 			"An issue is ready when it is open, unblocked, not deferred past today, and has\n" +
 			"no open children. Work a live claim holds is listed apart under Claimed, by\n" +
 			"holder. A live claim on an initiative holds the ready issues to build in its\n" +
-			"plan the same way, and `slate claims hold --next` passes over them. A row\n" +
-			"naming paths that a held issue on its repo also changes says so, so the\n" +
-			"collision shows before anyone takes it.\n" +
+			"plan the same way, and `slate claims hold --next` gives them only to that\n" +
+			"claim's holder. A row naming paths that a held issue on its repo also changes\n" +
+			"says so, so the collision shows before anyone takes it.\n" +
 			"\n" +
 			"--repo, --type, --label and --autofixable read only issues, so each leaves the\n" +
 			"ideas and initiatives out. `slate claims hold --next` holds the head of\n" +
