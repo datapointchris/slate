@@ -17,6 +17,8 @@ func newConfigCommand() *cobra.Command {
 		Short: "Where this machine finds the API",
 		Long: "The API's address, its login server and this machine's client, from one\n" +
 			"config file. `slate auth login <url>` fills in whatever it lacks.",
+		Example: "  slate config show  each setting, and whether the file or a flag set it\n" +
+			"  slate config path  where the file goes, whether or not it exists",
 	})
 	cmd.AddCommand(withAPIFlag(newConfigShowCommand()), newConfigPathCommand())
 	return cmd

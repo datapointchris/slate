@@ -30,6 +30,9 @@ func newCommentsCommand() *cobra.Command {
 			"and the agent session and worklog it came from. `slate show <record>` prints\n" +
 			"the comments on the record, and `slate documents show` prints each line\n" +
 			"comment under its line.",
+		Example: "  slate comments add 412 \"Root cause: the router order\"        note a finding on a record\n" +
+			"  slate comments add 412 --document plan --line 12 \"Split it\"  answer one line of its plan\n" +
+			"  slate comments list 412                                      read what was said on it",
 	})
 	goclikit.WithRecoveryHints(cmd, commentHints...)
 	splitReadingFromChanging(cmd)

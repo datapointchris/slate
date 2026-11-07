@@ -38,6 +38,10 @@ func newAuthCommand() *cobra.Command {
 			"With SLATE_CLIENT_SECRET set, slate authenticates as the service client the\n" +
 			"config file's client_id names, through the client-credentials grant. It\n" +
 			"requests a token per run and stores nothing, so login and logout refuse.",
+		Example: "  slate auth status                           who you are, and where slate points\n" +
+			"  slate auth login                            log this machine in with a device code\n" +
+			"  slate auth login https://slate.example.com  point at a new API, then log in\n" +
+			"  slate auth logout                           forget this machine's token",
 	})
 	splitReadingFromChanging(cmd)
 	cmd.AddCommand(inGroup(groupChanging, withAPIFlag(newAuthLoginCommand()), newAuthLogoutCommand())...)

@@ -37,6 +37,9 @@ func newDocumentsCommand() *cobra.Command {
 			"A comment written on another version follows its line into this one while the\n" +
 			"line is unchanged. One whose line this version does not hold is printed after\n" +
 			"the document. `slate comments add --document --line` comments on a line.",
+		Example: "  slate documents show 412 plan                  read 412's plan, its lines numbered\n" +
+			"  slate documents write 412 plan --file plan.md  add a version of it\n" +
+			"  slate documents list 412                       every document 412 keeps",
 	})
 	goclikit.WithRecoveryHints(cmd, documentHints...)
 	splitReadingFromChanging(cmd)

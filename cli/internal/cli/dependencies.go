@@ -20,6 +20,10 @@ func newDependenciesCommand() *cobra.Command {
 		Long: "An issue that depends on another cannot start until that one closes, so it\n" +
 			"is not ready while anything it depends on is unclosed. The issue it waits on\n" +
 			"takes its priority when that is more urgent.",
+		Example: "  slate dependencies add 412 --depends-on 411  412 cannot start until 411 closes\n" +
+			"  slate dependencies tree 412                  the tree 412 sits in\n" +
+			"  slate dependencies tree 412 --invert         what waits on 412\n" +
+			"  slate dependencies tree                      every tree with work left in it",
 	})
 	goclikit.WithRecoveryHints(cmd, issueHints...)
 	splitReadingFromChanging(cmd)

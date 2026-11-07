@@ -22,6 +22,9 @@ func newLabelsCommand() *cobra.Command {
 			"becoming a label nobody filters on. An issue carries at most one label from\n" +
 			"each group, so area-api and area-cli, both in the area group, never meet on\n" +
 			"one issue.",
+		Example: "  slate labels list                                every label, grouped, with its unclosed issues\n" +
+			"  slate labels create --slug area-db --group area  a label --label then accepts\n" +
+			"  slate labels show area-api                       one label",
 	})
 	goclikit.WithRecoveryHints(cmd, labelHints...)
 	splitReadingFromChanging(cmd)

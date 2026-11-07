@@ -47,6 +47,11 @@ func newClaimsCommand() *cobra.Command {
 			"A holder parked on something, such as a merge, says so with `wait`, and every\n" +
 			"read of the claim shows it until `resume`. A waiting claim still holds its\n" +
 			"record.",
+		Example: "  slate claims hold 412                           take a record before the first edit on it\n" +
+			"  slate claims hold --next                        take the head of the queue\n" +
+			"  slate claims wait 412 --on \"slate#3 to merge\"   say what the work is parked on\n" +
+			"  slate claims release 412                        hand the work back unfinished\n" +
+			"  slate claims list                               every claim held now",
 	})
 	goclikit.WithRecoveryHints(cmd, claimHints...)
 	splitReadingFromChanging(cmd)

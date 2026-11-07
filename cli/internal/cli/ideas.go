@@ -34,6 +34,10 @@ func newIdeasCommand() *cobra.Command {
 			"that is the work. The initiative names the idea, and the idea then shows the\n" +
 			"initiative and its progress. An idea shares its number sequence with\n" +
 			"initiatives and issues.",
+		Example: "  slate ideas create --title \"Scheduled review rounds\" --priority high  keep it for later\n" +
+			"  slate ideas link 1860 https://example.com/thread/9                    link the evidence it rests on\n" +
+			"  slate ideas list                                                      every idea, most urgent first\n" +
+			"  slate ideas promote 1860 --summary \"Rounds run on a schedule\"         take it on as an initiative",
 	})
 	goclikit.WithRecoveryHints(cmd, ideaHints...)
 	splitReadingFromChanging(cmd)

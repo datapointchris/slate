@@ -41,6 +41,8 @@ func newSessionsCommand() *cobra.Command {
 			"\n" +
 			"`show` prints a session's tokens in all, in each worklog, and outside them.\n" +
 			"`slate worklogs show` prints a worklog's.",
+		Example: "  slate sessions show \"$" + claudeCodeSessionEnv + "\"  this session's tokens, by worklog\n" +
+			"  slate sessions report >/dev/null               from a Claude Code hook, at every turn",
 	})
 	goclikit.WithRecoveryHints(cmd, sessionHints...)
 	splitReadingFromChanging(cmd)

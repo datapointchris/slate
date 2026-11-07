@@ -34,6 +34,10 @@ func newInitiativesCommand() *cobra.Command {
 			"design sets --autofix=false, so an unattended fix never lands one of its\n" +
 			"steps alone. An initiative shares its number sequence with ideas and issues,\n" +
 			"and an idea's promotion creates one.",
+		Example: "  slate initiatives list                         the active ones, in the order to work them\n" +
+			"  slate initiatives progress \"Ship the tracker\"  its bar, what runs, waits and comes next\n" +
+			"  slate initiatives show 1501                    its claims, unclosed issues and changes\n" +
+			"  slate initiatives complete \"Ship the tracker\"  close it once the outcome ships",
 	})
 	goclikit.WithRecoveryHints(cmd, initiativeHints...)
 	splitReadingFromChanging(cmd)

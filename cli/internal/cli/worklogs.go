@@ -39,6 +39,10 @@ func newWorklogsCommand() *cobra.Command {
 			"the worklog it left. `current` prints the worklog the session is in, for a\n" +
 			"commit hook to stamp as the trailer `Worklog: 1991.2`. `link` records the\n" +
 			"commit, pull request or landing it produced.",
+		Example: "  slate worklogs current                                             the worklog this session is in\n" +
+			"  slate worklogs link --commit \"$(git rev-parse HEAD)\" --repo slate  record the commit it made\n" +
+			"  slate worklogs list                                                what is under way now\n" +
+			"  slate worklogs show 1991.2                                         its sessions, links and claim",
 	})
 	goclikit.WithRecoveryHints(cmd, worklogHints...)
 	splitReadingFromChanging(cmd)

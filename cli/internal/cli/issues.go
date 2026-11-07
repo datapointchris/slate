@@ -72,6 +72,10 @@ func newIssuesCommand() *cobra.Command {
 			"A decision waits on a person, so `slate next` lists it at step decide and\n" +
 			"`slate claims hold --next` leaves it out. An open question the work waits on\n" +
 			"is a decision issue it depends on.",
+		Example: "  slate issues list --repo webapp                                  the open work in one repo\n" +
+			"  slate issues show 412                                            one issue, its edges and comments\n" +
+			"  slate issues create --title \"Routing drops /issues\" --type bug   file a bug\n" +
+			"  slate issues complete 412                                        close it once the work lands",
 	})
 	goclikit.WithRecoveryHints(cmd, issueHints...)
 	cmd.AddGroup(
