@@ -106,15 +106,16 @@ spec:
               port: http
             periodSeconds: 20
             failureThreshold: 3
-          # Sized from `docker stats` on the API under `docker compose up`, which is
-          # where to re-measure it. The limit equals the request, so the pod never
-          # uses more memory than the scheduler set aside for it.
+          # Sized from the API's working set under steady use, which passes 200 MiB
+          # within minutes of a start and climbs with its requests. The limit equals
+          # the request, so the pod never uses more memory than the scheduler set
+          # aside for it.
           resources:
             requests:
               cpu: 50m
-              memory: 256Mi
+              memory: 512Mi
             limits:
-              memory: 256Mi
+              memory: 512Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
