@@ -96,7 +96,7 @@ func (ended writeEnded) sentence() string {
 
 // Receive is gotermboard.ReceivingBoard's. A program the board handed the terminal to may have
 // changed what it shows, so its handback reads the board again, before the model runs the
-// key's own then.
+// key's own then. A Claude session that held the terminal reads it again the same way.
 func (b *initiativesBoard) Receive(m *gotermboard.Model, msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case writeEnded:
@@ -108,6 +108,10 @@ func (b *initiativesBoard) Receive(m *gotermboard.Model, msg tea.Msg) tea.Cmd {
 		m.Say(msg.sentence())
 	case gotermboard.HandedBack:
 		b.readAgain()
+	case gotermboard.ClaudeSessionOutcome:
+		if msg.HeldTerminal {
+			b.readAgain()
+		}
 	}
 	return nil
 }

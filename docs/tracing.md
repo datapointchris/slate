@@ -128,3 +128,15 @@ under it. A span of the CLI's own would need the Go SDK and an OTLP exporter in
 the binary. At SDK v1.47.0 those measured 8.3 MB on a 10.1 MB binary, and they
 add an export to flush at every exit. A CLI started with no `TRACEPARENT` sends
 none, so each of its requests starts a trace of its own.
+
+## The Claude session `slate tui`'s C opens carries its record on its resource
+
+An interactive Claude session ignores an incoming `TRACEPARENT`, and each of
+its prompts starts a trace of its own. So C joins the session to its record
+and to the flow `slate tui` runs in through `OTEL_RESOURCE_ATTRIBUTES` instead.
+The session's resource keeps the attributes `slate tui` inherited, adds
+`slate.record.number`, the name a span gives the record, and adds each member
+of the inherited `BAGGAGE` as it came. `BAGGAGE` itself goes on as well, so the
+session's own calls carry the flow. Inside tmux these reach the session through
+`env` ahead of `claude`, because a tmux window takes its environment from the
+tmux server rather than from the program that opened it.

@@ -7,32 +7,26 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/gotermboard"
 	"github.com/pkg/browser"
+	"go.opentelemetry.io/otel/baggage"
 
 	"github.com/datapointchris/slate/cli/internal/repos"
 )
 
-// sessionBrief is the first message of the Claude session C opens on a record. It names the
+// sessionBrief opens the first message of the Claude session C opens on a record. It names the
 // record by number alone, so the session reads the record's words as data with `slate show`.
-const sessionBrief = "This is slate %[1]s %[2]d, opened from `slate tui`. " +
-	"`slate show %[2]d` prints it whole. Read it, say what it asks for and what you would do, " +
-	"then wait before changing anything."
+const sessionBrief = "This is slate %[1]s %[2]d, opened from `slate tui`. `slate show %[2]d` prints it whole."
 
-// claude is C: a Claude session on the row's record, in its repo's checkout. Inside tmux it
-// opens in a window of its own, so the board stays usable while the session works, and
-// outside tmux it takes the board's terminal until it ends.
+// claude is C: a Claude session on the row's record, in its repo's checkout.
 func (b *initiativesBoard) claude(m *gotermboard.Model) tea.Cmd {
 	kind, number, _, ok := b.recordAt(m.Cursor())
 	if !ok {
-		return nil
-	}
-	if _, err := exec.LookPath("claude"); err != nil {
-		m.Say(fmt.Sprintf("claude is not on PATH, so no session opened on %d", number))
 		return nil
 	}
 	directory, fallback, err := b.sessionDirectory(kind, number)
@@ -40,25 +34,35 @@ func (b *initiativesBoard) claude(m *gotermboard.Model) tea.Cmd {
 		m.Say(err.Error())
 		return nil
 	}
-	brief := fmt.Sprintf(sessionBrief, kind, number)
-	if os.Getenv("TMUX") != "" {
-		if err := gotermboard.OpenWindow(fmt.Sprintf("claude %d", number), directory, []string{"claude", brief}); err != nil {
-			m.Say(err.Error())
-			return nil
-		}
-		m.Say(fmt.Sprintf("opened a Claude session on %d in a tmux window, in %s%s", number, directory, fallback))
-		return nil
-	}
-	session := exec.Command("claude", brief)
-	session.Dir = directory
-	return m.HandOver(session, func(m *gotermboard.Model, err error, stderr []byte) tea.Cmd {
-		if err != nil {
-			m.Say(fmt.Sprintf("the Claude session on %d ended: %s", number, gotermboard.LastLine(stderr, err)))
-			return nil
-		}
-		m.Say(fmt.Sprintf("back from the Claude session on %d", number))
-		return nil
+	return gotermboard.OpenClaudeSession(gotermboard.ClaudeSession{
+		On: strconv.Itoa(number), Dir: directory, Fallback: fallback, Brief: fmt.Sprintf(sessionBrief, kind, number),
+		Env: sessionTelemetry(number),
 	})
+}
+
+// sessionTelemetry joins the session C opens to its record and to the flow slate runs in, through
+// resource attributes, because an interactive Claude session ignores an incoming trace. The
+// record goes under the name slate's spans give it, and each member of the baggage slate
+// inherited goes on as it came, so slate names no key of its caller's. The attributes slate
+// inherited stay ahead of them.
+func sessionTelemetry(number int) []string {
+	var attributes []string
+	if resource := os.Getenv("OTEL_RESOURCE_ATTRIBUTES"); resource != "" {
+		attributes = append(attributes, resource)
+	}
+	attributes = append(attributes, fmt.Sprintf("slate.record.number=%d", number))
+	flow := os.Getenv("BAGGAGE")
+	carried, _ := baggage.Parse(flow)
+	members := carried.Members()
+	slices.SortFunc(members, func(a, b baggage.Member) int { return strings.Compare(a.Key(), b.Key()) })
+	for _, member := range members {
+		attributes = append(attributes, member.Key()+"="+url.PathEscape(member.Value()))
+	}
+	env := []string{"OTEL_RESOURCE_ATTRIBUTES=" + strings.Join(attributes, ",")}
+	if flow != "" {
+		env = append(env, "BAGGAGE="+flow)
+	}
+	return env
 }
 
 // sessionDirectory is where C opens Claude: the checkout the registry names for the record's
@@ -83,9 +87,9 @@ func (b *initiativesBoard) sessionDirectory(kind string, number int) (directory,
 		return "", "", fmt.Errorf("no directory to open a session on %d in: %w", number, err)
 	}
 	if repo == "" {
-		return here, fmt.Sprintf(", since %d names no one repo", number), nil
+		return here, fmt.Sprintf("%d names no one repo", number), nil
 	}
-	return here, fmt.Sprintf(", since the repo registry names no checkout of %s", repo), nil
+	return here, "the repo registry names no checkout of " + repo, nil
 }
 
 // repoOf is the one repo a record's work is in: an issue's, or an initiative's where its
