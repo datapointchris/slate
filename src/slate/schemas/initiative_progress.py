@@ -38,13 +38,22 @@ if tuple(IssueStateCounts.model_fields) != get_args(IssueState):
     raise TypeError(f'IssueStateCounts holds {tuple(IssueStateCounts.model_fields)}, and IssueState names {get_args(IssueState)}')
 
 
+class BurnupStep(RecordModel):
+    """The initiative's issues from `ts` until the next step: `scope` held in it and not canceled, and `completed` of those."""
+
+    ts: dt.datetime
+    scope: int
+    completed: int
+
+
 class InitiativeProgress(RecordModel):
     """Everything a progress view prints for one initiative, in one read.
 
     `running`, `waiting` and `blocked` hold the issues in that state, in queue order. `next` is the
     head of `GET /queue` for the initiative. `closed` is every issue whose close falls between
     `closed_since` and `closed_until`, latest first, and a null bound leaves that end open. `totals`
-    covers the initiative's whole life, whatever the window.
+    and `burnup` cover the initiative's whole life, whatever the window. `burnup` is oldest first,
+    a step at each moment its scope or its completed issues changed, and a last at the read.
     """
 
     initiative: Initiative
@@ -57,3 +66,4 @@ class InitiativeProgress(RecordModel):
     closed_since: dt.datetime | None = None
     closed_until: dt.datetime | None = None
     totals: WorkTotals
+    burnup: list[BurnupStep]

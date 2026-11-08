@@ -215,6 +215,40 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     assert [row['initiative']['number'] for row in every_active] == [row['number'] for row in ok(client.get(INITIATIVES))]
 
 
+def test_the_burnup_counts_an_issue_moved_in_from_its_move_and_a_canceled_one_out_from_its_close(client, txn_api_logged_in):
+    _, session = txn_api_logged_in
+
+    def created(name: str) -> int:
+        return wrote(client.post(INITIATIVES, json={'summary': 'It is done.', 'name': name}), 'initiative', status.HTTP_201_CREATED)[
+            'number'
+        ]
+
+    def filed(initiative: int, title: str) -> int:
+        return wrote(client.post('/issues', json={'title': title, 'initiative': initiative}), 'issue', status.HTTP_201_CREATED)['number']
+
+    burning, elsewhere = created('Burning'), created('Elsewhere')
+    kept, done, dropped, moved = filed(burning, 'Kept'), filed(burning, 'Done'), filed(burning, 'Dropped'), filed(elsewhere, 'Moved in')
+    ok(client.patch(f'/issues/{moved}', json={'initiative': burning}))
+    ok(client.patch(f'/issues/{done}', json={'status': 'completed'}))
+    ok(client.patch(f'/issues/{dropped}', json={'status': 'canceled', 'status_reason': 'not needed'}))
+    now = dt.datetime.now(dt.UTC)
+    filed_at, moved_at, done_at, dropped_at = (now - dt.timedelta(days=days) for days in (10, 5, 3, 2))
+    change = models.RecordChange
+    session.execute(update(models.Issue).where(models.Issue.number.in_([kept, done, dropped, moved])).values(created_ts=filed_at))
+    session.execute(update(models.Issue).where(models.Issue.number == done).values(closed_ts=done_at))
+    session.execute(update(models.Issue).where(models.Issue.number == dropped).values(closed_ts=dropped_at))
+    session.execute(update(change).where(change.table_name == 'issues').values(changed_ts=filed_at))
+    moves = update(change).where(change.table_name == 'issues', change.operation == 'update', change.changes.has_key('initiative_id'))
+    session.execute(moves.values(changed_ts=moved_at))
+    session.flush()
+
+    (progress,) = ok(client.get(f'{INITIATIVES}/progress', params={'initiative': burning}))
+    steps = progress['burnup']
+    assert [(step['scope'], step['completed']) for step in steps] == [(3, 0), (4, 0), (4, 1), (3, 1), (3, 1)]
+    assert [dt.datetime.fromisoformat(step['ts']) for step in steps[:4]] == [filed_at, moved_at, done_at, dropped_at]
+    assert dt.datetime.fromisoformat(steps[-1]['ts']) > now
+
+
 @pytest.mark.parametrize('routed', sorted(ROUTED_NAMES))
 def test_an_initiative_cannot_take_the_name_of_a_route(client, routed):
     """Each path under `/initiatives` is reached before an initiative named for it could be read by name."""
