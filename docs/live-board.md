@@ -51,9 +51,9 @@ there stand out.
 
 ## A bar has one cell per issue
 
-`19/48` draws 48 cells: a green `▰` done, a yellow `▱` running or waiting, a red `✕`
-blocked, and a plain `▱` the rest. Without color only done is filled and blocked is
-crossed, so no unfinished issue reads as done.
+`19/48` draws 48 cells through gotermboard's `TallyBar`: done in green, running or waiting
+in yellow, blocked in red, and the rest plain. Without color only done is filled and blocked
+is marked, so no unfinished issue reads as done.
 A bar of fixed width makes a 4-issue initiative look as big as a 67-issue one, and one
 blocked issue in 60 rounds away. So one cell per issue keeps size and every state visible,
 at the cost of a long bar. A bar wider than its row wraps at its column and keeps every
@@ -91,8 +91,7 @@ top and then in queue order, with `done` and `canceled` folded beneath.
 
 A description that fits opens under its row. One that runs past the screen opens on a full-screen
 reader, where `[` and `]` jump between its headings, `/` searches it, and `esc` returns to the row.
-`space` opens a description under its row however long it is, and closes it again, as space does
-on every gotermboard board.
+`space` opens a description under its row however long it is, and closes it again.
 
 From 160 columns a side panel follows the cursor, with the summary, the repos, the closes, the
 start of the description, what is next and the tokens, so a wide terminal answers without a key.
