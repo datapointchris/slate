@@ -422,8 +422,9 @@ the last step is the counts above.
 
 An issue joins an initiative when a write sets its initiative, and leaves when one
 moves it elsewhere. The audit trail holds every such write, so membership is read
-back from it rather than stored twice. One query over the trail's `issues` rows
-serves every initiative the read answers. An issue with no write that joined it was
+back from it rather than stored twice. One read of the trail's `issues` rows, and
+one of the issues that have since left, serve every initiative the read answers,
+however many it answers. An issue with no write that joined it was
 in the initiative from its creation, as an issue imported without its history was.
 
 Closes are read from each issue as it stands. A canceled issue leaves the scope at
@@ -505,9 +506,9 @@ on no repo make a row of their own, with a null `repo`. Rows come by name.
 
 Each row carries the initiative board's counts by state and its closes. Its
 `closes_by_week` holds one count per week of the answer's `weeks`. Those are the
-Mondays of the last 12 weeks in the request's `timezone`, the last the week of the
-read. `ready` lists the repo's ready issues, the longest waiting first. `totals`
-rolls the counts and closes up over every issue.
+Mondays of the last `CLOSES_BY_WEEK` weeks in the request's `timezone`, the last the
+week of the read. `ready` lists the repo's ready issues, the longest waiting first.
+`totals` rolls the counts and closes up over every issue.
 
 **A ready issue has waited since it was filed.** Readiness is derived on every read
 and never stored, so no moment an issue became ready is recorded to count from.
