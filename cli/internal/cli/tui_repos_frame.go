@@ -26,25 +26,26 @@ func repoLabel(repo *string) string {
 // repoFirstColumnWidth fits most repo names whole.
 const repoFirstColumnWidth = 24
 
-// repoChartHeight is each chart's lines in the panel: its bars, its axis and its labels.
-const repoChartHeight = 9
+// repoChartHeight is each chart's lines in the panel: eight rows of bars, its axis and its
+// labels. Eight rows put the axis's middle mark at half the top, so an even top marks a whole
+// count there.
+const repoChartHeight = 10
 
 // panelReadyRows is how many of the longest-waiting ready issues the panel lists.
 const panelReadyRows = 5
 
-var repoColumns = []gotermboard.Column{
-	{Title: "", Min: repoFirstColumnWidth},
-	{Title: "DONE", Right: true},
-	{Title: "24H", Right: true},
-	{Title: "7D", Right: true},
-	{Title: "30D", Right: true},
-	{Title: "LAST", Right: true},
-	{Title: "RUN", Right: true},
-	{Title: "BLK", Right: true},
-	{Title: "RDY", Right: true},
-	{Title: "WAIT", Right: true},
-	{Title: "12 WEEKS"},
-	{Title: "ISSUES"},
+// repoColumns are boardCells' columns, then the wait and the closes per week over the weeks
+// the read answers.
+func repoColumns(weeks int) []gotermboard.Column {
+	weeksTitle := "WEEKS"
+	if weeks > 0 {
+		weeksTitle = strconv.Itoa(weeks) + " WEEKS"
+	}
+	return slices.Concat(
+		[]gotermboard.Column{{Title: "", Min: repoFirstColumnWidth}},
+		countColumns,
+		[]gotermboard.Column{{Title: "WAIT", Right: true}, {Title: weeksTitle}, {Title: "ISSUES"}},
+	)
 }
 
 // readyWait is one span of the histogram of how long ready issues have waited, up to under,
@@ -79,12 +80,13 @@ func waitOf(waited time.Duration) readyWait {
 // Frame is gotermboard.Board's.
 func (b *reposBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 	read := b.repos.Value()
-	frame := gotermboard.Frame{Columns: repoColumns}
+	weeks := len(read.Weeks)
+	frame := gotermboard.Frame{Columns: repoColumns(weeks)}
 	if read.ReadTS.IsZero() {
 		frame.Strip = []gotermboard.Line{b.stripLine(now, 0)}
 		return frame
 	}
-	frame.Strip = []gotermboard.Line{b.stripLine(now, len(read.Repos)), {}}
+	frame.Strip = []gotermboard.Line{b.stripLine(now, namedRepos(read)), {}}
 	var working, quiet []gotermboard.Row
 	for _, repo := range b.ordered(read) {
 		row := repoRow(repo, read, now)
@@ -97,7 +99,7 @@ func (b *reposBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 	frame.Groups = append(frame.Groups, reposTotalGroup(read, now), gotermboard.Group{
 		Key:     "working",
 		Title:   gotermboard.Line{gotermboard.C("with work · "+strconv.Itoa(len(working)), tierTone)},
-		Summary: gotermboard.Line{gotermboard.C("an open issue or a close in 12 weeks", dimCode)},
+		Summary: gotermboard.Line{gotermboard.C(fmt.Sprintf("an open issue or a close in %d weeks", weeks), dimCode)},
 		Heading: true,
 		Still:   true,
 		Gap:     true,
@@ -107,7 +109,7 @@ func (b *reposBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 		frame.Groups = append(frame.Groups, gotermboard.Group{
 			Key:     "quiet",
 			Title:   gotermboard.Line{gotermboard.C("quiet · "+strconv.Itoa(len(quiet)), "")},
-			Summary: gotermboard.Line{gotermboard.C("nothing open and no close in 12 weeks", dimCode)},
+			Summary: gotermboard.Line{gotermboard.C(fmt.Sprintf("nothing open and no close in %d weeks", weeks), dimCode)},
 			Heading: true,
 			Folded:  true,
 			Rows:    quiet,
@@ -125,6 +127,17 @@ func (b *reposBoard) stripLine(now time.Time, repos int) gotermboard.Line {
 	return append(line, gotermboard.ReadStatus([]gotermboard.Status{b.repos.Status()}, now)...)
 }
 
+// namedRepos counts the rows that are a repo, leaving out the issues on none.
+func namedRepos(read api.RepoBoard) int {
+	named := 0
+	for _, repo := range read.Repos {
+		if repo.Repo != nil {
+			named++
+		}
+	}
+	return named
+}
+
 func reposTotalGroup(read api.RepoBoard, now time.Time) gotermboard.Group {
 	var ready []readyInRepo
 	for _, repo := range read.Repos {
@@ -133,7 +146,10 @@ func reposTotalGroup(read api.RepoBoard, now time.Time) gotermboard.Group {
 		}
 	}
 	sortReady(ready)
-	title := "TOTAL · " + strconv.Itoa(len(read.Repos)) + " repos"
+	title := "TOTAL · " + strconv.Itoa(namedRepos(read)) + " repos"
+	if namedRepos(read) < len(read.Repos) {
+		title += " + no repo"
+	}
 	return gotermboard.Group{
 		Key:       "total",
 		Title:     gotermboard.Line{gotermboard.C(title, totalTone)},
@@ -148,6 +164,14 @@ func reposTotalGroup(read api.RepoBoard, now time.Time) gotermboard.Group {
 	}
 }
 
+// repoKey keys a repo's row by its name, and the issues on no repo apart from any name.
+func repoKey(repo *string) string {
+	if repo == nil {
+		return "no-repo"
+	}
+	return "repo:" + *repo
+}
+
 func repoRow(repo api.BoardRepo, read api.RepoBoard, now time.Time) gotermboard.Row {
 	ready := make([]readyInRepo, 0, len(repo.Ready))
 	for _, issue := range repo.Ready {
@@ -158,7 +182,7 @@ func repoRow(repo api.BoardRepo, read api.RepoBoard, now time.Time) gotermboard.
 		name.Code = dimCode
 	}
 	return gotermboard.Row{
-		Key:      "repo:" + repoLabel(repo.Repo),
+		Key:      repoKey(repo.Repo),
 		Cells:    append([]gotermboard.Cell{name}, repoCells(repo.RepoRollup, oldestReady(ready), now)...),
 		WrapLast: percentBar(repo.BoardCounts),
 		Panel: func(width int) []gotermboard.Line {
@@ -262,11 +286,30 @@ func weeklyCloses(counts []int, weeks []string) chart.Bars {
 		}
 		bars = append(bars, chart.Bar{Label: label, Value: float64(count), Code: gotermboard.Green})
 	}
-	return chart.Bars{Bars: bars, ValueLabel: wholeCount}
+	return countBars(bars)
 }
 
-// wholeCount labels a count's axis, whose midpoint can fall between two counts.
-func wholeCount(v float64) string { return chart.Compact(math.Round(v)) }
+// countBars is bars of counts, topped at an even count so the middle mark is a whole one.
+func countBars(bars []chart.Bar) chart.Bars {
+	top := 0
+	for _, bar := range bars {
+		top = max(top, int(bar.Value))
+	}
+	return chart.Bars{Bars: bars, Max: float64(roundUpTo(top, 2)), ValueLabel: wholeOnly}
+}
+
+// wholeOnly labels a mark on a count's axis, and leaves one that falls between two counts bare.
+func wholeOnly(v float64) string {
+	if v != math.Trunc(v) {
+		return ""
+	}
+	return chart.Compact(v)
+}
+
+// roundUpTo is the least multiple of step at or above n, and step where n is not above zero.
+func roundUpTo(n, step int) int {
+	return max(step, (n+step-1)/step*step)
+}
 
 // readyHistogram counts the ready issues in each span of readyWaits.
 func readyHistogram(ready []readyInRepo, now time.Time) chart.Bars {
@@ -278,7 +321,7 @@ func readyHistogram(ready []readyInRepo, now time.Time) chart.Bars {
 	for _, wait := range readyWaits {
 		bars = append(bars, chart.Bar{Label: wait.label, Value: float64(counts[wait.label]), Code: wait.code})
 	}
-	return chart.Bars{Bars: bars, ValueLabel: wholeCount}
+	return countBars(bars)
 }
 
 func sum(values []int) int {

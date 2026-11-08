@@ -1,12 +1,13 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/goclikit"
@@ -28,14 +29,6 @@ const (
 const tabInitiatives = "initiatives"
 
 func tuiTabs() []string { return []string{tabInitiatives, tabRepos} }
-
-// printedTab is a tab's board, and what --once and --json read of it: every source it
-// draws from, and the snapshot it is drawn from.
-type printedTab struct {
-	board    gotermboard.Board
-	readOnce func(context.Context) error
-	snapshot func() any
-}
 
 func newTUICommand() *cobra.Command {
 	var (
@@ -63,8 +56,8 @@ func newTUICommand() *cobra.Command {
 			"it. On an initiative it draws its issues and its completed ones over its life, so\n" +
 			"scope added under it shows.\n\n" +
 			"repos is every repo the issues name on the same columns, then how long its oldest\n" +
-			"ready issue has waited and its closes in each of the last 12 weeks. Repos with\n" +
-			"nothing open and no close in those weeks fold under quiet. The panel draws a repo's\n" +
+			"ready issue has waited and its closes in each recent week. Repos with nothing\n" +
+			"open and no close in those weeks fold under quiet. The panel draws a repo's\n" +
 			"closes per week as columns and its ready issues by how long each has waited, and\n" +
 			"on the total every repo's. s cycles the order.\n\n" +
 			"--once prints one frame at COLUMNS by LINES, and --json the snapshot it is drawn\n" +
@@ -104,33 +97,19 @@ func newTUICommand() *cobra.Command {
 			if cmd.Flags().Changed("limit") {
 				scope.kind = scopeFirstInList
 			}
-			initiatives, repos := newInitiativesBoard(client, initiativeStatus, scope), newReposBoard(client)
-			if !printing {
-				tabs, err := gotermboard.NewTabs([]gotermboard.Tab{
-					{Name: tabInitiatives, Board: initiatives},
-					{Name: tabRepos, Board: repos},
-				}, gotermstyle.PaletteFor(os.Stdout), view)
-				if err != nil {
-					return err
-				}
-				_, err = tea.NewProgram(tabs).Run()
+			if printing {
+				return printOpeningTab(cmd, view, asJSON, func() *initiativesBoard {
+					return newInitiativesBoard(client, initiativeStatus, scope)
+				}, func() *reposBoard { return newReposBoard(client) })
+			}
+			tabs, err := gotermboard.NewTabs([]gotermboard.Tab{
+				{Name: tabInitiatives, Board: newInitiativesBoard(client, initiativeStatus, scope)},
+				{Name: tabRepos, Board: newReposBoard(client)},
+			}, gotermstyle.PaletteFor(os.Stdout), view)
+			if err != nil {
 				return err
 			}
-			printed := printedTab{board: initiatives, readOnce: initiatives.readOnce, snapshot: func() any { return initiatives.snapshot() }}
-			if view == tabRepos {
-				printed = printedTab{board: repos, readOnce: repos.readOnce, snapshot: func() any { return repos.snapshot() }}
-			}
-			if err := printed.readOnce(cmd.Context()); err != nil {
-				return handleAPIError(err)
-			}
-			if view != tabRepos && !cmd.Flags().Changed("status") {
-				defer noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
-			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), printed.snapshot())
-			}
-			width, height := gotermboard.OnceSize(onceFallbackWidth, onceFallbackHeight)
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), gotermboard.Once(printed.board, gotermstyle.PaletteFor(os.Stdout), width, height))
+			_, err = tea.NewProgram(tabs).Run()
 			return err
 		},
 	}
@@ -144,4 +123,39 @@ func newTUICommand() *cobra.Command {
 	cmd.Flags().StringVar(&initiativeStatus, "status", "", "One of: "+strings.Join(api.InitiativeStatuses, ", ")+" (default active)")
 	withFlagValues(cmd, "status", api.InitiativeStatuses...)
 	return cmd
+}
+
+// printOpeningTab reads the one tab --view names, and builds no other.
+func printOpeningTab(cmd *cobra.Command, view string, asJSON bool, initiatives func() *initiativesBoard, repos func() *reposBoard) error {
+	ctx, out := cmd.Context(), cmd.OutOrStdout()
+	if view == tabRepos {
+		board := repos()
+		if err := board.readOnce(ctx); err != nil {
+			return handleAPIError(err)
+		}
+		return printTab(out, asJSON, board)
+	}
+	board := initiatives()
+	if err := board.readOnce(ctx); err != nil {
+		return handleAPIError(err)
+	}
+	if !cmd.Flags().Changed("status") {
+		defer noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
+	}
+	return printTab(out, asJSON, board)
+}
+
+// snapshotBoard is a tab's board, which draws a frame and answers a snapshot of one shape.
+type snapshotBoard[S any] interface {
+	gotermboard.Board
+	Snapshot(now time.Time) S
+}
+
+func printTab[S any](out io.Writer, asJSON bool, board snapshotBoard[S]) error {
+	if asJSON {
+		return encodeJSON(out, board.Snapshot(time.Now()))
+	}
+	width, height := gotermboard.OnceSize(onceFallbackWidth, onceFallbackHeight)
+	_, err := fmt.Fprintln(out, gotermboard.Once(board, gotermstyle.PaletteFor(os.Stdout), width, height))
+	return err
 }

@@ -172,7 +172,8 @@ type InitiativeProgress struct {
 	ClosedSince *time.Time       `json:"closed_since"`
 	ClosedUntil *time.Time       `json:"closed_until"`
 	Totals      WorkTotals       `json:"totals"`
-	Burnup      []BurnupStep     `json:"burnup"`
+	// Burnup is nil where the API answered none, as one older than this CLI does.
+	Burnup *[]BurnupStep `json:"burnup"`
 }
 
 // BurnupStep is an initiative's issues from TS until the next step: Scope held in

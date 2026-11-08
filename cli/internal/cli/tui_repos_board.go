@@ -3,7 +3,10 @@ package cli
 import (
 	"cmp"
 	"context"
+	"errors"
+	"fmt"
 	"slices"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/gotermboard"
@@ -57,6 +60,9 @@ func newReposBoard(client *api.Client) *reposBoard {
 	b := &reposBoard{}
 	b.repos = gotermboard.NewSource("repos", boardReadEvery, func(ctx context.Context) (api.RepoBoard, string, error) {
 		read, err := client.ReadRepoBoard(ctx, zone)
+		if apiErr := (*api.APIError)(nil); errors.As(err, &apiErr) && apiErr.NotFound() {
+			err = fmt.Errorf("this API answers no repo board, so it is older than this CLI: %w", err)
+		}
 		b.readFailure = err
 		return read, "", err
 	})
@@ -96,20 +102,21 @@ func (b *reposBoard) Actions() []gotermboard.Action {
 }
 
 // reposSnapshot is what --json prints: the read the frame is drawn from, and the order the
-// sort gives it.
+// sort gives its rows, each by its repo as the board names it, null for the issues on none.
 type reposSnapshot struct {
 	Tab   string               `json:"tab"`
 	Sort  string               `json:"sort"`
-	Order []string             `json:"order"`
+	Order []*string            `json:"order"`
 	Reads []gotermboard.Status `json:"reads"`
 	Board api.RepoBoard        `json:"board"`
 }
 
-func (b *reposBoard) snapshot() reposSnapshot {
+// Snapshot is what --json prints of the tab.
+func (b *reposBoard) Snapshot(time.Time) reposSnapshot {
 	read := b.repos.Value()
-	order := []string{}
+	order := []*string{}
 	for _, repo := range b.ordered(read) {
-		order = append(order, repoLabel(repo.Repo))
+		order = append(order, repo.Repo)
 	}
 	return reposSnapshot{
 		Tab: tabRepos, Sort: repoSorts[b.sort].label, Order: order,

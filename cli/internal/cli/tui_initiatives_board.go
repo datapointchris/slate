@@ -326,7 +326,8 @@ type initiativesSnapshot struct {
 	CursorRow *api.InitiativeProgress `json:"cursor_row"`
 }
 
-func (b *initiativesBoard) snapshot() initiativesSnapshot {
+// Snapshot is what --json prints of the tab.
+func (b *initiativesBoard) Snapshot(time.Time) initiativesSnapshot {
 	read := b.initiatives.Value()
 	ordered, shown := b.orderedAndShown(read)
 	numbers := []int{}

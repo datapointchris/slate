@@ -130,21 +130,37 @@ func (b *initiativesBoard) initiativePanel(initiative api.BoardInitiative, long 
 
 // burnupLines draws an initiative's issues and its completed ones over its life, each
 // step drawn square so a jump in scope reads as one.
-func burnupLines(steps []api.BurnupStep, width int) []gotermboard.Line {
-	if len(steps) == 0 {
+func burnupLines(answered *[]api.BurnupStep, width int) []gotermboard.Line {
+	switch {
+	case answered == nil:
+		return []gotermboard.Line{dimLine("This API answers no burn-up, so it is older than this CLI.")}
+	case len(*answered) == 0:
 		return []gotermboard.Line{dimLine("No issues yet.")}
 	}
+	steps := *answered
 	scope := func(step api.BurnupStep) int { return step.Scope }
 	completed := func(step api.BurnupStep) int { return step.Completed }
-	burnup := chart.TimeSeries{ValueLabel: wholeCount, Series: []chart.Series{
-		{Name: "issues", Code: "", Points: stepPoints(steps, scope)},
-		{Name: "completed", Code: gotermboard.Green, Points: stepPoints(steps, completed)},
-	}}
+	peak := 0
+	for _, step := range steps {
+		peak = max(peak, step.Scope)
+	}
+	burnup := chart.TimeSeries{
+		Max:        float64(roundUpTo(peak, burnupValueMarks)),
+		ValueLabel: wholeOnly,
+		Series: []chart.Series{
+			{Name: "issues", Code: "", Points: stepPoints(steps, scope)},
+			{Name: "completed", Code: gotermboard.Green, Points: stepPoints(steps, completed)},
+		},
+	}
 	return append(burnup.Lines(width, burnupHeight), burnup.Legend())
 }
 
-// burnupHeight is the burn-up's lines in the panel, its time axis included.
-const burnupHeight = 10
+// burnupHeight is the burn-up's lines in the panel, its time axis included. Its value
+// axis then marks quarters, so burnupValueMarks keeps each mark a whole count.
+const (
+	burnupHeight     = 10
+	burnupValueMarks = 4
+)
 
 // stepPoints holds each value until the next step, then moves to the next value at the
 // same moment.
