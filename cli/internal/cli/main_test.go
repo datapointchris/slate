@@ -7,21 +7,25 @@ import (
 	"testing"
 )
 
-// TestMain clears every layer that can name a registry outside the temp tree
-// these tests build.
+// TestMain clears every layer that can name a registry or a theme file outside
+// the temp tree these tests build.
 //
 // Tests here point XDG_DATA_HOME at a temp tree and assume the registry is
 // whatever they put in it — usually nothing. $SLATE_REPOS_REGISTRY and slate's own
 // config both resolve ahead of that, so without this the suite reads the
 // developer's real registry and refuses repo names the test never registered.
 // The config file is neutralized by pointing XDG_CONFIG_HOME at an empty
-// directory, since there is no variable that turns it off.
+// directory, since there is no variable that turns it off. That directory also
+// holds no tui-theme file, so a drawn board takes gotermboard's built-in colors
+// once $TUI_THEME_FILE is unset too.
 //
 // Done here rather than per-test so a new test cannot reintroduce the leak by
 // forgetting. A test that wants a declared path sets it itself with t.Setenv.
 func TestMain(m *testing.M) {
-	if err := os.Unsetenv("SLATE_REPOS_REGISTRY"); err != nil {
-		panic(err)
+	for _, name := range []string{"SLATE_REPOS_REGISTRY", "TUI_THEME_FILE"} {
+		if err := os.Unsetenv(name); err != nil {
+			panic(err)
+		}
 	}
 	empty, err := os.MkdirTemp("", "slate-cli-config")
 	if err != nil {

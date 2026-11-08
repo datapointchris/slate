@@ -27,7 +27,7 @@ a person reads rather than waiting on a screen that never draws.
    TOTAL · 85                   588/1175   27  125  372   16m   23  207  281  ▰▰▰▰▰▰▰▰▰▰▱✕✕✕▱▱▱▱▱▱ 50%  ▅ ▂▁
 
  ▾ high · 5 of 50                453/786   24   87  294   16m   22  135  128  ▰▰▰▰▰▰▰▰▰▰▰▰▱✕✕✕▱▱▱▱  ▆ ▂▂
-›  ▸ 1544  An agent keeps the queue ordered toward its goals as proposals a person steers
+▌  ▸ 1544  An agent keeps the queue ordered toward its goals as proposals a person steers
            api, cli, docs, +6      19/48    9   11   19    3h   14    8    7  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱✕✕✕✕✕✕✕✕▱▱▱▱▱▱▱
 ```
 
