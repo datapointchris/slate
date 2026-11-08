@@ -10,7 +10,6 @@ from fastapi import HTTPException
 from fastapi import Query
 from fastapi import status
 from sqlalchemy import delete as sql_delete
-from sqlalchemy import or_
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -42,6 +41,7 @@ from slate.services.issue_views import list_order
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_issue_delete
+from slate.services.record_lists import word_matches
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
@@ -265,7 +265,9 @@ def read_many(
     parent: str | None = Query(None, description='A parent issue number or UUID: its children'),
     priority: int | None = Query(None, ge=0, le=4, description="The issue's own priority"),
     closed_by: str | None = Query(None, description="Issues whose closer starts with this, such as 'claude-code/'"),
-    search: str | None = Query(None, description='Words that must each appear in the title or description, in any order'),
+    search: str | None = Query(
+        None, description='Words that must each appear in the title or description, in any order. `N` or `#N` also matches issue N'
+    ),
     blocked: bool | None = Query(None, description='True for issues waiting on an unclosed dependency, false for the rest'),
     autofixable: bool | None = Query(None, description=AUTOFIXABLE_FILTER),
     limit: RowLimit = None,
@@ -304,9 +306,7 @@ def read_many(
     if closed_by:
         query = query.where(models.Issue.closed_by.startswith(closed_by, autoescape=True))
     for word in (search or '').split():
-        query = query.where(
-            or_(models.Issue.title.icontains(word, autoescape=True), models.Issue.description.icontains(word, autoescape=True))
-        )
+        query = query.where(word_matches(word, models.Issue.number, (models.Issue.title, models.Issue.description)))
     query = apply_repo_filter(query, repo)
     query = apply_label_filter(query, label, session)
     query = apply_time_window(query, models.Issue.closed_ts, window, zone=None)

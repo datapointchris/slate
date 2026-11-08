@@ -113,15 +113,18 @@ that reason.
   kept it level with the schema, and it missed the initiative a promotion
   creates.
 
-## A search reads every kind and every status
+## A search reads every kind and every status, and a number names its record
 
 `GET /records?search=<words>` lists each record whose title or description
-holds every word, in any order. It reads every status, because the record a
-reader remembers may be the one that closed. Unclosed records come first, then
-the most urgent, then the newest. An idea has no status, so it sorts with the
-unclosed. `kind` narrows the list to one kind. `slate search <words>` prints
-it. `slate issues list --search <words>` asks `GET /issues?search=` instead,
-beside every issue filter.
+holds every word, in any order. A word that is a number, as `2175` or `#2175`,
+also matches the record with that number. That record lists first, ahead of the
+records whose text cites it, because a reader typing a number is looking for
+that record. It reads every status, because the record a reader remembers may
+be the one that closed. Unclosed records come next, then the most urgent, then
+the newest. An idea has no status, so it sorts with the unclosed. `kind`
+narrows the list to one kind. `slate search <words>` prints it. `slate issues
+list --search <words>` asks `GET /issues?search=` instead, beside every issue
+filter, and matches a number the same way.
 
 ## Every write answers what it wrote and what else it did
 

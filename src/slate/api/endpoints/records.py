@@ -32,11 +32,14 @@ router = APIRouter()
 @router.get('', response_model=list[schemas.RecordListed], status_code=status.HTTP_200_OK)
 def read_many(
     session: DbSession,
-    search: Annotated[str | None, Query(description='Words that must each appear in the title or description, in any order')] = None,
+    search: Annotated[
+        str | None,
+        Query(description='Words that must each appear in the title or description, in any order. `N` or `#N` also matches record N'),
+    ] = None,
     kind: Annotated[Kind | None, Query(description='Only records of this kind')] = None,
     limit: RowLimit = None,
 ) -> list[schemas.RecordListed]:
-    """Records of every kind and every status, unclosed first, then the most urgent, then the newest.
+    """Records of every kind and every status: a record a word names by number first, then the unclosed, the most urgent and the newest.
 
     No status is left out, because the record a reader remembers may be the one that closed. An
     idea has no status, so it lists among the unclosed.

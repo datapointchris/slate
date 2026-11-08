@@ -111,6 +111,16 @@ def test_a_search_reads_every_kind_closed_ones_included_and_unclosed_first(clien
     assert ok(client.get('/records', params={'search': 'quarry', 'kind': 'idea'}))[0]['number'] == idea
 
 
+def test_a_number_finds_its_own_record_first_closed_or_not_then_the_records_citing_it(client):
+    named = ok(client.post('/issues', json={'title': 'The six audits start'}), status.HTTP_201_CREATED)['issue']['number']
+    ok(client.patch(f'/issues/{named}', json={'status': 'completed'}))
+    citing = ok(client.post('/initiatives', json={'summary': f'Nothing runs before {named}.', 'name': 'Audits'}), status.HTTP_201_CREATED)
+    citing = citing['initiative']['number']
+    for typed in (str(named), f'#{named}'):
+        found = [row['number'] for row in ok(client.get('/records', params={'search': typed}))]
+        assert found[0] == named and citing in found, typed
+
+
 def test_a_number_read_as_the_wrong_kind_names_the_kind_that_holds_it(client):
     initiative = ok(client.get('/initiatives/Ship the issue tracker'))['number']
     refused = ok(client.get(f'/issues/{initiative}'), status.HTTP_404_NOT_FOUND)

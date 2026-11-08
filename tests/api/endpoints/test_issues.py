@@ -163,8 +163,10 @@ class TestList:
         create(client, title='Labeled', labels=['area-cli'])
         assert titles(ok(client.get(ISSUES, params={'label': 'area-cli'}))) == ['Labeled']
 
-    def test_search_reads_title_and_description(self, client):
+    def test_search_reads_title_description_and_number(self, client):
         assert titles(ok(client.get(ISSUES, params={'search': 'log bug'}))) == ['Ready bug with high priority']
+        bug = issue(client, 'Ready bug with high priority')['number']
+        assert 'Ready bug with high priority' in titles(ok(client.get(ISSUES, params={'search': f'#{bug}'})))
 
     def test_blocked_narrows_before_the_limit(self, client):
         """The bug heads the list, so a limit taken first would leave nothing blocked to return."""
