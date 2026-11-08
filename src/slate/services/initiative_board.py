@@ -69,15 +69,27 @@ def cut_at_word(text: str) -> str:
 
 @dataclass(frozen=True)
 class CloseCalendar:
-    """The moment closes are counted back from, and the days they are counted on in the reader's zone."""
+    """The day and moment closes are counted back from, and the days they are counted on, in the reader's zone."""
 
+    today: dt.date
     now: dt.datetime
     zone: ZoneInfo
     days: list[dt.date]
 
+    @classmethod
+    def as_of(cls, zone: str) -> CloseCalendar:
+        """Now, and the last `CLOSES_BY_DAY` days ending today, in `zone`."""
+        today, now = calendar_now(zone)
+        return cls(today, now, ZoneInfo(zone), [today - dt.timedelta(days=back) for back in reversed(range(CLOSES_BY_DAY))])
+
+
+def close_moments(issues: Iterable[schemas.BoardIssue]) -> list[dt.datetime]:
+    """When each completed issue closed. A canceled one is no close, and one closed at no recorded time is in no window."""
+    return [issue.closed_ts for issue in issues if issue.state == 'completed' and issue.closed_ts is not None]
+
 
 def closes_of(issues: Iterable[schemas.BoardIssue], calendar: CloseCalendar) -> schemas.BoardCloses:
-    moments = [issue.closed_ts for issue in issues if issue.state == 'completed' and issue.closed_ts is not None]
+    moments = close_moments(issues)
     on_day = Counter(moment.astimezone(calendar.zone).date() for moment in moments)
 
     def within(window: dt.timedelta) -> int:
@@ -125,9 +137,8 @@ def board_issue(issue: models.Issue, claim: models.Claim | None, readiness: Issu
 
 def initiative_board(session: Session, initiative_status: str, zone: str) -> schemas.InitiativeBoard:
     """The board of the initiatives at `initiative_status`, as of now, its calendar read in `zone`."""
-    today, now = calendar_now(zone)
-    days = [today - dt.timedelta(days=back) for back in reversed(range(CLOSES_BY_DAY))]
-    calendar = CloseCalendar(now, ZoneInfo(zone), days)
+    calendar = CloseCalendar.as_of(zone)
+    today, now, days = calendar.today, calendar.now, calendar.days
 
     query = listed_initiatives(select(models.Initiative).options(defer(models.Initiative.description)), initiative_status, session)
     initiatives = session.scalars(query).all()

@@ -2,7 +2,7 @@
 
 A repo is the name on an issue rather than a record, so the board groups every issue by that name,
 and the issues on no repo make a row of their own. One readiness pass, one read of the live claims
-and one read of the issues serve every row, as on the initiatives board.
+and one read of the issues serve every row.
 
 A ready issue has waited since it was filed. Readiness is derived on every read and never stored,
 so no moment it became ready is recorded to count from.
@@ -25,13 +25,12 @@ from sqlalchemy.orm import load_only
 from slate import models
 from slate import schemas
 from slate.services.claim_views import live_claims_on_every_record
-from slate.services.initiative_board import CLOSES_BY_DAY
 from slate.services.initiative_board import CloseCalendar
 from slate.services.initiative_board import board_issue
+from slate.services.initiative_board import close_moments
 from slate.services.initiative_board import counts_of
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
-from slate.services.issue_views import calendar_now
 
 CLOSES_BY_WEEK = 12
 
@@ -57,12 +56,10 @@ def closes_by_week(moments: Iterable[dt.datetime], weeks: Sequence[dt.date], zon
 
 def repo_board(session: Session, zone: str) -> schemas.RepoBoard:
     """The board of every repo as of now, its calendar read in `zone`."""
-    today, now = calendar_now(zone)
-    days = [today - dt.timedelta(days=back) for back in reversed(range(CLOSES_BY_DAY))]
-    calendar = CloseCalendar(now, ZoneInfo(zone), days)
-    weeks = week_starts(today, CLOSES_BY_WEEK)
-    readiness = measure_readiness(session, today, now)
-    claims = live_claims_on_every_record(session, now)
+    calendar = CloseCalendar.as_of(zone)
+    weeks = week_starts(calendar.today, CLOSES_BY_WEEK)
+    readiness = measure_readiness(session, calendar.today, calendar.now)
+    claims = live_claims_on_every_record(session, calendar.now)
     columns = (
         models.Issue.number,
         models.Issue.title,
@@ -79,14 +76,13 @@ def repo_board(session: Session, zone: str) -> schemas.RepoBoard:
 
     def rollup(issues: Issues) -> dict[str, Any]:
         rows = [row for _, row in issues]
-        closes = [row.closed_ts for row in rows if row.state == 'completed' and row.closed_ts is not None]
-        return {**counts_of(rows, calendar), 'closes_by_week': closes_by_week(closes, weeks, calendar.zone)}
+        return {**counts_of(rows, calendar), 'closes_by_week': closes_by_week(close_moments(rows), weeks, calendar.zone)}
 
     every = [pair for issues in in_repo.values() for pair in issues]
     return schemas.RepoBoard(
-        read_ts=now,
+        read_ts=calendar.now,
         zone=zone,
-        days=days,
+        days=calendar.days,
         weeks=weeks,
         totals=schemas.RepoRollup(**rollup(every)),
         repos=[
