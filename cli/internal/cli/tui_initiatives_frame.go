@@ -3,7 +3,6 @@ package cli
 import (
 	"cmp"
 	"fmt"
-	"maps"
 	"regexp"
 	"slices"
 	"strconv"
@@ -86,7 +85,7 @@ func (b *initiativesBoard) Frame(now time.Time, grouping string) gotermboard.Fra
 		}
 		frame.Groups = append(frame.Groups, repos...)
 	case groupingInitiative:
-		frame.Groups = append(frame.Groups, b.initiativeGroups(ordered, "", nil, drawn)...)
+		frame.Groups = append(frame.Groups, b.initiativeGroups(ordered, nil, ordered, drawn)...)
 	default:
 		for _, tier := range read.Tiers {
 			if tier.InitiativeCount == 0 {
@@ -168,7 +167,7 @@ func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInit
 		Gap:        true,
 		Overline:   gotermboard.RuleDouble,
 		Tone:       tierTone,
-		Groups:     b.initiativeGroups(inTier, "", nil, drawn),
+		Groups:     b.initiativeGroups(inTier, nil, ordered, drawn),
 		Panel: func(int) []gotermboard.Line {
 			return rollupPanel(gotermboard.Line{gotermboard.C(label, tierCode(tier.Priority)+gotermboard.Bold)}, counts, drawn.now)
 		},
@@ -176,27 +175,31 @@ func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInit
 }
 
 // initiativeGroups draws initiatives in order and places each among the others for the
-// reorder keys. Under a repo, issuesIn holds each one's issues in that repo, and nil keeps
-// every issue.
-func (b *initiativesBoard) initiativeGroups(initiatives []api.BoardInitiative, repo string, issuesIn map[int][]api.BoardIssue, drawn boardDraw) []gotermboard.Group {
+// reorder keys, within queue, every initiative in the order the board read lists them.
+// Under a repo, cut is that repo's share of each, and nil draws each whole.
+func (b *initiativesBoard) initiativeGroups(initiatives []api.BoardInitiative, cut *repoCut, queue []api.BoardInitiative, drawn boardDraw) []gotermboard.Group {
 	groups := make([]gotermboard.Group, 0, len(initiatives))
 	keys := make([]string, 0, len(initiatives))
 	places := make([]queuePlace, 0, len(initiatives))
-	neighbors := make([]queueNeighbor, 0, len(initiatives))
 	for _, initiative := range initiatives {
 		key, issues, counts := initiativeKey(initiative.Number), initiative.Issues, initiative.BoardCounts
-		if issuesIn != nil {
-			key, issues = initiativeUnderRepo(initiative.Number, repo), issuesIn[initiative.Number]
-			counts = countsOf(issues, drawn.read)
+		if cut != nil {
+			key, issues, counts = initiativeUnderRepo(initiative.Number, cut.name()), cut.issuesOf(initiative), cut.counts[initiative.Number]
 		}
-		hidden := !drawn.shown[initiative.Number]
-		groups = append(groups, b.initiativeGroup(initiative, key, issues, counts, hidden, drawn))
+		groups = append(groups, b.initiativeGroup(initiative, key, issues, counts, !drawn.shown[initiative.Number], drawn))
 		keys = append(keys, key)
 		places = append(places, queuePlace{kind: "initiative", number: initiative.Number, priority: initiative.Priority})
-		neighbors = append(neighbors, queueNeighbor{number: initiative.Number, title: initiative.Name, priority: initiative.Priority, hidden: hidden})
 	}
-	b.placeInOrder(keys, places, neighbors)
+	b.placeInOrder(keys, places, initiativeNeighbors(initiatives, drawn), initiativeNeighbors(queue, drawn))
 	return groups
+}
+
+func initiativeNeighbors(initiatives []api.BoardInitiative, drawn boardDraw) []queueNeighbor {
+	neighbors := make([]queueNeighbor, len(initiatives))
+	for at, initiative := range initiatives {
+		neighbors[at] = queueNeighbor{number: initiative.Number, title: initiative.Name, priority: initiative.Priority, hidden: !drawn.shown[initiative.Number]}
+	}
+	return neighbors
 }
 
 func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, key string, issues []api.BoardIssue, counts api.BoardCounts, beyondScope bool, drawn boardDraw) gotermboard.Group {
@@ -215,7 +218,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, key s
 		Rule:           true,
 		BlankAboveRule: true,
 		FilterOnly:     beyondScope,
-		Groups:         b.issueGroups(strings.TrimPrefix(key, initiativeKeyPrefix), issues, drawn),
+		Groups:         b.issueGroups(strings.TrimPrefix(key, initiativeKeyPrefix), issues, initiative.Issues, drawn),
 		Text:           description + " " + strValue(long.StatusReason),
 		Panel: func(width int) []gotermboard.Line {
 			return b.initiativePanel(initiative, long, drawn.rows, drawn.read, drawn.now, width)
@@ -223,135 +226,74 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, key s
 	}
 }
 
-// noRepo is the group holding the issues that name no repo.
+// noRepo is the group holding the issues that name no repo, and the initiatives with none.
 const noRepo = "no repo"
 
-// repoGroups is a group for each repo the issues name, the most open first, holding the
-// initiatives with an issue there, each cut to its issues there. A repo's counts sum every
-// initiative's issues there whatever the scope shows, as a tier's do.
-func (b *initiativesBoard) repoGroups(ordered []api.BoardInitiative, drawn boardDraw) []gotermboard.Group {
-	inRepo := map[string][]api.BoardIssue{}
-	byInitiative := map[string]map[int][]api.BoardIssue{}
-	for _, initiative := range ordered {
-		for _, issue := range initiative.Issues {
-			repo := cmp.Or(strValue(issue.Repo), noRepo)
-			inRepo[repo] = append(inRepo[repo], issue)
-			if byInitiative[repo] == nil {
-				byInitiative[repo] = map[int][]api.BoardIssue{}
-			}
-			byInitiative[repo][initiative.Number] = append(byInitiative[repo][initiative.Number], issue)
+// repoCut is one repo's share of each initiative the repo grouping draws under it.
+type repoCut struct {
+	repo   *string
+	counts map[int]api.BoardCounts
+}
+
+func (c *repoCut) name() string { return cmp.Or(strValue(c.repo), noRepo) }
+
+func (c *repoCut) issuesOf(initiative api.BoardInitiative) []api.BoardIssue {
+	var issues []api.BoardIssue
+	for _, issue := range initiative.Issues {
+		if strValue(issue.Repo) == strValue(c.repo) {
+			issues = append(issues, issue)
 		}
 	}
-	counts := make(map[string]api.BoardCounts, len(inRepo))
-	repos := slices.Collect(maps.Keys(inRepo))
-	for _, repo := range repos {
-		counts[repo] = countsOf(inRepo[repo], drawn.read)
+	return issues
+}
+
+// repoGroups is a group for each repo the board read rolls up, in its order, holding the
+// initiatives with a cut there, each drawn with that cut.
+func (b *initiativesBoard) repoGroups(ordered []api.BoardInitiative, drawn boardDraw) []gotermboard.Group {
+	if drawn.read.Repos == nil {
+		return []gotermboard.Group{{
+			Key:   "repo:unanswered",
+			Title: gotermboard.Line{gotermboard.C("this API answers no counts by repo, so v moves on to grouping by initiative", dimCode)},
+		}}
 	}
-	slices.SortFunc(repos, func(x, y string) int {
-		return cmp.Or(cmp.Compare(boolRank(x == noRepo), boolRank(y == noRepo)), cmp.Compare(counts[y].OpenCount, counts[x].OpenCount), strings.Compare(x, y))
-	})
-	groups := make([]gotermboard.Group, 0, len(repos))
-	for _, repo := range repos {
+	groups := make([]gotermboard.Group, 0, len(drawn.read.Repos))
+	for _, rollup := range drawn.read.Repos {
+		cut := &repoCut{repo: rollup.Repo, counts: map[int]api.BoardCounts{}}
 		var initiatives []api.BoardInitiative
 		showing := 0
 		for _, initiative := range ordered {
-			if _, there := byInitiative[repo][initiative.Number]; there {
-				initiatives = append(initiatives, initiative)
-				if drawn.shown[initiative.Number] {
-					showing++
-				}
+			at := slices.IndexFunc(initiative.ByRepo, func(there api.BoardRepoCounts) bool { return strValue(there.Repo) == strValue(rollup.Repo) })
+			if at < 0 {
+				continue
+			}
+			initiatives = append(initiatives, initiative)
+			cut.counts[initiative.Number] = initiative.ByRepo[at].BoardCounts
+			if drawn.shown[initiative.Number] {
+				showing++
 			}
 		}
-		label := repo + " · " + strconv.Itoa(len(initiatives))
-		if showing != len(initiatives) {
-			label = fmt.Sprintf("%s · %d of %d", repo, showing, len(initiatives))
+		label := cut.name() + " · " + strconv.Itoa(rollup.InitiativeCount)
+		if showing != rollup.InitiativeCount {
+			label = fmt.Sprintf("%s · %d of %d", cut.name(), showing, rollup.InitiativeCount)
 		}
-		repoCounts := counts[repo]
+		counts := rollup.BoardCounts
 		groups = append(groups, gotermboard.Group{
-			Key:        "repo:" + repo,
+			Key:        "repo:" + cut.name(),
 			Title:      gotermboard.Line{gotermboard.C(label, tierTone)},
-			Cells:      toned(boardCells(repoCounts, drawn.now), tierTone),
-			WrapLast:   append(scaledBar(repoCounts), gotermboard.C("  ", ""), gotermboard.C(sparkLine(repoCounts.Closes.ByDay), gotermboard.Green)),
+			Cells:      toned(boardCells(counts, drawn.now), tierTone),
+			WrapLast:   append(scaledBar(counts), gotermboard.C("  ", ""), gotermboard.C(sparkLine(counts.Closes.ByDay), gotermboard.Green)),
 			Heading:    true,
 			FilterOnly: showing == 0,
 			Gap:        true,
 			Overline:   gotermboard.RuleDouble,
 			Tone:       tierTone,
-			Groups:     b.initiativeGroups(initiatives, repo, byInitiative[repo], drawn),
+			Groups:     b.initiativeGroups(initiatives, cut, ordered, drawn),
 			Panel: func(int) []gotermboard.Line {
-				return rollupPanel(heading(label), repoCounts, drawn.now)
+				return rollupPanel(heading(label), counts, drawn.now)
 			},
 		})
 	}
 	return groups
-}
-
-func boolRank(last bool) int {
-	if last {
-		return 1
-	}
-	return 0
-}
-
-// countsOf sums issues as the API sums an initiative's: each issue in its one state, and a
-// completed one's close counted back from the read's moment on the read's calendar.
-func countsOf(issues []api.BoardIssue, read api.InitiativeBoard) api.BoardCounts {
-	zone, err := time.LoadLocation(read.Zone)
-	if err != nil {
-		zone = time.UTC
-	}
-	counts := api.BoardCounts{IssueCount: len(issues)}
-	onDay := map[string]int{}
-	closes := &counts.Closes
-	for _, issue := range issues {
-		countState(&counts.States, issue.State)
-		if issue.State != api.IssueStatusCompleted || issue.ClosedTS == nil {
-			continue
-		}
-		at := *issue.ClosedTS
-		for _, window := range []struct {
-			within time.Duration
-			count  *int
-		}{{24 * time.Hour, &closes.Last24h}, {7 * 24 * time.Hour, &closes.Last7d}, {30 * 24 * time.Hour, &closes.Last30d}} {
-			if at.After(read.ReadTS.Add(-window.within)) {
-				*window.count++
-			}
-		}
-		if closes.LastClosedTS == nil || at.After(*closes.LastClosedTS) {
-			closes.LastClosedTS = &at
-		}
-		onDay[at.In(zone).Format(time.DateOnly)]++
-	}
-	counts.OpenCount = counts.IssueCount - counts.States.Completed - counts.States.Canceled
-	for _, day := range read.Days {
-		closes.ByDay = append(closes.ByDay, onDay[day])
-	}
-	return counts
-}
-
-func countState(states *api.IssueStateCounts, state string) {
-	switch state {
-	case api.IssueStatusCompleted:
-		states.Completed++
-	case api.IssueStatusCanceled:
-		states.Canceled++
-	case api.BoardStateRunning:
-		states.Running++
-	case api.BoardStateWaiting:
-		states.Waiting++
-	case api.BoardStateBlocked:
-		states.Blocked++
-	case api.BoardStateOpenChildren:
-		states.OpenChildren++
-	case api.IssueStatusTriage:
-		states.Triage++
-	case "deferred":
-		states.Deferred++
-	case "shelved":
-		states.Shelved++
-	case "ready":
-		states.Ready++
-	}
 }
 
 // openDescription is the description under the row while d holds it open.
@@ -455,9 +397,10 @@ func insideALargerValue(text string, from, to int) bool {
 
 // issueGroups is an initiative's issues unfolded: the open first, running at the top and
 // then in queue order, with the done and the canceled folded beneath.
-// The open issues are placed for the reorder keys in the order they draw. under is the
-// initiative's number, with its repo where the repo grouping draws it.
-func (b *initiativesBoard) issueGroups(under string, issues []api.BoardIssue, drawn boardDraw) []gotermboard.Group {
+// The open issues are placed for the reorder keys in the order they draw, within the open
+// ones of every, all the initiative's issues in queue order. under is the initiative's
+// number, with its repo where the repo grouping draws it.
+func (b *initiativesBoard) issueGroups(under string, issues, every []api.BoardIssue, drawn boardDraw) []gotermboard.Group {
 	var running, waiting, queued, done, canceled []api.BoardIssue
 	for _, issue := range issues {
 		switch issue.State {
@@ -477,13 +420,14 @@ func (b *initiativesBoard) issueGroups(under string, issues []api.BoardIssue, dr
 	if open := slices.Concat(running, waiting, queued); len(open) > 0 {
 		keys := make([]string, len(open))
 		places := make([]queuePlace, len(open))
-		neighbors := make([]queueNeighbor, len(open))
 		for at, issue := range open {
 			keys[at] = issueKey(issue.Number)
 			places[at] = queuePlace{kind: "issue", number: issue.Number, priority: issue.EffectivePriority}
-			neighbors[at] = queueNeighbor{number: issue.Number, title: issue.Title, priority: issue.EffectivePriority}
 		}
-		b.placeInOrder(keys, places, neighbors)
+		queue := slices.DeleteFunc(slices.Clone(every), func(issue api.BoardIssue) bool {
+			return issue.State == api.IssueStatusCompleted || issue.State == api.IssueStatusCanceled
+		})
+		b.placeInOrder(keys, places, issueNeighbors(open), issueNeighbors(queue))
 		groups = append(groups, gotermboard.Group{
 			Key:     "open:" + under,
 			Title:   gotermboard.Line{gotermboard.C("open · "+strconv.Itoa(len(open)), gotermboard.Bold)},
@@ -513,6 +457,14 @@ func (b *initiativesBoard) issueGroups(under string, issues []api.BoardIssue, dr
 		})
 	}
 	return groups
+}
+
+func issueNeighbors(issues []api.BoardIssue) []queueNeighbor {
+	neighbors := make([]queueNeighbor, len(issues))
+	for at, issue := range issues {
+		neighbors[at] = queueNeighbor{number: issue.Number, title: issue.Title, priority: issue.EffectivePriority}
+	}
+	return neighbors
 }
 
 func (b *initiativesBoard) issueGroupsOf(issues []api.BoardIssue, drawn boardDraw) []gotermboard.Group {

@@ -23,11 +23,18 @@ type queuePlace struct {
 	kind     string
 	number   int
 	priority int
-	above    *queueNeighbor
-	below    *queueNeighbor
+	above    *queueStep
+	below    *queueStep
 }
 
-// queueNeighbor is the record beside a row. Hidden says the scope keeps it off the screen.
+// queueStep is a move past the row drawn beside another. Passes is what the queue holds
+// between the two, which the screen does not draw between them.
+type queueStep struct {
+	to     queueNeighbor
+	passes []queueNeighbor
+}
+
+// queueNeighbor is a record a row moves among. Hidden says the scope keeps it off the screen.
 type queueNeighbor struct {
 	number   int
 	title    string
@@ -35,15 +42,31 @@ type queueNeighbor struct {
 	hidden   bool
 }
 
-// placeInOrder records each row's neighbors among rows drawn in this order.
-func (b *initiativesBoard) placeInOrder(keys []string, places []queuePlace, neighbors []queueNeighbor) {
+// placeInOrder records each row's neighbors among the rows drawn, in drawn order, with what
+// queue, every record they move among in the queue's order, holds between each pair.
+func (b *initiativesBoard) placeInOrder(keys []string, places []queuePlace, drawn, queue []queueNeighbor) {
+	positions := make(map[int]int, len(queue))
+	for position, record := range queue {
+		positions[record.number] = position
+	}
+	step := func(from, to queueNeighbor) *queueStep {
+		low, lowKnown := positions[from.number]
+		high, highKnown := positions[to.number]
+		if !lowKnown || !highKnown {
+			return &queueStep{to: to}
+		}
+		if low > high {
+			low, high = high, low
+		}
+		return &queueStep{to: to, passes: queue[low+1 : high]}
+	}
 	for at, key := range keys {
 		place := places[at]
 		if at > 0 {
-			place.above = &neighbors[at-1]
+			place.above = step(drawn[at], drawn[at-1])
 		}
 		if at+1 < len(keys) {
-			place.below = &neighbors[at+1]
+			place.below = step(drawn[at], drawn[at+1])
 		}
 		b.places[key] = place
 	}
@@ -52,8 +75,23 @@ func (b *initiativesBoard) placeInOrder(keys []string, places []queuePlace, neig
 // writeEnded is what a write a key started sends once it ends, for the board that started it.
 type writeEnded struct {
 	board *initiativesBoard
+	doing string
 	said  string
 	err   error
+}
+
+// sentence is what the footer says once the write ends. Only an answer under 500 is a
+// refusal, because a timeout, a dropped connection or a proxy's 5xx may follow a write that
+// landed.
+func (ended writeEnded) sentence() string {
+	var answered *api.APIError
+	switch {
+	case ended.err == nil:
+		return ended.said
+	case errors.As(ended.err, &answered) && answered.StatusCode < 500:
+		return apiSentence(ended.err)
+	}
+	return fmt.Sprintf("%s may or may not have landed, so the board reads again: %v", capitalized(ended.doing), ended.err)
 }
 
 // handedBack is what a program the board handed the terminal to sends once it exits.
@@ -70,14 +108,11 @@ func (b *initiativesBoard) Receive(m *gotermboard.Model, msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		b.writing = ""
-		if msg.err != nil {
-			m.Say(apiSentence(msg.err))
-			return nil
-		}
 		b.readAgain()
-		m.Say(msg.said)
+		m.Say(msg.sentence())
 	case handedBack:
 		if msg.board == b {
+			b.readAgain()
 			return msg.then(m)
 		}
 	}
@@ -106,7 +141,7 @@ func (b *initiativesBoard) write(m *gotermboard.Model, doing string, run func(ct
 		ctx, cancel := context.WithTimeout(context.Background(), boardWriteTimeout)
 		defer cancel()
 		said, err := run(ctx)
-		return writeEnded{board: b, said: said, err: err}
+		return writeEnded{board: b, doing: doing, said: said, err: err}
 	}
 }
 
@@ -192,6 +227,11 @@ func (b *initiativesBoard) pin(m *gotermboard.Model) tea.Cmd {
 	if !ok {
 		return nil
 	}
+	writes, writable := queuePlaceWrites[kind]
+	if !writable {
+		m.Say(fmt.Sprintf("no pin reaches %d, whose kind is %s", number, kind))
+		return nil
+	}
 	pinned, known := b.pinned(kind, number)
 	if !known {
 		m.Say(fmt.Sprintf("%d's pin is still being read, so press P again once its detail shows", number))
@@ -206,29 +246,17 @@ func (b *initiativesBoard) pin(m *gotermboard.Model) tea.Cmd {
 	act := func() tea.Cmd {
 		return b.write(m, fmt.Sprintf("%s %d", doing, number), func(ctx context.Context) (string, error) {
 			var effects api.WriteEffects
+			var name string
 			var err error
-			switch {
-			case kind == "issue" && pinned:
-				var written api.IssueWritten
-				written, err = b.client.UnpinIssue(ctx, ref, issueZone())
-				effects = written.WriteEffects
-			case kind == "issue":
-				var written api.IssueWritten
-				written, err = b.client.PinIssue(ctx, ref, pin, issueZone())
-				effects = written.WriteEffects
-			case pinned:
-				var written api.InitiativeWritten
-				written, err = b.client.UnpinInitiative(ctx, ref)
-				effects = written.WriteEffects
-			default:
-				var written api.InitiativeWritten
-				written, err = b.client.PinInitiative(ctx, ref, pin)
-				effects = written.WriteEffects
+			if pinned {
+				_, effects, name, err = writes.unpin(ctx, b.client, ref)
+			} else {
+				_, effects, name, err = writes.pin(ctx, b.client, ref, pin)
 			}
 			if err != nil {
 				return "", err
 			}
-			return withWarnings(fmt.Sprintf("%s %d %s", done, number, title), effects), nil
+			return withWarnings(done+" "+name, effects), nil
 		})
 	}
 	return b.confirmFirst(m, fmt.Sprintf("%s %d %s", verb, number, title), number, nil, act)
@@ -256,56 +284,67 @@ func (b *initiativesBoard) reorderable(m *gotermboard.Model) bool {
 
 // reorder is < and >: it moves the row ahead of the row drawn above it, or behind the one
 // drawn below, through what `slate issues reorder` and `slate initiatives reorder` run.
-func (b *initiativesBoard) reorder(step int) func(*gotermboard.Model) tea.Cmd {
+func (b *initiativesBoard) reorder(direction int) func(*gotermboard.Model) tea.Cmd {
 	return func(m *gotermboard.Model) tea.Cmd {
 		place, ok := b.places[m.Cursor()]
 		if !ok {
 			return nil
 		}
-		neighbor, side, edge := place.above, "ahead of", "first"
+		step, side, edge := place.above, "ahead of", "first"
 		move := func(ref string) api.RankMove { return api.RankMove{Before: ref} }
-		if step > 0 {
-			neighbor, side, edge = place.below, "behind", "last"
+		if direction > 0 {
+			step, side, edge = place.below, "behind", "last"
 			move = func(ref string) api.RankMove { return api.RankMove{After: ref} }
 		}
 		switch {
-		case neighbor == nil:
+		case step == nil:
 			m.Say(fmt.Sprintf("%d is %s in its group already", place.number, edge))
 			return nil
 		case place.kind == "initiative" && b.sort != 0:
 			m.Say(fmt.Sprintf("sorted by %s, the rows beside %d are not in the queue's order, so s back to priority reorders it", boardSorts[b.sort].label, place.number))
 			return nil
-		case place.kind == "initiative" && neighbor.priority != place.priority:
-			m.Say(fmt.Sprintf("%d is %s and %d is %s, and the queue reorders only within a priority", place.number, priorityName(place.priority), neighbor.number, priorityName(neighbor.priority)))
+		case place.kind == "initiative" && step.to.priority != place.priority:
+			m.Say(fmt.Sprintf("%d is %s and %d is %s, and the queue reorders only within a priority", place.number, priorityName(place.priority), step.to.number, priorityName(step.to.priority)))
+			return nil
+		}
+		writes, writable := queuePlaceWrites[place.kind]
+		if !writable {
+			m.Say(fmt.Sprintf("no reorder reaches %d, whose kind is %s", place.number, place.kind))
 			return nil
 		}
 		var reasons []string
-		if neighbor.hidden {
-			reasons = append(reasons, fmt.Sprintf("%d %s is hidden by the scope", neighbor.number, neighbor.title))
+		if step.to.hidden {
+			reasons = append(reasons, fmt.Sprintf("%d %s is hidden by the scope", step.to.number, step.to.title))
 		}
+		if len(step.passes) > 0 {
+			reasons = append(reasons, "it also passes "+namedRecords(step.passes)+", not drawn between them")
+		}
+		neighbor := step.to
 		ref, target := strconv.Itoa(place.number), strconv.Itoa(neighbor.number)
 		what := fmt.Sprintf("move %d %s %d", place.number, side, neighbor.number)
 		act := func() tea.Cmd {
 			return b.write(m, "moving "+strings.TrimPrefix(what, "move "), func(ctx context.Context) (string, error) {
-				var effects api.WriteEffects
-				if place.kind == "issue" {
-					written, err := b.client.RankIssue(ctx, ref, move(target), issueZone())
-					if err != nil {
-						return "", err
-					}
-					effects = written.WriteEffects
-				} else {
-					written, err := b.client.RankInitiative(ctx, ref, move(target), issueZone())
-					if err != nil {
-						return "", err
-					}
-					effects = written.WriteEffects
+				_, effects, name, err := writes.rank(ctx, b.client, ref, move(target))
+				if err != nil {
+					return "", err
 				}
-				return withWarnings(fmt.Sprintf("moved %d %s %d %s", place.number, side, neighbor.number, neighbor.title), effects), nil
+				return withWarnings(fmt.Sprintf("moved %s %s %d %s", name, side, neighbor.number, neighbor.title), effects), nil
 			})
 		}
 		return b.confirmFirst(m, what, place.number, reasons, act)
 	}
+}
+
+// namedRecords names the first two records by number and title, and counts the rest.
+func namedRecords(records []queueNeighbor) string {
+	named := make([]string, 0, 3)
+	for _, record := range records[:min(2, len(records))] {
+		named = append(named, fmt.Sprintf("%d %s", record.number, record.title))
+	}
+	if rest := len(records) - len(named); rest > 0 {
+		named = append(named, fmt.Sprintf("%d more", rest))
+	}
+	return strings.Join(named, ", ")
 }
 
 func capitalized(text string) string {

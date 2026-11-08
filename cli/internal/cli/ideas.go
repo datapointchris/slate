@@ -60,11 +60,7 @@ func newIdeasCommand() *cobra.Command {
 func newIdeasReorderCommand() *cobra.Command {
 	return newReorderCommand("idea",
 		"`slate next` lists an idea at step discuss until it is promoted.",
-		"  slate ideas reorder 1530 --before 1491",
-		func(cmd *cobra.Command, client *api.Client, ref string, move api.RankMove) (any, api.WriteEffects, string, error) {
-			written, err := client.RankIdea(cmd.Context(), ref, move, issueZone())
-			return written, written.WriteEffects, fmt.Sprintf("idea #%d %s", written.Idea.Number, written.Idea.Title), err
-		})
+		"  slate ideas reorder 1530 --before 1491")
 }
 
 func newIdeasListCommand() *cobra.Command {

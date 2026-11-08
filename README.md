@@ -196,7 +196,8 @@ A response naming no `scope` granted every scope asked, as §5.1 says.
 refuses one it does not hold, so a typo cannot file work under a repo nobody
 reads. It reads `$SLATE_REPOS_REGISTRY`, then `repos_registry` in
 `~/.config/slate/config.yml`, then `~/.local/share/slate/repos.json`. With no
-registry, any name passes.
+registry, any name passes. An entry's `path` names the repo's checkout, where
+`C` in `slate tui` opens a Claude session on that repo's work.
 
 The exit status says who has to act, so a program calling slate never reads the
 message:

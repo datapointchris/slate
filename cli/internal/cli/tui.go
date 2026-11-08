@@ -60,9 +60,12 @@ func newTUICommand() *cobra.Command {
 			"Some keys write, each through what the matching slate verb runs. M moves an issue\n" +
 			"to the initiative you name, P pins or unpins the row, and < and > move it ahead\n" +
 			"of the row above or behind the row below in the queue. A write asks first where\n" +
-			"the row it moves past is hidden or another row's description is open. C opens a\n" +
-			"Claude session on the row: in a new window inside tmux, and otherwise in this\n" +
-			"terminal until it ends.\n\n" +
+			"the row it moves past is hidden, where the queue holds records between the two\n" +
+			"rows the screen does not draw there, or where another row's description is open.\n" +
+			"The service scopes below cover the reads alone: M, < and > need\n" +
+			"slate.records.plan, and P a person's login. C opens a Claude session on the row,\n" +
+			"in the checkout the repo registry names for its repo: in a new window inside\n" +
+			"tmux, and otherwise in this terminal until it ends.\n\n" +
 			"repos is every repo the issues name on the same columns, then how long its oldest\n" +
 			"ready issue has waited and its closes in each recent week. Repos with nothing\n" +
 			"open and no close in those weeks fold under quiet. The panel draws a repo's\n" +

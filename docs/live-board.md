@@ -134,20 +134,28 @@ read, and the burn-up says the API answers none.
 Tier is the default, because priority is the order the queue takes them in. Repo draws a group
 per repo the issues name, the most open first and `no repo` last. Under it sits each initiative
 with an issue there, cut to its issues there, so its bar and counts are that repo's share. An
-initiative spanning three repos draws three times, each keyed by its repo. Initiative drops the
-tier headings and leaves the list order. The scope still decides which initiatives show.
+initiative spanning three repos draws three times, each keyed by its repo, and one with no issues
+sits under `no repo`. Initiative drops the tier headings and leaves the list order. The scope
+still decides which initiatives show.
 
-A repo's counts sum the states the board read already derived for each issue, as the API sums
-an initiative's: completed closes counted back from the read's moment, on the read's calendar.
-So no second read is needed, and a repo group agrees with the initiatives under it.
+The board read carries each repo's rollup and each initiative's cut by repo, counted by the same
+code as its tiers. So the repo grouping needs no second read, and the client derives no count.
+A CLI released ahead of its API says the API answers no counts by repo where the groups would be.
 
 ## An issue unfolds into the sessions and pull requests its worklogs hold
 
 An issue is a folding group rather than a row, so the cursor can land on what it opens.
 A pull request row is owned by prs, so `enter` there hands the terminal to
-`prs tui --pr <url>`, and quitting prs comes back to the board. prs names an unreadable pull
-request in one line on stderr and exits 1, and the board shows that line. Where prs is not on
-`PATH`, `enter` says so, and `o` opens the pull request in the browser from any of its rows.
+`prs tui --pr <url>`, and quitting prs comes back to the board, which reads again. After prs
+exits non-zero, the board shows the last line prs wrote to stderr, or its exit status where it
+wrote nothing. A usage error, exit 2, means the `prs` on `PATH` takes no `tui --pr`, so the
+footer points at `o`, as it does where no prs is on `PATH`. `o` opens the pull request in the
+browser from any of its rows.
+
+A worklog's link is free text any writer sets, and a desktop opener honors `file:`, `ssh:` and
+every scheme an app registers. So `enter` and `o` hand on only an `http` or `https` link, and
+name any other.
+
 A session row opens to its directory, its moments and its tokens by kind. The worklogs are
 read with the cursor's row, so a folded issue names its counts once the cursor has been on it.
 
@@ -163,22 +171,37 @@ ahead of the row drawn above it or behind the row drawn below, as `reorder --bef
 the API's own words.
 
 One write runs at a time, with the footer naming it, and the board reads everything again when
-it ends. A reorder moves one place, because both rows are then on screen when the key is
-pressed. An initiative moves only within its priority and only while sorted by priority,
-because otherwise the rows beside it are not its neighbors in the queue.
+it ends, refused or not. A write that timed out or lost its connection may have landed, so the
+footer says its outcome is unknown rather than that it failed. An initiative moves only within
+its priority and only while sorted by priority, because otherwise the rows beside it are not its
+neighbors in the queue.
 
-A write acts at once on the row the cursor is on. It asks first where something on screen
-points elsewhere: a row the move passes that the scope hides, or another row's description
-left open by `d`. A reader acts on what the screen shows, so a key that writes to a row the
-screen does not point at asks which one it means.
+A write acts at once on the row the cursor is on. It asks first where the screen does not show
+everything it changes:
+
+- the row the move passes is one the scope hides;
+- the queue holds records between the two rows that are not drawn there, as under a repo, or
+  beside a running issue drawn at the top of its initiative, and the question names them;
+- another row's description is left open by `d`.
+
+A reader acts on what the screen shows, so a key that writes past what the screen draws asks
+first.
 
 ## `C` opens a Claude session beside the board
 
 Inside tmux, `C` opens `claude` in a new window, so the board stays usable while a long
 session works. tmux runs a window's command and its arguments without a shell, so the first
 message needs no quoting. Outside tmux, `C` hands the board's terminal to `claude` and takes it
-back when the session ends. The first message names the record and asks the session to read
-it with `slate show`, then say what it would do before changing anything.
+back when the session ends.
+
+A session about an issue belongs in its repo's code, so `C` opens in the checkout the repo
+registry's `path` names for the issue's repo, or for an initiative's where its issues name one.
+A checkout named and missing opens nothing. Where the registry names none, or the record no one
+repo, the session opens in the board's directory, and the footer names that directory and why.
+
+The first message names the record by its number alone and asks the session to read it with
+`slate show`, then say what it would do before changing anything. A title is free text another
+writer set, so it reaches the session as data it reads rather than as its first instruction.
 
 ## A description is rendered markdown, on a renderer of our own
 

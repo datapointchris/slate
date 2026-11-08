@@ -132,34 +132,20 @@ func TestABarHasOneCellPerIssueAndLeavesTheCanceledOff(t *testing.T) {
 	}
 }
 
-func TestTheRepoGroupingCountsEachInitiativeByItsIssuesThere(t *testing.T) {
+func TestUnderTheRepoGroupingAReorderNamesTheInitiativesItPassesThatTheGroupDoesNotDraw(t *testing.T) {
 	read := sevenHighAndTwoLow()
-	read.Zone, read.Days = "UTC", []string{read.ReadTS.UTC().Format(time.DateOnly)}
-	apiRepo, cliRepo, closed := "api", "cli", read.ReadTS.Add(-time.Hour)
-	read.Initiatives[0].Issues = []api.BoardIssue{
-		{Number: 101, State: "ready", Repo: &apiRepo},
-		{Number: 102, State: "completed", Repo: &apiRepo, ClosedTS: &closed},
-		{Number: 103, State: "blocked", Repo: &cliRepo},
+	apiRepo, cliRepo := "api", "cli"
+	cut := func(repo *string) []api.BoardRepoCounts { return []api.BoardRepoCounts{{Repo: repo}} }
+	for at := range read.Initiatives {
+		read.Initiatives[at].ByRepo = cut(nil)
 	}
-	read.Initiatives[1].Issues = []api.BoardIssue{{Number: 104, State: "ready", Repo: &cliRepo}, {Number: 105, State: "ready"}}
+	read.Initiatives[2].ByRepo, read.Initiatives[3].ByRepo, read.Initiatives[4].ByRepo = cut(&apiRepo), cut(&cliRepo), cut(&apiRepo)
+	read.Repos = []api.BoardRepoRollup{{Repo: &apiRepo}, {Repo: &cliRepo}, {}}
 	board := boardFromServer(t, read, boardScope{kind: scopeEveryInitiative})
-	frame := board.Frame(time.Now(), groupingRepo)
-	var repos []string
-	for _, group := range frame.Groups[1:] {
-		repos = append(repos, group.Key)
-	}
-	if want := []string{"repo:cli", "repo:api", "repo:" + noRepo}; !slices.Equal(repos, want) {
-		t.Fatalf("repo groups %v, want %v, the most open first and no repo last", repos, want)
-	}
-	underAPI := frame.Groups[2].Groups[0]
-	if underAPI.Key != initiativeUnderRepo(1, "api") {
-		t.Fatalf("api's first initiative is %q", underAPI.Key)
-	}
-	if got := countsOf(read.Initiatives[0].Issues[:2], read); got.OpenCount != 1 || got.States.Completed != 1 || got.Closes.Last24h != 1 || !slices.Equal(got.Closes.ByDay, []int{1}) {
-		t.Errorf("initiative 1's issues in api count %+v, want one open and one closed today", got)
-	}
-	if line := underAPI.Cells[0].Text; line != "1/2" {
-		t.Errorf("initiative 1 under api draws DONE %q, want 1/2 from its two issues there", line)
+	board.Frame(time.Now(), groupingRepo)
+	step := board.places[initiativeUnderRepo(3, "api")].below
+	if step == nil || step.to.number != 5 || len(step.passes) != 1 || step.passes[0].number != 4 {
+		t.Fatalf("initiative 3 under api moves behind %+v, want behind 5 naming 4, which only cli draws", step)
 	}
 }
 
