@@ -389,6 +389,7 @@ func ageOf(at *time.Time, now time.Time) string {
 // boardCells is a row's cells on the columns past its title.
 func boardCells(counts api.BoardCounts, now time.Time) []gotermboard.Cell {
 	done := counts.States.Completed
+	underWay, _, _ := openKinds(counts.States, counts.OpenCount)
 	last := gotermboard.C("·", dimCode)
 	if counts.Closes.LastClosedTS != nil {
 		last = gotermboard.Ticking(ageOf(counts.Closes.LastClosedTS, now), "")
@@ -399,7 +400,7 @@ func boardCells(counts api.BoardCounts, now time.Time) []gotermboard.Cell {
 		countCell(counts.Closes.Last7d, gotermboard.Green),
 		countCell(counts.Closes.Last30d, gotermboard.Green),
 		last,
-		countCell(counts.States.Running+counts.States.Waiting, gotermboard.Yellow),
+		countCell(underWay, gotermboard.Yellow),
 		countCell(counts.States.Blocked, gotermboard.Red),
 		countCell(counts.States.Ready, ""),
 	}
@@ -415,16 +416,16 @@ func countCell(n int, code string) gotermboard.Cell {
 // issueBar has one cell per issue, so a count on it can be checked by eye. Canceled
 // issues stay off it.
 func issueBar(counts api.BoardCounts) gotermboard.Line {
-	underWay := counts.States.Running + counts.States.Waiting
-	return gotermboard.TallyBar(counts.States.Completed, underWay, counts.States.Blocked, max(counts.OpenCount-underWay-counts.States.Blocked, 0))
+	underWay, blocked, rest := openKinds(counts.States, counts.OpenCount)
+	return gotermboard.TallyBar(counts.States.Completed, underWay, blocked, rest)
 }
 
 // scaledBar is issueBar's kinds shared over tierBarCells, for a row holding too many
 // issues to draw one cell each. A kind holding any issue keeps a cell, so a blocked issue
 // never rounds away.
 func scaledBar(counts api.BoardCounts) gotermboard.Line {
-	underWay := counts.States.Running + counts.States.Waiting
-	kinds := []int{counts.States.Completed, underWay, counts.States.Blocked, max(counts.OpenCount-underWay-counts.States.Blocked, 0)}
+	underWay, blocked, rest := openKinds(counts.States, counts.OpenCount)
+	kinds := []int{counts.States.Completed, underWay, blocked, rest}
 	total := 0
 	for _, n := range kinds {
 		total += n

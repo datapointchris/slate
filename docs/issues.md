@@ -432,8 +432,9 @@ window as `closed_since` and `closed_until`.
 
 The bar spans the done and open issues and leaves out the canceled ones, as
 the bar in `slate initiatives list` does. Done fills it in green. Its empty
-cells are yellow for the work under way and red for the blocked. So without
-color it still reads as done over done and open. `--json` prints an array,
+cells are yellow for the work under way and red for the blocked, drawn by the
+same `TallyBar` as `slate tui`'s bar. So without color it still reads as done
+over done and open, with the blocked marked. `--json` prints an array,
 one entry per initiative, carrying every figure the text shows.
 
 ## The board read answers every initiative's counts, closes and issues, cheap enough to poll
