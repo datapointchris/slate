@@ -121,6 +121,33 @@ def rollup_of(initiatives: Sequence[schemas.BoardInitiative], calendar: CloseCal
     return {'initiative_count': len(initiatives), **counts_of(issues, calendar)}
 
 
+def issues_by_repo(issues: Sequence[schemas.BoardIssue]) -> dict[str | None, list[schemas.BoardIssue]]:
+    """`issues` by the repo each names. No issues at all is one empty set on no repo."""
+    by_repo: dict[str | None, list[schemas.BoardIssue]] = defaultdict(list)
+    for issue in issues:
+        by_repo[issue.repo].append(issue)
+    return by_repo or {None: []}
+
+
+def most_open_first(row: schemas.BoardRepoCounts | schemas.BoardRepoRollup) -> tuple:
+    return (row.repo is None, -row.open_count, row.repo or '')
+
+
+def repo_rollups(rows: Sequence[schemas.BoardInitiative], calendar: CloseCalendar) -> list[schemas.BoardRepoRollup]:
+    """Each repo's issues over every initiative in `rows`, counting the initiatives with a cut there."""
+    issues_in: dict[str | None, list[schemas.BoardIssue]] = defaultdict(list)
+    initiatives_in: Counter[str | None] = Counter()
+    for row in rows:
+        for repo, issues in issues_by_repo(row.issues).items():
+            issues_in[repo].extend(issues)
+            initiatives_in[repo] += 1
+    rollups = [
+        schemas.BoardRepoRollup(repo=repo, initiative_count=initiatives_in[repo], **counts_of(issues, calendar))
+        for repo, issues in issues_in.items()
+    ]
+    return sorted(rollups, key=most_open_first)
+
+
 def board_issue(issue: models.Issue, claim: models.Claim | None, readiness: IssueReadiness) -> schemas.BoardIssue:
     return schemas.BoardIssue(
         number=issue.number,
@@ -176,6 +203,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
             schemas.BoardTier(priority=priority, **rollup_of([row for row in rows if row.priority == priority], calendar))
             for priority in sorted(PRIORITIES, key=urgency)
         ],
+        repos=repo_rollups(rows, calendar),
         initiatives=rows,
     )
 
@@ -199,6 +227,10 @@ def board_initiative(
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,
         issues=issues,
+        by_repo=sorted(
+            (schemas.BoardRepoCounts(repo=repo, **counts_of(cut, calendar)) for repo, cut in issues_by_repo(issues).items()),
+            key=most_open_first,
+        ),
         **counts_of(issues, calendar),
     )
 

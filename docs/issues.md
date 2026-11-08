@@ -469,6 +469,14 @@ closed, latest first. `totals` and `tiers` roll the same counts and closes up ov
 every initiative and per priority. Every priority is in `tiers`, whether or not
 an initiative is at it.
 
+**Each initiative's `by_repo` cuts its issues by the repo each names, and `repos`
+rolls those cuts up per repo.** Both come most open first, with no repo last.
+An initiative with no issues has one empty cut on no repo, so a board grouping by
+repo draws every initiative somewhere. A repo's `initiative_count` is the
+initiatives with a cut there. The cuts are counted by the same `counts_of` as the
+tiers, so a client grouping by repo draws numbers it is handed rather than
+counting issues itself.
+
 Its queries do not grow with the initiatives. One readiness pass, one read of the
 live claims and one read of the issues serve them all, and everything else folds
 those rows in memory. It builds no `issue_views` row, because that loads labels,
