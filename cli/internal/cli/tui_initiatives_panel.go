@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/datapointchris/gotermboard"
+	"github.com/datapointchris/gotermboard/chart"
 
 	"github.com/datapointchris/slate/cli/internal/api"
 )
@@ -99,12 +100,18 @@ func (b *initiativesBoard) initiativePanel(initiative api.BoardInitiative, long 
 	}
 	lines = append(lines, gotermboard.Line{})
 	lines = append(lines, closesLines(initiative.Closes, now)...)
+	progress, held := rows.progress[initiative.Number]
+	lines = append(lines, gotermboard.Line{}, heading("Issues in it and completed, its whole life"))
+	if held {
+		lines = append(lines, burnupLines(progress.Burnup, width)...)
+	} else {
+		lines = append(lines, dimLine("reading…"))
+	}
 	if long.Description != nil {
 		lines = append(lines, gotermboard.Line{}, heading("Description"))
 		lines = append(lines, b.panelDescription(*long.Description, "d opens the whole of it", width)...)
 	}
 	lines = append(lines, gotermboard.Line{}, heading("Next"))
-	progress, held := rows.progress[initiative.Number]
 	if !held {
 		return append(lines, dimLine("reading…"), gotermboard.Line{}, heading("Tokens, its whole life"), dimLine("reading…"))
 	}
@@ -119,6 +126,37 @@ func (b *initiativesBoard) initiativePanel(initiative api.BoardInitiative, long 
 	}
 	lines = append(lines, gotermboard.Line{}, heading("Tokens, its whole life"))
 	return append(lines, tokenLines(progress.Totals)...)
+}
+
+// burnupLines draws an initiative's issues and its completed ones over its life, each
+// step drawn square so a jump in scope reads as one.
+func burnupLines(steps []api.BurnupStep, width int) []gotermboard.Line {
+	if len(steps) == 0 {
+		return []gotermboard.Line{dimLine("No issues yet.")}
+	}
+	scope := func(step api.BurnupStep) int { return step.Scope }
+	completed := func(step api.BurnupStep) int { return step.Completed }
+	burnup := chart.TimeSeries{ValueLabel: wholeCount, Series: []chart.Series{
+		{Name: "issues", Code: "", Points: stepPoints(steps, scope)},
+		{Name: "completed", Code: gotermboard.Green, Points: stepPoints(steps, completed)},
+	}}
+	return append(burnup.Lines(width, burnupHeight), burnup.Legend())
+}
+
+// burnupHeight is the burn-up's lines in the panel, its time axis included.
+const burnupHeight = 10
+
+// stepPoints holds each value until the next step, then moves to the next value at the
+// same moment.
+func stepPoints(steps []api.BurnupStep, value func(api.BurnupStep) int) []chart.Point {
+	points := make([]chart.Point, 0, 2*len(steps))
+	for at, step := range steps {
+		if at > 0 {
+			points = append(points, chart.Point{At: step.TS, Value: float64(value(steps[at-1]))})
+		}
+		points = append(points, chart.Point{At: step.TS, Value: float64(value(step))})
+	}
+	return points
 }
 
 // tokenLines names each kind's count, and never a total across them.

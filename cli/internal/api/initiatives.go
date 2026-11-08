@@ -172,6 +172,16 @@ type InitiativeProgress struct {
 	ClosedSince *time.Time       `json:"closed_since"`
 	ClosedUntil *time.Time       `json:"closed_until"`
 	Totals      WorkTotals       `json:"totals"`
+	Burnup      []BurnupStep     `json:"burnup"`
+}
+
+// BurnupStep is an initiative's issues from TS until the next step: Scope held in
+// it and not canceled, and Completed of those. A progress read's Burnup is oldest
+// first, over the initiative's whole life, and ends at the read.
+type BurnupStep struct {
+	TS        time.Time `json:"ts"`
+	Scope     int       `json:"scope"`
+	Completed int       `json:"completed"`
 }
 
 // ListInitiativesProgress reads the progress of each initiative refs names, by

@@ -94,8 +94,34 @@ reader, where `[` and `]` jump between its headings, `/` searches it, and `esc` 
 `space` opens a description under its row however long it is, and closes it again.
 
 From 160 columns a side panel follows the cursor, with the summary, the repos, the closes, the
-start of the description, what is next and the tokens, so a wide terminal answers without a key.
-`p` hides it.
+burn-up, the start of the description, what is next and the tokens, so a wide terminal answers
+without a key. `p` hides it.
+
+## An initiative's panel draws its burn-up, so scope added under it shows
+
+The bar is a ratio, so an initiative that gains fifteen issues in a day reads as falling behind
+rather than growing. The panel draws two lines over the initiative's whole life: its issues, and
+its completed ones in green, as done is green on the bar. Scope added steps the upper line up,
+and work done lifts the lower one toward it. Each step is drawn square, so a jump reads as one
+moment rather than a ramp. The lines come from the progress read's `burnup`, which the cursor's
+row already reads, and draw in braille through gotermboard's `chart` package.
+
+## The repos tab answers how fast each repo closes work and how long ready work has waited
+
+On the initiatives tab a repo is dim text beside an initiative's counts, so a cursor has nowhere
+to land on one. The repos tab is a line per repo on the same columns, then `WAIT`, the longest
+any of its ready issues has waited, and `12 WEEKS`, a spark of its closes per week. It opens on
+the most open, and `s` cycles to most ready, longest wait, latest close and name. A repo with
+nothing open and no close in those weeks folds under `quiet`.
+
+Its panel draws two charts. Closes per week are columns over 12 weeks, so a pace that dropped
+shows. Ready issues are a histogram of how long each has waited, from under a day to over three
+months, yellow past a week and red past a month. A queue that is old rather than long carries
+its weight on the right. The five that have waited longest follow, by title. The total row's
+panel draws every repo's, each issue beside its repo.
+
+A week's column is three cells wide in a 56-column panel, so each is labeled by its Monday's day
+of the month, by the month where the month turns, and the week of the read as `now`.
 
 The board is read-only. Pinning and reordering stay in the CLI, where a write says everything
 it did.
