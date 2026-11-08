@@ -24,11 +24,11 @@ a person reads rather than waiting on a screen that never draws.
 
 ```text
                                     DONE  24H   7D  30D  LAST  RUN  BLK  RDY  ISSUES
-   TOTAL · 85                   588/1175   27  125  372   16m   23  207  281  ▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱ 50%  ▅ ▂▁
+   TOTAL · 85                   588/1175   27  125  372   16m   23  207  281  ▰▰▰▰▰▰▰▰▰▰▱✕✕✕▱▱▱▱▱▱ 50%  ▅ ▂▁
 
- ▾ high · 5 of 50                453/786   24   87  294   16m   22  135  128  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  ▆ ▂▂
+ ▾ high · 5 of 50                453/786   24   87  294   16m   22  135  128  ▰▰▰▰▰▰▰▰▰▰▰▰▱✕✕✕▱▱▱▱  ▆ ▂▂
 ›  ▸ 1544  An agent keeps the queue ordered toward its goals as proposals a person steers
-           api, cli, docs, +6      19/48    9   11   19    3h   14    8    7  ▰▰▰▰▰▰▰▰▱▱▱▱▱
+           api, cli, docs, +6      19/48    9   11   19    3h   14    8    7  ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱▱▱✕✕✕✕✕✕✕✕▱▱▱▱▱▱▱
 ```
 
 A number and a name are what a person scans for, so they lead, the name in bold, and a name wraps
@@ -51,7 +51,9 @@ there stand out.
 
 ## A bar has one cell per issue
 
-`19/48` draws 48 cells: green done, yellow running or waiting, red blocked, plain the rest.
+`19/48` draws 48 cells: a green `▰` done, a yellow `▱` running or waiting, a red `✕`
+blocked, and a plain `▱` the rest. Without color only done is filled and blocked is
+crossed, so no unfinished issue reads as done.
 A bar of fixed width makes a 4-issue initiative look as big as a 67-issue one, and one
 blocked issue in 60 rounds away. So one cell per issue keeps size and every state visible,
 at the cost of a long bar. A bar wider than its row wraps at its column and keeps every
