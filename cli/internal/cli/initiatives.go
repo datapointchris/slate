@@ -46,6 +46,7 @@ func newInitiativesCommand() *cobra.Command {
 		newInitiativesListCommand(),
 		newInitiativesShowCommand(),
 		newInitiativesProgressCommand(),
+		newInitiativesBoardCommand(),
 	)...)
 	cmd.AddCommand(inGroup(groupChanging,
 		newInitiativesCreateCommand(),

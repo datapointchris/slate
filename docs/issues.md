@@ -492,6 +492,17 @@ description stays on `GET /issues/{id}`.
 
 The paths `board` and `board/text` are names no initiative may take, as `progress` is.
 
+**`slate initiatives board` prints the board read, with each initiative's bar.** Its
+`--json` adds `bar` to each initiative: `done`, `under_way`, `blocked` and `rest`, split
+by the one rule every bar slate draws keeps. Under way is running and waiting, and the
+rest is what open leaves after both. So a dashboard drawing an initiative beside
+`slate tui` draws the numbers it is handed, and the split stays slate's. Its text rows
+draw `progress`'s bar.
+
+- *Rejected:* a dashboard reading `slate tui --json` for the counts. That is the tab's
+  own state, shaped by what the screen draws, and it also reads the long text and the
+  cursor's row.
+
 - *Rejected:* polling `GET /initiatives/progress`. It answers whole issues with
   everything they join, and its `totals` walk each initiative's issue tree for
   worklogs and tokens, which a board draws for one row at most.
