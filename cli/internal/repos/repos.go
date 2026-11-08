@@ -1,4 +1,5 @@
-// Package repos reads the repo registry that names what `--repo` may be set to.
+// Package repos reads the repo registry that names what `--repo` may be set to,
+// and where each repo is checked out, for the Claude session `slate tui` opens.
 //
 // Validation lives in the client rather than in the API: the registry is a file
 // on the machine running the CLI, and the API runs in a container that has never
@@ -23,13 +24,16 @@ import (
 type registry struct {
 	Repos []struct {
 		Name string `json:"name"`
+		Path string `json:"path"`
 	} `json:"repos"`
 }
 
-// Registry is the set of known repo names, empty when the file is absent.
+// Registry is the set of known repo names, empty when the file is absent, and the
+// checkout each entry names where it names one.
 type Registry struct {
-	names map[string]bool
-	path  string
+	names     map[string]bool
+	checkouts map[string]string
+	path      string
 }
 
 // DefaultPath is where this machine keeps the registry: $SLATE_REPOS_REGISTRY,
@@ -84,10 +88,23 @@ func Load(path string) (*Registry, error) {
 		return nil, fmt.Errorf("parsing repo registry %s: %w", path, err)
 	}
 	names := make(map[string]bool, len(parsed.Repos))
+	checkouts := map[string]string{}
 	for _, repo := range parsed.Repos {
 		names[repo.Name] = true
+		if repo.Path != "" {
+			checkouts[repo.Name] = config.ExpandTilde(repo.Path)
+		}
 	}
-	return &Registry{names: names, path: path}, nil
+	return &Registry{names: names, checkouts: checkouts, path: path}, nil
+}
+
+// Checkout is where the registry says name is checked out, and false where it names no path.
+func (r *Registry) Checkout(name string) (string, bool) {
+	if r == nil {
+		return "", false
+	}
+	checkout, named := r.checkouts[name]
+	return checkout, named
 }
 
 // Available reports whether the registry was found and had any repos in it.

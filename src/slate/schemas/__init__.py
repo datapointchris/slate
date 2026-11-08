@@ -46,6 +46,8 @@ from slate.schemas.initiative_board import BoardInitiative
 from slate.schemas.initiative_board import BoardInitiativeText
 from slate.schemas.initiative_board import BoardIssue
 from slate.schemas.initiative_board import BoardIssueText
+from slate.schemas.initiative_board import BoardRepoCounts
+from slate.schemas.initiative_board import BoardRepoRollup
 from slate.schemas.initiative_board import BoardRollup
 from slate.schemas.initiative_board import BoardTier
 from slate.schemas.initiative_board import InitiativeBoard
@@ -105,6 +107,8 @@ __all__ = [
     'BoardIssue',
     'BoardIssueText',
     'BoardRepo',
+    'BoardRepoCounts',
+    'BoardRepoRollup',
     'BoardRollup',
     'BoardTier',
     'BurnupStep',

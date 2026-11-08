@@ -132,6 +132,23 @@ func TestABarHasOneCellPerIssueAndLeavesTheCanceledOff(t *testing.T) {
 	}
 }
 
+func TestUnderTheRepoGroupingAReorderNamesTheInitiativesItPassesThatTheGroupDoesNotDraw(t *testing.T) {
+	read := sevenHighAndTwoLow()
+	apiRepo, cliRepo := "api", "cli"
+	cut := func(repo *string) []api.BoardRepoCounts { return []api.BoardRepoCounts{{Repo: repo}} }
+	for at := range read.Initiatives {
+		read.Initiatives[at].ByRepo = cut(nil)
+	}
+	read.Initiatives[2].ByRepo, read.Initiatives[3].ByRepo, read.Initiatives[4].ByRepo = cut(&apiRepo), cut(&cliRepo), cut(&apiRepo)
+	read.Repos = []api.BoardRepoRollup{{Repo: &apiRepo}, {Repo: &cliRepo}, {}}
+	board := boardFromServer(t, read, boardScope{kind: scopeEveryInitiative})
+	board.Frame(time.Now(), groupingRepo)
+	step := board.places[initiativeUnderRepo(3, "api")].below
+	if step == nil || step.to.number != 5 || len(step.passes) != 1 || step.passes[0].number != 4 {
+		t.Fatalf("initiative 3 under api moves behind %+v, want behind 5 naming 4, which only cli draws", step)
+	}
+}
+
 func TestTUIWithNoTerminalRefusesAsAUsageError(t *testing.T) {
 	unreachableAPI(t)
 	root := NewRootCommand()

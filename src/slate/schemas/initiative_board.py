@@ -44,6 +44,18 @@ class BoardTier(BoardRollup):
     priority: Priority
 
 
+class BoardRepoCounts(BoardCounts):
+    """An initiative's issues in one repo, or on none where `repo` is null."""
+
+    repo: str | None
+
+
+class BoardRepoRollup(BoardRollup):
+    """Every initiative's issues in one repo, or on none where `repo` is null. `initiative_count` is the initiatives with a cut there."""
+
+    repo: str | None
+
+
 class BoardIssue(RecordModel):
     """One issue on the board. `priority` is its own, `effective_priority` the one it sorts at, and `holder` who holds its live claim."""
 
@@ -59,7 +71,11 @@ class BoardIssue(RecordModel):
 
 
 class BoardInitiative(BoardCounts):
-    """One initiative on the board. `issues` holds every issue in it: the unclosed in queue order, then the closed, latest first."""
+    """One initiative on the board. `issues` holds every issue in it: the unclosed in queue order, then the closed, latest first.
+
+    `by_repo` cuts those issues by the repo each names, most open first and no repo last. An
+    initiative with no issues has one empty cut on no repo, so every initiative sits under some repo.
+    """
 
     number: int
     name: str
@@ -72,13 +88,15 @@ class BoardInitiative(BoardCounts):
     created_ts: dt.datetime
     closed_ts: dt.datetime | None
     issues: list[BoardIssue]
+    by_repo: list[BoardRepoCounts]
 
 
 class InitiativeBoard(RecordModel):
     """The board as of `read_ts`. `days` are the calendar days each `by_day` counts, oldest first, in `zone`.
 
     `tiers` holds every priority, most urgent first and `none` last, whether or not any initiative
-    is at it. `initiatives` comes in the order `GET /initiatives` answers.
+    is at it. `repos` rolls up each repo the initiatives' cuts name, most open first and no repo
+    last. `initiatives` comes in the order `GET /initiatives` answers.
     """
 
     read_ts: dt.datetime
@@ -86,6 +104,7 @@ class InitiativeBoard(RecordModel):
     days: list[dt.date]
     totals: BoardRollup
     tiers: list[BoardTier]
+    repos: list[BoardRepoRollup]
     initiatives: list[BoardInitiative]
 
 

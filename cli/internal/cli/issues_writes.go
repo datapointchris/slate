@@ -693,20 +693,13 @@ func newIssuesReopenCommand() *cobra.Command {
 func newIssuesReorderCommand() *cobra.Command {
 	return newReorderCommand("issue",
 		"An issue inside an initiative moves only among that initiative's issues.",
-		"  slate issues reorder 412 --before 398\n  slate issues reorder 412 --after 420",
-		func(cmd *cobra.Command, client *api.Client, ref string, move api.RankMove) (any, api.WriteEffects, string, error) {
-			written, err := client.RankIssue(cmd.Context(), ref, move, issueZone())
-			return written, written.WriteEffects, fmt.Sprintf("#%d %s", written.Issue.Number, written.Issue.Title), err
-		})
+		"  slate issues reorder 412 --before 398\n  slate issues reorder 412 --after 420")
 }
-
-// rankRecord moves one kind's record, and names it for the line the move prints.
-type rankRecord func(cmd *cobra.Command, client *api.Client, ref string, move api.RankMove) (any, api.WriteEffects, string, error)
 
 // newReorderCommand moves a record of one kind beside a record of any kind in
 // the queue `slate next` reads. Every kind's move is refused for the same
 // reasons, so each kind's command shares this one.
-func newReorderCommand(kind, rule, example string, rank rankRecord) *cobra.Command {
+func newReorderCommand(kind, rule, example string) *cobra.Command {
 	var (
 		before string
 		after  string
@@ -733,7 +726,7 @@ func newReorderCommand(kind, rule, example string, rank rankRecord) *cobra.Comma
 			if err != nil {
 				return handleAPIError(err)
 			}
-			written, effects, moved, err := rank(cmd, client, args[0], api.RankMove{Before: before, After: after})
+			written, effects, moved, err := queuePlaceWrites[kind].rank(cmd.Context(), client, args[0], api.RankMove{Before: before, After: after})
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}

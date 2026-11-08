@@ -133,7 +133,9 @@ cd cli && go build -o slate . && ./slate --help
 `slate tui` opens a live board of the initiatives, with the total, each priority
 tier and each initiative's progress on one set of columns. Its repos tab puts each
 repo on the same columns, with its closes per week and how long its ready issues
-have waited. `docs/live-board.md` says why it has that shape.
+have waited. From the board you move, pin and reorder work, open a Claude session
+on a row, and open a pull request an issue's worklogs hold in `prs`.
+`docs/live-board.md` says why it has that shape.
 
 `slate auth login https://slate.example.com` reads the API's RFC 9728 metadata
 for the provider, logs in with the device authorization grant as
@@ -194,7 +196,8 @@ A response naming no `scope` granted every scope asked, as §5.1 says.
 refuses one it does not hold, so a typo cannot file work under a repo nobody
 reads. It reads `$SLATE_REPOS_REGISTRY`, then `repos_registry` in
 `~/.config/slate/config.yml`, then `~/.local/share/slate/repos.json`. With no
-registry, any name passes.
+registry, any name passes. An entry's `path` names the repo's checkout, where
+`C` in `slate tui` opens a Claude session on that repo's work.
 
 The exit status says who has to act, so a program calling slate never reads the
 message:

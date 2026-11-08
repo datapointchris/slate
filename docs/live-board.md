@@ -76,22 +76,22 @@ Reads run at their own pace, so a failed read leaves the last good one drawn wit
 and a rollout never blanks the screen.
 
 **What only one row shows is read for that row alone.** An initiative's next issues and its
-tokens by kind come from `GET /initiatives/progress`, and an issue's whole description from
-`GET /issues/{id}`. Reading those for every row is what the board read exists to avoid. So
+tokens by kind come from `GET /initiatives/progress`. An issue's whole description and its pin
+come from `GET /issues/{id}`, and its worklogs from `GET /worklogs?record=`. Reading those for
+every row is what the board read exists to avoid. So
 the read follows the cursor, on the next tick after it lands, which means holding a key down
 reads only the row it stops on. A row read once draws at once when the cursor returns.
 
 ## Opening a row uses separate keys
 
-`enter` unfolds an initiative's issues and opens an issue's description. `d` opens an
-initiative's description, and `f` adds the initiative's summary and each issue's first
-paragraph. Each answers a different question, so one key that cycled through them would make the
-reader step past two answers to reach the third. Unfolded issues go open first, running at the
-top and then in queue order, with `done` and `canceled` folded beneath.
+`enter` unfolds an initiative's issues, and an issue's sessions and pull requests. `d` opens
+an initiative's or an issue's description, and `f` adds the initiative's summary and each
+issue's first paragraph. Each answers a different question, so one key that cycled through them
+would make the reader step past two answers to reach the third. Unfolded issues go open first,
+running at the top and then in queue order, with `done` and `canceled` folded beneath.
 
 A description that fits opens under its row. One that runs past the screen opens on a full-screen
 reader, where `[` and `]` jump between its headings, `/` searches it, and `esc` returns to the row.
-`space` opens a description under its row however long it is, and closes it again.
 
 From 160 columns a side panel follows the cursor, with the summary, the repos, the closes, the
 burn-up, the start of the description, what is next and the tokens, so a wide terminal answers
@@ -129,8 +129,79 @@ counts is left unlabeled rather than rounded.
 A CLI released ahead of its API says so where a chart would be: the repos tab names the missing
 read, and the burn-up says the API answers none.
 
-The board is read-only. Pinning and reordering stay in the CLI, where a write says everything
-it did.
+## `v` groups the same initiatives by tier, by repo or alone
+
+Tier is the default, because priority is the order the queue takes them in. Repo draws a group
+per repo the issues name, the most open first and `no repo` last. Under it sits each initiative
+with an issue there, cut to its issues there, so its bar and counts are that repo's share. An
+initiative spanning three repos draws three times, each keyed by its repo, and one with no issues
+sits under `no repo`. Initiative drops the tier headings and leaves the list order. The scope
+still decides which initiatives show.
+
+The board read carries each repo's rollup and each initiative's cut by repo, counted by the same
+code as its tiers. So the repo grouping needs no second read, and the client derives no count.
+A CLI released ahead of its API says the API answers no counts by repo where the groups would be.
+
+## An issue unfolds into the sessions and pull requests its worklogs hold
+
+An issue is a folding group rather than a row, so the cursor can land on what it opens.
+A pull request row is owned by prs, so `enter` there hands the terminal to
+`prs tui --pr <url>`, and quitting prs comes back to the board, which reads again. After prs
+exits non-zero, the board shows the last line prs wrote to stderr, or its exit status where it
+wrote nothing. A usage error, exit 2, means the `prs` on `PATH` takes no `tui --pr`, so the
+footer points at `o`, as it does where no prs is on `PATH`. `o` opens the pull request in the
+browser from any of its rows.
+
+A worklog's link is free text any writer sets, and a desktop opener honors `file:`, `ssh:` and
+every scheme an app registers. So `enter` and `o` hand on only an `http` or `https` link, and
+name any other.
+
+A session row opens to its directory, its moments and its tokens by kind. The worklogs are
+read with the cursor's row, so a folded issue names its counts once the cursor has been on it.
+
+- *Rejected:* the pull requests as lines of the issue's panel. A panel line is not a row, so
+  nothing could open one.
+
+## Keys that write run what the slate verb runs, one at a time
+
+`M` moves an issue to the initiative typed, as `slate issues edit --initiative` does. `P` pins
+the row, or unpins it where it is pinned, as `pin` and `unpin` do. `<` and `>` move the row
+ahead of the row drawn above it or behind the row drawn below, as `reorder --before` and
+`--after` do. An answer's warnings follow what the footer says it did, and a refusal shows in
+the API's own words.
+
+One write runs at a time, with the footer naming it, and the board reads everything again when
+it ends, refused or not. A write that timed out or lost its connection may have landed, so the
+footer says its outcome is unknown rather than that it failed. An initiative moves only within
+its priority and only while sorted by priority, because otherwise the rows beside it are not its
+neighbors in the queue.
+
+A write acts at once on the row the cursor is on. It asks first where the screen does not show
+everything it changes:
+
+- the row the move passes is one the scope hides;
+- the queue holds records between the two rows that are not drawn there, as under a repo, or
+  beside a running issue drawn at the top of its initiative, and the question names them;
+- another row's description is left open by `d`.
+
+A reader acts on what the screen shows, so a key that writes past what the screen draws asks
+first.
+
+## `C` opens a Claude session beside the board
+
+Inside tmux, `C` opens `claude` in a new window, so the board stays usable while a long
+session works. tmux runs a window's command and its arguments without a shell, so the first
+message needs no quoting. Outside tmux, `C` hands the board's terminal to `claude` and takes it
+back when the session ends.
+
+A session about an issue belongs in its repo's code, so `C` opens in the checkout the repo
+registry's `path` names for the issue's repo, or for an initiative's where its issues name one.
+A checkout named and missing opens nothing. Where the registry names none, or the record no one
+repo, the session opens in the board's directory, and the footer names that directory and why.
+
+The first message names the record by its number alone and asks the session to read it with
+`slate show`, then say what it would do before changing anything. A title is free text another
+writer set, so it reaches the session as data it reads rather than as its first instruction.
 
 ## A description is rendered markdown, on a renderer of our own
 

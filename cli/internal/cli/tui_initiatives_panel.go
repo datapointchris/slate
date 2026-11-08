@@ -59,15 +59,16 @@ func closesLines(closes api.BoardCloses, now time.Time) []gotermboard.Line {
 	}
 }
 
-func tierPanel(label string, tier api.BoardTier, now time.Time) []gotermboard.Line {
+// rollupPanel is a tier's or a repo's panel: its issues by state and its closes.
+func rollupPanel(label gotermboard.Line, counts api.BoardCounts, now time.Time) []gotermboard.Line {
 	lines := []gotermboard.Line{
-		{gotermboard.C(label, tierCode(tier.Priority)+gotermboard.Bold)},
+		label,
 		{},
-		stateCountsCells(tier.States),
-		plainLine(strconv.Itoa(tier.States.Canceled) + " canceled, not on the bar"),
+		stateCountsCells(counts.States),
+		plainLine(strconv.Itoa(counts.States.Canceled) + " canceled, not on the bar"),
 		{},
 	}
-	return append(lines, closesLines(tier.Closes, now)...)
+	return append(lines, closesLines(counts.Closes, now)...)
 }
 
 func (b *initiativesBoard) initiativePanel(initiative api.BoardInitiative, long api.BoardInitiativeText, rows cursorRowReads, read api.InitiativeBoard, now time.Time, width int) []gotermboard.Line {
@@ -193,7 +194,7 @@ func tokenLines(totals api.WorkTotals) []gotermboard.Line {
 		totals.SessionCount, plural(totals.SessionCount, "session", "sessions"))))
 }
 
-func (b *initiativesBoard) issuePanel(issue api.BoardIssue, excerpt, description string, read bool, now time.Time, width int) []gotermboard.Line {
+func (b *initiativesBoard) issuePanel(issue api.BoardIssue, excerpt string, read api.Issue, isRead bool, worklogs []api.Worklog, worked bool, now time.Time, width int) []gotermboard.Line {
 	facts := []string{issue.Type, priorityName(issue.EffectivePriority)}
 	if issue.Repo != nil {
 		facts = append(facts, *issue.Repo)
@@ -204,20 +205,49 @@ func (b *initiativesBoard) issuePanel(issue api.BoardIssue, excerpt, description
 		{},
 		plainLine(strings.Join(facts, " · ")),
 	}
+	if read.Initiative != nil {
+		lines = append(lines, dimLine(fmt.Sprintf("in %d %s", read.Initiative.Number, read.Initiative.Name)))
+	}
 	if issue.Holder != nil {
 		lines = append(lines, plainLine("held by "+*issue.Holder))
+	}
+	if read.PinnedBy != nil {
+		lines = append(lines, gotermboard.Line{gotermboard.C("pinned by "+*read.PinnedBy, gotermboard.MarkCode)})
 	}
 	if issue.ClosedTS != nil {
 		lines = append(lines, plainLine("closed "+ageOf(issue.ClosedTS, now)+" ago"))
 	}
 	lines = append(lines, gotermboard.Line{}, heading("Description"))
-	if !read {
+	if !isRead {
 		if excerpt != "" {
 			lines = append(lines, plainLine(excerpt))
 		}
+		lines = append(lines, dimLine("reading…"))
+	} else {
+		lines = append(lines, b.panelDescription(strValue(read.Description), "d opens the whole of it", width)...)
+	}
+	lines = append(lines, gotermboard.Line{}, heading("Worklogs"))
+	if !worked {
 		return append(lines, dimLine("reading…"))
 	}
-	return append(lines, b.panelDescription(description, "enter opens the whole of it", width)...)
+	if len(worklogs) == 0 {
+		return append(lines, dimLine("None yet."))
+	}
+	for _, worklog := range worklogs {
+		lines = append(lines, gotermboard.Line{
+			gotermboard.C(worklog.Name, gotermboard.Cyan),
+			gotermboard.C(fmt.Sprintf("  %s · %s · started %s ago", worklog.State, worklog.Stage, ageOf(&worklog.StartedTS, now)), ""),
+		})
+		for _, link := range worklog.Links {
+			if link.Kind == api.WorklogLinkPullRequest {
+				lines = append(lines, plainLine("  PR "+pullRequestName(link.Ref)))
+			}
+		}
+		for _, session := range sessionsIn(worklog) {
+			lines = append(lines, dimLine("  session "+session.id))
+		}
+	}
+	return append(lines, gotermboard.Line{}, dimLine("enter lists the sessions and pull requests"))
 }
 
 // panelDescription is a description's first rows.

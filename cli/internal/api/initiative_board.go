@@ -46,6 +46,19 @@ type BoardTier struct {
 	Priority int `json:"priority"`
 }
 
+// BoardRepoCounts is an initiative's issues in one repo, or on none where Repo is nil.
+type BoardRepoCounts struct {
+	BoardCounts
+	Repo *string `json:"repo"`
+}
+
+// BoardRepoRollup is every initiative's issues in one repo, or on none where Repo is
+// nil. InitiativeCount is the initiatives with a cut there.
+type BoardRepoRollup struct {
+	BoardRollup
+	Repo *string `json:"repo"`
+}
+
 // BoardIssue is one issue on the board.
 type BoardIssue struct {
 	Number            int        `json:"number"`
@@ -60,31 +73,37 @@ type BoardIssue struct {
 }
 
 // BoardInitiative is one initiative on the board. Issues holds every issue in
-// it: the unclosed in queue order, then the closed, latest first.
+// it: the unclosed in queue order, then the closed, latest first. ByRepo cuts
+// them by repo, most open first and no repo last, and an initiative with no
+// issues has one empty cut on no repo. An API older than the cut answers nil.
 type BoardInitiative struct {
 	BoardCounts
-	Number    int          `json:"number"`
-	Name      string       `json:"name"`
-	Status    string       `json:"status"`
-	Priority  int          `json:"priority"`
-	Repos     []string     `json:"repos"`
-	PinnedTS  *time.Time   `json:"pinned_ts"`
-	PinnedBy  *string      `json:"pinned_by"`
-	Claim     *Claim       `json:"claim"`
-	CreatedTS time.Time    `json:"created_ts"`
-	ClosedTS  *time.Time   `json:"closed_ts"`
-	Issues    []BoardIssue `json:"issues"`
+	Number    int               `json:"number"`
+	Name      string            `json:"name"`
+	Status    string            `json:"status"`
+	Priority  int               `json:"priority"`
+	Repos     []string          `json:"repos"`
+	PinnedTS  *time.Time        `json:"pinned_ts"`
+	PinnedBy  *string           `json:"pinned_by"`
+	Claim     *Claim            `json:"claim"`
+	CreatedTS time.Time         `json:"created_ts"`
+	ClosedTS  *time.Time        `json:"closed_ts"`
+	Issues    []BoardIssue      `json:"issues"`
+	ByRepo    []BoardRepoCounts `json:"by_repo"`
 }
 
 // InitiativeBoard is the board as of ReadTS. Days are the calendar days each
 // ByDay counts, oldest first, in Zone. Tiers holds every priority, whether or
-// not an initiative is at it, and Initiatives comes in list order.
+// not an initiative is at it. Repos rolls up each repo the initiatives' cuts
+// name, most open first and no repo last, and is nil from an API older than
+// it. Initiatives comes in list order.
 type InitiativeBoard struct {
 	ReadTS      time.Time         `json:"read_ts"`
 	Zone        string            `json:"zone"`
 	Days        []string          `json:"days"`
 	Totals      BoardRollup       `json:"totals"`
 	Tiers       []BoardTier       `json:"tiers"`
+	Repos       []BoardRepoRollup `json:"repos"`
 	Initiatives []BoardInitiative `json:"initiatives"`
 }
 

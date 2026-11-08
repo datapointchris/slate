@@ -266,6 +266,7 @@ def test_the_board_counts_each_issue_in_one_state_rolls_them_up_and_counts_only_
         )['number']
 
     urgent, low, someday = created('Urgent board', priority=1), created('Low board', priority=4), created('Later', status='someday')
+    empty = created('Empty board')
 
     def filed(initiative: int, title: str, **fields) -> int:
         issue = {'title': title, 'initiative': initiative, 'repo': 'zeta', **fields}
@@ -322,6 +323,18 @@ def test_the_board_counts_each_issue_in_one_state_rolls_them_up_and_counts_only_
     assert (tiers[1]['initiative_count'], tiers[1]['issue_count'], tiers[1]['closes']['last_30d']) == (1, 7, 2)
     assert sum(tier['initiative_count'] for tier in board['tiers']) == board['totals']['initiative_count'] == len(listed)
     assert sum(tier['issue_count'] for tier in board['tiers']) == board['totals']['issue_count']
+
+    cuts = {cut['repo']: cut for cut in row['by_repo']}
+    assert list(cuts) == ['zeta', 'alpha', 'left-out']
+    assert (cuts['zeta']['issue_count'], cuts['zeta']['open_count'], cuts['zeta']['closes']['last_30d']) == (5, 2, 2)
+    assert sum(cut['issue_count'] for cut in row['by_repo']) == row['issue_count']
+    empty_row = next(row for row in board['initiatives'] if row['number'] == empty)
+    assert [(cut['repo'], cut['issue_count']) for cut in empty_row['by_repo']] == [(None, 0)]
+    repos = {rollup['repo']: rollup for rollup in board['repos']}
+    assert (repos['zeta']['initiative_count'], repos['zeta']['issue_count'], repos['zeta']['open_count']) == (2, 6, 3)
+    assert repos[None]['initiative_count'] >= 1
+    assert sum(rollup['issue_count'] for rollup in board['repos']) == board['totals']['issue_count']
+    assert board['repos'][-1]['repo'] is None
 
     shelved = ok(client.get(f'{INITIATIVES}/board', params={'status': 'someday'}))
     assert numbers(shelved['initiatives']) == [someday]

@@ -66,11 +66,7 @@ func newInitiativesCommand() *cobra.Command {
 func newInitiativesReorderCommand() *cobra.Command {
 	return newReorderCommand("initiative",
 		"An initiative's issues move with it.",
-		"  slate initiatives reorder \"Ship the tracker\" --before 1491\n  slate initiatives reorder 1502 --after 1491",
-		func(cmd *cobra.Command, client *api.Client, ref string, move api.RankMove) (any, api.WriteEffects, string, error) {
-			written, err := client.RankInitiative(cmd.Context(), ref, move, issueZone())
-			return written, written.WriteEffects, fmt.Sprintf("initiative #%d %q", written.Initiative.Number, written.Initiative.Name), err
-		})
+		"  slate initiatives reorder \"Ship the tracker\" --before 1491\n  slate initiatives reorder 1502 --after 1491")
 }
 
 func newInitiativesListCommand() *cobra.Command {
