@@ -288,7 +288,7 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 		{Keys: []string{"+", "="}, Label: "show more of them", Footer: "+/- count", Run: counted(1), Applies: hasCount},
 		{Keys: []string{"-"}, Label: "show fewer of them", Run: counted(-1), Applies: hasCount},
 		{
-			Keys: []string{"enter", "space"}, Label: "unfold an initiative's issues, fold a group, or open an issue's description",
+			Keys: []string{"enter"}, Label: "unfold an initiative's issues, fold a group, or open an issue's description, full screen where it runs past the screen",
 			Footer: "enter issues", Run: (*gotermboard.Model).Toggle,
 		},
 		{

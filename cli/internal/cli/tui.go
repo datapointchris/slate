@@ -47,9 +47,11 @@ func newTUICommand() *cobra.Command {
 			"then a bar with one cell per issue. Canceled issues stay off the bar. 1 shows the\n" +
 			"first of each tier, 2 the first in list order, 3 all of them, and + and - change\n" +
 			"the count. / searches past what the scope shows. enter unfolds an initiative's\n" +
-			"issues and opens an issue's description, d opens an initiative's description, f\n" +
-			"adds summaries, and s cycles the sort within a tier. ? lists every key and every\n" +
-			"read. From 160 columns a side panel follows the cursor, and p hides it.\n\n" +
+			"issues and opens an issue's description, full screen where it runs past the\n" +
+			"screen, and space opens it in place however long. d opens an initiative's\n" +
+			"description, f adds summaries, and s cycles the sort within a tier. ? lists every\n" +
+			"key and every read. From 160 columns a side panel follows the cursor, and p hides\n" +
+			"it.\n\n" +
 			"--once prints one frame at COLUMNS by LINES, and --json the snapshot it is drawn\n" +
 			"from, so an agent reads what a person reads. With no terminal and neither flag it\n" +
 			"refuses.",

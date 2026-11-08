@@ -91,6 +91,8 @@ top and then in queue order, with `done` and `canceled` folded beneath.
 
 A description that fits opens under its row. One that runs past the screen opens on a full-screen
 reader, where `[` and `]` jump between its headings, `/` searches it, and `esc` returns to the row.
+`space` opens a description under its row however long it is, and closes it again, as space does
+on every gotermboard board.
 
 From 160 columns a side panel follows the cursor, with the summary, the repos, the closes, the
 start of the description, what is next and the tokens, so a wide terminal answers without a key.
