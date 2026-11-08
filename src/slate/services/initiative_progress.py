@@ -1,4 +1,4 @@
-"""An initiative's progress: each of its issues in one state, the work under way and next, its closes, and its totals.
+"""An initiative's progress: each of its issues in one state, the work under way and next, its closes, its totals and its burn-up.
 
 A state is derived on every read from the issue's status, its live claim and its readiness, and
 never stored. `issue_state` gives each issue the first state that holds.
@@ -30,6 +30,7 @@ from slate.schemas.queue import InitiativeRow
 from slate.schemas.queue import IssueRow
 from slate.schemas.queue import QueueRow
 from slate.services.claim_views import live_claims
+from slate.services.initiative_burnup import burnups
 from slate.services.initiative_views import counted_initiatives
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
@@ -108,6 +109,7 @@ def initiatives_progress(
     only_one = {'initiative': initiatives[0].id} if len(initiatives) == 1 else {}
     queue = queue_as_measured(session, zone, now, readiness, schemas.QueueFilter.model_validate(only_one), None, plans_hold=False)
     next_in = next_rows(queue)
+    burnup_of = burnups(session, initiatives, issues, now)
 
     def in_state(initiative: models.Initiative, state: IssueState) -> list[schemas.Issue]:
         return [views[issue.id] for issue in listed[initiative.id, state]]
@@ -124,6 +126,7 @@ def initiatives_progress(
             closed_since=window.since,
             closed_until=window.until,
             totals=work_totals(session, now, TimeWindow(), record=initiative.record),
+            burnup=burnup_of[initiative.id],
         )
         for initiative, view in zip(initiatives, counted_initiatives(session, initiatives), strict=True)
     ]

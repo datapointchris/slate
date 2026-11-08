@@ -68,7 +68,7 @@ func TestAScopeCutsTheBoardInTheClient(t *testing.T) {
 		{boardScope{kind: scopeEveryInitiative}, []int{1, 2, 3, 4, 5, 6, 7, 8, 9}, "high · 7", "none ·"},
 	} {
 		board := boardFromServer(t, sevenHighAndTwoLow(), test.scope)
-		if got := board.snapshot().Shown; !slices.Equal(got, test.shown) {
+		if got := board.Snapshot(time.Now()).Shown; !slices.Equal(got, test.shown) {
 			t.Errorf("%s shows %v, want %v", test.scope.label(), got, test.shown)
 		}
 		screen := gotermboard.Once(board, gotermstyle.NewPalette(false), 120, 40)
@@ -132,17 +132,12 @@ func TestABarHasOneCellPerIssueAndLeavesTheCanceledOff(t *testing.T) {
 	}
 }
 
-func TestTUIWithNoTerminalRefusesAndNamesBothWaysToPrint(t *testing.T) {
+func TestTUIWithNoTerminalRefusesAsAUsageError(t *testing.T) {
 	unreachableAPI(t)
 	root := NewRootCommand()
 	root.SetArgs([]string{"tui"})
 	err := root.Execute()
 	if !errors.Is(err, goclikit.ErrUsage) {
 		t.Fatalf("got %v, want a usage error", err)
-	}
-	for _, flag := range []string{"--once", "--json"} {
-		if !strings.Contains(err.Error(), flag) {
-			t.Errorf("the refusal %q should name %s", err, flag)
-		}
 	}
 }

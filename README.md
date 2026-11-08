@@ -131,8 +131,9 @@ cd cli && go build -o slate . && ./slate --help
 ```
 
 `slate tui` opens a live board of the initiatives, with the total, each priority
-tier and each initiative's progress on one set of columns. `docs/live-board.md`
-says why it has that shape.
+tier and each initiative's progress on one set of columns. Its repos tab puts each
+repo on the same columns, with its closes per week and how long its ready issues
+have waited. `docs/live-board.md` says why it has that shape.
 
 `slate auth login https://slate.example.com` reads the API's RFC 9728 metadata
 for the provider, logs in with the device authorization grant as

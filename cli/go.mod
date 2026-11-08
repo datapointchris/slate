@@ -8,7 +8,7 @@ require (
 	charm.land/bubbletea/v2 v2.1.1
 	github.com/datapointchris/goclikit v0.5.3
 	github.com/datapointchris/goselfupdate v0.11.0
-	github.com/datapointchris/gotermboard v0.16.0
+	github.com/datapointchris/gotermboard v0.17.0
 	github.com/datapointchris/gotermstyle v0.2.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.10.2
@@ -22,7 +22,10 @@ require (
 )
 
 require (
+	charm.land/bubbles/v2 v2.2.1 // indirect
+	charm.land/lipgloss/v2 v2.0.6 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
+	github.com/NimbleMarkets/ntcharts/v2 v2.9.0 // indirect
 	github.com/alecthomas/chroma/v2 v2.27.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
@@ -40,6 +43,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/lrstanley/bubblezone/v2 v2.0.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect

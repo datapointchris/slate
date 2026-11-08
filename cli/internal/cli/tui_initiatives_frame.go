@@ -30,18 +30,11 @@ const readingWidth = 100
 // tierBarCells leaves a tier's bar room for its percent and its 14-day spark at 120 columns.
 const tierBarCells = 20
 
-var boardColumns = []gotermboard.Column{
-	{Title: "", Min: boardFirstColumnWidth},
-	{Title: "DONE", Right: true},
-	{Title: "24H", Right: true},
-	{Title: "7D", Right: true},
-	{Title: "30D", Right: true},
-	{Title: "LAST", Right: true},
-	{Title: "RUN", Right: true},
-	{Title: "BLK", Right: true},
-	{Title: "RDY", Right: true},
-	{Title: "ISSUES"},
-}
+var boardColumns = slices.Concat(
+	[]gotermboard.Column{{Title: "", Min: boardFirstColumnWidth}},
+	countColumns,
+	[]gotermboard.Column{{Title: "ISSUES"}},
+)
 
 // boardText is the long text by number, for one frame.
 type boardText struct {
@@ -386,7 +379,19 @@ func ageOf(at *time.Time, now time.Time) string {
 	return gotermboard.Ago(now.Sub(*at))
 }
 
-// boardCells is a row's cells on the columns past its title.
+// countColumns titles boardCells' cells, in its order.
+var countColumns = []gotermboard.Column{
+	{Title: "DONE", Right: true},
+	{Title: "24H", Right: true},
+	{Title: "7D", Right: true},
+	{Title: "30D", Right: true},
+	{Title: "LAST", Right: true},
+	{Title: "RUN", Right: true},
+	{Title: "BLK", Right: true},
+	{Title: "RDY", Right: true},
+}
+
+// boardCells is a row's cells on countColumns.
 func boardCells(counts api.BoardCounts, now time.Time) []gotermboard.Cell {
 	done := counts.States.Completed
 	underWay, _, _ := openKinds(counts.States, counts.OpenCount)

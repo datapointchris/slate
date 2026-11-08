@@ -50,6 +50,7 @@ from slate.schemas.initiative_board import BoardRollup
 from slate.schemas.initiative_board import BoardTier
 from slate.schemas.initiative_board import InitiativeBoard
 from slate.schemas.initiative_board import InitiativeBoardText
+from slate.schemas.initiative_progress import BurnupStep
 from slate.schemas.initiative_progress import InitiativeProgress
 from slate.schemas.initiative_progress import IssueStateCounts
 from slate.schemas.issue import Issue
@@ -73,6 +74,10 @@ from slate.schemas.record import RecordRankMove
 from slate.schemas.record import RecordSummary
 from slate.schemas.record_change import RecordChange
 from slate.schemas.record_parts import RecordParts
+from slate.schemas.repo_board import BoardRepo
+from slate.schemas.repo_board import ReadyIssue
+from slate.schemas.repo_board import RepoBoard
+from slate.schemas.repo_board import RepoRollup
 from slate.schemas.tokens import TokensByKind
 from slate.schemas.vocabulary import PriorityName
 from slate.schemas.vocabulary import Vocabulary
@@ -99,8 +104,10 @@ __all__ = [
     'BoardInitiativeText',
     'BoardIssue',
     'BoardIssueText',
+    'BoardRepo',
     'BoardRollup',
     'BoardTier',
+    'BurnupStep',
     'Claim',
     'ClaimExtend',
     'ClaimHold',
@@ -161,6 +168,7 @@ __all__ = [
     'PriorityName',
     'Queue',
     'QueueFilter',
+    'ReadyIssue',
     'RecordChange',
     'RecordDeleted',
     'RecordListed',
@@ -168,6 +176,8 @@ __all__ = [
     'RecordPin',
     'RecordRankMove',
     'RecordSummary',
+    'RepoBoard',
+    'RepoRollup',
     'SessionSpan',
     'SessionUsageReport',
     'SessionWritten',

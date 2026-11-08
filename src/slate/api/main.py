@@ -33,6 +33,7 @@ from slate.api.endpoints import issues
 from slate.api.endpoints import labels
 from slate.api.endpoints import queue
 from slate.api.endpoints import records
+from slate.api.endpoints import repos
 from slate.api.endpoints import sessions
 from slate.api.endpoints import totals
 from slate.api.endpoints import vocabulary
@@ -62,6 +63,7 @@ RESOURCE_ROUTERS: tuple[tuple[str, APIRouter], ...] = (
     ('/labels', labels.router),
     ('/queue', queue.router),
     ('/records', records.router),
+    ('/repos', repos.router),
     ('/sessions', sessions.router),
     ('/totals', totals.router),
     ('/vocabulary', vocabulary.router),

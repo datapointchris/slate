@@ -414,6 +414,28 @@ pass, so the two never disagree. `closed` lists the closes inside the `since`
 and `until` window, latest first. `totals` is what `GET /totals` answers for
 the initiative over its whole life, whatever the window.
 
+**`burnup` is the initiative's issues over its whole life**, the burn-up chart Jira
+draws for a release. Each step holds `scope`, the issues in the initiative and not
+canceled, and `completed`, those of them completed, from its `ts` until the next
+step. A step falls at each moment either changed, and a last one at the read, so
+the last step is the counts above.
+
+An issue joins an initiative when a write sets its initiative, and leaves when one
+moves it elsewhere. The audit trail holds every such write, so membership is read
+back from it rather than stored twice. One read of the trail's `issues` rows, and
+one of the issues that have since left, serve every initiative the read answers,
+however many it answers. An issue with no write that joined it was
+in the initiative from its creation, as an issue imported without its history was.
+
+Closes are read from each issue as it stands. A canceled issue leaves the scope at
+its close. A completed one counts from its close, or from when it joined where that
+came later. A close at no recorded time counts from when the issue joined, so the
+last step still agrees with the counts. A reopened issue counts as it stands now,
+and a deleted one is in no step.
+
+- *Rejected:* an issue's creation as its join. An issue moved in later would read
+  as scope the initiative held all along, which is the growth the chart is for.
+
 The window means what it means on every bounded read. A bound left out leaves
 that end open, so the API given no `since` lists every close. "Recently" is the
 CLI's choice. Given neither `--since` nor `--until`, it reads the closes since
@@ -475,6 +497,30 @@ The paths `board` and `board/text` are names no initiative may take, as `progres
   worklogs and tokens, which a board draws for one row at most.
 - *Rejected:* a `limit`. `totals` and `tiers` need every initiative whatever the
   board shows, so a board cuts its scope in the client.
+
+## The repo board read answers each repo's pace and how long its ready work has waited
+
+`GET /repos/board` is what `slate tui`'s repos tab polls. A repo is a name on an
+issue rather than a record, so the read groups every issue by that name. The issues
+on no repo make a row of their own, with a null `repo`. Rows come by name.
+
+Each row carries the initiative board's counts by state and its closes. Its
+`closes_by_week` holds one count per week of the answer's `weeks`. Those are the
+Mondays of the last `CLOSES_BY_WEEK` weeks in the request's `timezone`, the last the
+week of the read. `ready` lists the repo's ready issues, the longest waiting first.
+`totals` rolls the counts and closes up over every issue.
+
+**A ready issue has waited since it was filed.** Readiness is derived on every read
+and never stored, so no moment an issue became ready is recorded to count from.
+
+Its queries do not grow with the repos, as the initiative board's do not. One
+readiness pass, one read of the live claims and one read of every issue's slim
+columns serve every row.
+
+- *Rejected:* a route per repo. Nothing but an issue names a repo, so no record
+  stands behind the path.
+- *Rejected:* the wait's spans in the API. Each ready issue is in the answer, so
+  a reader picks spans to fit its screen and names the oldest by title.
 
 ## Not built
 
