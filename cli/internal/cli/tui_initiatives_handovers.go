@@ -42,7 +42,7 @@ func (b *initiativesBoard) claude(m *gotermboard.Model) tea.Cmd {
 	}
 	brief := fmt.Sprintf(sessionBrief, kind, number)
 	if os.Getenv("TMUX") != "" {
-		if err := gotermboard.OpenWindow(fmt.Sprintf("claude %d", number), directory, "claude", brief); err != nil {
+		if err := gotermboard.OpenWindow(fmt.Sprintf("claude %d", number), directory, []string{"claude", brief}); err != nil {
 			m.Say(err.Error())
 			return nil
 		}
