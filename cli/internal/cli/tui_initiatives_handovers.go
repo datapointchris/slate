@@ -7,12 +7,14 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/gotermboard"
 	"github.com/pkg/browser"
+	"go.opentelemetry.io/otel/baggage"
 
 	"github.com/datapointchris/slate/cli/internal/repos"
 )
@@ -34,7 +36,33 @@ func (b *initiativesBoard) claude(m *gotermboard.Model) tea.Cmd {
 	}
 	return gotermboard.OpenClaudeSession(gotermboard.ClaudeSession{
 		On: strconv.Itoa(number), Dir: directory, Fallback: fallback, Brief: fmt.Sprintf(sessionBrief, kind, number),
+		Env: sessionTelemetry(number),
 	})
+}
+
+// sessionTelemetry joins the session C opens to its record and to the flow slate runs in, through
+// resource attributes, because an interactive Claude session ignores an incoming trace. The
+// record goes under the name slate's spans give it, and each member of the baggage slate
+// inherited goes on as it came, so slate names no key of its caller's. The attributes slate
+// inherited stay ahead of them.
+func sessionTelemetry(number int) []string {
+	var attributes []string
+	if resource := os.Getenv("OTEL_RESOURCE_ATTRIBUTES"); resource != "" {
+		attributes = append(attributes, resource)
+	}
+	attributes = append(attributes, fmt.Sprintf("slate.record.number=%d", number))
+	flow := os.Getenv("BAGGAGE")
+	carried, _ := baggage.Parse(flow)
+	members := carried.Members()
+	slices.SortFunc(members, func(a, b baggage.Member) int { return strings.Compare(a.Key(), b.Key()) })
+	for _, member := range members {
+		attributes = append(attributes, member.Key()+"="+url.PathEscape(member.Value()))
+	}
+	env := []string{"OTEL_RESOURCE_ATTRIBUTES=" + strings.Join(attributes, ",")}
+	if flow != "" {
+		env = append(env, "BAGGAGE="+flow)
+	}
+	return env
 }
 
 // sessionDirectory is where C opens Claude: the checkout the registry names for the record's
