@@ -94,13 +94,9 @@ func (ended writeEnded) sentence() string {
 	return fmt.Sprintf("%s may or may not have landed, so the board reads again: %v", capitalized(ended.doing), ended.err)
 }
 
-// handedBack is what a program the board handed the terminal to sends once it exits.
-type handedBack struct {
-	board *initiativesBoard
-	then  func(m *gotermboard.Model) tea.Cmd
-}
-
-// Receive is gotermboard.ReceivingBoard's.
+// Receive is gotermboard.ReceivingBoard's. A program the board handed the terminal to may have
+// changed what it shows, so its handback reads the board again, before the model runs the
+// key's own then.
 func (b *initiativesBoard) Receive(m *gotermboard.Model, msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case writeEnded:
@@ -110,11 +106,8 @@ func (b *initiativesBoard) Receive(m *gotermboard.Model, msg tea.Msg) tea.Cmd {
 		b.writing = ""
 		b.readAgain()
 		m.Say(msg.sentence())
-	case handedBack:
-		if msg.board == b {
-			b.readAgain()
-			return msg.then(m)
-		}
+	case gotermboard.HandedBack:
+		b.readAgain()
 	}
 	return nil
 }

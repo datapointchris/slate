@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +9,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/gotermboard"
@@ -19,9 +16,6 @@ import (
 
 	"github.com/datapointchris/slate/cli/internal/repos"
 )
-
-// tmuxTimeout bounds tmux opening a window, which answers at once on a live server.
-const tmuxTimeout = 5 * time.Second
 
 // sessionBrief is the first message of the Claude session C opens on a record. It names the
 // record by number alone, so the session reads the record's words as data with `slate show`.
@@ -48,7 +42,7 @@ func (b *initiativesBoard) claude(m *gotermboard.Model) tea.Cmd {
 	}
 	brief := fmt.Sprintf(sessionBrief, kind, number)
 	if os.Getenv("TMUX") != "" {
-		if err := openWindow(fmt.Sprintf("claude %d", number), directory, "claude", brief); err != nil {
+		if err := gotermboard.OpenWindow(fmt.Sprintf("claude %d", number), directory, "claude", brief); err != nil {
 			m.Say(err.Error())
 			return nil
 		}
@@ -57,9 +51,9 @@ func (b *initiativesBoard) claude(m *gotermboard.Model) tea.Cmd {
 	}
 	session := exec.Command("claude", brief)
 	session.Dir = directory
-	return b.handOver(session, func(m *gotermboard.Model, err error, stderr string) tea.Cmd {
+	return m.HandOver(session, func(m *gotermboard.Model, err error, stderr []byte) tea.Cmd {
 		if err != nil {
-			m.Say(fmt.Sprintf("the Claude session on %d ended: %s", number, lastLineOf([]byte(stderr), err)))
+			m.Say(fmt.Sprintf("the Claude session on %d ended: %s", number, gotermboard.LastLine(stderr, err)))
 			return nil
 		}
 		m.Say(fmt.Sprintf("back from the Claude session on %d", number))
@@ -109,34 +103,6 @@ func (b *initiativesBoard) repoOf(kind string, number int) string {
 	return ""
 }
 
-// openWindow runs argv in a new tmux window in directory. tmux runs several arguments without
-// a shell, so the brief needs no quoting. tmux opens the window whether or not its program
-// starts, so every program it needs is looked for first.
-func openWindow(name, directory string, argv ...string) error {
-	for _, program := range []string{"tmux", argv[0]} {
-		if _, err := exec.LookPath(program); err != nil {
-			return fmt.Errorf("%s is not on PATH, so no window opened for %s", program, name)
-		}
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), tmuxTimeout)
-	defer cancel()
-	args := append([]string{"new-window", "-n", name, "-c", directory}, argv...)
-	if out, err := exec.CommandContext(ctx, "tmux", args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("tmux could not open %s: %s", name, lastLineOf(out, err))
-	}
-	return nil
-}
-
-// handOver gives the terminal to cmd until it exits, keeping what it wrote to stderr, then
-// reads the board again and runs then on the board's goroutine.
-func (b *initiativesBoard) handOver(cmd *exec.Cmd, then func(m *gotermboard.Model, err error, stderr string) tea.Cmd) tea.Cmd {
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return handedBack{board: b, then: func(m *gotermboard.Model) tea.Cmd { return then(m, err, stderr.String()) }}
-	})
-}
-
 // usageExit is the status a command line it refuses exits with, by the convention prs keeps.
 const usageExit = 2
 
@@ -153,13 +119,13 @@ func (b *initiativesBoard) openInPrs(m *gotermboard.Model, link string) tea.Cmd 
 		m.Say(fmt.Sprintf("prs is not on PATH, so o opens %s in the browser", name))
 		return nil
 	}
-	return b.handOver(exec.Command("prs", "tui", "--pr", link), func(m *gotermboard.Model, err error, stderr string) tea.Cmd {
+	return m.HandOver(exec.Command("prs", "tui", "--pr", link), func(m *gotermboard.Model, err error, stderr []byte) tea.Cmd {
 		var exited *exec.ExitError
 		switch {
 		case errors.As(err, &exited) && exited.ExitCode() == usageExit:
-			m.Say(fmt.Sprintf("the prs on PATH refused `prs tui --pr` (%s), so o opens %s in the browser", lastLineOf([]byte(stderr), err), name))
+			m.Say(fmt.Sprintf("the prs on PATH refused `prs tui --pr` (%s), so o opens %s in the browser", gotermboard.LastLine(stderr, err), name))
 		case err != nil:
-			m.Say(fmt.Sprintf("prs did not open %s: %s", name, lastLineOf([]byte(stderr), err)))
+			m.Say(fmt.Sprintf("prs did not open %s: %s", name, gotermboard.LastLine(stderr, err)))
 		default:
 			m.Say("back from prs on " + name)
 		}
@@ -193,15 +159,6 @@ func (b *initiativesBoard) openInBrowser(m *gotermboard.Model) tea.Cmd {
 	}
 	m.Say("opened " + pullRequestName(link) + " in the browser")
 	return nil
-}
-
-// lastLineOf is the last thing a failed command said, or its exit status where it said nothing.
-func lastLineOf(out []byte, err error) string {
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	if last := strings.TrimSpace(lines[len(lines)-1]); last != "" {
-		return last
-	}
-	return err.Error()
 }
 
 // pullRequestKeyPrefix leads a pull request row's key, which ends in the link as recorded.
