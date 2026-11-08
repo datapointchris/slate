@@ -101,16 +101,25 @@ func latestFirst(a, b *time.Time) int {
 }
 
 // cursorRowReads is what only the cursor's row reads: an initiative's next issues and
-// tokens, and an issue's whole description. Each is kept once read, so a row returned to
-// draws at once.
+// tokens, and an issue whole with its worklogs. Each is kept once read, so a row returned
+// to draws at once.
 type cursorRowReads struct {
-	progress     map[int]api.InitiativeProgress
-	descriptions map[int]string
+	progress map[int]api.InitiativeProgress
+	issues   map[int]api.Issue
+	worklogs map[int][]api.Worklog
 }
+
+// The groupings v cycles, the first the one the board opens on.
+const (
+	groupingTier       = "tier"
+	groupingRepo       = "repo"
+	groupingInitiative = "initiative"
+)
 
 // initiativesBoard is the initiatives tab. Its reads run off the program's goroutine and
 // touch only their sources, the cursor and readFailure. The keys and Frame run on it.
 type initiativesBoard struct {
+	client      *api.Client
 	status      string
 	scope       boardScope
 	sort        int
@@ -119,10 +128,15 @@ type initiativesBoard struct {
 	text        *gotermboard.Source[api.InitiativeBoardText]
 	cursorRow   *gotermboard.Source[cursorRowReads]
 	cursor      atomic.Pointer[string]
-	// markdown, records and recordsReadAt belong to the program's goroutine, with the keys and Frame.
+	// markdown, records, recordsReadAt, places and writing belong to the program's
+	// goroutine, with the keys and Frame.
 	markdown      *markdown.Renderer
 	records       map[int]bool
 	recordsReadAt time.Time
+	// places is each reorderable row's neighbors as the last frame drew them.
+	places map[string]queuePlace
+	// writing is the write under way, which the footer names, or empty.
+	writing string
 	// readFailure is the board read's last failure, for --once and --json to exit on,
 	// since a source keeps only its sentence.
 	readFailure error
@@ -130,7 +144,7 @@ type initiativesBoard struct {
 
 func newInitiativesBoard(client *api.Client, status string, scope boardScope) *initiativesBoard {
 	zone := issueZone()
-	b := &initiativesBoard{status: status, scope: scope, described: map[int]bool{}}
+	b := &initiativesBoard{client: client, status: status, scope: scope, described: map[int]bool{}}
 	b.markdown = markdown.New(b.colorRecordNumbers)
 	b.initiatives = gotermboard.NewSource("initiatives", boardReadEvery, func(ctx context.Context) (api.InitiativeBoard, string, error) {
 		read, err := client.ReadInitiativeBoard(ctx, status, zone)
@@ -153,8 +167,10 @@ func (b *initiativesBoard) Sources() []gotermboard.Refresher {
 	return []gotermboard.Refresher{b.initiatives, b.text, b.cursorRow}
 }
 
-// Groupings is gotermboard.Board's. The tiers are the one grouping.
-func (b *initiativesBoard) Groupings() []string { return nil }
+// Groupings is gotermboard.Board's.
+func (b *initiativesBoard) Groupings() []string {
+	return []string{groupingTier, groupingRepo, groupingInitiative}
+}
 
 // CursorOn is gotermboard.CursorBoard's. The read waits for the next tick, so holding a
 // key down reads only the row it stops on.
@@ -171,7 +187,7 @@ func (r cursorRowReads) holds(key string) bool {
 		return held
 	}
 	if number, ok := numberFromKey(key, issueKeyPrefix); ok {
-		_, held := r.descriptions[number]
+		_, held := r.worklogs[number]
 		return held
 	}
 	return true
@@ -182,9 +198,9 @@ func (r cursorRowReads) holds(key string) bool {
 // has counts of, which are most of what a progress read weighs.
 func (b *initiativesBoard) readCursorRow(ctx context.Context, client *api.Client, zone api.DayZone) (cursorRowReads, error) {
 	held := b.cursorRow.Value()
-	next := cursorRowReads{progress: maps.Clone(held.progress), descriptions: maps.Clone(held.descriptions)}
+	next := cursorRowReads{progress: maps.Clone(held.progress), issues: maps.Clone(held.issues), worklogs: maps.Clone(held.worklogs)}
 	if next.progress == nil {
-		next.progress, next.descriptions = map[int]api.InitiativeProgress{}, map[int]string{}
+		next.progress, next.issues, next.worklogs = map[int]api.InitiativeProgress{}, map[int]api.Issue{}, map[int][]api.Worklog{}
 	}
 	key := ""
 	if at := b.cursor.Load(); at != nil {
@@ -205,7 +221,11 @@ func (b *initiativesBoard) readCursorRow(ctx context.Context, client *api.Client
 		if err != nil {
 			return held, err
 		}
-		next.descriptions[number] = strValue(issue.Description)
+		worklogs, err := client.ListWorklogs(ctx, api.WorklogFilter{Record: strconv.Itoa(number), State: "all"}, nil)
+		if err != nil {
+			return held, err
+		}
+		next.issues[number], next.worklogs[number] = issue.Issue, worklogs
 	}
 	return next, nil
 }
@@ -288,9 +308,9 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 		{Keys: []string{"+", "="}, Label: "show more of them", Footer: "+/- count", Run: counted(1), Applies: hasCount},
 		{Keys: []string{"-"}, Label: "show fewer of them", Run: counted(-1), Applies: hasCount},
 		{
-			Keys: []string{"d"}, Label: "read the initiative's description, full screen where it runs past the screen", Footer: "d description",
+			Keys: []string{"d"}, Label: "read the row's description, full screen where it runs past the screen", Footer: "d description",
 			Run: func(m *gotermboard.Model) tea.Cmd {
-				number, ok := numberFromKey(m.Cursor(), initiativeKeyPrefix)
+				_, number, _, ok := b.recordAt(m.Cursor())
 				if !ok || b.readTallDescription(m, number) {
 					return nil
 				}
@@ -299,7 +319,7 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 				m.Reveal()
 				return nil
 			},
-			Applies: func(m *gotermboard.Model) bool { return strings.HasPrefix(m.Cursor(), initiativeKeyPrefix) },
+			Applies: b.onRecord,
 		},
 		{
 			Keys: []string{"s"}, Label: "cycle the sort within a tier", Footer: "s sort",
@@ -309,6 +329,21 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 				return nil
 			},
 		},
+		{
+			Keys: []string{"enter"}, Label: "fold a group or open a row, and open a pull request in prs", Footer: "enter open",
+			Run: func(m *gotermboard.Model) tea.Cmd {
+				if link, ok := pullRequestAt(m.Cursor()); ok {
+					return b.openInPrs(m, link)
+				}
+				return m.Toggle()
+			},
+		},
+		{Keys: []string{"o"}, Label: "open the pull request in the browser", Footer: "o browser", Run: b.openInBrowser, Applies: onPullRequest},
+		{Keys: []string{"M"}, Label: "move the issue to another initiative", Footer: "M move", Run: b.move, Applies: b.onIssue},
+		{Keys: []string{"C"}, Label: "open a Claude session on the row", Footer: "C claude", Run: b.claude, Applies: b.onRecord},
+		{Keys: []string{"P"}, Label: "pin the row at the top of slate next, or unpin it", Footer: "P pin", Run: b.pin, Applies: b.onRecord},
+		{Keys: []string{"<"}, Label: "move the row ahead of the one above it in the queue", Footer: "</> reorder", Run: b.reorder(-1), Applies: b.reorderable},
+		{Keys: []string{">"}, Label: "move the row behind the one below it in the queue", Run: b.reorder(1), Applies: b.reorderable},
 	}
 }
 
@@ -359,11 +394,61 @@ func initiativeKey(number int) string { return initiativeKeyPrefix + strconv.Ito
 
 func issueKey(number int) string { return issueKeyPrefix + strconv.Itoa(number) }
 
+// initiativeUnderRepo is an initiative's key under one repo's group, since the repo
+// grouping draws an initiative once for each repo its issues name.
+func initiativeUnderRepo(number int, repo string) string {
+	return initiativeKey(number) + "@" + repo
+}
+
+// numberFromKey is the record a key names, whatever repo it sits under.
 func numberFromKey(key, prefix string) (int, bool) {
 	text, found := strings.CutPrefix(key, prefix)
 	if !found {
 		return 0, false
 	}
+	text, _, _ = strings.Cut(text, "@")
 	number, err := strconv.Atoi(text)
 	return number, err == nil
+}
+
+// recordAt is the initiative or issue a key names, with its title, from the last read.
+func (b *initiativesBoard) recordAt(key string) (kind string, number int, title string, ok bool) {
+	read := b.initiatives.Value()
+	if number, ok := numberFromKey(key, initiativeKeyPrefix); ok {
+		for _, initiative := range read.Initiatives {
+			if initiative.Number == number {
+				return "initiative", number, initiative.Name, true
+			}
+		}
+	}
+	if issue, ok := b.issueAt(key); ok {
+		return "issue", issue.Number, issue.Title, true
+	}
+	return "", 0, "", false
+}
+
+// issueAt is the issue a key names, from the last read.
+func (b *initiativesBoard) issueAt(key string) (api.BoardIssue, bool) {
+	number, ok := numberFromKey(key, issueKeyPrefix)
+	if !ok {
+		return api.BoardIssue{}, false
+	}
+	for _, initiative := range b.initiatives.Value().Initiatives {
+		for _, issue := range initiative.Issues {
+			if issue.Number == number {
+				return issue, true
+			}
+		}
+	}
+	return api.BoardIssue{}, false
+}
+
+func (b *initiativesBoard) onRecord(m *gotermboard.Model) bool {
+	_, _, _, ok := b.recordAt(m.Cursor())
+	return ok
+}
+
+func (b *initiativesBoard) onIssue(m *gotermboard.Model) bool {
+	_, ok := b.issueAt(m.Cursor())
+	return ok
 }

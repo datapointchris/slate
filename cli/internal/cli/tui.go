@@ -49,12 +49,20 @@ func newTUICommand() *cobra.Command {
 			"then a bar with one cell per issue. Canceled issues stay off the bar. 1 shows the\n" +
 			"first of each tier, 2 the first in list order, 3 all of them, and + and - change\n" +
 			"the count. / searches past what the scope shows. enter unfolds an initiative's\n" +
-			"issues and opens an issue's description, full screen where it runs past the\n" +
-			"screen, and space opens it in place however long. d opens an initiative's\n" +
-			"description, f adds summaries, and s cycles the sort within a tier. ? lists every\n" +
-			"key and every read. From 160 columns a side panel follows the cursor, and p hides\n" +
-			"it. On an initiative it draws its issues and its completed ones over its life, so\n" +
-			"scope added under it shows.\n\n" +
+			"issues, and an issue's sessions and pull requests from its worklogs. enter on a\n" +
+			"pull request opens `prs tui` on it, and o opens it in the browser. d opens an\n" +
+			"initiative's or an issue's description, full screen where it runs past the\n" +
+			"screen. f adds summaries, s cycles the sort within a tier, and v cycles the\n" +
+			"grouping between tier, repo and initiative. ? lists every key and every read.\n" +
+			"From 160 columns a side panel follows the cursor, and p hides it. On an\n" +
+			"initiative it draws its issues and its completed ones over its life, so scope\n" +
+			"added under it shows.\n\n" +
+			"Some keys write, each through what the matching slate verb runs. M moves an issue\n" +
+			"to the initiative you name, P pins or unpins the row, and < and > move it ahead\n" +
+			"of the row above or behind the row below in the queue. A write asks first where\n" +
+			"the row it moves past is hidden or another row's description is open. C opens a\n" +
+			"Claude session on the row: in a new window inside tmux, and otherwise in this\n" +
+			"terminal until it ends.\n\n" +
 			"repos is every repo the issues name on the same columns, then how long its oldest\n" +
 			"ready issue has waited and its closes in each recent week. Repos with nothing\n" +
 			"open and no close in those weeks fold under quiet. The panel draws a repo's\n" +
