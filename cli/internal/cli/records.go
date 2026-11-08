@@ -17,7 +17,7 @@ import (
 // The ways to find a record after a 404, whatever its kind.
 const (
 	anyRecordHint = "Any record by its number, whatever its kind: slate show <number>"
-	searchHint    = "Search every kind by title or description: slate search <words>"
+	searchHint    = "Search every kind by number, title or description: slate search <words>"
 )
 
 // recordShown is `slate show <number> --json`: the kind, the number, and the
@@ -137,11 +137,14 @@ func newSearchCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "search <words>...",
 		SuggestFor: []string{"find", "grep"},
-		Short:      "Find ideas, initiatives and issues by title or description",
+		Short:      "Find ideas, initiatives and issues by number, title or description",
 		Long: "Every word must appear in the title, the description or an initiative's\n" +
-			"summary, in any order. Every status is searched, because the record you\n" +
-			"remember may be the one that closed. Unclosed records come first, then the most urgent, then the newest.",
+			"summary, in any order. A word that is a number, as 2175 or #2175, also matches\n" +
+			"the record with that number, and it lists first. Every status is searched,\n" +
+			"because the record you remember may be the one that closed. Unclosed records\n" +
+			"come next, then the most urgent, then the newest.",
 		Example: "  slate search rank renumber\n" +
+			"  slate search 2175\n" +
 			"  slate search \"device login\" --kind issue --json",
 		Args:        cobra.MinimumNArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),

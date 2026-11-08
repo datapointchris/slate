@@ -143,7 +143,7 @@ func (v *issueFilterFlags) register(cmd *cobra.Command) {
 	f.StringVar(&v.priority, "priority", "", "Only issues whose own priority is this: "+priorityChoices())
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	f.StringVar(&v.closedBy, "closed-by", "", "Only issues whose closer starts with this, such as claude-code/")
-	f.StringVar(&v.search, "search", "", "Only issues whose title or description holds every one of these words")
+	f.StringVar(&v.search, "search", "", "Only issues whose title or description holds every one of these words, or whose number one names")
 	f.BoolVar(&v.blocked, "blocked", false, "Only issues waiting on an unclosed dependency (--blocked=false for the rest)")
 	f.BoolVar(&v.autofixable, "autofixable", false, autofixableFilterHelp)
 }
@@ -251,7 +251,8 @@ func newIssuesListCommand() *cobra.Command {
 		Short: "List issues, open work first in queue order",
 		Long: "Unclosed issues by default: triage and open. Completed and canceled ones\n" +
 			"accumulate without end, so --status asks for them. --search keeps the issues\n" +
-			"whose title or description holds every word, beside any other filter.\n" +
+			"whose title or description holds every word, beside any other filter. A word\n" +
+			"that is a number, as 2175 or #2175, also matches that issue.\n" +
 			"`slate search <words>` finds a record of any kind.\n" +
 			"\n" +
 			"Open work comes first in the order `slate next` takes it, then closed work,\n" +

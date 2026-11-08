@@ -5,6 +5,7 @@ import (
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/datapointchris/gotermboard"
@@ -174,8 +175,10 @@ func repoKey(repo *string) string {
 
 func repoRow(repo api.BoardRepo, read api.RepoBoard, now time.Time) gotermboard.Row {
 	ready := make([]readyInRepo, 0, len(repo.Ready))
+	var readyText strings.Builder
 	for _, issue := range repo.Ready {
 		ready = append(ready, readyInRepo{issue: issue})
+		readyText.WriteString(filterNumber(issue.Number) + issue.Title + " ")
 	}
 	name := gotermboard.C(repoLabel(repo.Repo), gotermboard.Bold)
 	if repo.Repo == nil {
@@ -185,6 +188,7 @@ func repoRow(repo api.BoardRepo, read api.RepoBoard, now time.Time) gotermboard.
 		Key:      repoKey(repo.Repo),
 		Cells:    append([]gotermboard.Cell{name}, repoCells(repo.RepoRollup, oldestReady(ready), now)...),
 		WrapLast: percentBar(repo.BoardCounts),
+		Text:     readyText.String(),
 		Panel: func(width int) []gotermboard.Line {
 			return repoPanel(repoLabel(repo.Repo), repo.RepoRollup, ready, read, now, width)
 		},

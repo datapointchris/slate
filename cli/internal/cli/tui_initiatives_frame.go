@@ -219,7 +219,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, key s
 		BlankAboveRule: true,
 		FilterOnly:     beyondScope,
 		Groups:         b.issueGroups(strings.TrimPrefix(key, initiativeKeyPrefix), issues, initiative.Issues, drawn),
-		Text:           description + " " + strValue(long.StatusReason),
+		Text:           filterNumber(initiative.Number) + description + " " + strValue(long.StatusReason),
 		Panel: func(width int) []gotermboard.Line {
 			return b.initiativePanel(initiative, long, drawn.rows, drawn.read, drawn.now, width)
 		},
@@ -493,7 +493,7 @@ func (b *initiativesBoard) issueGroup(issue api.BoardIssue, drawn boardDraw) got
 		Document: b.openDescription(issue.Number, description, isRead),
 		Folded:   true,
 		Rows:     workRows(issue.Number, worklogs, worked, drawn.now),
-		Text:     description,
+		Text:     filterNumber(issue.Number) + description,
 		Panel: func(width int) []gotermboard.Line {
 			return b.issuePanel(issue, excerpt, read, isRead, worklogs, worked, drawn.now, width)
 		},
@@ -503,6 +503,9 @@ func (b *initiativesBoard) issueGroup(issue api.BoardIssue, drawn boardDraw) got
 	}
 	return group
 }
+
+// filterNumber is a record's number as the CLI's tables print it, so / finds #2175 as it finds 2175.
+func filterNumber(number int) string { return "#" + strconv.Itoa(number) + " " }
 
 // workRows is a pull request row for each one an issue's worklogs link, then a row for each
 // session in each, newest worklog first.
