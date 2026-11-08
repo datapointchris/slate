@@ -126,7 +126,7 @@ func TestInitiativesProgressPrintsEveryPartAndItsJSONCarriesThem(t *testing.T) {
 	}
 	for _, want := range []string{
 		"#2072  high  Move the work to slate",
-		strings.Repeat("▰", 4) + strings.Repeat("▱", 7) + strings.Repeat("✕", 4) + strings.Repeat("▱", 15) + "  1/8 done",
+		strings.Repeat("▰", 4) + strings.Repeat("▱", 26) + "  1/8 done",
 		"1 done · 1 running · 1 waiting · 1 blocked · 1 ready · 1 in triage · 1 deferred · 1 with open children · 1 canceled · 9 issues",
 		"Running · 1", "#2096  Drop the old order columns", "claimed by claude-code/s1 until", "; blocked by #2099\n",
 		"Waiting · 1", "waiting on a review since",
