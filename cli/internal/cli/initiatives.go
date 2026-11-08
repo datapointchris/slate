@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/datapointchris/goclikit"
+	"github.com/datapointchris/gotermboard"
 	"github.com/datapointchris/gotermstyle"
 	"github.com/spf13/cobra"
 
@@ -490,6 +491,12 @@ func progressFilled(done, open, cells int) int {
 	return min(max(filled, 1), ceiling)
 }
 
+// openKinds splits the open issues into the kinds every bar and the RUN column count.
+func openKinds(s api.IssueStateCounts, open int) (underWay, blocked, rest int) {
+	underWay = s.Running + s.Waiting
+	return underWay, s.Blocked, max(open-underWay-s.Blocked, 0)
+}
+
 // initiativeGroupLabel is the header a row sits under in work order: its tier
 // while it is active, and its status once it is not.
 func initiativeGroupLabel(initiative api.Initiative) string {
@@ -554,7 +561,7 @@ func (r initiativeRows) row(initiative api.Initiative) string {
 		cells = append(cells, localDay(initiative.CreatedTS))
 		used += 2 + len(dayLayout)
 	}
-	bar := p.Green(strings.Repeat("▰", filled)) + strings.Repeat("▱", progressCells-filled)
+	bar := gotermboard.TallyBar(filled, 0, 0, progressCells-filled).Paint(p)
 	fraction := padLeft(strconv.Itoa(done), r.done) + "/" + padRight(strconv.Itoa(done+open), r.total)
 	cells = append(cells, bar, fraction)
 	used += 2 + progressCells + 2 + r.done + 1 + r.total

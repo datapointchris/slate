@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/datapointchris/goclikit"
+	"github.com/datapointchris/gotermboard"
 	"github.com/datapointchris/gotermstyle"
 	"github.com/spf13/cobra"
 
@@ -138,10 +139,9 @@ func (v progressView) print(progress api.InitiativeProgress) {
 	v.line("  tokens:  %s", reportedTokens(totals.Tokens))
 }
 
-// progressBar fills its done cells by the rule the list's bar keeps, in green,
-// then splits the empty cells among the open work: yellow for the running and
-// waiting, red for the blocked and plain for the rest. Without color it reads
-// as done over done and open.
+// progressBar fills its done cells by the rule the list's bar keeps, then shares the
+// empty cells among the open kinds. It draws them as slate tui's bar does, so the two
+// read alike with or without color.
 func progressBar(p gotermstyle.Palette, s api.IssueStateCounts, done, open int) string {
 	filled := progressFilled(done, open, progressBarCells)
 	empty := progressBarCells - filled
@@ -151,11 +151,10 @@ func progressBar(p gotermstyle.Palette, s api.IssueStateCounts, done, open int) 
 		}
 		return (n*empty + open/2) / open
 	}
-	underWay := share(s.Running + s.Waiting)
-	blocked := share(s.Running+s.Waiting+s.Blocked) - underWay
-	rest := empty - underWay - blocked
-	return p.Green(strings.Repeat("▰", filled)) + p.Yellow(strings.Repeat("▱", underWay)) +
-		p.Red(strings.Repeat("▱", blocked)) + strings.Repeat("▱", rest)
+	underWay, blocked, _ := openKinds(s, open)
+	underWayCells := share(underWay)
+	blockedCells := share(underWay+blocked) - underWayCells
+	return gotermboard.TallyBar(filled, underWayCells, blockedCells, empty-underWayCells-blockedCells).Paint(p)
 }
 
 // stateCountsLine names the done count always, every other state holding an

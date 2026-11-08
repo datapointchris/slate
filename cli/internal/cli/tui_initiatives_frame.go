@@ -389,6 +389,7 @@ func ageOf(at *time.Time, now time.Time) string {
 // boardCells is a row's cells on the columns past its title.
 func boardCells(counts api.BoardCounts, now time.Time) []gotermboard.Cell {
 	done := counts.States.Completed
+	underWay, _, _ := openKinds(counts.States, counts.OpenCount)
 	last := gotermboard.C("·", dimCode)
 	if counts.Closes.LastClosedTS != nil {
 		last = gotermboard.Ticking(ageOf(counts.Closes.LastClosedTS, now), "")
@@ -399,7 +400,7 @@ func boardCells(counts api.BoardCounts, now time.Time) []gotermboard.Cell {
 		countCell(counts.Closes.Last7d, gotermboard.Green),
 		countCell(counts.Closes.Last30d, gotermboard.Green),
 		last,
-		countCell(counts.States.Running+counts.States.Waiting, gotermboard.Yellow),
+		countCell(underWay, gotermboard.Yellow),
 		countCell(counts.States.Blocked, gotermboard.Red),
 		countCell(counts.States.Ready, ""),
 	}
@@ -412,42 +413,25 @@ func countCell(n int, code string) gotermboard.Cell {
 	return gotermboard.C(strconv.Itoa(n), code)
 }
 
-// The glyphs a bar draws, as the progress bar in `initiatives list` has them.
-const (
-	barFilledGlyph = "▰"
-	barEmptyGlyph  = "▱"
-)
-
-// barLine is cells of each kind: done in green, the work under way in yellow, the blocked
-// in red and the rest plain.
-func barLine(done, underWay, blocked, rest int) gotermboard.Line {
-	return gotermboard.Line{
-		gotermboard.C(strings.Repeat(barFilledGlyph, done), gotermboard.Green),
-		gotermboard.C(strings.Repeat(barFilledGlyph, underWay), gotermboard.Yellow),
-		gotermboard.C(strings.Repeat(barEmptyGlyph, blocked), gotermboard.Red),
-		gotermboard.C(strings.Repeat(barEmptyGlyph, rest), ""),
-	}
-}
-
 // issueBar has one cell per issue, so a count on it can be checked by eye. Canceled
 // issues stay off it.
 func issueBar(counts api.BoardCounts) gotermboard.Line {
-	underWay := counts.States.Running + counts.States.Waiting
-	return barLine(counts.States.Completed, underWay, counts.States.Blocked, max(counts.OpenCount-underWay-counts.States.Blocked, 0))
+	underWay, blocked, rest := openKinds(counts.States, counts.OpenCount)
+	return gotermboard.TallyBar(counts.States.Completed, underWay, blocked, rest)
 }
 
 // scaledBar is issueBar's kinds shared over tierBarCells, for a row holding too many
 // issues to draw one cell each. A kind holding any issue keeps a cell, so a blocked issue
 // never rounds away.
 func scaledBar(counts api.BoardCounts) gotermboard.Line {
-	underWay := counts.States.Running + counts.States.Waiting
-	kinds := []int{counts.States.Completed, underWay, counts.States.Blocked, max(counts.OpenCount-underWay-counts.States.Blocked, 0)}
+	underWay, blocked, rest := openKinds(counts.States, counts.OpenCount)
+	kinds := []int{counts.States.Completed, underWay, blocked, rest}
 	total := 0
 	for _, n := range kinds {
 		total += n
 	}
 	if total == 0 {
-		return barLine(0, 0, 0, tierBarCells)
+		return gotermboard.TallyBar(0, 0, 0, tierBarCells)
 	}
 	cells := make([]int, len(kinds))
 	left := tierBarCells
@@ -460,7 +444,7 @@ func scaledBar(counts api.BoardCounts) gotermboard.Line {
 	}
 	widest := slices.Index(cells, slices.Max(cells))
 	cells[widest] += left
-	return barLine(cells[0], cells[1], cells[2], cells[3])
+	return gotermboard.TallyBar(cells[0], cells[1], cells[2], cells[3])
 }
 
 // sparkLine is one glyph per day, a day with no closes a space.

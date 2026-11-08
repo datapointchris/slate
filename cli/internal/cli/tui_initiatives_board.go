@@ -288,10 +288,6 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 		{Keys: []string{"+", "="}, Label: "show more of them", Footer: "+/- count", Run: counted(1), Applies: hasCount},
 		{Keys: []string{"-"}, Label: "show fewer of them", Run: counted(-1), Applies: hasCount},
 		{
-			Keys: []string{"enter", "space"}, Label: "unfold an initiative's issues, fold a group, or open an issue's description",
-			Footer: "enter issues", Run: (*gotermboard.Model).Toggle,
-		},
-		{
 			Keys: []string{"d"}, Label: "read the initiative's description, full screen where it runs past the screen", Footer: "d description",
 			Run: func(m *gotermboard.Model) tea.Cmd {
 				number, ok := numberFromKey(m.Cursor(), initiativeKeyPrefix)
