@@ -86,7 +86,8 @@ class Issue(NumberedRecord, Base):
     # arrives in the reader's zone, and does not count as blocked meanwhile.
     deferred_until_date: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
     # False keeps the issue from an unattended fix. Its initiative's false does too.
-    autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text('true'))
+    # An issue starts false and is opened to one by setting it true.
+    autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
     initiative_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey('initiatives.id', ondelete='SET NULL'), nullable=True, index=True)
     # A parent is work too large for one issue, split into children. While any
     # child is open the parent is not ready and cannot be completed.

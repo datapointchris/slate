@@ -56,7 +56,7 @@ class IdeaPromote(RecordModel):
     description: str | None = None
     priority: Priority | None = None
     status: Literal['active', 'someday'] = 'active'
-    autofix: bool = True
+    autofix: bool = False
 
 
 class IdeaEvidence(RecordModel):

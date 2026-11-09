@@ -204,8 +204,8 @@ func newIssuesCreateCommand() *cobra.Command {
 			"--status triage holds it for a person to accept before an agent may take it.\n" +
 			"Anything a hook or a script files belongs there.\n" +
 			"\n" +
-			"--autofix=false keeps it and its children from an unattended fix, so only a\n" +
-			"session takes them.\n" +
+			"An issue starts with autofix off, so only a session takes it. --autofix opens\n" +
+			"it to an unattended fix, unless its initiative or an unclosed parent is off.\n" +
 			"\n" +
 			"--path names a file or directory the issue changes, relative to its repo's\n" +
 			"root, and a directory covers everything under it. Holding a claim on it warns\n" +
@@ -313,7 +313,7 @@ func newIssuesCreateCommand() *cobra.Command {
 	f.StringArrayVar(&dependsOn, "depends-on", nil, "Issue this waits on (repeatable)")
 	f.StringArrayVar(&paths, "path", nil, issuePathHelp)
 	f.StringVar(&deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD")
-	f.BoolVar(&autofix, "autofix", true, autofixSetHelp)
+	f.BoolVar(&autofix, "autofix", false, autofixSetHelp)
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -335,7 +335,7 @@ var issueRequiredFlags = []string{"title", "type", "priority"}
 const issuePathHelp = "File or directory it changes, from the repo root (repeatable; needs a repo)"
 
 // autofixSetHelp is the help an issue write's --autofix carries.
-const autofixSetHelp = "False keeps it and its children from an unattended fix, as its initiative's or a parent's false does"
+const autofixSetHelp = "True opens it to an unattended fix, unless its initiative or a parent is off; false keeps it and its children from one"
 
 type issueEditFlags struct {
 	title, description, acceptance, repo, issueType, priority string

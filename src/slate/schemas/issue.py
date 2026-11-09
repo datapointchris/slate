@@ -72,7 +72,7 @@ class IssueCreate(RecordModel):
     status: str = 'open'
     priority: Priority = 0
     deferred_until_date: dt.date | None = None
-    autofix: bool = True
+    autofix: bool = False
     initiative: InitiativeRef | None = None
     parent: IssueRef | None = None
     discovered_from: IssueRef | None = None

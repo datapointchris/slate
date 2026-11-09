@@ -31,9 +31,9 @@ func newInitiativesCommand() *cobra.Command {
 			"issue sorts no lower than its active initiative's priority. A finished\n" +
 			"initiative takes no new issues and leaves the ones it holds as they are. A\n" +
 			"someday initiative is held back until it is reopened, and so are its issues,\n" +
-			"except one that work outside someday depends on. One worked as a single\n" +
-			"design sets --autofix=false, so an unattended fix never lands one of its\n" +
-			"steps alone. An initiative shares its number sequence with ideas and issues,\n" +
+			"except one that work outside someday depends on. An initiative starts with\n" +
+			"autofix off, so an unattended fix never lands one of its steps alone.\n" +
+			"An initiative shares its number sequence with ideas and issues,\n" +
 			"and an idea's promotion creates one.",
 		Example: "  slate initiatives list                         the active ones, in the order to work them\n" +
 			"  slate initiatives progress \"Ship the tracker\"  its bar, what runs, waits and comes next\n" +
@@ -249,7 +249,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&description, "description", "", "The outcome, and how you will know it is done")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
-	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
+	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -311,14 +311,14 @@ func newInitiativesEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&description, "description", "", "New description (empty clears)")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
-	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
+	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
 const initiativeSummaryHelp = "What is true when it is done, on one line of at most 240 characters, in words the name does not use"
 
-const initiativeAutofixHelp = "False keeps every issue in it from an unattended fix, so a session takes them"
+const initiativeAutofixHelp = "True opens its issues to an unattended fix; false, where it starts, keeps them for a session"
 
 func runInitiativeUpdate(cmd *cobra.Command, ref string, in api.InitiativeUpdateInput, clear []string, asJSON bool, verb string) error {
 	client, err := newAPIClient(cmd)

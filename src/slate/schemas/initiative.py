@@ -53,7 +53,7 @@ class InitiativeCreate(InitiativeWrite):
     status: str = 'active'
     status_reason: str | None = None
     priority: Priority = 0
-    autofix: bool = True
+    autofix: bool = False
 
 
 class InitiativeUpdate(InitiativeWrite):

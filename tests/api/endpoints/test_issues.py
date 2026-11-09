@@ -240,17 +240,18 @@ class TestReadyQueue:
         wrote(patch(client, bug['number'], status='completed'))
         assert task['title'] not in titles(ready(client))
 
-    def test_autofix_false_on_an_issue_its_parent_or_its_initiative_keeps_it_from_the_autofixable_queue(self, client):
+    def test_an_issue_is_autofixable_only_set_true_with_no_parent_or_initiative_saying_false(self, client):
         bug = issue(client, 'Ready bug with high priority')
         task = issue(client, 'Ready task without priority')
-        wrote(patch(client, bug['number'], autofix=False))
-        wrote(patch(client, task['number'], initiative='Ship the issue tracker'))
+        unset = create(client, title='Filed with autofix unset')
+        wrote(patch(client, task['number'], autofix=True, initiative='Ship the issue tracker'))
         ok(client.patch('/initiatives/Ship the issue tracker', json={'autofix': False}))
         parent = create(client, title='Parent with autofix off', autofix=False)
-        child = create(client, title='Child of that parent', parent=parent['number'])
+        child = create(client, title='Child of that parent', parent=parent['number'], autofix=True)
 
+        assert unset['autofix'] is False
         assert titles(ready(client, autofixable=True)) == ['Ready chore with low priority']
-        everything = {bug['title'], task['title'], child['title'], 'Ready chore with low priority'}
+        everything = {bug['title'], task['title'], child['title'], unset['title'], 'Ready chore with low priority'}
         assert set(titles(ready(client))) == everything
         assert issue(client, task['title'])['is_autofixable'] is False
 

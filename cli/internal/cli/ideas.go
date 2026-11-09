@@ -353,7 +353,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 	cmd.Flags().StringVar(&description, "description", "", "The initiative's outcome (default the idea's description)")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default the idea's)")
 	cmd.Flags().StringVar(&status, "status", "", "One of: "+strings.Join(promoteStatuses, ", ")+" (default active)")
-	cmd.Flags().BoolVar(&autofix, "autofix", true, initiativeAutofixHelp)
+	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }

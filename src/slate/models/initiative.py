@@ -61,8 +61,9 @@ class Initiative(NumberedRecord, Base):
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     priority: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default='0')
     # False keeps every issue in it from an unattended fix, so a step of one
-    # design is never landed alone.
-    autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text('true'))
+    # design is never landed alone. An initiative starts false and is opened to
+    # one by setting it true.
+    autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
     created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     closed_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # The idea promoted into this initiative. One idea becomes at most one initiative.

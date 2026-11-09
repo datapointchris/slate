@@ -116,7 +116,7 @@ something urgent needs it first. Closing the dependent shelves it again.
 `someday` is neither active nor terminal. It lends no priority, and like a
 closed initiative it gives up its name, so an active one may take it.
 
-## `autofix: false` keeps an issue from an unattended fix and leaves it ready for a session
+## An issue reaches an unattended fix only where it and every record above it say `autofix: true`
 
 An unattended fix is a commit nobody reads before it lands. Two kinds of work
 must stay out of one. A step of a larger design would land alone, out of the
@@ -124,11 +124,13 @@ design it belongs to. That design is an initiative, or a parent issue split
 into children. A standalone issue may need a person, or someone may simply
 want to do it themselves.
 
-Issues and initiatives each carry `autofix`, true by default. An issue is
-autofixable when none of it, its initiative and its unclosed parent says false,
-and the parent is read the same way up the tree. That is derived on every read
-with readiness and returned as `is_autofixable`. So an issue filed later into
-such an initiative, or under such a parent, is covered with nothing set on it.
+Issues and initiatives each carry `autofix`, false by default, so a record
+filed without a word about it stays with a session. Opening one is a choice
+someone makes. An issue is autofixable when it says true and none of its
+initiative and its unclosed parent says false, and the parent is read the same
+way up the tree. That is derived on every read with readiness and returned as
+`is_autofixable`. So an issue filed later into an initiative that says false,
+or under such a parent, is kept out whatever it says itself.
 
 `autofix` says nothing about whether an issue is ready. A session reads the
 whole queue with `slate next`. `slate next --step build --autofixable` is the
