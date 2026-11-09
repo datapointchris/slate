@@ -109,10 +109,12 @@ spec:
           # Sized from the API's working set under steady use, which passes 200 MiB
           # within minutes of a start and climbs with its requests. The limit equals
           # the request, so the pod never uses more memory than the scheduler set
-          # aside for it.
+          # aside for it. The CPU request is twice the API's busiest reading, about
+          # 100m. A node short of CPU shares it by request, and a starved API
+          # misses its one-second liveness probe and is restarted.
           resources:
             requests:
-              cpu: 50m
+              cpu: 200m
               memory: 512Mi
             limits:
               memory: 512Mi
