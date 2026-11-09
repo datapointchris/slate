@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 from uuid import uuid7
 
+from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
 from sqlalchemy import CheckConstraint
 from sqlalchemy import DateTime
@@ -81,3 +82,21 @@ class Initiative(NumberedRecord, Base):
 
     def __repr__(self):
         return f'Initiative(id={self.id!r}, name={self.name!r}, status={self.status!r})'
+
+
+class InitiativeDependency(Base):
+    """`initiative_id`'s open issues are blocked while the record `depends_on_number` names is open.
+
+    The waited-on end is a record number, because it may be an initiative or an issue. The API
+    refuses an idea. `services/open_records.is_open` decides when either end is open, and a someday
+    initiative counts as open.
+    """
+
+    __tablename__ = 'initiative_dependencies'
+    initiative_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey('initiatives.id', ondelete='CASCADE'), primary_key=True)
+    depends_on_number: Mapped[int] = mapped_column(BigInteger, ForeignKey('records.number', ondelete='CASCADE'), primary_key=True)
+
+    __table_args__ = (Index('idx_initiative_dependencies_depends_on', 'depends_on_number'),)
+
+    def __repr__(self):
+        return f'InitiativeDependency(initiative_id={self.initiative_id!r}, depends_on_number={self.depends_on_number!r})'

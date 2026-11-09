@@ -58,6 +58,13 @@ type RecordSummary struct {
 	Status *string `json:"status"`
 }
 
+// Blocker is an open record holding an issue back. ThroughInitiative is the
+// initiative whose wait holds it, and nil where the issue depends on it.
+type Blocker struct {
+	RecordSummary
+	ThroughInitiative *int `json:"through_initiative"`
+}
+
 // ClaimOnRecord is a claim beside the record it is on.
 type ClaimOnRecord struct {
 	Claim

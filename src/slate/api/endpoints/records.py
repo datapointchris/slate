@@ -1,11 +1,13 @@
-"""Any record by its number, whatever kind holds it."""
+"""Any record by its number, whatever kind holds it, and what an issue or an initiative waits on."""
 
 from typing import Annotated
 
 from fastapi import APIRouter
+from fastapi import Depends
 from fastapi import Query
 from fastapi import status
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
@@ -18,12 +20,20 @@ from slate.schemas.record_read import IssueRecord
 from slate.schemas.record_read import RecordRead
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
+from slate.services.initiative_views import counted
 from slate.services.initiative_views import initiative_detail
 from slate.services.issue_views import fresh_issue_detail
 from slate.services.record_changes import record_changes
+from slate.services.record_dependencies import add_initiative_wait
+from slate.services.record_dependencies import add_issue_dependency
+from slate.services.record_dependencies import remove_initiative_wait
+from slate.services.record_dependencies import remove_issue_dependency
 from slate.services.record_lists import listed_records
+from slate.services.record_refs import resolve_issue_or_initiative
 from slate.services.record_refs import resolve_record
 from slate.services.row_limit import RowLimit
+from slate.services.write_effects import Effects
+from slate.services.write_effects import WriteEffects
 from slate.tracing.named_work import name_record
 
 router = APIRouter()
@@ -73,3 +83,51 @@ def read_changes(number: str, session: DbSession, limit: RowLimit = None) -> lis
     record = resolve_record(session, number)
     name_record(record.number)
     return record_changes(session, record, limit)
+
+
+def path_waiter(ref: str, session: DbSession) -> models.Issue | models.Initiative:
+    """Resolve the `{ref}` segment: an issue or an initiative by number or UUID, or an initiative by name."""
+    waiter = resolve_issue_or_initiative(session, ref)
+    name_record(waiter.number)
+    return waiter
+
+
+WaiterFromPath = Annotated[models.Issue | models.Initiative, Depends(path_waiter)]
+WaiterWritten = schemas.IssueWritten | schemas.InitiativeWritten
+
+
+def waiter_written(session: Session, waiter: models.Issue | models.Initiative, zone: str, effects: WriteEffects) -> WaiterWritten:
+    """Commit, then answer the waiter as its own kind's routes do."""
+    session.commit()
+    if isinstance(waiter, models.Issue):
+        return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, waiter, zone))
+    session.refresh(waiter)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, waiter))
+
+
+@router.post('/{ref:path}/dependencies', response_model=WaiterWritten, status_code=status.HTTP_201_CREATED)
+def add_dependency(
+    waiter: WaiterFromPath, dependency: schemas.RecordDependencyCreate, session: DbSession, zone: RequestZone, effects: Effects
+) -> WaiterWritten:
+    """Record that the issue or initiative `ref` names waits on another record.
+
+    An issue waits on an issue it depends on. An initiative waits on an initiative or an issue, and
+    every unclosed issue in it is blocked while that record is open. An edge that would leave a
+    record waiting on itself, through any mix of dependencies, parents and initiatives' waits, is
+    refused with the loop it closes.
+    """
+    if isinstance(waiter, models.Issue):
+        add_issue_dependency(session, waiter, dependency.depends_on)
+    else:
+        add_initiative_wait(session, waiter, dependency.depends_on)
+    return waiter_written(session, waiter, zone, effects)
+
+
+@router.delete('/{ref:path}/dependencies/{dep_id}', response_model=WaiterWritten, status_code=status.HTTP_200_OK)
+def remove_dependency(waiter: WaiterFromPath, dep_id: str, session: DbSession, zone: RequestZone, effects: Effects) -> WaiterWritten:
+    """Remove the edge, answering the waiter with what it still waits on."""
+    if isinstance(waiter, models.Issue):
+        remove_issue_dependency(session, waiter, dep_id)
+    else:
+        remove_initiative_wait(session, waiter, dep_id)
+    return waiter_written(session, waiter, zone, effects)

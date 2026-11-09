@@ -83,6 +83,7 @@ the answer carries a warning for each thing:
 | `deferred` | the issue's deferral day has not come |
 | `shelved` | the initiative is someday, or the issue is shelved in one |
 | `open_dependency` | the issue depends on an unclosed issue, one warning each |
+| `initiative_waits` | the issue's open initiative waits on an open initiative or issue, one warning each |
 | `open_children` | the issue has open children |
 | `idea_promoted` | the idea was promoted; the warning names its initiative |
 | `claimed_initiative` | another holder claims the issue's initiative, an initiative whose plan holds the issue, or the initiative an idea became |

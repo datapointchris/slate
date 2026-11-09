@@ -55,6 +55,7 @@ from slate.schemas.initiative_board import InitiativeBoardText
 from slate.schemas.initiative_progress import BurnupStep
 from slate.schemas.initiative_progress import InitiativeProgress
 from slate.schemas.initiative_progress import IssueStateCounts
+from slate.schemas.issue import Blocker
 from slate.schemas.issue import Issue
 from slate.schemas.issue import IssueCreate
 from slate.schemas.issue import IssueDependencyCreate
@@ -70,6 +71,7 @@ from slate.schemas.issue import IssueWritten
 from slate.schemas.queue import PathOverlap
 from slate.schemas.queue import Queue
 from slate.schemas.queue import QueueFilter
+from slate.schemas.record import RecordDependencyCreate
 from slate.schemas.record import RecordListed
 from slate.schemas.record import RecordPin
 from slate.schemas.record import RecordRankMove
@@ -101,6 +103,7 @@ from slate.schemas.write_effects import Written
 
 __all__ = [
     'AgentSession',
+    'Blocker',
     'BoardCloses',
     'BoardInitiative',
     'BoardInitiativeText',
@@ -175,6 +178,7 @@ __all__ = [
     'ReadyIssue',
     'RecordChange',
     'RecordDeleted',
+    'RecordDependencyCreate',
     'RecordListed',
     'RecordParts',
     'RecordPin',

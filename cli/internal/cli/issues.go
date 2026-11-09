@@ -447,8 +447,8 @@ func issueStateNotes(issue api.Issue, now time.Time) []string {
 	if issue.Claim != nil {
 		notes = append(notes, claimNote(*issue.Claim, now))
 	}
-	if blockers := openNumbers(issue.DependsOn); len(blockers) > 0 {
-		notes = append(notes, "blocked by "+strings.Join(blockers, ", "))
+	if held := blockers(issue); held != "" {
+		notes = append(notes, "blocked by "+held)
 	}
 	if day := strValue(issue.DeferredUntilDate); day != "" && day > now.Local().Format(dayLayout) {
 		notes = append(notes, "deferred until "+day)
@@ -481,14 +481,33 @@ func localClock(t, now time.Time) string {
 	return local.Format("2006-01-02 15:04")
 }
 
-func openNumbers(summaries []api.IssueSummary) []string {
-	var numbers []string
-	for _, summary := range summaries {
-		if summary.Status != api.IssueStatusCompleted && summary.Status != api.IssueStatusCanceled {
-			numbers = append(numbers, "#"+strconv.Itoa(summary.Number))
+// openRecordNumbers names each initiative or issue in summaries that is still
+// open, so a wait on it holds.
+
+// blockers names what holds an unclosed issue back: each open issue it depends
+// on, then each open record its initiative waits on. Empty means nothing does.
+// blockers words what the API says holds an issue back: what it depends on,
+// then what its initiative's wait names.
+func blockers(issue api.Issue) string {
+	var direct, waits []string
+	var initiative int
+	for _, blocker := range issue.BlockedBy {
+		number := "#" + strconv.Itoa(blocker.Number)
+		if blocker.ThroughInitiative == nil {
+			direct = append(direct, number)
+		} else {
+			waits = append(waits, number)
+			initiative = *blocker.ThroughInitiative
 		}
 	}
-	return numbers
+	var parts []string
+	if len(direct) > 0 {
+		parts = append(parts, strings.Join(direct, ", "))
+	}
+	if len(waits) > 0 {
+		parts = append(parts, fmt.Sprintf("%s through initiative #%d", strings.Join(waits, ", "), initiative))
+	}
+	return strings.Join(parts, "; ")
 }
 
 func plural(n int, one, many string) string {
@@ -502,11 +521,21 @@ func summaryLine(summary api.IssueSummary) string {
 	return fmt.Sprintf("%s %d %s", summaryMark(summary.Status), summary.Number, summary.Title)
 }
 
+// recordSummaryLine is summaryLine for a record of either kind, an initiative
+// named as one.
+func recordSummaryLine(summary api.RecordSummary) string {
+	kind := ""
+	if summary.Kind == api.RecordKindInitiative {
+		kind = "initiative "
+	}
+	return fmt.Sprintf("%s %d %s%s", summaryMark(strValue(summary.Status)), summary.Number, kind, summary.Title)
+}
+
 func summaryMark(status string) string {
 	switch status {
 	case api.IssueStatusCompleted:
 		return markCompleted
-	case api.IssueStatusCanceled:
+	case api.IssueStatusCanceled, api.InitiativeStatusDropped:
 		return markArchived
 	default:
 		return markOpen
@@ -576,6 +605,19 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 	edges("Depends on", issue.DependsOn)
 	edges("Blocks", issue.Blocks)
 	edges("Children", issue.Children)
+	records := func(title string, summaries []api.RecordSummary) {
+		if len(summaries) == 0 {
+			return
+		}
+		_, _ = fmt.Fprintf(out, "\n%s (%d):\n", title, len(summaries))
+		for _, summary := range summaries {
+			_, _ = fmt.Fprintf(out, "  %s\n", recordSummaryLine(summary))
+		}
+	}
+	if issue.Initiative != nil {
+		records(fmt.Sprintf("Initiative #%d waits on", issue.Initiative.Number), issue.InitiativeWaitsOn)
+	}
+	records("Initiatives waiting on it", issue.WaitingInitiatives)
 
 	printRecordParts(out, issue.RecordParts, now)
 }

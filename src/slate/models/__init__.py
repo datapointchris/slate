@@ -10,6 +10,7 @@ from slate.models.document import DocumentVersion
 from slate.models.idea import Idea
 from slate.models.idea import IdeaEvidence
 from slate.models.initiative import Initiative
+from slate.models.initiative import InitiativeDependency
 from slate.models.initiative import InitiativeStatus
 from slate.models.issue import Issue
 from slate.models.issue import IssueDependency
@@ -39,6 +40,7 @@ __all__ = [
     'Idea',
     'IdeaEvidence',
     'Initiative',
+    'InitiativeDependency',
     'InitiativeStatus',
     'Issue',
     'IssueDependency',

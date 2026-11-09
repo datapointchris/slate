@@ -102,6 +102,7 @@ class WriteEffectCode(enum.StrEnum):
     SHELVED = 'shelved'
     IDEA_PROMOTED = 'idea_promoted'
     OPEN_DEPENDENCY = 'open_dependency'
+    INITIATIVE_WAITS = 'initiative_waits'
     OPEN_CHILDREN = 'open_children'
     CLAIMED_INITIATIVE = 'claimed_initiative'
     CLAIMED_ISSUE_IN_INITIATIVE = 'claimed_issue_in_initiative'

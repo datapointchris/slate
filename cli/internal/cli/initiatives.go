@@ -668,7 +668,20 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	if initiative.Idea != nil {
 		_, _ = fmt.Fprintf(out, "  idea:      #%d %s\n", initiative.Idea.Number, initiative.Idea.Title)
 	}
+	printRecordField(out, "waits on:", initiative.DependsOn)
+	printRecordField(out, "waited on:", initiative.WaitingInitiatives)
 	if description := strValue(initiative.Description); description != "" {
 		_, _ = fmt.Fprintf(out, "\nDescription:\n%s\n", indent(description, "  "))
+	}
+}
+
+// printRecordField prints a record a line under a field's label, the label on
+// the first line alone.
+func printRecordField(out io.Writer, label string, summaries []api.RecordSummary) {
+	for i, summary := range summaries {
+		if i > 0 {
+			label = ""
+		}
+		_, _ = fmt.Fprintf(out, "  %-10s %s\n", label, recordSummaryLine(summary))
 	}
 }

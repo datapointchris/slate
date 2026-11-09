@@ -4,10 +4,10 @@ None of these refuses the hold. Another holder's live claim on the record itself
 conflict that does, in `claims.take`. A neighbor the same holder claims is that holder's own work,
 so it goes unnamed.
 
-An issue's neighbors are its initiative, any initiative whose plan holds it, its parent, its
-children, what it depends on, what depends on it, and every issue on its repo naming a path that
-overlaps one of its own. An initiative's are the issues in its plan. An idea's is the initiative
-it became.
+An issue's neighbors are its initiative, what that initiative waits on, any initiative whose plan
+holds it, its parent, its children, what it depends on, what depends on it, and every issue on its
+repo naming a path that overlaps one of its own. An initiative's are the issues in its plan. An
+idea's is the initiative it became.
 """
 
 from __future__ import annotations
@@ -32,6 +32,7 @@ from slate.services.held_plans import held_plans
 from slate.services.issue_paths import held_overlaps
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_views import ISSUE_LOAD_OPTIONS
+from slate.services.record_summaries import record_summaries
 from slate.services.record_work import record_work
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
@@ -116,6 +117,16 @@ def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetim
             f'#{number} depends on #{dependency.number}, which is {dependency.status}{held}.',
             dependency.number,
         )
+    waits = [blocking.number for blocking in readiness.blocked_by.get(issue.id, ()) if blocking.through_initiative is not None]
+    if waits and issue.initiative is not None:
+        initiative = issue.initiative
+        for waited in record_summaries(session, waits).values():
+            effects.warn(
+                WriteEffectCode.INITIATIVE_WAITS,
+                f'#{number} is in initiative #{initiative.number} {initiative.name!r}, '
+                f'which waits on #{waited.number}, and #{waited.number} is {waited.status}.',
+                waited.number,
+            )
     if children:
         effects.warn(WriteEffectCode.OPEN_CHILDREN, f'#{number} waits on its open children: {numbered(children)}.', number)
     for child in sorted(children, key=lambda i: i.number):

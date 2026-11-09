@@ -164,6 +164,16 @@ SCOPED_WRITES = {
         {'before': '{idea}'},
         status.HTTP_200_OK,
     ),
+    (PLAN, 'POST', f'{API_PREFIX}/records/{{ref:path}}/dependencies'): (
+        '/records/{initiative}/dependencies',
+        {'depends_on': '{issue}'},
+        status.HTTP_201_CREATED,
+    ),
+    (PLAN, 'DELETE', f'{API_PREFIX}/records/{{ref:path}}/dependencies/{{dep_id}}'): (
+        '/records/{initiative}/dependencies/{blocker}',
+        None,
+        status.HTTP_200_OK,
+    ),
     (PLAN, 'POST', f'{API_PREFIX}/ideas/{{id}}/rank'): ('/ideas/{idea}/rank', {'after': '{issue}'}, status.HTTP_200_OK),
 }
 
@@ -197,6 +207,7 @@ def as_caller(txn_api):
     session.add_all([issue, neighbor, blocker, initiative, idea])
     session.flush()
     session.add(models.IssueDependency(issue_id=neighbor.id, depends_on_id=blocker.id))
+    session.add(models.InitiativeDependency(initiative_id=initiative.id, depends_on_number=blocker.number))
     now = dt.datetime.now(dt.UTC)
     session.add(models.Claim(record_number=neighbor.number, holder=SERVICE, started_ts=now, expires_ts=now + dt.timedelta(hours=1)))
     session.add(models.Worklog(record_number=issue.number, sequence=1, opened_by=SERVICE, started_ts=now))

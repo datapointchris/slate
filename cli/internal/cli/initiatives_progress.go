@@ -124,6 +124,12 @@ func (v progressView) print(progress api.InitiativeProgress) {
 	if initiative.Claim != nil {
 		v.line("  %s", v.fit(claimNote(*initiative.Claim, v.now), 2))
 	}
+	for _, waited := range initiative.DependsOn {
+		v.line("  waits on %s", v.fit(recordSummaryLine(waited), 11))
+	}
+	for _, waiting := range initiative.WaitingInitiatives {
+		v.line("  waited on by %s", v.fit(recordSummaryLine(waiting), 15))
+	}
 
 	v.claimedSection("Running", progress.Running)
 	v.claimedSection("Waiting", progress.Waiting)
@@ -251,24 +257,12 @@ func (v progressView) claimedSection(heading string, issues []api.Issue) {
 		if issue.Claim != nil {
 			notes = append(notes, claimNote(*issue.Claim, v.now))
 		}
-		if blockers := unclosedDependencies(issue); len(blockers) > 0 {
-			notes = append(notes, "blocked by "+strings.Join(blockers, ", "))
+		if held := blockers(issue); held != "" {
+			notes = append(notes, "blocked by "+held)
 		}
 		rows = append(rows, progressRow{number: issue.Number, title: issue.Title, note: strings.Join(notes, "; ")})
 	}
 	v.section(heading, rows)
-}
-
-// unclosedDependencies names each issue the issue depends on that is not yet
-// completed or canceled.
-func unclosedDependencies(issue api.Issue) []string {
-	var numbers []string
-	for _, dependency := range issue.DependsOn {
-		if dependency.Status != api.IssueStatusCompleted && dependency.Status != api.IssueStatusCanceled {
-			numbers = append(numbers, "#"+strconv.Itoa(dependency.Number))
-		}
-	}
-	return numbers
 }
 
 // nextSection lists the head of the queue, each row with the step it asks
@@ -292,11 +286,11 @@ func (v progressView) nextSection(next []api.QueueRow) {
 }
 
 // blockedSection lists the blocked issues, each with the unclosed issues it
-// waits on.
+// waits on and the open records its initiative waits on.
 func (v progressView) blockedSection(issues []api.Issue) {
 	rows := make([]progressRow, 0, len(issues))
 	for _, issue := range issues {
-		note := "waits on " + strings.Join(unclosedDependencies(issue), ", ")
+		note := "waits on " + blockers(issue)
 		rows = append(rows, progressRow{number: issue.Number, title: issue.Title, note: note})
 	}
 	v.section("Blocked", rows)

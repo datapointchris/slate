@@ -94,19 +94,26 @@ type Issue struct {
 	Labels         []string           `json:"labels"`
 	// Paths are the files and directories the issue changes, in its repo. A
 	// directory covers everything under it.
-	Paths          []string       `json:"paths"`
-	DependsOn      []IssueSummary `json:"depends_on"`
-	Blocks         []IssueSummary `json:"blocks"`
-	ChildCount     int            `json:"child_count"`
-	OpenChildCount int            `json:"open_child_count"`
-	CommentCount   int            `json:"comment_count"`
-	IsBlocked      bool           `json:"is_blocked"`
-	IsReady        bool           `json:"is_ready"`
-	IsAutofixable  *bool          `json:"is_autofixable"`
-	CreatedTS      time.Time      `json:"created_ts"`
-	UpdatedTS      time.Time      `json:"updated_ts"`
-	ClosedTS       *time.Time     `json:"closed_ts"`
-	ClosedBy       *string        `json:"closed_by"`
+	Paths     []string       `json:"paths"`
+	DependsOn []IssueSummary `json:"depends_on"`
+	Blocks    []IssueSummary `json:"blocks"`
+	// InitiativeWaitsOn is each record an unclosed issue waits on through its
+	// initiative, open or closed. WaitingInitiatives is each initiative waiting
+	// on this issue. BlockedBy is each open record holding it back now, and is
+	// empty exactly when IsBlocked is false.
+	InitiativeWaitsOn  []RecordSummary `json:"initiative_waits_on"`
+	WaitingInitiatives []RecordSummary `json:"waiting_initiatives"`
+	BlockedBy          []Blocker       `json:"blocked_by"`
+	ChildCount         int             `json:"child_count"`
+	OpenChildCount     int             `json:"open_child_count"`
+	CommentCount       int             `json:"comment_count"`
+	IsBlocked          bool            `json:"is_blocked"`
+	IsReady            bool            `json:"is_ready"`
+	IsAutofixable      *bool           `json:"is_autofixable"`
+	CreatedTS          time.Time       `json:"created_ts"`
+	UpdatedTS          time.Time       `json:"updated_ts"`
+	ClosedTS           *time.Time      `json:"closed_ts"`
+	ClosedBy           *string         `json:"closed_by"`
 }
 
 // IssueDetail is one issue with its children, claims, comments and documents.

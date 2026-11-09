@@ -234,20 +234,20 @@ func TestIssueStateNotes_SayWhyAnIssueWaits(t *testing.T) {
 		Status:            api.IssueStatusOpen,
 		Claim:             &api.Claim{Holder: "claude-code/abc", ExpiresTS: later, State: api.ClaimStateLive},
 		DeferredUntilDate: &tomorrow,
-		DependsOn: []api.IssueSummary{
-			{Number: 411, Status: api.IssueStatusOpen},
-			{Number: 400, Status: api.IssueStatusCompleted},
+		BlockedBy: []api.Blocker{
+			{RecordSummary: api.RecordSummary{Number: 411}},
+			{RecordSummary: api.RecordSummary{Number: 498}, ThroughInitiative: ptr(520)},
 		},
 		OpenChildCount: 1,
 	}
-	want := "claimed by claude-code/abc until 14:00; blocked by #411; deferred until " + tomorrow + "; 1 open child"
+	want := "claimed by claude-code/abc until 14:00; blocked by #411; #498 through initiative #520; deferred until " + tomorrow + "; 1 open child"
 	if got := strings.Join(issueStateNotes(issue, now), "; "); got != want {
 		t.Errorf("notes = %q\nwant    %q", got, want)
 	}
 
 	issue.DeferredUntilDate = &yesterday
 	issue.Claim.State = api.ClaimStateExpired
-	issue.DependsOn = nil
+	issue.BlockedBy = nil
 	issue.OpenChildCount = 0
 	if got := strings.Join(issueStateNotes(issue, now), "; "); got != "claim by claude-code/abc expired" {
 		t.Errorf("notes = %q, want only the expired claim", got)
@@ -342,18 +342,23 @@ func TestIssueCreateFields_OffersEveryInitiativeThatTakesIssues(t *testing.T) {
 }
 
 func TestIssueTrees_HideFinishedWorkByDefault(t *testing.T) {
-	byID := map[string]api.Issue{
-		"a": {ID: "a", Status: api.IssueStatusCompleted},
-		"b": {ID: "b", Status: api.IssueStatusCanceled},
-		"c": {ID: "c", Status: api.IssueStatusOpen},
+	byID := map[string]treeRecord{
+		"a": {ID: "a", Kind: api.RecordKindIssue, Status: api.IssueStatusCompleted},
+		"b": {ID: "b", Kind: api.RecordKindIssue, Status: api.IssueStatusCanceled},
+		"c": {ID: "c", Kind: api.RecordKindIssue, Status: api.IssueStatusOpen},
+		"d": {ID: "d", Kind: api.RecordKindInitiative, Status: "active"},
+		"e": {ID: "e", Kind: api.RecordKindInitiative, Status: api.InitiativeStatusDropped},
 	}
-	if issueComponentMatches([]string{"a", "b"}, byID, "", nil) {
+	if treeMatches([]string{"a", "b", "e"}, byID, "", nil) {
 		t.Error("a finished tree was kept by default")
 	}
-	if !issueComponentMatches([]string{"a", "c"}, byID, "", nil) {
+	if !treeMatches([]string{"a", "c"}, byID, "", nil) {
 		t.Error("a tree with open work was hidden")
 	}
-	if !issueComponentMatches([]string{"a", "b"}, byID, api.IssueStatusAll, nil) {
+	if !treeMatches([]string{"d", "e"}, byID, "", nil) {
+		t.Error("a tree waiting on an active initiative was hidden")
+	}
+	if !treeMatches([]string{"a", "b"}, byID, api.IssueStatusAll, nil) {
 		t.Error("--status all hid a finished tree")
 	}
 }

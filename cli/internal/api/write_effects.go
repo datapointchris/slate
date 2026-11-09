@@ -28,6 +28,14 @@ type InitiativeWritten struct {
 	WriteEffects
 }
 
+// DependencyWritten is the answer to adding or removing what an issue or an
+// initiative waits on: the one of the two the edge starts from.
+type DependencyWritten struct {
+	Issue      *IssueDetail `json:"issue,omitempty"`
+	Initiative *Initiative  `json:"initiative,omitempty"`
+	WriteEffects
+}
+
 // RecordDeleted is the answer to deleting a record: the record as it stood
 // before the delete took it.
 type RecordDeleted struct {

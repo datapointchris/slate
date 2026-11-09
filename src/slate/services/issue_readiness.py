@@ -9,6 +9,7 @@ An issue is ready when all of these hold:
 - it is `open`, and no live claim holds it; an expired claim holds nothing
 - its deferral day, if any, has arrived in the reader's calendar
 - every issue it depends on is closed
+- its initiative, while open, waits on no open initiative or issue
 - it has no open children, since a parent is finished by its children
 - it is not shelved: in a `someday` initiative, which holds ideas not yet
   taken on, with no unclosed issue outside one depending on it at any depth
@@ -38,6 +39,7 @@ and that of everything waiting on it. Nothing in that set lowers it.
 from __future__ import annotations
 
 import datetime as dt
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import NamedTuple
 from uuid import UUID
@@ -49,6 +51,8 @@ from slate import models
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.services.claim_views import live_claim_numbers
+from slate.services.initiative_waits import HoldingWait
+from slate.services.initiative_waits import holding_waits
 from slate.services.open_records import is_open
 
 # The urgency of "no priority": after every real level, which run 1 (urgent)
@@ -114,10 +118,19 @@ class ActiveInitiative(NamedTuple):
     rank: float
 
 
+class Blocking(NamedTuple):
+    """An open record holding an unclosed issue back. `through_initiative` is the initiative whose wait holds it, else None."""
+
+    number: int
+    through_initiative: int | None
+
+
 @dataclass(frozen=True)
 class IssueReadiness:
     effective_priority: dict[UUID, int]
     blocked: frozenset[UUID]
+    # A record an issue waits on both directly and through its initiative is listed once, as a dependency.
+    blocked_by: dict[UUID, tuple[Blocking, ...]]
     deferred: frozenset[UUID]
     shelved: frozenset[UUID]
     ready: frozenset[UUID]
@@ -189,11 +202,23 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
     unclosed = {issue_id for issue_id, row in rows.items() if row.status not in CLOSED_ISSUE_STATUSES}
 
     dependents: dict[UUID, list[UUID]] = {}
-    blocked: set[UUID] = set()
+    open_dependencies: dict[UUID, set[int]] = defaultdict(set)
     for issue_id, depends_on_id in edges:
         dependents.setdefault(depends_on_id, []).append(issue_id)
         if issue_id in unclosed and depends_on_id in unclosed:
-            blocked.add(issue_id)
+            open_dependencies[issue_id].add(rows[depends_on_id].number)
+    held_waits: dict[UUID, list[HoldingWait]] = defaultdict(list)
+    for wait in holding_waits(session):
+        held_waits[wait.initiative_id].append(wait)
+    blocked_by: dict[UUID, tuple[Blocking, ...]] = {}
+    for issue_id in unclosed:
+        direct = open_dependencies.get(issue_id, set())
+        waits = sorted(held_waits.get(rows[issue_id].initiative_id, []), key=lambda wait: wait.depends_on_number)
+        blocking = [Blocking(number, None) for number in sorted(direct)]
+        blocking += [Blocking(wait.depends_on_number, wait.initiative_number) for wait in waits if wait.depends_on_number not in direct]
+        if blocking:
+            blocked_by[issue_id] = tuple(blocking)
+    blocked = set(blocked_by)
 
     child_count: dict[UUID, int] = {}
     open_child_count: dict[UUID, int] = {}
@@ -302,6 +327,7 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
     return IssueReadiness(
         effective_priority=effective_priority,
         blocked=frozenset(blocked),
+        blocked_by=blocked_by,
         deferred=frozenset(deferred),
         shelved=frozenset(shelved),
         ready=frozenset(ready),

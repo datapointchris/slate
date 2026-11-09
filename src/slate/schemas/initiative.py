@@ -75,7 +75,9 @@ class Initiative(RecordModel):
     not canceled, never stored, so it cannot drift from what the work touches.
     `claim` is the initiative's unended claim, live or expired. `idea` is the
     idea promoted into it. `rank` places it, with its issues, among the
-    records of its priority in the queue.
+    records of its priority in the queue. `depends_on` is each initiative or
+    issue it waits on, and `waiting_initiatives` each initiative waiting on it,
+    open or closed, by number.
     """
 
     id: UUID
@@ -100,6 +102,8 @@ class Initiative(RecordModel):
     repos: list[str] = []
     claim: Claim | None = None
     idea: RecordSummary | None = None
+    depends_on: list[RecordSummary] = []
+    waiting_initiatives: list[RecordSummary] = []
 
 
 class InitiativeDetail(Initiative, RecordParts):
