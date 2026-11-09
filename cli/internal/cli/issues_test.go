@@ -236,11 +236,11 @@ func TestIssueStateNotes_SayWhyAnIssueWaits(t *testing.T) {
 		DeferredUntilDate: &tomorrow,
 		BlockedBy: []api.Blocker{
 			{RecordSummary: api.RecordSummary{Number: 411}},
-			{RecordSummary: api.RecordSummary{Number: 2653}, ThroughInitiative: ptr(2794)},
+			{RecordSummary: api.RecordSummary{Number: 498}, ThroughInitiative: ptr(520)},
 		},
 		OpenChildCount: 1,
 	}
-	want := "claimed by claude-code/abc until 14:00; blocked by #411; #2653 through initiative #2794; deferred until " + tomorrow + "; 1 open child"
+	want := "claimed by claude-code/abc until 14:00; blocked by #411; #498 through initiative #520; deferred until " + tomorrow + "; 1 open child"
 	if got := strings.Join(issueStateNotes(issue, now), "; "); got != want {
 		t.Errorf("notes = %q\nwant    %q", got, want)
 	}

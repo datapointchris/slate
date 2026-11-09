@@ -40,7 +40,7 @@ func newDependenciesTreeCommand() *cobra.Command {
 			"(*) marks a record whose dependencies were drawn higher up.",
 		Example: "  slate dependencies tree\n" +
 			"  slate dependencies tree 412\n" +
-			"  slate dependencies tree 2794\n" +
+			"  slate dependencies tree 520\n" +
 			"  slate dependencies tree 412 --invert\n" +
 			"  slate dependencies tree --repo webapp --json",
 		Args:        cobra.MaximumNArgs(1),

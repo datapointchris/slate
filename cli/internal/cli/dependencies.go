@@ -25,7 +25,7 @@ func newDependenciesCommand() *cobra.Command {
 			"every unclosed issue in the waiting initiative is blocked. A someday\n" +
 			"initiative counts as open.",
 		Example: "  slate dependencies add 412 --depends-on 411    412 cannot start until 411 closes\n" +
-			"  slate dependencies add 2794 --depends-on 2653  initiative 2794 starts once 2653 closes\n" +
+			"  slate dependencies add 520 --depends-on 498    initiative 520 starts once 498 closes\n" +
 			"  slate dependencies tree 412                    the tree 412 sits in\n" +
 			"  slate dependencies tree 412 --invert           what waits on 412\n" +
 			"  slate dependencies tree                        every tree with work left in it",
@@ -58,7 +58,7 @@ func newDependenciesAddCommand() *cobra.Command {
 			"initiatives' waits. An initiative waits on its unclosed issues, and each of\n" +
 			"them on what the initiative waits on, so an initiative waiting on one of its\n" +
 			"own issues is such a loop.",
-		Example:     "  slate dependencies add 412 --depends-on 411\n  slate dependencies add 2794 --depends-on 2653",
+		Example:     "  slate dependencies add 412 --depends-on 411\n  slate dependencies add 520 --depends-on 498",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -92,7 +92,7 @@ func newDependenciesRemoveCommand() *cobra.Command {
 		Short: "Remove the edge between an issue or an initiative and a record it waits on",
 		Long: "Adding the edge back restores it, so this asks nothing first. The record it\n" +
 			"leaves is printed with what it still waits on.",
-		Example:     "  slate dependencies remove 412 --depends-on 411\n  slate dependencies remove 2794 --depends-on 2653",
+		Example:     "  slate dependencies remove 412 --depends-on 411\n  slate dependencies remove 520 --depends-on 498",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
