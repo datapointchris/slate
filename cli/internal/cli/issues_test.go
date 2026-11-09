@@ -234,20 +234,20 @@ func TestIssueStateNotes_SayWhyAnIssueWaits(t *testing.T) {
 		Status:            api.IssueStatusOpen,
 		Claim:             &api.Claim{Holder: "claude-code/abc", ExpiresTS: later, State: api.ClaimStateLive},
 		DeferredUntilDate: &tomorrow,
-		DependsOn: []api.IssueSummary{
-			{Number: 411, Status: api.IssueStatusOpen},
-			{Number: 400, Status: api.IssueStatusCompleted},
+		BlockedBy: []api.Blocker{
+			{RecordSummary: api.RecordSummary{Number: 411}},
+			{RecordSummary: api.RecordSummary{Number: 2653}, ThroughInitiative: ptr(2794)},
 		},
 		OpenChildCount: 1,
 	}
-	want := "claimed by claude-code/abc until 14:00; blocked by #411; deferred until " + tomorrow + "; 1 open child"
+	want := "claimed by claude-code/abc until 14:00; blocked by #411; #2653 through initiative #2794; deferred until " + tomorrow + "; 1 open child"
 	if got := strings.Join(issueStateNotes(issue, now), "; "); got != want {
 		t.Errorf("notes = %q\nwant    %q", got, want)
 	}
 
 	issue.DeferredUntilDate = &yesterday
 	issue.Claim.State = api.ClaimStateExpired
-	issue.DependsOn = nil
+	issue.BlockedBy = nil
 	issue.OpenChildCount = 0
 	if got := strings.Join(issueStateNotes(issue, now), "; "); got != "claim by claude-code/abc expired" {
 		t.Errorf("notes = %q, want only the expired claim", got)

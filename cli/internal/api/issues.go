@@ -97,11 +97,13 @@ type Issue struct {
 	Paths     []string       `json:"paths"`
 	DependsOn []IssueSummary `json:"depends_on"`
 	Blocks    []IssueSummary `json:"blocks"`
-	// InitiativeWaitsOn is each record the issue's initiative waits on while
-	// that initiative is open. WaitingInitiatives is each initiative waiting
-	// on this issue.
+	// InitiativeWaitsOn is each record an unclosed issue waits on through its
+	// initiative, open or closed. WaitingInitiatives is each initiative waiting
+	// on this issue. BlockedBy is each open record holding it back now, and is
+	// empty exactly when IsBlocked is false.
 	InitiativeWaitsOn  []RecordSummary `json:"initiative_waits_on"`
 	WaitingInitiatives []RecordSummary `json:"waiting_initiatives"`
+	BlockedBy          []Blocker       `json:"blocked_by"`
 	ChildCount         int             `json:"child_count"`
 	OpenChildCount     int             `json:"open_child_count"`
 	CommentCount       int             `json:"comment_count"`

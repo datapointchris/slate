@@ -481,38 +481,31 @@ func localClock(t, now time.Time) string {
 	return local.Format("2006-01-02 15:04")
 }
 
-func openNumbers(summaries []api.IssueSummary) []string {
-	var numbers []string
-	for _, summary := range summaries {
-		if summary.Status != api.IssueStatusCompleted && summary.Status != api.IssueStatusCanceled {
-			numbers = append(numbers, "#"+strconv.Itoa(summary.Number))
-		}
-	}
-	return numbers
-}
-
 // openRecordNumbers names each initiative or issue in summaries that is still
 // open, so a wait on it holds.
-func openRecordNumbers(summaries []api.RecordSummary) []string {
-	var numbers []string
-	for _, summary := range summaries {
-		status := strValue(summary.Status)
-		if status != api.IssueStatusCompleted && status != api.IssueStatusCanceled && status != api.InitiativeStatusDropped {
-			numbers = append(numbers, "#"+strconv.Itoa(summary.Number))
-		}
-	}
-	return numbers
-}
 
 // blockers names what holds an unclosed issue back: each open issue it depends
 // on, then each open record its initiative waits on. Empty means nothing does.
+// blockers words what the API says holds an issue back: what it depends on,
+// then what its initiative's wait names.
 func blockers(issue api.Issue) string {
-	var parts []string
-	if open := openNumbers(issue.DependsOn); len(open) > 0 {
-		parts = append(parts, strings.Join(open, ", "))
+	var direct, waits []string
+	var initiative int
+	for _, blocker := range issue.BlockedBy {
+		number := "#" + strconv.Itoa(blocker.Number)
+		if blocker.ThroughInitiative == nil {
+			direct = append(direct, number)
+		} else {
+			waits = append(waits, number)
+			initiative = *blocker.ThroughInitiative
+		}
 	}
-	if waits := openRecordNumbers(issue.InitiativeWaitsOn); len(waits) > 0 && issue.Initiative != nil {
-		parts = append(parts, fmt.Sprintf("%s through initiative #%d", strings.Join(waits, ", "), issue.Initiative.Number))
+	var parts []string
+	if len(direct) > 0 {
+		parts = append(parts, strings.Join(direct, ", "))
+	}
+	if len(waits) > 0 {
+		parts = append(parts, fmt.Sprintf("%s through initiative #%d", strings.Join(waits, ", "), initiative))
 	}
 	return strings.Join(parts, "; ")
 }

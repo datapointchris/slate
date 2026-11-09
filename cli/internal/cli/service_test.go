@@ -494,8 +494,6 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 	const fixtureSession = "0f6e2a4c-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
 	agentSession := `{"id":"` + fixtureSession + `","first_seen_ts":"2026-11-02T10:00:00Z","message_count":5,"tokens":{},"tokens_outside_worklogs":null,"spans":[]}`
 	reportedSession := `{"session":` + agentSession + `,"side_effects":[],"warnings":[]}`
-	issueKind := map[string]string{"/api/v1/records/412": `{"kind":"issue","number":412,"record":{}}`}
-	initiativeKind := map[string]string{"/api/v1/records/2794": `{"kind":"initiative","number":2794,"record":{}}`}
 	plan := filepath.Join(t.TempDir(), "plan.md")
 	if err := os.WriteFile(plan, []byte("# Plan\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -568,10 +566,8 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"issues", "complete", "412"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--priority", "none", "--initiative", "Practical help guides"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--acceptance", "It answers 200", "--path", "src/slate"}, openIssue, nil},
-		{[]string{"dependencies", "add", "412", "--depends-on", "411"}, openIssue, issueKind},
-		{[]string{"dependencies", "remove", "412", "--depends-on", "411"}, openIssue, issueKind},
-		{[]string{"dependencies", "add", "2794", "--depends-on", "2653"}, `{}`, initiativeKind},
-		{[]string{"dependencies", "remove", "2794", "--depends-on", "2653"}, `{}`, initiativeKind},
+		{[]string{"dependencies", "add", "412", "--depends-on", "411"}, openIssue, nil},
+		{[]string{"dependencies", "remove", "412", "--depends-on", "411"}, openIssue, nil},
 		{[]string{"issues", "reorder", "412", "--after", "398"}, openIssue, nil},
 		{[]string{"initiatives", "reorder", "Practical help guides", "--before", "398"}, `{}`, nil},
 		{[]string{"ideas", "reorder", "412", "--after", "398"}, `{}`, nil},

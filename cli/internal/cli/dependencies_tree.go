@@ -30,12 +30,12 @@ func newDependenciesTreeCommand() *cobra.Command {
 			"\n" +
 			"A row is something the row it hangs from waits on. --invert reads the edges\n" +
 			"the other way, so a row waits on the row it hangs from. An initiative's row\n" +
-			"hangs what it waits on, and its issues wait on those too.\n" +
+			"hangs what it waits on, and each unclosed issue in it hangs the initiative.\n" +
 			"\n" +
 			"--status and --repo choose which trees are drawn, never which rows. A tree is\n" +
 			"kept when any of its issues matches, and then drawn whole. Dropping a row\n" +
 			"would orphan everything below it. Trees with nothing unclosed are hidden by\n" +
-			"default, and an active or someday initiative counts as unclosed.\n" +
+			"default, and an unfinished initiative, someday included, counts as unclosed.\n" +
 			"\n" +
 			"(*) marks a record whose dependencies were drawn higher up.",
 		Example: "  slate dependencies tree\n" +
@@ -135,9 +135,12 @@ type treeRecord struct {
 func treeRecords(issues []api.Issue, initiatives []api.Initiative) map[string]treeRecord {
 	byID := make(map[string]treeRecord, len(issues)+len(initiatives))
 	for _, issue := range issues {
-		deps := make([]string, 0, len(issue.DependsOn))
+		deps := make([]string, 0, len(issue.DependsOn)+1)
 		for _, dep := range issue.DependsOn {
 			deps = append(deps, strconv.Itoa(dep.Number))
+		}
+		if len(issue.InitiativeWaitsOn) > 0 && issue.Initiative != nil {
+			deps = append(deps, strconv.Itoa(issue.Initiative.Number))
 		}
 		id := strconv.Itoa(issue.Number)
 		byID[id] = treeRecord{
