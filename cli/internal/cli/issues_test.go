@@ -342,18 +342,23 @@ func TestIssueCreateFields_OffersEveryInitiativeThatTakesIssues(t *testing.T) {
 }
 
 func TestIssueTrees_HideFinishedWorkByDefault(t *testing.T) {
-	byID := map[string]api.Issue{
-		"a": {ID: "a", Status: api.IssueStatusCompleted},
-		"b": {ID: "b", Status: api.IssueStatusCanceled},
-		"c": {ID: "c", Status: api.IssueStatusOpen},
+	byID := map[string]treeRecord{
+		"a": {ID: "a", Kind: api.RecordKindIssue, Status: api.IssueStatusCompleted},
+		"b": {ID: "b", Kind: api.RecordKindIssue, Status: api.IssueStatusCanceled},
+		"c": {ID: "c", Kind: api.RecordKindIssue, Status: api.IssueStatusOpen},
+		"d": {ID: "d", Kind: api.RecordKindInitiative, Status: "active"},
+		"e": {ID: "e", Kind: api.RecordKindInitiative, Status: api.InitiativeStatusDropped},
 	}
-	if issueComponentMatches([]string{"a", "b"}, byID, "", nil) {
+	if treeMatches([]string{"a", "b", "e"}, byID, "", nil) {
 		t.Error("a finished tree was kept by default")
 	}
-	if !issueComponentMatches([]string{"a", "c"}, byID, "", nil) {
+	if !treeMatches([]string{"a", "c"}, byID, "", nil) {
 		t.Error("a tree with open work was hidden")
 	}
-	if !issueComponentMatches([]string{"a", "b"}, byID, api.IssueStatusAll, nil) {
+	if !treeMatches([]string{"d", "e"}, byID, "", nil) {
+		t.Error("a tree waiting on an active initiative was hidden")
+	}
+	if !treeMatches([]string{"a", "b"}, byID, api.IssueStatusAll, nil) {
 		t.Error("--status all hid a finished tree")
 	}
 }
