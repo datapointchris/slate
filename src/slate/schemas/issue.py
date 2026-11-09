@@ -12,6 +12,7 @@ from slate.schemas.not_null import NotNull
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
+from slate.schemas.record import RecordSummary
 from slate.schemas.record_parts import RecordParts
 from slate.schemas.write_effects import Written
 
@@ -119,7 +120,10 @@ class Issue(RecordModel):
     `autofix` is the issue's own setting, and `is_autofixable` is false when it,
     its initiative's or an unclosed parent's is false. `claim` is the issue's
     unended claim, live or expired, and null when nobody holds it. `rank` is its
-    record's place among every record's.
+    record's place among every record's. `initiative_waits_on` is each record
+    its initiative waits on while that initiative is open, so an issue blocked
+    by that wait says by what. `waiting_initiatives` is each initiative waiting
+    on this issue.
     """
 
     id: UUID
@@ -148,6 +152,8 @@ class Issue(RecordModel):
     labels: list[str] = []
     depends_on: list[IssueSummary] = []
     blocks: list[IssueSummary] = []
+    initiative_waits_on: list[RecordSummary] = []
+    waiting_initiatives: list[RecordSummary] = []
     child_count: int = 0
     open_child_count: int = 0
     comment_count: int = 0

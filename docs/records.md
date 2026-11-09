@@ -214,7 +214,7 @@ Its side effects name what went with it and each other record it changed:
 | `documents_deleted` | the record had documents; they go with every version |
 | `comments_deleted` | the record or its documents had comments; they go with them |
 | `child_detached` | an issue's child loses its parent |
-| `dependency_removed` | an issue that depended on the deleted one no longer does |
+| `dependency_removed` | an issue that depended on the deleted record, or an initiative that waited on it, no longer does |
 | `issue_detached` | an initiative's issue is left in no initiative |
 
 It warns `deleted_anothers_claim` when another holder's live claim was on the

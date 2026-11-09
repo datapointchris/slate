@@ -153,7 +153,7 @@ reaches only the routes its scopes list:
 | `slate.comments.write` | commenting on any record, or on one line of its document, under the service's own client id |
 | `slate.documents.write` | writing the next version of a document on any record, under the service's own client id, which keeps every earlier version |
 | `slate.issues.close` | closing an open issue |
-| `slate.records.plan` | filing into triage, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives |
+| `slate.records.plan` | filing into triage, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue or an initiative waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 | `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |

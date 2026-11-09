@@ -1,5 +1,4 @@
 import datetime as dt
-from collections import deque
 from typing import Annotated
 from uuid import UUID
 
@@ -52,6 +51,8 @@ from slate.services.record_summaries import record_summaries
 from slate.services.row_limit import RowLimit
 from slate.services.time_window import apply_time_window
 from slate.services.vocabulary import validate_lookup
+from slate.services.wait_cycles import read_wait_graph
+from slate.services.wait_cycles import refuse_wait_loop
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
@@ -78,41 +79,18 @@ def path_issue(id: str, session: DbSession) -> models.Issue:
 IssueFromPath = Annotated[models.Issue, Depends(path_issue)]
 
 
-def waited_on_by(session: Session, issue_id: UUID) -> list[UUID]:
-    """What `issue_id` waits on: the issues it depends on, and its children."""
-    dependencies = select(models.IssueDependency.depends_on_id).where(models.IssueDependency.issue_id == issue_id)
-    children = select(models.Issue.id).where(models.Issue.parent_id == issue_id)
-    return [*session.scalars(dependencies).all(), *session.scalars(children).all()]
+def refuse_loop_on_move(session: Session, issue: models.Issue, joined: models.Initiative | None, adopted_by: models.Issue | None) -> None:
+    """Refuse moving `issue` into `joined` or under `adopted_by` where that closes a wait loop.
 
-
-def ensure_no_wait_cycle(session: Session, waiter: models.Issue, waited_on: models.Issue) -> None:
-    """Refuse a new edge that would leave an issue waiting on itself.
-
-    An issue waits on what it depends on and, as a parent, on its open children.
-    A cycle through either kind of edge is a deadlock: nothing in it can become
-    ready. The new edge closes one exactly when `waited_on` already reaches
-    `waiter`, and the refusal names the path so the caller sees which edge to cut.
+    The graph is read as the database holds it, since the session never autoflushes, and the move
+    is applied to it there. Every edge either move adds touches `issue`, so the loop runs through it.
     """
-    came_from: dict[UUID, UUID | None] = {waited_on.id: None}
-    queue = deque([waited_on.id])
-    while queue:
-        current = queue.popleft()
-        if current == waiter.id:
-            path: list[UUID] = []
-            step: UUID | None = current
-            while step is not None:
-                path.append(step)
-                step = came_from[step]
-            numbers = dict(session.execute(select(models.Issue.id, models.Issue.number).where(models.Issue.id.in_(path))).all())
-            chain = ' → '.join(f'#{numbers[i]}' for i in [waiter.id, *reversed(path)])
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f'That would leave #{waiter.number} waiting on itself: {chain}',
-            )
-        for following in waited_on_by(session, current):
-            if following not in came_from:
-                came_from[following] = current
-                queue.append(following)
+    graph = read_wait_graph(session)
+    if joined is not None:
+        graph.set_initiative(issue.number, joined.number)
+    if adopted_by is not None:
+        graph.set_parent(issue.number, adopted_by.number)
+    refuse_wait_loop(graph, *([] if adopted_by is None else [adopted_by.number]), issue.number)
 
 
 def ensure_initiative_open(initiative: models.Initiative) -> None:
@@ -369,12 +347,14 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
     set_labels(session, db_issue, issue.labels)
     session.flush()
     name_record(db_issue.number)
-    # Only through the parent can a brand-new issue close a cycle: depending on
-    # its own parent, or on anything that waits on that parent.
+    # Every edge the new issue brings touches it, so any loop they close runs through it.
+    graph = read_wait_graph(session)
     for blocker in depends_on:
-        ensure_no_wait_cycle(session, db_issue, blocker)
+        graph.add_dependency(db_issue.number, blocker.number)
+    refuse_wait_loop(graph, db_issue.number)
+    for blocker in depends_on:
         session.add(models.IssueDependency(issue_id=db_issue.id, depends_on_id=blocker.id))
-        session.flush()
+    session.flush()
     warn_likely_duplicates(session, db_issue.number, db_issue.title, db_issue.repo, effects)
     session.commit()
     logger.info('issue_created', number=db_issue.number, repo=db_issue.repo)
@@ -440,6 +420,8 @@ def update(
 
     if (issue_type := update_data.get('type')) is not None:
         validate_lookup(session, models.IssueType, issue_type, 'issue type')
+    joined: models.Initiative | None = None
+    adopted_by: models.Issue | None = None
     if 'initiative' in update_data:
         ref = update_data.pop('initiative')
         if ref is None:
@@ -448,6 +430,7 @@ def update(
             initiative = resolve_initiative(session, ref)
             if initiative.id != issue.initiative_id:
                 ensure_initiative_open(initiative)
+                joined = initiative
             issue.initiative_id = initiative.id
     if 'parent' in update_data:
         ref = update_data.pop('parent')
@@ -460,8 +443,10 @@ def update(
             if parent.id != issue.parent_id:
                 if update_data.get('status', issue.status) not in CLOSED_ISSUE_STATUSES:
                     ensure_parent_open(parent)
-                ensure_no_wait_cycle(session, parent, issue)
+                adopted_by = parent
             issue.parent = parent
+    if joined is not None or adopted_by is not None:
+        refuse_loop_on_move(session, issue, joined, adopted_by)
     if 'discovered_from' in update_data:
         ref = update_data.pop('discovered_from')
         issue.discovered_from_id = None if ref is None else resolve_issue(session, ref).id
@@ -546,7 +531,9 @@ def add_dependency(
             status_code=status.HTTP_409_CONFLICT,
             detail=f'#{issue.number} already depends on #{depends_on.number}',
         )
-    ensure_no_wait_cycle(session, issue, depends_on)
+    graph = read_wait_graph(session)
+    graph.add_dependency(issue.number, depends_on.number)
+    refuse_wait_loop(graph, issue.number)
     session.add(models.IssueDependency(issue_id=issue.id, depends_on_id=depends_on.id))
     issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()

@@ -151,7 +151,7 @@ class IssueDependency(Base):
     """`issue_id` is blocked until `depends_on_id` closes.
 
     A parent's open children also keep it out of the ready queue, but only this
-    edge sets `is_blocked`.
+    edge and its initiative's wait, `InitiativeDependency`, set `is_blocked`.
     """
 
     __tablename__ = 'issue_dependencies'

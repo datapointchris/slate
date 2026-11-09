@@ -19,6 +19,7 @@ An issue is ready when all of these hold:
 - it is `open`, and nobody holds a live claim on it
 - its not-before day, `deferred_until_date`, has arrived in the reader's calendar
 - every issue it depends on is closed
+- its initiative, while open, waits on no open initiative or issue
 - it has no open children
 - it is not shelved: in a `someday` initiative with nothing outside someday
   depending on it
@@ -70,7 +71,9 @@ held plan takes, so the preview and the hold cannot disagree on either.
 everything they wait on, in any initiative or repo. `initiative` cannot answer that, because it
 drops a dependency held elsewhere. So `slate next --for <record>` reads the transitive closure from
 the record's open issues, as `bazel query 'deps(//target)'` reads a build graph. An issue waits on
-what it depends on and on its children, and the walk stops at a closed issue. The rows include work
+what it depends on and on its children, and the walk stops at a closed issue. An issue in an
+initiative that waits on an open record also waits on that issue, or on each open issue of that
+initiative, because an initiative is finished by its issues. The rows include work
 that is not ready yet, because that is the plan, and each names in `unblocks` which rows wait on it
 directly. The CLI's default cap does not apply, since a cut plan reads as a smaller one.
 
@@ -100,6 +103,40 @@ same paths instead, and the hold warns.
   stall.
 - **The description is the issue's current state.** A correction rewrites it,
   and a comment keeps the history of when and why.
+
+### An initiative waits on an initiative or an issue, and holds back every issue in it
+
+A plan that starts after another plan says so with an edge from the initiative:
+`slate dependencies add <initiative> --depends-on <record>`. While the waiting
+initiative and the record it names are both open, every unclosed issue in the
+initiative reads `is_blocked`. An initiative is open while `active` or `someday`,
+and an issue until it is completed or canceled. A finished initiative's wait holds
+nothing, as a finished initiative lends no priority.
+
+- **The issue's read names the wait.** `initiative_waits_on` lists what its open
+  initiative waits on, so an issue blocked only by that wait says by what. The
+  initiative's read lists `depends_on`, and each record's read lists the
+  `waiting_initiatives`.
+- **A loop through any mix of edges is refused on write.** An initiative waits on
+  its unclosed issues, since it is finished by them, and each of them waits on
+  what the initiative waits on. So an initiative waiting on one of its own issues
+  leaves that issue waiting on itself. Moving an issue into an initiative is
+  checked the same way, as is a dependency or a parent that would close a loop
+  through an initiative. The refusal prints the loop.
+- **The wait lends no priority.** An issue raises what it depends on, but an
+  initiative's wait leaves the order of the work it waits on alone. The two
+  plans are placed with `slate initiatives reorder`.
+- **It brings no someday work into the queue.** A wait on a someday initiative
+  blocks the waiting one's issues and leaves the someday issues shelved.
+
+`initiative_dependencies` keys the waiting end on `initiatives.id`, as an issue's
+edges key on `issues.id`, and the waited-on end on `records.number`, because that
+end may be either kind. The API refuses an idea there.
+
+- *Rejected:* one table of edges over `records` for every kind, replacing
+  `issue_dependencies`. Every existing edge would move, the API one release
+  behind reads the old table during a rollout, and it would admit an issue or an
+  idea waiting on an initiative, which nothing needs.
 
 ## A someday initiative holds ideas until active work needs one
 
@@ -391,7 +428,7 @@ takes the first state that holds:
 | `running` | a live claim holds it |
 | `waiting` | a live claim holds it, and its holder parked it with `slate claims wait` |
 | `triage` | it was filed and nobody has accepted it |
-| `blocked` | it depends on an unclosed issue |
+| `blocked` | it depends on an unclosed issue, or its initiative waits on an open record |
 | `ready` | `next` would hand it out |
 | `deferred` | its not-before day has not come |
 | `shelved` | its initiative is someday, and nothing outside someday depends on it |

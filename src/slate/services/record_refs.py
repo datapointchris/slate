@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate.api.exceptions import NotFoundException
+from slate.models.record import Kind
 from slate.services.names_near import names_near
 
 logger = structlog.get_logger()
@@ -144,6 +145,27 @@ def resolve_initiative(session: Session, ref: str | UUID | int) -> models.Initia
     if initiative is None:
         raise NotFoundException('initiative', str(ref), logger, held_as=kind_holding(session, number))
     return initiative
+
+
+def resolve_initiative_or_issue(session: Session, ref: str | UUID | int) -> models.Record:
+    """Fetch the record an initiative may wait on: an initiative or an issue by number or UUID, or an initiative by name."""
+    number = ref if isinstance(ref, int) else None if isinstance(ref, UUID) else record_number(ref)
+    record_id = ref if isinstance(ref, UUID) else parse_uuid(ref) if isinstance(ref, str) else None
+    if number is not None:
+        record = resolve_record(session, number)
+    elif record_id is not None:
+        found = session.get(models.Issue, record_id) or session.get(models.Initiative, record_id)
+        if found is None:
+            raise NotFoundException('initiative or issue', str(ref), logger)
+        record = found.record
+    else:
+        record = resolve_initiative(session, ref).record
+    if record.kind == Kind.IDEA:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f'#{record.number} is an idea, and an initiative waits on an initiative or an issue. Promote the idea first.',
+        )
+    return record
 
 
 def initiative_names(session: Session) -> list[str]:

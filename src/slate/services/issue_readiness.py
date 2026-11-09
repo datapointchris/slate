@@ -9,6 +9,7 @@ An issue is ready when all of these hold:
 - it is `open`, and no live claim holds it; an expired claim holds nothing
 - its deferral day, if any, has arrived in the reader's calendar
 - every issue it depends on is closed
+- its initiative, while open, waits on no open initiative or issue
 - it has no open children, since a parent is finished by its children
 - it is not shelved: in a `someday` initiative, which holds ideas not yet
   taken on, with no unclosed issue outside one depending on it at any depth
@@ -49,6 +50,7 @@ from slate import models
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.services.claim_views import live_claim_numbers
+from slate.services.initiative_waits import holding_waits
 from slate.services.open_records import is_open
 
 # The urgency of "no priority": after every real level, which run 1 (urgent)
@@ -194,6 +196,8 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
         dependents.setdefault(depends_on_id, []).append(issue_id)
         if issue_id in unclosed and depends_on_id in unclosed:
             blocked.add(issue_id)
+    waiting_initiatives = {wait.initiative_id for wait in holding_waits(session)}
+    blocked.update(issue_id for issue_id in unclosed if rows[issue_id].initiative_id in waiting_initiatives)
 
     child_count: dict[UUID, int] = {}
     open_child_count: dict[UUID, int] = {}

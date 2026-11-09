@@ -46,9 +46,12 @@ from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_refs import resolve_initiative
+from slate.services.record_refs import resolve_initiative_or_issue
 from slate.services.record_summaries import record_summaries
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
+from slate.services.wait_cycles import read_wait_graph
+from slate.services.wait_cycles import refuse_wait_loop
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffects
 from slate.tracing.named_work import name_record
@@ -150,6 +153,50 @@ def pin(initiative: InitiativeFromPath, request: schemas.RecordPin, session: DbS
 def unpin(initiative: InitiativeFromPath, session: DbSession, effects: Effects):
     """Return this initiative to the place its priority and rank give it."""
     unpin_record(initiative.record, effects)
+    session.commit()
+    session.refresh(initiative)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
+
+
+@router.post('/{id:path}/dependencies', response_model=schemas.InitiativeWritten, status_code=status.HTTP_201_CREATED)
+def add_dependency(initiative: InitiativeFromPath, dependency: schemas.InitiativeDependencyCreate, session: DbSession, effects: Effects):
+    """Hold every unclosed issue in this initiative while the initiative or issue named is open.
+
+    A wait that would leave a record waiting on itself, through any mix of dependencies, parents
+    and initiatives' waits, is refused with the loop it closes.
+    """
+    depends_on = resolve_initiative_or_issue(session, dependency.depends_on)
+    if depends_on.number == initiative.number:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail='An initiative cannot wait on itself')
+    if session.get(models.InitiativeDependency, (initiative.id, depends_on.number)) is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{initiative.number} already waits on #{depends_on.number}')
+    graph = read_wait_graph(session)
+    graph.add_wait(initiative.number, depends_on.number)
+    refuse_wait_loop(graph, initiative.number, depends_on.number)
+    session.add(models.InitiativeDependency(initiative_id=initiative.id, depends_on_number=depends_on.number))
+    session.commit()
+    session.refresh(initiative)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
+
+
+def path_waited_on(dep_id: str, session: DbSession) -> models.Record:
+    """The record waited on, which the span leaves unnamed: the route is about the initiative in `{id}`."""
+    return resolve_initiative_or_issue(session, dep_id)
+
+
+# Ahead of `delete`, whose `{id:path}` would otherwise read `<id>/dependencies/<dep_id>` as a name.
+@router.delete('/{id:path}/dependencies/{dep_id}', response_model=schemas.InitiativeWritten, status_code=status.HTTP_200_OK)
+def remove_dependency(
+    initiative: InitiativeFromPath,
+    depends_on: Annotated[models.Record, Depends(path_waited_on)],
+    session: DbSession,
+    effects: Effects,
+):
+    """Answer the initiative the wait is gone from, with what it still waits on."""
+    edge = session.get(models.InitiativeDependency, (initiative.id, depends_on.number))
+    if edge is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f'#{initiative.number} does not wait on #{depends_on.number}')
+    session.delete(edge)
     session.commit()
     session.refresh(initiative)
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))

@@ -2,12 +2,15 @@
 
 A coordinator taking a plan to done needs this one read. It is the transitive closure of the graph
 from the record's issues, as `bazel query 'deps(//target)'` reads a build graph. An issue waits on
-each issue it depends on and each child, since a parent is finished by its children. A closed
-issue waits on nothing and holds nothing up, so the walk neither enters nor crosses one.
+each issue it depends on and each child, since a parent is finished by its children. While its
+initiative waits on an open record, it also waits on that issue, or on each open issue of that
+initiative, since an initiative is finished by its issues. A closed issue waits on nothing and
+holds nothing up, so the walk neither enters nor crosses one.
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections import deque
 from dataclasses import dataclass
 from typing import Any
@@ -19,6 +22,7 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
+from slate.services.initiative_waits import holding_waits
 from slate.services.record_refs import resolve_record
 
 
@@ -48,9 +52,20 @@ def read_work_graph(session: Session) -> WorkGraph:
     waits_on: dict[UUID, list[UUID]] = {}
     for issue_id, depends_on_id in session.execute(select(models.IssueDependency.issue_id, models.IssueDependency.depends_on_id)).all():
         waits_on.setdefault(issue_id, []).append(depends_on_id)
+    open_issues_of: dict[UUID, list[UUID]] = defaultdict(list)
     for row in by_id.values():
         if row.parent_id is not None:
             waits_on.setdefault(row.parent_id, []).append(row.id)
+        if row.initiative_id is not None:
+            open_issues_of[row.initiative_id].append(row.id)
+    open_by_number = {row.number: row.id for row in by_id.values()}
+    for wait in holding_waits(session):
+        if wait.depends_on_initiative_id is not None:
+            waited_on = open_issues_of.get(wait.depends_on_initiative_id, [])
+        else:
+            waited_on = [open_by_number[wait.depends_on_number]] if wait.depends_on_number in open_by_number else []
+        for waiter in open_issues_of.get(wait.initiative_id, []):
+            waits_on.setdefault(waiter, []).extend(waited_on)
     return WorkGraph(by_id=by_id, waits_on=waits_on)
 
 
@@ -78,4 +93,4 @@ def record_work(session: Session, number: int, graph: WorkGraph | None = None) -
                 unblocks[target] = []
                 walk.append(waited_on)
             unblocks[target].append(by_id[waiter].number)
-    return RecordWork(number=number, kind=kind, unblocks={issue: sorted(waiters) for issue, waiters in unblocks.items()})
+    return RecordWork(number=number, kind=kind, unblocks={issue: sorted(set(waiters)) for issue, waiters in unblocks.items()})

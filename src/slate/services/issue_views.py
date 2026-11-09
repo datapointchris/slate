@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Iterable
+from dataclasses import dataclass
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -21,8 +22,11 @@ from sqlalchemy.orm import selectinload
 
 from slate import models
 from slate import schemas
+from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.services.claim_views import unended_claim_views
+from slate.services.initiative_waits import waited_on
+from slate.services.initiative_waits import waiting_initiatives
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
 from slate.services.record_parts import record_parts
@@ -54,6 +58,27 @@ def by_number(issues: Iterable[models.Issue]) -> list[schemas.IssueSummary]:
     return [schemas.IssueSummary(id=i.id, number=i.number, title=i.title, status=i.status) for i in sorted(issues, key=lambda i: i.number)]
 
 
+@dataclass(frozen=True)
+class IssueWaits:
+    """What each open initiative among the issues waits on, by its id, and the initiatives waiting on each issue, by number."""
+
+    of_initiative: dict[UUID, list[schemas.RecordSummary]]
+    on_issue: dict[int, list[schemas.RecordSummary]]
+
+
+def issue_waits(session: Session, issues: list[models.Issue]) -> IssueWaits:
+    """A finished initiative's wait holds nothing, so only an open one's is read."""
+    open_initiatives = {
+        issue.initiative.id
+        for issue in issues
+        if issue.initiative is not None and issue.initiative.status not in TERMINAL_INITIATIVE_STATUSES
+    }
+    return IssueWaits(
+        of_initiative=waited_on(session, open_initiatives),
+        on_issue=waiting_initiatives(session, [issue.number for issue in issues]),
+    )
+
+
 def comment_counts(session: Session, numbers: list[int]) -> dict[int, int]:
     """How many comments sit on each record itself, by number. Line comments count on their documents."""
     if not numbers:
@@ -66,7 +91,9 @@ def comment_counts(session: Session, numbers: list[int]) -> dict[int, int]:
     return dict(rows.all())
 
 
-def issue_view(issue: models.Issue, readiness: IssueReadiness, comments: dict[int, int], claims: dict[int, schemas.Claim]) -> schemas.Issue:
+def issue_view(
+    issue: models.Issue, readiness: IssueReadiness, comments: dict[int, int], claims: dict[int, schemas.Claim], waits: IssueWaits
+) -> schemas.Issue:
     initiative = issue.initiative
     return schemas.Issue(
         id=issue.id,
@@ -104,6 +131,8 @@ def issue_view(issue: models.Issue, readiness: IssueReadiness, comments: dict[in
         labels=[label.slug for label in issue.labels],
         depends_on=by_number(edge.depends_on for edge in issue.dependencies),
         blocks=by_number(edge.issue for edge in issue.dependents),
+        initiative_waits_on=waits.of_initiative.get(issue.initiative_id, []) if issue.initiative_id else [],
+        waiting_initiatives=waits.on_issue.get(issue.number, []),
         child_count=readiness.child_count.get(issue.id, 0),
         open_child_count=readiness.open_child_count.get(issue.id, 0),
         comment_count=comments.get(issue.number, 0),
@@ -139,7 +168,8 @@ def issue_views(session: Session, issues: list[models.Issue], zone: str, readine
         readiness = measure_readiness(session, today, now)
     counts = comment_counts(session, [issue.number for issue in issues])
     claims = unended_claim_views(session, [issue.number for issue in issues], now)
-    return [issue_view(issue, readiness, counts, claims) for issue in issues]
+    waits = issue_waits(session, issues)
+    return [issue_view(issue, readiness, counts, claims, waits) for issue in issues]
 
 
 def label_views(session: Session, slug: str | None = None) -> list[schemas.IssueLabel]:

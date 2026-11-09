@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate.services.claim_views import held_by
+from slate.services.initiative_waits import waiting_initiatives
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -82,6 +83,13 @@ def name_issue_delete(session: Session, issue: models.Issue, deleted_by: str, no
     )
     for dependent in dependents:
         effects.did(WriteEffectCode.DEPENDENCY_REMOVED, f'#{dependent} no longer depends on #{issue.number}.', dependent)
+    name_waits_removed(session, issue.number, effects)
+
+
+def name_waits_removed(session: Session, number: int, effects: WriteEffects) -> None:
+    """Name each initiative that waited on the deleted record, whose wait goes with it."""
+    for waiting in waiting_initiatives(session, [number]).get(number, []):
+        effects.did(WriteEffectCode.DEPENDENCY_REMOVED, f'#{waiting.number} no longer waits on #{number}.', waiting.number)
 
 
 def name_initiative_delete(
@@ -95,3 +103,4 @@ def name_initiative_delete(
             f'#{issue} left initiative #{initiative.number} {initiative.name!r}, and no longer takes its priority.',
             issue,
         )
+    name_waits_removed(session, initiative.number, effects)

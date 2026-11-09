@@ -16,6 +16,8 @@ from slate import models
 from slate import schemas
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.services.claim_views import unended_claim_views
+from slate.services.initiative_waits import waited_on
+from slate.services.initiative_waits import waiting_initiatives
 from slate.services.record_parts import record_parts
 
 
@@ -34,7 +36,12 @@ def issue_count_columns():
 
 
 def initiative_view(
-    initiative: models.Initiative, counts: Sequence[Any], claim: schemas.Claim | None, idea: schemas.RecordSummary | None
+    initiative: models.Initiative,
+    counts: Sequence[Any],
+    claim: schemas.Claim | None,
+    idea: schemas.RecordSummary | None,
+    depends_on: list[schemas.RecordSummary],
+    waiting: list[schemas.RecordSummary],
 ) -> schemas.Initiative:
     """`counts` is a row of `issue_count_columns()`."""
     issue_count, open_count, completed_count, canceled_count, repos = counts
@@ -61,12 +68,16 @@ def initiative_view(
         repos=sorted(repos) if repos else [],
         claim=claim,
         idea=idea,
+        depends_on=depends_on,
+        waiting_initiatives=waiting,
     )
 
 
 def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, Sequence[Any]]]) -> list[schemas.Initiative]:
-    """Each initiative beside its row of `issue_count_columns()`, with its claim and the idea it came from."""
+    """Each initiative beside its row of `issue_count_columns()`, with its claim, the idea it came from and its waits either way."""
     claims = unended_claim_views(session, [initiative.number for initiative, _ in rows], dt.datetime.now(dt.UTC))
+    depends_on = waited_on(session, [initiative.id for initiative, _ in rows])
+    waiting = waiting_initiatives(session, [initiative.number for initiative, _ in rows])
     idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
     ideas = {
         idea_id: schemas.RecordSummary(number=number, kind=models.Idea.RECORD_KIND, title=title)
@@ -75,7 +86,14 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
         ).all()
     }
     return [
-        initiative_view(initiative, counts, claims.get(initiative.number), ideas.get(initiative.idea_id) if initiative.idea_id else None)
+        initiative_view(
+            initiative,
+            counts,
+            claims.get(initiative.number),
+            ideas.get(initiative.idea_id) if initiative.idea_id else None,
+            depends_on.get(initiative.id, []),
+            waiting.get(initiative.number, []),
+        )
         for initiative, counts in rows
     ]
 
