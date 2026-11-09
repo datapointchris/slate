@@ -157,27 +157,29 @@ def numbers(rows) -> list[int]:
     return [row['number'] for row in rows]
 
 
-def filed_initiative(client, name: str) -> int:
-    return wrote(client.post(INITIATIVES, json={'name': name, 'summary': 'It is done.'}), 'initiative', status.HTTP_201_CREATED)['number']
+def filed_initiative(client, name: str) -> dict:
+    return wrote(client.post(INITIATIVES, json={'name': name, 'summary': 'It is done.'}), 'initiative', status.HTTP_201_CREATED)
 
 
 def filed_issue(client, title: str, **fields) -> int:
     return wrote(client.post('/issues', json={'title': title, **fields}), 'issue', status.HTTP_201_CREATED)['number']
 
 
-def wait(client, initiative: int, depends_on: int):
-    return client.post(f'{INITIATIVES}/{initiative}/dependencies', json={'depends_on': depends_on})
+def wait(client, waiter: int | str, depends_on: int):
+    return client.post(f'/records/{waiter}/dependencies', json={'depends_on': depends_on})
 
 
 def test_an_initiatives_issues_are_blocked_while_the_record_it_waits_on_is_open(client):
-    first = filed_initiative(client, 'Build the warehouse')
-    later = filed_initiative(client, 'Read through the warehouse')
+    first = filed_initiative(client, 'Build the warehouse')['number']
+    filed_later = filed_initiative(client, 'Read through the warehouse')
+    later = filed_later['number']
     gate = filed_issue(client, 'Load the tables', initiative=first)
     work = filed_issue(client, 'Read the tables', initiative=later)
 
     assert numbers(wrote(wait(client, later, first), 'initiative', status.HTTP_201_CREATED)['depends_on']) == [first]
     read = ok(client.get(f'/issues/{work}'))
     assert (read['is_blocked'], numbers(read['initiative_waits_on'])) == (True, [first])
+    assert [(row['number'], row['through_initiative']) for row in read['blocked_by']] == [(first, later)]
     assert numbers(ok(client.get(f'{INITIATIVES}/{first}'))['waiting_initiatives']) == [later]
     progress = ok(client.get(f'{INITIATIVES}/progress', params={'initiative': later}))[0]
     assert (numbers(progress['initiative']['depends_on']), numbers(progress['blocked'])) == ([first], [work])
@@ -188,16 +190,17 @@ def test_an_initiatives_issues_are_blocked_while_the_record_it_waits_on_is_open(
     assert ok(client.get(f'/issues/{work}'))['is_blocked'] is False
 
     loose = filed_issue(client, 'Pick the warehouse engine')
-    ok(wait(client, later, loose), status.HTTP_201_CREATED)
+    ok(wait(client, filed_later['id'], loose), status.HTTP_201_CREATED)
     assert ok(client.get(f'/issues/{work}'))['is_blocked'] is True
-    assert numbers(wrote(client.delete(f'{INITIATIVES}/{later}/dependencies/{loose}'), 'initiative')['depends_on']) == [first]
+    assert numbers(wrote(client.delete(f'/records/{later}/dependencies/{loose}'), 'initiative')['depends_on']) == [first]
     assert ok(client.get(f'/issues/{work}'))['is_blocked'] is False
+    assert numbers(wrote(wait(client, work, loose), 'issue', status.HTTP_201_CREATED)['depends_on']) == [loose]
 
 
 def test_a_wait_that_would_leave_a_record_waiting_on_itself_is_refused_with_the_loop(client):
     """An initiative waits on its unclosed issues, and each of them on what the initiative waits on."""
-    plan = filed_initiative(client, 'Ship the importer')
-    other = filed_initiative(client, 'Ship the exporter')
+    plan = filed_initiative(client, 'Ship the importer')['number']
+    other = filed_initiative(client, 'Ship the exporter')['number']
     own = filed_issue(client, 'Write the importer', initiative=plan)
     outside = filed_issue(client, 'Write the exporter', initiative=other)
 
@@ -211,6 +214,18 @@ def test_a_wait_that_would_leave_a_record_waiting_on_itself_is_refused_with_the_
     ok(wait(client, plan, gate), status.HTTP_201_CREATED)
     moved = ok(client.patch(f'/issues/{gate}', json={'initiative': plan}), status.HTTP_409_CONFLICT)['message']
     assert f'#{gate} → #{plan} → #{gate}' in moved
+
+
+def test_reopening_an_issue_that_what_its_initiative_waits_on_depends_on_is_refused_with_the_loop(client):
+    """`slate issues reopen` on a closed issue whose initiative waits on a record depending on it."""
+    plan = filed_initiative(client, 'Roll out the importer')['number']
+    done = filed_issue(client, 'Draft the schema', initiative=plan)
+    ok(client.patch(f'/issues/{done}', json={'status': 'completed'}))
+    gate = filed_issue(client, 'Agree the schema')
+    ok(wait(client, plan, gate), status.HTTP_201_CREATED)
+    ok(wait(client, gate, done), status.HTTP_201_CREATED)
+    reopened = ok(client.patch(f'/issues/{done}', json={'status': 'open'}), status.HTTP_409_CONFLICT)['message']
+    assert f'#{done} → #{plan} → #{gate} → #{done}' in reopened
 
 
 def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_blocked_comes_next_and_closed(client):

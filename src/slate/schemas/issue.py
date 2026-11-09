@@ -110,6 +110,12 @@ class IssueUpdate(RecordModel):
     labels: NotNull[list[Slug]] = None
 
 
+class Blocker(RecordSummary):
+    """An open record holding an issue back. `through_initiative` is the initiative whose wait holds it, else null."""
+
+    through_initiative: int | None = None
+
+
 class Issue(RecordModel):
     """An issue travels with everything a list row needs, so no client fans out.
 
@@ -120,10 +126,11 @@ class Issue(RecordModel):
     `autofix` is the issue's own setting, and `is_autofixable` is false when it,
     its initiative's or an unclosed parent's is false. `claim` is the issue's
     unended claim, live or expired, and null when nobody holds it. `rank` is its
-    record's place among every record's. `initiative_waits_on` is each record
-    its initiative waits on while that initiative is open, so an issue blocked
-    by that wait says by what. `waiting_initiatives` is each initiative waiting
-    on this issue.
+    record's place among every record's. `initiative_waits_on` is each record an
+    unclosed issue waits on through its initiative, open or closed, as
+    `depends_on` holds every dependency. `blocked_by` is each open record holding
+    it back now, whatever the cause, and is empty exactly when `is_blocked` is
+    false. `waiting_initiatives` is each initiative waiting on this issue.
     """
 
     id: UUID
@@ -154,6 +161,7 @@ class Issue(RecordModel):
     blocks: list[IssueSummary] = []
     initiative_waits_on: list[RecordSummary] = []
     waiting_initiatives: list[RecordSummary] = []
+    blocked_by: list[Blocker] = []
     child_count: int = 0
     open_child_count: int = 0
     comment_count: int = 0

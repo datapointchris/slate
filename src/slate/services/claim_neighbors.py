@@ -29,11 +29,10 @@ from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
 from slate.services.claim_views import live_claims_on_every_record
 from slate.services.held_plans import held_plans
-from slate.services.initiative_waits import is_open_summary
-from slate.services.initiative_waits import waited_on
 from slate.services.issue_paths import held_overlaps
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_views import ISSUE_LOAD_OPTIONS
+from slate.services.record_summaries import record_summaries
 from slate.services.record_work import record_work
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
@@ -118,16 +117,16 @@ def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetim
             f'#{number} depends on #{dependency.number}, which is {dependency.status}{held}.',
             dependency.number,
         )
-    initiative = issue.initiative
-    if not issue.is_closed and initiative is not None and initiative.status not in TERMINAL_INITIATIVE_STATUSES:
-        for waited in waited_on(session, [initiative.id]).get(initiative.id, []):
-            if is_open_summary(waited):
-                effects.warn(
-                    WriteEffectCode.INITIATIVE_WAITS,
-                    f'#{number} is in initiative #{initiative.number} {initiative.name!r}, '
-                    f'which waits on #{waited.number}, and #{waited.number} is {waited.status}.',
-                    waited.number,
-                )
+    waits = [blocking.number for blocking in readiness.blocked_by.get(issue.id, ()) if blocking.through_initiative is not None]
+    if waits and issue.initiative is not None:
+        initiative = issue.initiative
+        for waited in record_summaries(session, waits).values():
+            effects.warn(
+                WriteEffectCode.INITIATIVE_WAITS,
+                f'#{number} is in initiative #{initiative.number} {initiative.name!r}, '
+                f'which waits on #{waited.number}, and #{waited.number} is {waited.status}.',
+                waited.number,
+            )
     if children:
         effects.warn(WriteEffectCode.OPEN_CHILDREN, f'#{number} waits on its open children: {numbered(children)}.', number)
     for child in sorted(children, key=lambda i: i.number):

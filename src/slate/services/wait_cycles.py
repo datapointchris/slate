@@ -1,6 +1,6 @@
 """Refuse a write that would leave a record waiting on itself.
 
-A record waits on another along four kinds of edge, each read by record number:
+A record waits on another along each of these edges, read by record number:
 
 - an issue on each issue it depends on
 - a parent on each of its children, since a parent is finished by its children
@@ -8,10 +8,17 @@ A record waits on another along four kinds of edge, each read by record number:
   finished by them
 - an unclosed issue on each record its initiative waits on
 
-A loop through any mix of them is a deadlock, because nothing in it can start. Every loop is
-refused on write, so a write is checked by applying it to the graph as it stands and searching
-from each record the new edges touch for a way back to itself. The refusal prints the loop, so
-the caller sees which edge to cut.
+A loop through any mix of them is a deadlock, because nothing in it can start. So every write that
+adds an edge is checked by applying it to the graph as it stands and searching from each record the
+new edges touch for a way back to itself. The refusal prints the loop, so the caller sees which
+edge to cut.
+
+Membership is the one edge that follows a status, the issue's own. So reopening an issue adds
+edges, and is checked like any other write. Every other edge counts whatever the status of its
+records, because a finished initiative reopens unchecked and its waits hold again.
+
+A check reads the graph under one transaction-scoped advisory lock, held until its write commits,
+so two writers each adding half of a loop cannot both pass.
 """
 
 from __future__ import annotations
@@ -24,6 +31,7 @@ from dataclasses import field
 
 from fastapi import HTTPException
 from fastapi import status
+from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -32,6 +40,8 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 
 # A step from an issue to what its initiative waits on goes through that initiative.
 Step = tuple[int, int | None]
+
+WAIT_GRAPH_LOCK = 'slate.wait_graph'
 
 
 @dataclass
@@ -60,6 +70,9 @@ class WaitGraph:
         self.initiative_of.pop(issue, None)
         if initiative is not None:
             self.initiative_of[issue] = initiative
+
+    def reopen(self, issue: int) -> None:
+        self.unclosed.add(issue)
 
     def loop_through(self, start: int) -> list[int] | None:
         """The records of a loop from `start` back to itself, each initiative an issue waits through included, or None."""
@@ -105,7 +118,8 @@ class WaitGraph:
 
 
 def read_wait_graph(session: Session) -> WaitGraph:
-    """Every issue, initiative and edge as the session reads them, in four queries."""
+    """Every issue, initiative and edge as the session reads them, once it holds the lock every check takes."""
+    session.execute(select(func.pg_advisory_xact_lock(func.hashtext(WAIT_GRAPH_LOCK))))
     graph = WaitGraph()
     issues = session.execute(
         select(models.Issue.id, models.Issue.number, models.Issue.status, models.Issue.parent_id, models.Issue.initiative_id)

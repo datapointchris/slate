@@ -88,7 +88,8 @@ class InitiativeDependency(Base):
     """`initiative_id`'s open issues are blocked while the record `depends_on_number` names is open.
 
     The waited-on end is a record number, because it may be an initiative or an issue. The API
-    refuses an idea. An initiative is open while active or someday, and an issue until it closes.
+    refuses an idea. `services/open_records.is_open` decides when either end is open, and a someday
+    initiative counts as open.
     """
 
     __tablename__ = 'initiative_dependencies'

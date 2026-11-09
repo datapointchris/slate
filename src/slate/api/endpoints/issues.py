@@ -1,5 +1,6 @@
 import datetime as dt
 from typing import Annotated
+from typing import NamedTuple
 from uuid import UUID
 
 import structlog
@@ -40,6 +41,8 @@ from slate.services.issue_views import list_order
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_issue_delete
+from slate.services.record_dependencies import add_issue_dependency
+from slate.services.record_dependencies import remove_issue_dependency
 from slate.services.record_lists import word_matches
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
@@ -79,18 +82,25 @@ def path_issue(id: str, session: DbSession) -> models.Issue:
 IssueFromPath = Annotated[models.Issue, Depends(path_issue)]
 
 
-def refuse_loop_on_move(session: Session, issue: models.Issue, joined: models.Initiative | None, adopted_by: models.Issue | None) -> None:
-    """Refuse moving `issue` into `joined` or under `adopted_by` where that closes a wait loop.
+def refuse_loop_on_change(
+    session: Session, issue: models.Issue, joined: models.Initiative | None, adopted_by: models.Issue | None, reopened: list[int]
+) -> None:
+    """Refuse moving `issue` into `joined` or under `adopted_by`, or reopening `reopened`, where that closes a wait loop.
 
-    The graph is read as the database holds it, since the session never autoflushes, and the move
-    is applied to it there. Every edge either move adds touches `issue`, so the loop runs through it.
+    The graph is read as the database holds it, since the session never autoflushes, and the change
+    is applied to it there. Every edge the change adds touches `issue`, the new parent or a reopened
+    issue, so a loop it closes runs through one of them.
     """
+    if joined is None and adopted_by is None and not reopened:
+        return
     graph = read_wait_graph(session)
     if joined is not None:
         graph.set_initiative(issue.number, joined.number)
     if adopted_by is not None:
         graph.set_parent(issue.number, adopted_by.number)
-    refuse_wait_loop(graph, *([] if adopted_by is None else [adopted_by.number]), issue.number)
+    for number in reopened:
+        graph.reopen(number)
+    refuse_wait_loop(graph, *([] if adopted_by is None else [adopted_by.number]), issue.number, *reopened)
 
 
 def ensure_initiative_open(initiative: models.Initiative) -> None:
@@ -124,10 +134,12 @@ def ensure_parent_open(parent: models.Issue) -> None:
         )
 
 
-def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime, effects: WriteEffects) -> None:
-    """Return each completed ancestor to open, because a completed issue never holds open work."""
+def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime, effects: WriteEffects) -> list[int]:
+    """Return each completed ancestor to open, because a completed issue never holds open work, and answer their numbers."""
+    reopened = []
     parent = issue.parent
     while parent is not None and parent.status == 'completed':
+        reopened.append(parent.number)
         parent.status = 'open'
         parent.closed_ts = None
         parent.closed_by = None
@@ -138,6 +150,7 @@ def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime, effects: W
             parent.number,
         )
         parent = parent.parent
+    return reopened
 
 
 def numbered(issues: list[models.Issue]) -> str:
@@ -173,17 +186,23 @@ def resulting_reason(issue: models.Issue, update_data: dict, target: str) -> str
     return reason
 
 
+class StatusChange(NamedTuple):
+    closing: bool
+    reopened: list[int]
+
+
 def apply_status_transition(
     session: Session, issue: models.Issue, update_data: dict, now: dt.datetime, effects: WriteEffects, *, signed_in: str
-) -> bool:
+) -> StatusChange:
     """Validate a status change and apply everything it implies to the issue's row, in one place.
 
-    Closing stamps `closed_ts` and `closed_by`, and answers True, so the caller
+    Closing stamps `closed_ts` and `closed_by`, and answers `closing`, so the caller
     ends the issue's claim as the status it reached. `closed_by` is the actor
     the caller named, else `signed_in`, because a token is the user's whichever
     session or worker holds it. A move between two closed statuses keeps both
     stamps. Reopening clears them, the reason and any duplicate link, and
-    reopens each completed ancestor, named in `effects`. The CHECK constraints
+    reopens each completed ancestor, named in `effects`. `reopened` holds the
+    issue and each ancestor a reopen returned to open. The CHECK constraints
     refuse each of these states too; this exists so a caller gets a 4xx naming
     the problem.
     """
@@ -210,6 +229,7 @@ def apply_status_transition(
                 detail=f'#{issue.number} still has open children: {numbered(open_children)}. Close them first.',
             )
 
+    reopened = []
     if target in CLOSED_ISSUE_STATUSES:
         if closing:
             issue.closed_ts = now
@@ -217,13 +237,13 @@ def apply_status_transition(
             clear_pin_on_close(issue, target, effects)
     else:
         if issue.is_closed:
-            reopen_completed_ancestors(issue, now, effects)
+            reopened = [issue.number, *reopen_completed_ancestors(issue, now, effects)]
         issue.closed_ts = None
         issue.closed_by = None
     issue.status = target
     issue.status_reason = reason
     issue.duplicate_of_id = duplicate_id
-    return closing
+    return StatusChange(closing=closing, reopened=reopened)
 
 
 @router.get('', response_model=list[schemas.Issue], status_code=status.HTTP_200_OK)
@@ -445,8 +465,6 @@ def update(
                     ensure_parent_open(parent)
                 adopted_by = parent
             issue.parent = parent
-    if joined is not None or adopted_by is not None:
-        refuse_loop_on_move(session, issue, joined, adopted_by)
     if 'discovered_from' in update_data:
         ref = update_data.pop('discovered_from')
         issue.discovered_from_id = None if ref is None else resolve_issue(session, ref).id
@@ -454,14 +472,15 @@ def update(
         set_labels(session, issue, update_data.pop('labels'))
     ensure_paths_have_a_repo(update_data.get('repo', issue.repo), update_data.get('paths', issue.paths))
 
-    closing = apply_status_transition(session, issue, update_data, now, effects, signed_in=signed_in)
+    change = apply_status_transition(session, issue, update_data, now, effects, signed_in=signed_in)
+    refuse_loop_on_change(session, issue, joined, adopted_by, change.reopened)
 
     for attr, value in update_data.items():
         setattr(issue, attr, value)
     issue.updated_ts = now
     # After the row is whole, because reading the claim flushes it, and a later change would reach
     # the audit trail as a second write.
-    if closing:
+    if change.closing:
         end_with_record(session, issue.number, issue.status, now, issue.closed_by, effects)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
@@ -523,44 +542,15 @@ def unpin(issue: IssueFromPath, session: DbSession, zone: RequestZone, effects: 
 def add_dependency(
     issue: IssueFromPath, dependency: schemas.IssueDependencyCreate, session: DbSession, zone: RequestZone, effects: Effects
 ):
-    depends_on = resolve_issue(session, dependency.depends_on)
-    if depends_on.id == issue.id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail='An issue cannot depend on itself')
-    if session.get(models.IssueDependency, (issue.id, depends_on.id)) is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'#{issue.number} already depends on #{depends_on.number}',
-        )
-    graph = read_wait_graph(session)
-    graph.add_dependency(issue.number, depends_on.number)
-    refuse_wait_loop(graph, issue.number)
-    session.add(models.IssueDependency(issue_id=issue.id, depends_on_id=depends_on.id))
-    issue.updated_ts = dt.datetime.now(dt.UTC)
+    """`POST /records/{ref}/dependencies` writes the same edge, and also takes an initiative."""
+    add_issue_dependency(session, issue, dependency.depends_on)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 
 
-def path_dependency(dep_id: str, session: DbSession) -> models.Issue:
-    """The issue depended on, which the span leaves unnamed: the route is about the issue in `{id}`."""
-    return resolve_issue(session, dep_id)
-
-
 @router.delete('/{id}/dependencies/{dep_id}', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
-def remove_dependency(
-    issue: IssueFromPath,
-    depends_on: Annotated[models.Issue, Depends(path_dependency)],
-    session: DbSession,
-    zone: RequestZone,
-    effects: Effects,
-):
+def remove_dependency(issue: IssueFromPath, dep_id: str, session: DbSession, zone: RequestZone, effects: Effects):
     """Answer the issue the edge is gone from, so its remaining dependencies and readiness are read with it."""
-    edge = session.get(models.IssueDependency, (issue.id, depends_on.id))
-    if edge is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f'#{issue.number} does not depend on #{depends_on.number}',
-        )
-    session.delete(edge)
-    issue.updated_ts = dt.datetime.now(dt.UTC)
+    remove_issue_dependency(session, issue, dep_id)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))

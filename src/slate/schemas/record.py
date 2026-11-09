@@ -1,5 +1,6 @@
 import datetime as dt
 from typing import Annotated
+from uuid import UUID
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -21,6 +22,12 @@ class RecordModel(BaseModel):
     """A schema read from a model row's attributes, which every schema of a record is."""
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RecordDependencyCreate(BaseModel):
+    """The record waited on: an issue by number or UUID, or, for an initiative, an initiative or an issue, an initiative also by name."""
+
+    depends_on: UUID | int | str
 
 
 class RecordSummary(RecordModel):

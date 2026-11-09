@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import ColumnElement
 from sqlalchemy import exists
 
@@ -11,15 +13,16 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 
 
-def is_open(kind: Kind) -> ColumnElement[bool]:
+def is_open(kind: Kind, entity: Any = None) -> ColumnElement[bool]:
     """An issue not completed or canceled, an initiative not finished, an idea not promoted.
 
-    A promoted idea's work is its initiative's, so the idea is done.
+    A promoted idea's work is its initiative's, so the idea is done. `entity` is an alias of the
+    kind's model, for a query joining that model twice.
     """
     match kind:
         case Kind.ISSUE:
-            return models.Issue.status.not_in(CLOSED_ISSUE_STATUSES)
+            return (entity or models.Issue).status.not_in(CLOSED_ISSUE_STATUSES)
         case Kind.INITIATIVE:
-            return models.Initiative.status.not_in(TERMINAL_INITIATIVE_STATUSES)
+            return (entity or models.Initiative).status.not_in(TERMINAL_INITIATIVE_STATUSES)
         case Kind.IDEA:
-            return ~exists().where(models.Initiative.idea_id == models.Idea.id)
+            return ~exists().where(models.Initiative.idea_id == (entity or models.Idea).id)

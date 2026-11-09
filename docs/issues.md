@@ -109,20 +109,28 @@ same paths instead, and the hold warns.
 A plan that starts after another plan says so with an edge from the initiative:
 `slate dependencies add <initiative> --depends-on <record>`. While the waiting
 initiative and the record it names are both open, every unclosed issue in the
-initiative reads `is_blocked`. An initiative is open while `active` or `someday`,
-and an issue until it is completed or canceled. A finished initiative's wait holds
-nothing, as a finished initiative lends no priority.
+initiative reads `is_blocked`. An initiative is open until it is finished, so a
+someday initiative counts as open. An issue is open until it closes. A finished
+initiative's wait holds nothing, as a finished initiative lends no priority.
 
-- **The issue's read names the wait.** `initiative_waits_on` lists what its open
-  initiative waits on, so an issue blocked only by that wait says by what. The
-  initiative's read lists `depends_on`, and each record's read lists the
-  `waiting_initiatives`.
+- **`POST /records/{ref}/dependencies` writes either kind's edge.** The server
+  reads which kind `ref` names, by number, UUID or an initiative's name, so no
+  client guesses it. `/issues/{id}/dependencies` still writes an issue's edge.
+- **The issue's read says what blocks it.** `blocked_by` lists each open record
+  holding it back now, whatever the cause, and is empty exactly when `is_blocked`
+  is false. An entry its initiative's wait holds names that initiative in
+  `through_initiative`. `initiative_waits_on` lists every record an unclosed
+  issue waits on through its initiative, open or closed, as `depends_on` lists
+  every dependency. The initiative's read lists `depends_on`, and each record's
+  read lists the `waiting_initiatives`.
 - **A loop through any mix of edges is refused on write.** An initiative waits on
   its unclosed issues, since it is finished by them, and each of them waits on
   what the initiative waits on. So an initiative waiting on one of its own issues
-  leaves that issue waiting on itself. Moving an issue into an initiative is
-  checked the same way, as is a dependency or a parent that would close a loop
-  through an initiative. The refusal prints the loop.
+  leaves that issue waiting on itself. Moving an issue into an initiative or
+  reopening one is checked the same way, as is a dependency or a parent that
+  would close a loop through an initiative. The refusal prints the loop. Each
+  check holds one advisory lock until its write commits, so two writers each
+  adding half of a loop cannot both pass.
 - **The wait lends no priority.** An issue raises what it depends on, but an
   initiative's wait leaves the order of the work it waits on alone. The two
   plans are placed with `slate initiatives reorder`.

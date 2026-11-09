@@ -164,13 +164,13 @@ SCOPED_WRITES = {
         {'before': '{idea}'},
         status.HTTP_200_OK,
     ),
-    (PLAN, 'POST', f'{API_PREFIX}/initiatives/{{id:path}}/dependencies'): (
-        '/initiatives/{initiative}/dependencies',
+    (PLAN, 'POST', f'{API_PREFIX}/records/{{ref:path}}/dependencies'): (
+        '/records/{initiative}/dependencies',
         {'depends_on': '{issue}'},
         status.HTTP_201_CREATED,
     ),
-    (PLAN, 'DELETE', f'{API_PREFIX}/initiatives/{{id:path}}/dependencies/{{dep_id}}'): (
-        '/initiatives/{initiative}/dependencies/{blocker}',
+    (PLAN, 'DELETE', f'{API_PREFIX}/records/{{ref:path}}/dependencies/{{dep_id}}'): (
+        '/records/{initiative}/dependencies/{blocker}',
         None,
         status.HTTP_200_OK,
     ),

@@ -150,8 +150,8 @@ class Issue(NumberedRecord, Base):
 class IssueDependency(Base):
     """`issue_id` is blocked until `depends_on_id` closes.
 
-    A parent's open children also keep it out of the ready queue, but only this
-    edge and its initiative's wait, `InitiativeDependency`, set `is_blocked`.
+    A parent's open children keep an issue out of the ready queue without setting
+    `is_blocked`. `services/issue_readiness.py` says what does set it.
     """
 
     __tablename__ = 'issue_dependencies'

@@ -110,11 +110,5 @@ class InitiativeDetail(Initiative, RecordParts):
     """An initiative with its claims, comments and documents."""
 
 
-class InitiativeDependencyCreate(RecordModel):
-    """An initiative or an issue, by number or UUID, or an initiative by name."""
-
-    depends_on: UUID | int | str
-
-
 class InitiativeWritten(Written):
     initiative: Initiative
