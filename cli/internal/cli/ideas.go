@@ -198,6 +198,7 @@ func newIdeasEditCommand() *cobra.Command {
 		Short:       "Change an idea's title, description or priority",
 		Long:        "Update only the fields whose flags you pass. --description \"\" clears it.",
 		Example:     "  slate ideas edit 1860 --priority urgent",
+		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {

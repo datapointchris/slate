@@ -69,6 +69,7 @@ func TestAnUnknownSubcommandNamesTheNearOnes(t *testing.T) {
 		{[]string{"view", "848", "--json"}, "show"},
 		{[]string{"initiativez", "--json"}, "initiatives"},
 		{[]string{"labels", "lisz", "--json"}, "list"},
+		{[]string{"issues", "update", "1"}, "edit"},
 	} {
 		err := runLine(t, c.args...)
 		if err == nil || !slices.Contains(strings.Fields(err.Error()), c.meant) {

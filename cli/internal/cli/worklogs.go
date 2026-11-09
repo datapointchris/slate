@@ -382,6 +382,7 @@ func newWorklogsEditCommand() *cobra.Command {
 		Short:       "Set how a worklog's work was approached",
 		Long:        "--workflow \"\" clears it. The workflow is kept so later work can compare the approaches.",
 		Example:     "  slate worklogs edit 1991.2 --workflow plan-first",
+		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -153,6 +153,7 @@ func newLabelsEditCommand() *cobra.Command {
 			"An empty value clears a field. Moving a label into a group is refused while an\n" +
 			"issue carries it beside another label of that group.",
 		Example:     "  slate labels edit area-db --group area\n  slate labels edit area-db --group \"\"",
+		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -332,6 +332,10 @@ var issueClearableFlags = map[string]string{
 // issueRequiredFlags are the fields every issue carries, so none can be emptied.
 var issueRequiredFlags = []string{"title", "type", "priority"}
 
+// editMistakenFor are the verbs other trackers name their field write with, so
+// every noun's edit is suggested when one of them is typed in its place.
+var editMistakenFor = []string{"update", "change", "modify", "set"}
+
 const issuePathHelp = "File or directory it changes, from the repo root (repeatable; needs a repo)"
 
 // autofixSetHelp is the help an issue write's --autofix carries.
@@ -367,6 +371,7 @@ func newIssuesEditCommand() *cobra.Command {
 			"  slate issues edit 412 --label area-api --label needs-design\n" +
 			"  slate issues edit 412 --path cli/internal/cli --path docs/issues.md\n" +
 			"  slate issues edit 412 --initiative \"\" --deferred-until 2026-11-01",
+		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {

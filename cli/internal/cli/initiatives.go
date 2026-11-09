@@ -271,6 +271,7 @@ func newInitiativesEditCommand() *cobra.Command {
 			"queue through reorder.",
 		Example: "  slate initiatives edit \"Ship the tracker\" --priority urgent\n" +
 			"  slate initiatives edit 1491 --autofix=false",
+		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
