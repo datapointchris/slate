@@ -67,12 +67,14 @@ type BoardUntouched struct {
 }
 
 // BoardGroupingRollup is the board's initiatives in one direction, or carrying one
-// tag. InitiativeCount and the issue counts cover those the board holds. Closes adds
-// every issue completed inside its 30-day window in any other initiative in the group,
-// whatever its status, so one completed inside the window still counts.
-// UntouchedLongest is nil where none of the group's initiatives is active.
+// tag. Members is the number of each one the board holds in the group, and
+// InitiativeCount and the issue counts cover those. Every count in Closes adds the
+// issues completed in the group's other initiatives, whatever their status, so one
+// completed inside the window still counts. UntouchedLongest is nil where none of the
+// members is active.
 type BoardGroupingRollup struct {
 	BoardRollup
+	Members          []int           `json:"members"`
 	UntouchedLongest *BoardUntouched `json:"untouched_longest"`
 }
 

@@ -142,7 +142,8 @@ per repo the issues name, the most open first and `no repo` last. Under it sits 
 with an issue there, cut to its issues there, so its bar and counts are that repo's share. An
 initiative spanning three repos draws three times, and one with no issues sits under `no repo`.
 Initiative drops the tier headings and leaves the list order. The scope still decides which
-initiatives show. `--group` opens the tab at any of them, so `--once` draws what `v` would show.
+initiatives show. `--grouping` opens the tab at any of them, so `--once` draws what `v` would
+show.
 
 The board read carries each repo's rollup and each initiative's cut by repo, counted by the same
 code as its tiers. So the repo grouping needs no second read, and the client derives no count.
@@ -160,12 +161,16 @@ whole. An initiative in two directions draws under both, and one in none under `
 last. The groups come with the fewest closes in 30 days first, so the direction nothing has moved
 in leads the screen. That is Slurm's fair-share without assigned shares: the least served goes
 first. An active direction holding no initiative still draws, at zero, and so does an unused tag.
+A group whose initiatives all sit past the scope draws too, as `Neglected Way · 0 of 1`. A
+direction whose work all ranks low is the one this grouping exists to show. The board read
+names each group's members, so the client never decides which initiatives a group holds.
 
 A group's line is its rollup on the same columns, and the line under it names its active
-initiative touched longest ago and how long ago. 30D counts every close of every initiative in
-the group, one completed since included, which the board does not hold. So a direction whose
-work finished last week still shows the effort, while DONE counts only the initiatives drawn.
-The panel says so. `docs/issues.md` says what counts as a touch.
+initiative touched longest ago and how long ago. The group's closes, 24H, 7D, 30D, LAST and the
+spark, count every initiative in it, including one completed inside the window that the board
+does not hold. DONE, RUN, BLK and RDY count only the initiatives the board holds. So a direction
+whose work finished last week still shows the effort. The panel says so. `docs/issues.md` says
+what counts as a touch.
 
 - *Rejected:* summing the drawn initiatives' closes in the client. The board holds only the
   initiatives at one status, so a direction's completed work would vanish from it the day the

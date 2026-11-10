@@ -160,13 +160,19 @@ func TestTUIWithNoTerminalRefusesAsAUsageError(t *testing.T) {
 	}
 }
 
-func TestAnInitiativeInTwoDirectionsDrawsUnderBothWithNoKeyRepeated(t *testing.T) {
+func TestDirectionGroupsDrawTheirMembersWithNoKeyRepeatedAndNoneHiddenByTheScope(t *testing.T) {
 	read := sevenHighAndTwoLow()
-	warehouse, security := api.DirectionSummary{Number: 100, Name: "Data Warehouse"}, api.DirectionSummary{Number: 101, Name: "Fleet Security"}
+	warehouse, security, neglected := api.DirectionSummary{Number: 100, Name: "Data Warehouse"}, api.DirectionSummary{Number: 101, Name: "Fleet Security"}, api.DirectionSummary{Number: 102, Name: "Neglected Way"}
 	read.Initiatives[0].Directions = []api.DirectionSummary{warehouse, security}
 	read.Initiatives[0].Issues = []api.BoardIssue{{Number: 50, Title: "Rotate the keys", State: "ready"}}
-	read.Directions = []api.BoardDirectionRollup{{Direction: &warehouse}, {Direction: &security}, {}}
-	board := boardFromServer(t, read, boardScope{kind: scopeEveryInitiative})
+	read.Initiatives[6].Directions = []api.DirectionSummary{neglected}
+	holding := func(direction *api.DirectionSummary, members ...int) api.BoardDirectionRollup {
+		rollup := api.BoardDirectionRollup{Direction: direction}
+		rollup.Members, rollup.InitiativeCount = members, len(members)
+		return rollup
+	}
+	read.Directions = []api.BoardDirectionRollup{holding(&neglected, 7), holding(&warehouse, 1), holding(&security, 1), holding(nil, 2, 3, 4, 5, 6, 8, 9)}
+	board := boardFromServer(t, read, boardScope{kind: scopePerTier, perTier: 5})
 	frame := board.Frame(time.Now(), groupingDirection)
 
 	seen, under := map[string]bool{}, map[string]int{}
@@ -186,5 +192,9 @@ func TestAnInitiativeInTwoDirectionsDrawsUnderBothWithNoKeyRepeated(t *testing.T
 	walk(frame.Groups, "")
 	if len(under) != 2 {
 		t.Errorf("initiative 1 draws under %v, want under both of its directions", under)
+	}
+	at := slices.IndexFunc(frame.Groups, func(group gotermboard.Group) bool { return group.Key == groupingDirection+":direction-102" })
+	if at < 0 || frame.Groups[at].FilterOnly || !strings.Contains(frame.Groups[at].Title.Text(), "Neglected Way · 0 of 1") {
+		t.Errorf("the direction whose only initiative is past the scope is hidden or mislabeled at group %d", at)
 	}
 }

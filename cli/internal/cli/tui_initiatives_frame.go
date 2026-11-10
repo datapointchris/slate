@@ -321,13 +321,12 @@ const (
 )
 
 // membership is one direction's or one tag's group: its number where it is a record, its
-// name, what the keys under it end in, its rollup, and which initiatives it holds.
+// name, what the keys under it end in, and its rollup, which names its members.
 type membership struct {
 	number    int
 	name      string
 	placement string
 	rollup    api.BoardGroupingRollup
-	holds     func(api.BoardInitiative) bool
 }
 
 // memberships is a group for each direction or each tag the board read rolls up, in its
@@ -339,14 +338,9 @@ func memberships(read api.InitiativeBoard, grouping string) []membership {
 		}
 		groups := make([]membership, 0, len(read.Tags))
 		for _, rollup := range read.Tags {
-			group := membership{
-				name: noTag, placement: placedUnder("no-tag"), rollup: rollup.BoardGroupingRollup,
-				holds: func(initiative api.BoardInitiative) bool { return len(initiative.Tags) == 0 },
-			}
+			group := membership{name: noTag, placement: placedUnder("no-tag"), rollup: rollup.BoardGroupingRollup}
 			if rollup.Tag != nil {
-				tag := *rollup.Tag
-				group.name, group.placement = tag, placedUnder("tag-"+tag)
-				group.holds = func(initiative api.BoardInitiative) bool { return slices.Contains(initiative.Tags, tag) }
+				group.name, group.placement = *rollup.Tag, placedUnder("tag-"+*rollup.Tag)
 			}
 			groups = append(groups, group)
 		}
@@ -357,26 +351,21 @@ func memberships(read api.InitiativeBoard, grouping string) []membership {
 	}
 	groups := make([]membership, 0, len(read.Directions))
 	for _, rollup := range read.Directions {
-		group := membership{
-			name: noDirection, placement: placedUnder("no-direction"), rollup: rollup.BoardGroupingRollup,
-			holds: func(initiative api.BoardInitiative) bool { return len(initiative.Directions) == 0 },
-		}
+		group := membership{name: noDirection, placement: placedUnder("no-direction"), rollup: rollup.BoardGroupingRollup}
 		if direction := rollup.Direction; direction != nil {
 			group.number, group.name = direction.Number, direction.Name
 			group.placement = placedUnder("direction-" + strconv.Itoa(direction.Number))
-			group.holds = func(initiative api.BoardInitiative) bool {
-				return slices.ContainsFunc(initiative.Directions, func(in api.DirectionSummary) bool { return in.Number == direction.Number })
-			}
 		}
 		groups = append(groups, group)
 	}
 	return groups
 }
 
-// memberGroups is a group for each direction or tag, holding every initiative in it,
-// each drawn whole. An initiative in two draws under both, and one in none under the
-// group of none. A group's line is its rollup, whose closes count the initiatives off
+// memberGroups is a group for each direction or tag, holding every initiative its rollup
+// names, each drawn whole. An initiative in two draws under both, and one in none under
+// the group of none. A group's line is its rollup, whose closes count the initiatives off
 // the board too, and the line under it names its active initiative untouched longest.
+// A group draws with every member past the scope, since its line still says it is there.
 func (b *initiativesBoard) memberGroups(members []membership, grouping string, ordered []api.BoardInitiative, drawn boardDraw) []gotermboard.Group {
 	if members == nil {
 		return []gotermboard.Group{{
@@ -389,7 +378,7 @@ func (b *initiativesBoard) memberGroups(members []membership, grouping string, o
 		var initiatives []api.BoardInitiative
 		showing := 0
 		for _, initiative := range ordered {
-			if !member.holds(initiative) {
+			if !slices.Contains(member.rollup.Members, initiative.Number) {
 				continue
 			}
 			initiatives = append(initiatives, initiative)
@@ -409,20 +398,19 @@ func (b *initiativesBoard) memberGroups(members []membership, grouping string, o
 		counts := rollup.BoardCounts
 		untouched := untouchedLines(rollup.UntouchedLongest, drawn.now)
 		groups = append(groups, gotermboard.Group{
-			Key:        grouping + ":" + strings.TrimPrefix(member.placement, "@"),
-			Title:      title,
-			Cells:      toned(boardCells(counts, drawn.now), tierTone),
-			WrapLast:   append(scaledBar(counts), gotermboard.C("  ", ""), gotermboard.C(sparkLine(counts.Closes.ByDay), gotermboard.Green)),
-			Below:      untouched,
-			Heading:    true,
-			FilterOnly: showing == 0 && rollup.InitiativeCount > 0,
-			Gap:        true,
-			Overline:   gotermboard.RuleDouble,
-			Tone:       tierTone,
-			Groups:     b.initiativeGroups(initiatives, member.placement, nil, ordered, drawn),
+			Key:      grouping + ":" + strings.TrimPrefix(member.placement, "@"),
+			Title:    title,
+			Cells:    toned(boardCells(counts, drawn.now), tierTone),
+			WrapLast: append(scaledBar(counts), gotermboard.C("  ", ""), gotermboard.C(sparkLine(counts.Closes.ByDay), gotermboard.Green)),
+			Below:    untouched,
+			Heading:  true,
+			Gap:      true,
+			Overline: gotermboard.RuleDouble,
+			Tone:     tierTone,
+			Groups:   b.initiativeGroups(initiatives, member.placement, nil, ordered, drawn),
 			Panel: func(int) []gotermboard.Line {
 				lines := rollupPanel(slices.Concat(gotermboard.Line{}, title), counts, drawn.now)
-				lines = append(lines, dimLine("30d counts the closes of its initiatives off the board too, such as one completed since"))
+				lines = append(lines, dimLine("Its closes count its initiatives off the board too, such as one completed this month."))
 				if len(untouched) > 0 {
 					lines = append(lines, gotermboard.Line{})
 					lines = append(lines, untouched...)
