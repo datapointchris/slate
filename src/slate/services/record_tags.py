@@ -30,12 +30,6 @@ from slate.services.names_near import names_near
 from slate.services.open_records import is_open
 from slate.services.row_limit import apply_row_limit
 
-KIND_MODELS: dict[Kind, type[models.Idea] | type[models.Initiative] | type[models.Issue]] = {
-    Kind.IDEA: models.Idea,
-    Kind.INITIATIVE: models.Initiative,
-    Kind.ISSUE: models.Issue,
-}
-
 
 def unknown_tags(session: Session, unknown: list[str]) -> HTTPException:
     """The refusal of tags nobody made, naming every tag that exists and the ones each typed name comes near."""
@@ -120,7 +114,7 @@ def numbers_carrying(session: Session, name: str) -> Select:
 def carries(session: Session, kind: Kind, name: str) -> ColumnElement[bool]:
     """Whether a record of `kind` reads as carrying the tag: its own, or for an issue its initiative's too."""
     carrying = numbers_carrying(session, name)
-    model = KIND_MODELS[kind]
+    model = models.KIND_MODELS[kind]
     if kind != Kind.ISSUE:
         return model.number.in_(carrying)
     in_tagged_initiative = select(models.Initiative.id).where(models.Initiative.number.in_(carrying))
@@ -134,9 +128,10 @@ def narrowed_to_tag(query: Select, kind: Kind, name: str | None, session: Sessio
 def tag_views(session: Session, name: str | None = None, limit: int | None = None) -> list[schemas.Tag]:
     """Every tag in name order, or the one named, with how many open records of each kind carry it themselves."""
     tagged = models.RecordTag.record_number
+    labels = {kind: f'open_{kind}_count' for kind in models.KIND_MODELS}
     open_counts = [
-        func.count(tagged).filter(tagged.in_(select(model.number).where(is_open(kind)))).label(f'open_{kind}_count')
-        for kind, model in KIND_MODELS.items()
+        func.count(tagged).filter(tagged.in_(select(model.number).where(is_open(kind)))).label(labels[kind])
+        for kind, model in models.KIND_MODELS.items()
     ]
     query = (
         select(models.Tag, *open_counts)
@@ -146,18 +141,16 @@ def tag_views(session: Session, name: str | None = None, limit: int | None = Non
     )
     if name is not None:
         query = query.where(models.Tag.name == name)
-    return [
-        schemas.Tag(
-            name=tag.name,
-            description=tag.description,
-            created_ts=tag.created_ts,
-            open_record_count=ideas + initiatives + issues,
-            open_idea_count=ideas,
-            open_initiative_count=initiatives,
-            open_issue_count=issues,
+    views = []
+    for row in session.execute(apply_row_limit(query, limit)).all():
+        counts = {label: row._mapping[label] for label in labels.values()}
+        tag = row.Tag
+        views.append(
+            schemas.Tag(
+                name=tag.name, description=tag.description, created_ts=tag.created_ts, open_record_count=sum(counts.values()), **counts
+            )
         )
-        for tag, ideas, initiatives, issues in session.execute(apply_row_limit(query, limit)).all()
-    ]
+    return views
 
 
 def tag_view(session: Session, tag: models.Tag) -> schemas.Tag:

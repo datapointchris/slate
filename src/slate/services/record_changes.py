@@ -39,12 +39,6 @@ LEFT_OUT = frozenset({models.WorklogSpan.__tablename__})
 # written then, or imported from a tracker on that schema, keys each comment by its own id there.
 ISSUE_COMMENTS = 'issue_comments'
 
-KIND_MODELS: dict[Kind, type[models.Idea] | type[models.Initiative] | type[models.Issue]] = {
-    Kind.IDEA: models.Idea,
-    Kind.INITIATIVE: models.Initiative,
-    Kind.ISSUE: models.Issue,
-}
-
 
 @dataclass(frozen=True)
 class Hanging:
@@ -81,7 +75,7 @@ PROMOTION = Hanging(models.Initiative.__tablename__, 'idea_id', key_is_int=False
 
 def record_changes(session: Session, record: models.Record, limit: int | None) -> list[schemas.RecordChange]:
     """Every write to `record` and to each row hanging off it, newest first, the latest `limit` of them."""
-    kind_model = KIND_MODELS[record.kind]
+    kind_model = models.KIND_MODELS[record.kind]
     record_id = str(session.scalars(select(kind_model.id).where(kind_model.number == record.number)).one())
     own = {(models.Record.__tablename__, str(record.number)), (kind_model.__tablename__, record_id)}
     written = set(own)
