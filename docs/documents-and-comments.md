@@ -114,13 +114,14 @@ read and never stored.
 - *Rejected:* moving a comment's stored line on each write. It rewrites
   history, and a wrong match would lose the line the comment was written on.
 
-## A service comments under slate.comments.write
+## A service comments under slate.comments.write and writes documents under slate.documents.write
 
 `slate.comments.write` reaches `POST /comments`, so a job comments on any
 record as its own client id. A job closing an issue whose fix merged holds it
-beside `slate.issues.close`, which reaches only the close. `slate.records.read`
-reaches every read of documents and comments. No scope writes a document or
-deletes a comment.
+beside `slate.issues.close`, which reaches only the close.
+`slate.documents.write` reaches `PUT /documents/{record}/{name}`, so a job
+writes a document's next version as its own client id. `slate.records.read`
+reaches every read of documents and comments. No scope deletes a comment.
 
 ## Deleting a record deletes its documents and comments
 
