@@ -8,16 +8,10 @@ import (
 	"time"
 )
 
-// The steps a queue row asks of whoever takes it.
-const (
-	QueueStepDiscuss = "discuss"
-	QueueStepPlan    = "plan"
-	QueueStepDecide  = "decide"
-	QueueStepBuild   = "build"
-)
-
-// QueueSteps is what --step accepts, in the order a piece of work moves through them.
-var QueueSteps = []string{QueueStepDiscuss, QueueStepPlan, QueueStepDecide, QueueStepBuild}
+// QueueSteps is what --step accepts, in the order a piece of work moves
+// through them: every worklog step, with discuss for an idea and decide for a
+// decision issue.
+var QueueSteps = []string{"discuss", "shape", "design", "preflight", "decide", "build", "retro"}
 
 // QueueFilter narrows the queue. Step keeps one step's rows. Every
 // ReadyFilter field but Initiative reads only issues, so setting one leaves

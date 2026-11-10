@@ -54,6 +54,7 @@ func printVocabulary(out io.Writer, v api.Vocabulary) {
 	_, _ = fmt.Fprintf(tw, "initiatives --status:\t%s\n", strings.Join(v.InitiativeStatuses, ", "))
 	_, _ = fmt.Fprintf(tw, "documents --kind:\t%s\n", strings.Join(v.DocumentKinds, ", "))
 	_, _ = fmt.Fprintf(tw, "--priority:\t%s\n", strings.Join(priorities, ", "))
+	_, _ = fmt.Fprintf(tw, "next --step:\t%s\n", strings.Join(v.QueueSteps, ", "))
 	_ = tw.Flush()
 	_, _ = fmt.Fprintln(out, "\nworklogs --step and claims hold --step, in the order a record goes through them:")
 	printWorklogSteps(out, v.WorklogSteps)

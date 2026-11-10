@@ -3,11 +3,15 @@
 Each row carries the step taking it means:
 
 - `discuss` for an idea nobody has promoted
-- `plan` for an active initiative with no unclosed issue
+- `shape` for an active initiative with no checked step and no unclosed issue
+- `design` for an active initiative whose furthest checked step is `shape`, and `preflight` for one at `design`
 - `decide` for a ready decision issue
 - `build` for any other ready issue, and for a held initiative whose issues are being built
+- `retro` for an active initiative past `preflight` with no unclosed issue
 
-An initiative holding unclosed issues is not a row of its own, because its issues are. A someday
+An initiative's step reads its stage from `services/record_steps.py`. An initiative at `build` is not
+a row of its own, because its issues are. One at `design` or `preflight` is, beside its open issues,
+so a step never holds work back. A someday
 initiative is set aside, so neither it nor its shelved issues are rows. The order is the slots
 `services/issue_readiness.py` derives, so an initiative's work runs together.
 
@@ -66,6 +70,22 @@ type Row = IssueRow | InitiativeRow | IdeaRow
 
 def issue_step(issue_type: str) -> Step:
     return 'decide' if issue_type == 'decision' else 'build'
+
+
+# The step a checked stage leaves next, where it comes before building whatever issues are open.
+STEP_AFTER_STAGE: dict[str, Step] = {'shape': 'design', 'design': 'preflight'}
+
+
+def initiative_step(initiative: schemas.Initiative) -> Step:
+    """`build` while its issues are the work, else the step its stage leaves next.
+
+    One that checked no step and holds open issues was built before steps existed, so its issues carry it.
+    """
+    if (after := STEP_AFTER_STAGE.get(initiative.stage)) is not None:
+        return after
+    if initiative.open_count:
+        return 'build'
+    return 'shape' if initiative.stage == 'idea' else 'retro'
 
 
 def reads_only_issues(filters: schemas.QueueFilter) -> bool:
@@ -166,7 +186,7 @@ def queue_as_measured(
         if work.kind == Kind.INITIATIVE and initiative is None:
             initiative = resolve_initiative(session, work.number)
 
-    if filters.step not in ('discuss', 'plan'):
+    if filters.step in (None, 'decide', 'build'):
         issues = queued_issues(session, readiness, filters, filters.step, held, None if work is None else work.unblocks)
         overlaps = held_overlaps(session, issues, now)
         for issue, view in zip(issues, issue_views(session, issues, zone, readiness), strict=True):
@@ -191,10 +211,10 @@ def queue_as_measured(
             )
             place(readiness.sort_key(issue), issue_row)
 
-    if reads_other_kinds and filters.step in (None, 'plan', 'build') and (work is None or work.kind == Kind.INITIATIVE):
+    if reads_other_kinds and filters.step not in ('discuss', 'decide') and (work is None or work.kind == Kind.INITIATIVE):
         for initiative_view in open_initiatives(session, initiative):
-            step: Step = 'build' if initiative_view.open_count else 'plan'
-            queued_alone = step == 'plan' and initiative_view.number in readiness.slot_key_by_number
+            step = initiative_step(initiative_view)
+            queued_alone = step != 'build' and initiative_view.number in readiness.slot_key_by_number
             if not wanted(filters, step) or not (queued_alone or initiative_view.number in held):
                 continue
             initiative_row = InitiativeRow(

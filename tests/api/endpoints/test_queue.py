@@ -44,7 +44,7 @@ def test_every_kind_sorts_by_priority_with_its_step_and_held_work_listed_apart(c
     hold(client, issue(client, 'Fix the flaky test', priority=1), 'agent-a')
 
     assert rows(client) == [
-        ('Plan the importer', 'plan', 1),
+        ('Plan the importer', 'shape', 1),
         ('Schedule review rounds', 'discuss', 2),
         ('Pick a storage format', 'decide', 3),
         ('Write the parser', 'build', 4),
@@ -77,10 +77,37 @@ def test_ideas_promote_after_ideas_reorder_keeps_the_place_the_reorder_gave(clie
     ok(client.post(f'/ideas/{moved}/rank', json={'before': first}))
     ok(client.post(f'/ideas/{moved}/promote', json={'summary': 'It is done.'}))
     assert rows(client) == [
-        ('Trim the test suite', 'plan', 2),
+        ('Trim the test suite', 'shape', 2),
         ('Schedule review rounds', 'discuss', 2),
         ('Mirror the backups', 'discuss', 2),
     ]
+
+
+def check_step(client, record: int, step: str) -> None:
+    worklog = ok(client.post('/worklogs', json={'record': record, 'opened_by': 'chris', 'step': step}), status.HTTP_201_CREATED)
+    ok(client.post(f'/worklogs/{worklog["worklog"]["name"]}/finish', json={'finished_by': 'chris'}))
+
+
+def test_an_initiative_lists_at_the_step_after_its_furthest_checked_one_beside_its_issues_at_build(client):
+    shaped = initiative(client, 'Ship the importer', priority=1)
+    designed = initiative(client, 'Ship the exporter', priority=2)
+    preflighted = initiative(client, 'Ship the syncer', priority=3)
+    unstepped = initiative(client, 'Ship the parser', priority=4)
+    issue(client, 'Write the exporter', initiative=designed)
+    issue(client, 'Write the parser', initiative=unstepped)
+    check_step(client, shaped, 'shape')
+    for step in ('shape', 'design'):
+        check_step(client, designed, step)
+    check_step(client, preflighted, 'preflight')
+
+    assert rows(client) == [
+        ('Ship the importer', 'design', 1),
+        ('Ship the exporter', 'preflight', 2),
+        ('Write the exporter', 'build', 2),
+        ('Ship the syncer', 'retro', 3),
+        ('Write the parser', 'build', 4),
+    ]
+    assert [row['title'] for row in ok(client.get(QUEUE, params={'step': 'design'}))['queue']] == ['Ship the importer']
 
 
 def test_a_decision_the_work_waits_on_is_decided_at_that_works_priority(client):

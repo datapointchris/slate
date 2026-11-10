@@ -41,14 +41,27 @@ A row is a record and what taking it means:
 | Step | Row |
 | --- | --- |
 | `discuss` | an idea nobody has promoted |
-| `plan` | an active initiative with no unclosed issue |
+| `shape` | an active initiative with no checked step and no unclosed issue |
+| `design` | an active initiative whose furthest checked step is `shape` |
+| `preflight` | an active initiative whose furthest checked step is `design` |
 | `decide` | a ready `decision` issue |
 | `build` | any other ready issue, or a held initiative whose issues are being built |
+| `retro` | an active initiative past `design` with no unclosed issue |
+
+An initiative's step is the one after its stage, the furthest step its
+worklogs checked, which [worklogs.md](worklogs.md) defines. These are the
+worklog's own step names. So `slate next --step shape` is the work still to
+think through, and `--step preflight` the work to check before agents build it
+unattended.
 
 `step` keeps one step's rows, so `slate next --step build` is the work an agent
-takes. An initiative holding unclosed issues is not a row of its own, because
-its issues are. It is listed only when held, in `claimed`, at step `build`, so
-whoever holds it is seen beside the issues it gathers. `repo`, `type`, `label` and `autofixable` read only issues, so
+takes. A step never holds work back. An initiative at `design` or `preflight`
+is a row beside its open issues, which still list at `build`. An initiative at
+`build` is not a row of its own, because its issues are. That holds for one
+past `design` with unclosed issues, and for one with unclosed issues and no
+checked step, which was built before steps existed. It is listed only when
+held, in `claimed`, at step `build`, so whoever holds it is seen beside the
+issues it gathers. `repo`, `type`, `label` and `autofixable` read only issues, so
 each leaves the ideas and initiatives out. `initiative` narrows to one
 initiative's rows.
 

@@ -3,6 +3,7 @@
 import datetime as dt
 from typing import Annotated
 from typing import Literal
+from typing import get_args
 
 from pydantic import BaseModel
 from pydantic import Field
@@ -12,15 +13,17 @@ from slate.schemas.initiative import Initiative
 from slate.schemas.issue import Issue
 from slate.schemas.ready_filter import ReadyFilter
 
-# What a row asks of whoever takes it: discuss an idea, plan an initiative with no issue left in it,
-# decide a decision issue, build any other issue. A held initiative whose issues are open is at `build`.
-Step = Literal['discuss', 'plan', 'decide', 'build']
+# What a row asks of whoever takes it, in the order work moves through them. An idea is discussed and
+# a decision issue decided. An initiative and any other issue take the worklog's steps, so every
+# `StepName` is one of these.
+Step = Literal['discuss', 'shape', 'design', 'preflight', 'decide', 'build', 'retro']
+QUEUE_STEPS: list[str] = list(get_args(Step))
 
 
 class QueueFilter(ReadyFilter):
     """`GET /queue`'s filters. Every one but `step` and `initiative` reads only issues, so it leaves the other kinds out."""
 
-    step: Step | None = Field(None, description='Only rows at this step: discuss, plan, decide or build')
+    step: Step | None = Field(None, description=f'Only rows at this step: {", ".join(QUEUE_STEPS)}')
     type: str | None = Field(None, description='An issue type. Leaves out every idea and initiative.')
     for_record: int | None = Field(
         None,

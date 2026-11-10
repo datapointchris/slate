@@ -73,8 +73,11 @@
   ],
   "queue_steps": [
     "discuss",
-    "plan",
+    "shape",
+    "design",
+    "preflight",
     "decide",
-    "build"
+    "build",
+    "retro"
   ]
 }

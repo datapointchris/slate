@@ -26,6 +26,7 @@ type Vocabulary struct {
 	InitiativeStatuses []string       `json:"initiative_statuses"`
 	DocumentKinds      []string       `json:"document_kinds"`
 	WorklogSteps       []WorklogStep  `json:"worklog_steps"`
+	QueueSteps         []string       `json:"queue_steps"`
 	Labels             []IssueLabel   `json:"labels"`
 }
 

@@ -32,10 +32,15 @@ func newNextCommand() *cobra.Command {
 		Use:   "next",
 		Short: "Every kind of open work, in the order to take it",
 		Long: "Ideas, initiatives and issues by priority, each row with its step: discuss an\n" +
-			"idea, plan an initiative with no open issue in it, decide a decision issue,\n" +
-			"build any other ready issue. --step keeps one step's rows. Within a priority,\n" +
-			"each initiative's issues run together in the order their ranks set, and\n" +
-			"`slate initiatives reorder` moves an initiative with its issues.\n" +
+			"idea, decide a decision issue, build any other ready issue. An initiative\n" +
+			"whose worklogs checked no step lists at shape, or only through its issues\n" +
+			"where it has open ones. One whose furthest checked step is shape lists at\n" +
+			"design, and design at preflight, beside its open issues, which still list at\n" +
+			"build. One past design lists through its issues, and at retro once none is\n" +
+			"open.\n" +
+			"--step keeps one step's rows. Within a priority, each initiative's issues run\n" +
+			"together in the order their ranks set, and `slate initiatives reorder` moves\n" +
+			"an initiative with its issues.\n" +
 			"\n" +
 			"An issue is ready when it is open, unblocked, not deferred past today, and has\n" +
 			"no open children. Work a live claim holds is listed apart under Claimed, by\n" +
@@ -63,6 +68,7 @@ func newNextCommand() *cobra.Command {
 			"  slate next --step build --limit 1\n" +
 			"  slate next --step build --repo webapp --json\n" +
 			"  slate next --step decide\n" +
+			"  slate next --step preflight\n" +
 			"  slate next --step build --autofixable --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),

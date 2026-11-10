@@ -12,6 +12,7 @@ from slate.models.initiative import INITIATIVE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
 from slate.models.record import PRIORITIES
+from slate.schemas.queue import QUEUE_STEPS
 from slate.services.issue_views import label_views
 
 router = APIRouter()
@@ -36,6 +37,7 @@ def read(session: DbSession):
         initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),
         document_kinds=in_declared_order(document_kinds, DOCUMENT_KINDS),
         worklog_steps=[schemas.WorklogStep.model_validate(step) for step in worklog_steps],
+        queue_steps=QUEUE_STEPS,
         labels=label_views(session),
     )
 
