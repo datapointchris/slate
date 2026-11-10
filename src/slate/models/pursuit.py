@@ -29,7 +29,6 @@ from slate.database.base import Base
 from slate.models.record import Kind
 from slate.models.record import NumberedRecord
 from slate.models.record import record_link
-from slate.models.record_change import FORMERLY
 from slate.models.record_change import KNOWN_BY
 
 PURSUIT_STATUSES = ['active', 'someday', 'completed', 'dropped']
@@ -64,7 +63,7 @@ class Pursuit(NumberedRecord, Base):
         *record_link(RECORD_KIND),
         CheckConstraint("status <> 'dropped' OR status_reason IS NOT NULL", name='pursuit_dropped_requires_reason'),
         Index('uq_pursuits_name_active', 'name', unique=True, postgresql_where=text("status = 'active'")),
-        {'info': {KNOWN_BY: 'name', FORMERLY: ('directions',)}},
+        {'info': {KNOWN_BY: 'name'}},
     )
 
     def __repr__(self) -> str:

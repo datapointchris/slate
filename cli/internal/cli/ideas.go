@@ -457,7 +457,7 @@ func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 		_, _ = fmt.Fprintf(out, "  tags:        %s\n", strings.Join(idea.Tags, ", "))
 	}
 	if len(idea.Pursuits) > 0 {
-		_, _ = fmt.Fprintf(out, "  pursuits:  %s\n", pursuitList(idea.Pursuits))
+		_, _ = fmt.Fprintf(out, "  pursuits:    %s\n", pursuitList(idea.Pursuits))
 	}
 	if initiative := idea.Initiative; initiative != nil {
 		_, _ = fmt.Fprintf(out, "  initiative:  #%d %s (%s)\n", initiative.Number, initiative.Name, initiativeProgress(*initiative))

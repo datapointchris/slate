@@ -232,7 +232,8 @@ pursuits served, and the `direction` filter narrows as `pursuit` does, so a
 reader of the old name keeps working until a later release drops both. The
 CLI's `--json` carries both fields too.
 `pursuits` on an idea or initiative create sets them, and on an update
-replaces the set. Both take numbers. A number naming no pursuit is refused
+replaces the set. A write body may send them as `directions`, as a client from
+the release before pursuits does, and `pursuits` wins where both are sent. Both take numbers. A number naming no pursuit is refused
 with 422, naming every active one:
 
 ```text
@@ -298,11 +299,14 @@ carries `initiative_rows` as null beside `initiative_rows_error`. An idea in it
 prints by number and name.
 
 `directions`, `direction_statuses` and `record_directions` hold each pursuit and
-placement under the kind's former name, as they stood when the kind was renamed.
-They stay for the release before, which reads them while both serve, and nothing
-here reads them. Each pursuit kept its number and its id, and `pursuits` names
-`directions` under `FORMERLY` in its table info. So a pursuit's changes include
-the writes it took as a direction, and the placements made in it then.
+placement under the kind's former name. They stay so the release before
+pursuits can serve beside this one through a rollout, and nothing here reads
+them. A trigger on `directions` and one on `record_directions` forward each
+write that release makes into `pursuits` and `record_pursuits`, so a direction
+it creates is a pursuit here. Each pursuit kept its number and its id.
+`services/record_changes.py` links the old tables to a pursuit and its records
+by hand, so a pursuit's changes include the writes it took as a direction, and
+the placements made in it then, after a later migration drops the tables.
 
 - *Rejected:* a pursuit as a tag. A tag is a category that never ends. A
   pursuit closes, says what it means and what measures it, and carries its own

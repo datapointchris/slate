@@ -96,12 +96,8 @@ type Issue struct {
 	// plus its initiative's, which a --tag filter matches.
 	Tags          []string `json:"tags"`
 	EffectiveTags []string `json:"effective_tags"`
-	// Pursuits are its initiative's, since an issue joins none itself.
-	Pursuits []PursuitSummary `json:"pursuits"`
-	// Directions is Pursuits under the name the release before pursuits
-	// served, so a reader of that name keeps reading it until a later release
-	// drops it.
-	Directions []PursuitSummary `json:"directions"`
+	// InPursuits holds its initiative's, since an issue joins none itself.
+	InPursuits
 	// Paths are the files and directories the issue changes, in its repo. A
 	// directory covers everything under it.
 	Paths     []string       `json:"paths"`

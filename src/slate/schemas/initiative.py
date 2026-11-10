@@ -2,10 +2,12 @@ import datetime as dt
 from typing import Any
 from uuid import UUID
 
+from pydantic import Field
 from pydantic import model_validator
 
 from slate.schemas.claim import Claim
 from slate.schemas.not_null import NotNull
+from slate.schemas.pursuit import PURSUITS_OR_DIRECTIONS
 from slate.schemas.pursuit import InPursuits
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
@@ -52,7 +54,7 @@ class InitiativeCreate(InitiativeWrite):
     priority: Priority = 0
     autofix: bool = False
     tags: list[str] = []
-    pursuits: list[int] = []
+    pursuits: list[int] = Field(default=[], validation_alias=PURSUITS_OR_DIRECTIONS)
 
 
 class InitiativeUpdate(InitiativeWrite):
@@ -69,7 +71,7 @@ class InitiativeUpdate(InitiativeWrite):
     priority: NotNull[Priority] = None
     autofix: NotNull[bool] = None
     tags: NotNull[list[str]] = None
-    pursuits: NotNull[list[int]] = None
+    pursuits: NotNull[list[int]] = Field(default=None, validation_alias=PURSUITS_OR_DIRECTIONS)
 
 
 class Initiative(InPursuits):

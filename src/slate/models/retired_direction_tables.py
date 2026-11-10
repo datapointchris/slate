@@ -2,8 +2,9 @@
 
 The release before pursuits reads and writes them, and it serves beside this one through a
 rollout, so they stay until a later migration drops them. They are declared so `alembic check`
-finds the database as the models say. `directions` lost its key onto `records` when each of its
-numbers became a pursuit's, so the copy the release before reads is frozen at that migration.
+finds the database as the models say. `directions` has no key onto `records`, because each of its
+numbers is a pursuit's. A trigger on each forwards what the release before pursuits writes into
+the pursuit tables, and `services/record_changes.py` reads their audit rows without them.
 """
 
 from __future__ import annotations
@@ -20,9 +21,8 @@ from sqlalchemy import Uuid
 from sqlalchemy import text
 
 from slate.database.base import Base
-from slate.models.record_change import KNOWN_BY
 
-# `record_kinds` keeps the kind's former name, so a direction the release before creates still finds its row.
+# `record_kinds` keeps the kind's former name, so a direction the release before pursuits creates still finds its row.
 RETIRED_RECORD_KIND = 'direction'
 
 direction_statuses = Table('direction_statuses', Base.metadata, Column('name', Text, primary_key=True))
@@ -43,7 +43,6 @@ directions = Table(
     CheckConstraint("record_kind = 'direction'", name='record_kind_is_declared'),
     CheckConstraint("status <> 'dropped' OR status_reason IS NOT NULL", name='direction_dropped_requires_reason'),
     Index('uq_directions_name_active', 'name', unique=True, postgresql_where=text("status = 'active'")),
-    info={KNOWN_BY: 'name'},
 )
 
 record_directions = Table(

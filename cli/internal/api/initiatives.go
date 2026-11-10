@@ -45,24 +45,20 @@ type Initiative struct {
 	CreatedTS     time.Time  `json:"created_ts"`
 	ClosedTS      *time.Time `json:"closed_ts"`
 	Tags          []string   `json:"tags"`
-	// Pursuits is each pursuit it is in, in number order. Each of its
-	// issues reads them as its own.
-	Pursuits []PursuitSummary `json:"pursuits"`
-	// Directions is Pursuits under the name the release before pursuits
-	// served, so a reader of that name keeps reading it until a later release
-	// drops it.
-	Directions         []PursuitSummary `json:"directions"`
-	IssueCount         int              `json:"issue_count"`
-	OpenCount          int              `json:"open_count"`
-	CompletedCount     int              `json:"completed_count"`
-	CanceledCount      int              `json:"canceled_count"`
-	Repos              []string         `json:"repos"`
-	Claim              *Claim           `json:"claim"`
-	Idea               *RecordSummary   `json:"idea"`
-	DependsOn          []RecordSummary  `json:"depends_on"`
-	WaitingInitiatives []RecordSummary  `json:"waiting_initiatives"`
-	Steps              []CheckedStep    `json:"steps"`
-	Stage              string           `json:"stage"`
+	// InPursuits holds each pursuit it is in. Each of its issues reads them as
+	// its own.
+	InPursuits
+	IssueCount         int             `json:"issue_count"`
+	OpenCount          int             `json:"open_count"`
+	CompletedCount     int             `json:"completed_count"`
+	CanceledCount      int             `json:"canceled_count"`
+	Repos              []string        `json:"repos"`
+	Claim              *Claim          `json:"claim"`
+	Idea               *RecordSummary  `json:"idea"`
+	DependsOn          []RecordSummary `json:"depends_on"`
+	WaitingInitiatives []RecordSummary `json:"waiting_initiatives"`
+	Steps              []CheckedStep   `json:"steps"`
+	Stage              string          `json:"stage"`
 }
 
 // InitiativeDetail is an initiative with its claims, comments and documents.

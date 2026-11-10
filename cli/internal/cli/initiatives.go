@@ -731,7 +731,7 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 		_, _ = fmt.Fprintf(out, "  tags:       %s\n", strings.Join(initiative.Tags, ", "))
 	}
 	if len(initiative.Pursuits) > 0 {
-		_, _ = fmt.Fprintf(out, "  pursuits: %s\n", pursuitList(initiative.Pursuits))
+		_, _ = fmt.Fprintf(out, "  pursuits:   %s\n", pursuitList(initiative.Pursuits))
 	}
 	if initiative.Claim != nil {
 		_, _ = fmt.Fprintf(out, "  claim:      %s\n", claimNote(*initiative.Claim, time.Now()))

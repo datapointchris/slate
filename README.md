@@ -5,9 +5,10 @@ on, with their priority and evidence, until promotion makes each an
 initiative. Issues carry their dependencies, labels and the initiative they
 ship toward. Ideas, initiatives and issues carry tags from a short closed list,
 and an issue reads its initiative's tags as its own. Ideas and initiatives join
-pursuits, the few conditions the work should bring about and hold, each with
-the command that measures it, and an issue reads its initiative's. Any record keeps versioned documents, such as its design and
-plan, and comments on the record or on one line of a document.
+pursuits, the few conditions the work should bring about and hold, each able
+to name the command that measures it, and an issue reads its initiative's. Any
+record keeps versioned documents, such as its design and plan, and comments on
+the record or on one line of a document.
 `slate next` lists every kind of open work in the order to take it, each with
 its step, and the work someone holds apart. A claim is a lease on a record that
 expires, so two agents never hold the same issue and a dead one never holds it

@@ -17,6 +17,15 @@ type PursuitSummary struct {
 	Name   string `json:"name"`
 }
 
+// InPursuits is the pursuits a record read carries, in number order.
+// Directions is the same list under the name the release before pursuits
+// served, so a reader of that name keeps reading it until a later release
+// drops it.
+type InPursuits struct {
+	Pursuits   []PursuitSummary `json:"pursuits"`
+	Directions []PursuitSummary `json:"directions"`
+}
+
 // Pursuit is a condition the work should bring about and hold. Measure is the
 // command that reads where it stands, nil where nothing measures it yet. Ideas
 // and Initiatives are each record in it, in number order, whatever its status.

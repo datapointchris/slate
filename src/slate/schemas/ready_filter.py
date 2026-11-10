@@ -23,7 +23,7 @@ class RecordGroupings(BaseModel):
 
     tag: str | None = Field(None, description=TAG_FILTER)
     pursuit: int | str | None = Field(None, description=PURSUIT_FILTER)
-    direction: int | str | None = Field(None, description=DIRECTION_FILTER)
+    direction: int | str | None = Field(None, description=DIRECTION_FILTER, json_schema_extra={'deprecated': True})
 
     @model_validator(mode='after')
     def direction_narrows_as_pursuit(self) -> Self:

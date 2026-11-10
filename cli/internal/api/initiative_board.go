@@ -118,23 +118,19 @@ type BoardInitiative struct {
 	Priority int    `json:"priority"`
 	// Tags and Pursuits are the initiative's own, and nil from an API older
 	// than either.
-	Tags     []string         `json:"tags"`
-	Pursuits []PursuitSummary `json:"pursuits"`
-	// Directions is Pursuits under the name the release before pursuits
-	// served, so a reader of that name keeps reading it until a later release
-	// drops it.
-	Directions []PursuitSummary  `json:"directions"`
-	Repos      []string          `json:"repos"`
-	PinnedTS   *time.Time        `json:"pinned_ts"`
-	PinnedBy   *string           `json:"pinned_by"`
-	Claim      *Claim            `json:"claim"`
-	CreatedTS  time.Time         `json:"created_ts"`
-	ClosedTS   *time.Time        `json:"closed_ts"`
-	TouchedTS  *time.Time        `json:"touched_ts"`
-	Issues     []BoardIssue      `json:"issues"`
-	ByRepo     []BoardRepoCounts `json:"by_repo"`
-	Steps      []CheckedStep     `json:"steps"`
-	Stage      string            `json:"stage"`
+	Tags []string `json:"tags"`
+	InPursuits
+	Repos     []string          `json:"repos"`
+	PinnedTS  *time.Time        `json:"pinned_ts"`
+	PinnedBy  *string           `json:"pinned_by"`
+	Claim     *Claim            `json:"claim"`
+	CreatedTS time.Time         `json:"created_ts"`
+	ClosedTS  *time.Time        `json:"closed_ts"`
+	TouchedTS *time.Time        `json:"touched_ts"`
+	Issues    []BoardIssue      `json:"issues"`
+	ByRepo    []BoardRepoCounts `json:"by_repo"`
+	Steps     []CheckedStep     `json:"steps"`
+	Stage     string            `json:"stage"`
 }
 
 // InitiativeBoard is the board as of ReadTS. Days are the calendar days each

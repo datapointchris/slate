@@ -9,8 +9,8 @@ The audit trigger stores only the columns an update changed, so the update endin
 record. An insert or a delete holds the whole row. So a row hanging off a record is found by the
 parent its insert or its delete names, and every write to that row is then read by its own key.
 Audit rows imported with another tracker's rows are found the same way, under the table names they
-were written with. A kind's table names in `FORMERLY` the tables its rows lived in before, under the
-same ids, so a record's writes there read as its own.
+were written with. A table a kind's rows lived in before, and the placements kept beside it, are
+linked here by hand, so the history read outlives the migration that drops them.
 """
 
 from __future__ import annotations
@@ -29,7 +29,6 @@ from slate import models
 from slate import schemas
 from slate.database.base import Base
 from slate.models.record import Kind
-from slate.models.record_change import FORMERLY
 from slate.models.record_change import KNOWN_BY
 from slate.models.record_change import RECORDED
 from slate.services.row_limit import apply_row_limit
@@ -53,6 +52,16 @@ class Hanging:
     key_is_int: bool
 
 
+# Pursuits were held as directions, and each kept its id when a migration copied it across. The
+# writes made then stay in the audit trail under the old tables' names: a pursuit's own in
+# `directions`, and each placement in `record_directions`, which hangs off both records.
+FORMER_KIND_TABLES = {models.Pursuit.__tablename__: 'directions'}
+FORMER_LINKS = (
+    (models.Record.__tablename__, Hanging('record_directions', 'record_number', key_is_int=True)),
+    ('directions', Hanging('record_directions', 'direction_id', key_is_int=False)),
+)
+
+
 def hanging_tables() -> dict[str, tuple[Hanging, ...]]:
     """Each audited table's children: the tables whose single-column cascading key names its primary key."""
     children: dict[str, list[Hanging]] = defaultdict(list)
@@ -67,6 +76,9 @@ def hanging_tables() -> dict[str, tuple[Hanging, ...]]:
             if list(parent.primary_key.columns) == [key.column]:
                 children[parent.name].append(Hanging(table.name, key.parent.name, key.column.type.python_type is int))
     children[models.Issue.__tablename__].append(Hanging(ISSUE_COMMENTS, 'issue_id', key_is_int=False))
+    for parent_table, link in FORMER_LINKS:
+        if link not in children[parent_table]:
+            children[parent_table].append(link)
     return {parent: tuple(links) for parent, links in children.items()}
 
 
@@ -81,8 +93,9 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
     """Every write to `record` and to each row hanging off it, newest first, the latest `limit` of them."""
     kind_model = models.KIND_MODELS[record.kind]
     record_id = str(session.scalars(select(kind_model.id).where(kind_model.number == record.number)).one())
-    formerly = Base.metadata.tables[kind_model.__tablename__].info.get(FORMERLY, ())
-    own = {(models.Record.__tablename__, str(record.number)), *((table, record_id) for table in (kind_model.__tablename__, *formerly))}
+    own = {(models.Record.__tablename__, str(record.number)), (kind_model.__tablename__, record_id)}
+    if (former := FORMER_KIND_TABLES.get(kind_model.__tablename__)) is not None:
+        own.add((former, record_id))
     written = set(own)
     found = own
     while found:
@@ -131,7 +144,9 @@ def references_known_by_name() -> dict[tuple[str, str], KnownBy]:
     return known
 
 
-REFERENCES = references_known_by_name()
+# A pursuit kept its id, so a placement made as a direction names the pursuit by it.
+FORMER_REFERENCES = {('record_directions', 'direction_id'): KnownBy(models.Pursuit.__tablename__, 'id', 'name')}
+REFERENCES = references_known_by_name() | FORMER_REFERENCES
 
 
 def with_referenced_names(session: Session, changes: list[schemas.RecordChange]) -> list[schemas.RecordChange]:

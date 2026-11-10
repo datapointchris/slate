@@ -5,13 +5,15 @@ Revises: 274fc2e5583a
 Create Date: 2026-11-10 09:40:16.181981
 
 Every direction becomes a pursuit under its number, its id, and every idea's and initiative's
-placement in it. The release before reads and writes `directions`, `direction_statuses` and
-`record_directions` while both serve, so they stay, holding the rows as they stood here, until a
-later migration drops them. Each number's kind becomes `pursuit`, so `directions` loses its key
-onto `records`, and `record_kinds` keeps `direction` for any row the release before still writes.
+placement in it. The release before pursuits reads and writes `directions`, `direction_statuses`
+and `record_directions` while both serve, so they stay until a later migration drops them. Each
+number's kind becomes `pursuit`, so `directions` loses its key onto `records`, and `record_kinds`
+keeps `direction` for the row the release before inserts ahead of each direction it creates.
 
-The copy runs before the new tables' audit triggers exist, so it writes no audit rows. Each
-pursuit reads its writes as a direction through `record_changes_formerly` on `pursuits`.
+A trigger on each old table forwards what the release before writes there: a direction it creates
+or edits, and a placement it adds or removes. So the new release reads every write either one
+takes while both serve. The copy runs before the audit triggers on the new tables exist, so it
+writes no audit rows.
 """
 
 import sqlalchemy as sa
@@ -25,6 +27,47 @@ depends_on = None
 
 AUDITED = ('pursuit_statuses', 'pursuits', 'record_pursuits')
 COPIED_COLUMNS = 'id, number, name, summary, description, status, status_reason, created_ts, closed_ts'
+
+FORWARD_DIRECTION_WRITES = """
+CREATE FUNCTION forward_direction_writes_to_pursuits() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE records SET kind = 'pursuit' WHERE number = NEW.number AND kind = 'direction';
+        INSERT INTO pursuits (id, number, name, summary, description, status, status_reason, created_ts, closed_ts)
+        VALUES (NEW.id, NEW.number, NEW.name, NEW.summary, NEW.description, NEW.status, NEW.status_reason, NEW.created_ts, NEW.closed_ts);
+    ELSE
+        -- Only what this write changed, so an edit the new release made to another field stands.
+        UPDATE pursuits SET
+            name = CASE WHEN NEW.name IS DISTINCT FROM OLD.name THEN NEW.name ELSE name END,
+            summary = CASE WHEN NEW.summary IS DISTINCT FROM OLD.summary THEN NEW.summary ELSE summary END,
+            description = CASE WHEN NEW.description IS DISTINCT FROM OLD.description THEN NEW.description ELSE description END,
+            status = CASE WHEN NEW.status IS DISTINCT FROM OLD.status THEN NEW.status ELSE status END,
+            status_reason = CASE WHEN NEW.status_reason IS DISTINCT FROM OLD.status_reason THEN NEW.status_reason ELSE status_reason END,
+            closed_ts = CASE WHEN NEW.closed_ts IS DISTINCT FROM OLD.closed_ts THEN NEW.closed_ts ELSE closed_ts END
+        WHERE id = NEW.id;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+CREATE TRIGGER forward_to_pursuits AFTER INSERT OR UPDATE ON directions
+    FOR EACH ROW EXECUTE FUNCTION forward_direction_writes_to_pursuits();
+"""
+
+FORWARD_PLACEMENT_WRITES = """
+CREATE FUNCTION forward_record_direction_writes_to_record_pursuits() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO record_pursuits (record_number, pursuit_id, created_ts)
+        VALUES (NEW.record_number, NEW.direction_id, NEW.created_ts) ON CONFLICT DO NOTHING;
+    ELSE
+        DELETE FROM record_pursuits WHERE record_number = OLD.record_number AND pursuit_id = OLD.direction_id;
+    END IF;
+    RETURN NULL;
+END;
+$$;
+CREATE TRIGGER forward_to_record_pursuits AFTER INSERT OR DELETE ON record_directions
+    FOR EACH ROW EXECUTE FUNCTION forward_record_direction_writes_to_record_pursuits();
+"""
 
 
 def upgrade() -> None:
@@ -82,25 +125,31 @@ def upgrade() -> None:
         op.execute(
             f'CREATE TRIGGER audit_trail AFTER INSERT OR UPDATE OR DELETE ON "{table}" FOR EACH ROW EXECUTE FUNCTION audit_trail_record()'
         )
+    op.execute(FORWARD_DIRECTION_WRITES)
+    op.execute(FORWARD_PLACEMENT_WRITES)
 
 
 def downgrade() -> None:
-    """Carry every pursuit and placement back into the direction tables, then drop the pursuit tables. Each `measure` is lost."""
-    op.execute(
-        f'INSERT INTO directions ({COPIED_COLUMNS}) SELECT {COPIED_COLUMNS} FROM pursuits ON CONFLICT (id) DO UPDATE SET'
-        ' name = excluded.name, summary = excluded.summary, description = excluded.description, status = excluded.status,'
-        ' status_reason = excluded.status_reason, closed_ts = excluded.closed_ts'
-    )
-    # A record deleted since the upgrade took its pursuit and placements with it, and its direction is left behind.
-    op.execute('DELETE FROM directions WHERE number NOT IN (SELECT number FROM records)')
-    op.execute(
-        'DELETE FROM record_directions AS d WHERE d.direction_id IN (SELECT id FROM pursuits) AND NOT EXISTS'
-        ' (SELECT FROM record_pursuits AS p WHERE p.record_number = d.record_number AND p.pursuit_id = d.direction_id)'
-    )
+    """Replace the direction tables' rows with every pursuit and placement, then drop the pursuit tables. Each `measure` is lost.
+
+    The forwarding put every direction into `pursuits` under its id, so the pursuit tables hold all
+    of it. Emptying the direction tables first leaves no older row whose active name a pursuit's
+    could clash with. The copy back writes no audit rows, as the copy forward wrote none.
+    """
+    op.execute('DROP TRIGGER forward_to_record_pursuits ON record_directions')
+    op.execute('DROP FUNCTION forward_record_direction_writes_to_record_pursuits()')
+    op.execute('DROP TRIGGER forward_to_pursuits ON directions')
+    op.execute('DROP FUNCTION forward_direction_writes_to_pursuits()')
+    op.execute('ALTER TABLE record_directions DISABLE TRIGGER audit_trail')
+    op.execute('ALTER TABLE directions DISABLE TRIGGER audit_trail')
+    op.execute('DELETE FROM directions')
+    op.execute(f'INSERT INTO directions ({COPIED_COLUMNS}) SELECT {COPIED_COLUMNS} FROM pursuits')
     op.execute(
         'INSERT INTO record_directions (record_number, direction_id, created_ts)'
-        ' SELECT record_number, pursuit_id, created_ts FROM record_pursuits ON CONFLICT DO NOTHING'
+        ' SELECT record_number, pursuit_id, created_ts FROM record_pursuits'
     )
+    op.execute('ALTER TABLE directions ENABLE TRIGGER audit_trail')
+    op.execute('ALTER TABLE record_directions ENABLE TRIGGER audit_trail')
     op.drop_index('idx_record_pursuits_pursuit', table_name='record_pursuits')
     op.drop_table('record_pursuits')
     op.drop_index('uq_pursuits_name_active', table_name='pursuits', postgresql_where=sa.text("status = 'active'"))

@@ -32,15 +32,11 @@ type Idea struct {
 	CreatedTS     time.Time  `json:"created_ts"`
 	UpdatedTS     time.Time  `json:"updated_ts"`
 	Tags          []string   `json:"tags"`
-	// Pursuits is each pursuit the idea is in, in number order.
-	Pursuits []PursuitSummary `json:"pursuits"`
-	// Directions is Pursuits under the name the release before pursuits
-	// served, so a reader of that name keeps reading it until a later release
-	// drops it.
-	Directions []PursuitSummary `json:"directions"`
-	Evidence   []IdeaEvidence   `json:"evidence"`
-	Initiative *Initiative      `json:"initiative"`
-	Claim      *Claim           `json:"claim"`
+	// InPursuits holds each pursuit the idea is in.
+	InPursuits
+	Evidence   []IdeaEvidence `json:"evidence"`
+	Initiative *Initiative    `json:"initiative"`
+	Claim      *Claim         `json:"claim"`
 }
 
 // IdeaDetail is an idea with its claims, comments and documents.
