@@ -582,12 +582,13 @@ active direction and every tag has a rollup, an empty one included, because a
 direction nothing moves in is the answer the grouping exists to give. Each comes
 with the fewest closes in 30 days first, then by name.
 
-A rollup's counts cover the initiatives the board holds. Its `closes` also count
-every issue completed inside 30 days in the group's other initiatives, whatever
-their status. The board holds one status, so an initiative completed last week
-is off it, and its closes are still effort spent in its direction. One more read
-gathers those closes, bounded by the window, so it grows with recent closes and
-not with the initiatives.
+A rollup's `members` are the numbers of the initiatives the board holds in it,
+and its counts cover those. Every count in its `closes` also takes the issues
+completed in the group's other initiatives, whatever their status. The board
+holds one status, so an initiative completed last week is off it, and its closes
+are still effort spent in its direction. Those closes are read once, back as far
+as any count of closes reaches, so the read grows with recent closes and not
+with the initiatives.
 
 `untouched_longest` names the active initiative in the group touched longest ago.
 Each initiative's `touched_ts` is the latest of when it was created, when a claim
@@ -595,9 +596,8 @@ on it or one of its issues started, and when one of its issues closed. A claim i
 kept after it ends, so a session that held one and closed nothing still counts as
 a touch.
 
-Its queries do not grow with the initiatives. One readiness pass, one read of the
-live claims, one read of the issues, one of the checked steps and one of when each
-was last claimed serve them all, and everything else folds those rows in memory. It builds no `issue_views` row, because that loads labels,
+Its queries do not grow with the initiatives: every read is one query over all
+of them, and everything else folds those rows in memory. It builds no `issue_views` row, because that loads labels,
 dependencies and comments a board does not draw. A poll pays this many times a
 minute, for as long as a board stays open, so a test pins the query count.
 

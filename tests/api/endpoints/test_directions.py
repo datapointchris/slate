@@ -124,7 +124,7 @@ def test_a_finished_direction_hides_and_takes_no_new_work(txn_api_logged_in):
 def test_the_board_rolls_up_each_direction_and_tag_with_closes_from_initiatives_off_it_and_its_initiative_untouched_longest(
     txn_api_logged_in,
 ):
-    """An initiative in two directions counts in both, and one completed since still counts its closes in its direction."""
+    """An initiative in two directions counts in both, and one completed inside the window still counts its closes in its direction."""
     client, session = txn_api_logged_in
     warehouse, security, empty = (a_direction(client, name) for name in ('Data Warehouse', 'Fleet Security', 'Empty'))
     created(client, '/tags', {'name': 'security', 'description': 'Credentials, roles and what an attacker reaches'})
@@ -165,6 +165,7 @@ def test_the_board_rolls_up_each_direction_and_tag_with_closes_from_initiatives_
     ]
     assert rolled(directions[empty['number']]) == (0, 0, None)
     assert rolled(directions[warehouse['number']]) == (2, 1, stale)
+    assert sorted(directions[warehouse['number']]['members']) == sorted([both, stale])
     assert rolled(directions[security['number']]) == (1, 2, both)
     assert rolled(directions[None]) == (1, 0, unplaced)
 

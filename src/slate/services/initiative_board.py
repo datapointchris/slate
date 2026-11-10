@@ -1,10 +1,11 @@
 """Every initiative's counts, closes and slim issue rows in one read, for a board that polls it.
 
-The read costs the same number of queries however many initiatives it answers. One readiness pass,
-one read of the live claims, one read of the issues, the read of the checked steps and one of when
-each was last claimed serve them all, and everything else folds those rows. So it builds no
-`issue_views` row, which joins what a board does not draw. The closes a direction or a tag counts
-from initiatives off the board are one more read, bounded by the longest close window.
+The read costs the same number of queries however many initiatives it answers: every read is one
+query over all of them, and everything else folds those rows. So it builds no `issue_views` row,
+which joins what a board does not draw. The closes a direction or a tag counts from initiatives off
+the board are read once, bounded by `OLDEST_CLOSE_COUNTED`, and grow with recent closes rather than
+with the initiatives. `test_the_board_asks_the_same_queries_however_many_initiatives_it_answers`
+pins it.
 
 Long text is a second read, so a poll of the counts never carries a description.
 """
@@ -49,8 +50,11 @@ from slate.services.record_tags import own_tags
 
 CLOSES_BY_DAY = 14
 
-# The widest window a close is counted in, which bounds the closes read from initiatives off the board.
-LONGEST_CLOSE_WINDOW = dt.timedelta(days=30)
+# The windows `BoardCloses` counts closes in, ending at the read, by the field each fills.
+CLOSE_WINDOWS = {'last_24h': dt.timedelta(hours=24), 'last_7d': dt.timedelta(days=7), 'last_30d': dt.timedelta(days=30)}
+
+# How far back any count of closes reaches, which bounds the closes read from initiatives off the board.
+OLDEST_CLOSE_COUNTED = max(*CLOSE_WINDOWS.values(), dt.timedelta(days=CLOSES_BY_DAY))
 
 EXCERPT_CHARS = 300
 
@@ -111,12 +115,12 @@ def closes_at(moments: Sequence[dt.datetime], calendar: CloseCalendar) -> schema
     def within(window: dt.timedelta) -> int:
         return sum(moment > calendar.now - window for moment in moments)
 
-    return schemas.BoardCloses(
-        last_24h=within(dt.timedelta(hours=24)),
-        last_7d=within(dt.timedelta(days=7)),
-        last_30d=within(LONGEST_CLOSE_WINDOW),
-        last_closed_ts=max(moments, default=None),
-        by_day=[on_day[day] for day in calendar.days],
+    return schemas.BoardCloses.model_validate(
+        {
+            **{field: within(window) for field, window in CLOSE_WINDOWS.items()},
+            'last_closed_ts': max(moments, default=None),
+            'by_day': [on_day[day] for day in calendar.days],
+        }
     )
 
 
@@ -270,7 +274,7 @@ def touched_at(initiative: models.Initiative, issues: Iterable[schemas.BoardIssu
 
 @dataclass(frozen=True)
 class ClosesElsewhere:
-    """The issues completed inside the longest close window in each initiative off the board, with its directions and tags."""
+    """The issues completed inside `OLDEST_CLOSE_COUNTED` in each initiative off the board, with its directions and tags."""
 
     moments: dict[int, list[dt.datetime]]
     directions: dict[int, list[schemas.DirectionSummary]]
@@ -278,7 +282,7 @@ class ClosesElsewhere:
 
 
 def closes_off_the_board(session: Session, initiatives: Sequence[models.Initiative], calendar: CloseCalendar) -> ClosesElsewhere:
-    """Each issue completed inside the longest window in an initiative the board does not hold, such as one completed since.
+    """Each issue completed inside `OLDEST_CLOSE_COUNTED` in an initiative the board does not hold, such as one completed this month.
 
     The board holds the initiatives at one status, so a direction or a tag counts the rest's closes from here.
     """
@@ -287,7 +291,7 @@ def closes_off_the_board(session: Session, initiatives: Sequence[models.Initiati
         .join(models.Issue, models.Issue.initiative_id == models.Initiative.id)
         .where(
             models.Issue.status == 'completed',
-            models.Issue.closed_ts > calendar.now - LONGEST_CLOSE_WINDOW,
+            models.Issue.closed_ts > calendar.now - OLDEST_CLOSE_COUNTED,
             models.Initiative.id.not_in([initiative.id for initiative in initiatives]),
         )
     )
@@ -338,6 +342,7 @@ def grouping_rollup(tally: GroupTally, calendar: CloseCalendar) -> dict[str, Any
     untouched = min(active, key=lambda row: row.touched_ts, default=None)
     return {
         **rollup_of(tally.rows, calendar),
+        'members': [row.number for row in tally.rows],
         'closes': closes_at([*on_the_board, *tally.elsewhere], calendar),
         'untouched_longest': None
         if untouched is None

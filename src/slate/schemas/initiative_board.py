@@ -70,13 +70,14 @@ class BoardUntouched(RecordModel):
 class BoardGroupingRollup(BoardRollup):
     """The board's initiatives in one direction, or carrying one tag, with the group's closes over every initiative in it.
 
-    `initiative_count` and the issue counts cover the initiatives the board holds in the group.
-    `closes` adds every issue completed inside its 30-day window in any other initiative in the
-    group, whatever that initiative's status, so one completed inside the window still counts.
-    `untouched_longest` is the active initiative among those on the board touched longest ago,
-    null where none is active.
+    `members` is the number of each initiative the board holds in the group, in the board's order,
+    and `initiative_count` and the issue counts cover those. Every count in `closes` adds the issues
+    completed in the group's other initiatives, whatever their status, so one completed inside the
+    window still counts. `untouched_longest` is the active initiative among the members touched
+    longest ago, null where none is active.
     """
 
+    members: list[int]
     untouched_longest: BoardUntouched | None
 
 
