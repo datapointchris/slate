@@ -130,6 +130,15 @@ type RecordChange struct {
 	Baggage     *string `json:"baggage"`
 	// IsOwnRow is a write to the record's own row, as the API decides it.
 	IsOwnRow bool `json:"is_own_row"`
+	// ReferencedNames is the name a person knows a row by, for each column of
+	// Changes holding that row's key, on the same sides.
+	ReferencedNames map[string]ReferencedName `json:"referenced_names"`
+}
+
+// ReferencedName is the name of the row a column's old and new keys name.
+type ReferencedName struct {
+	Old *string `json:"old"`
+	New *string `json:"new"`
 }
 
 // ColumnChange is one column's value before and after a write, each as the

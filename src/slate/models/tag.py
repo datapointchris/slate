@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 
 from slate.database.base import Base
+from slate.models.record_change import KNOWN_BY
 
 TAG_NAME_PATTERN = '^[a-z0-9]+(-[a-z0-9]+)*$'
 
@@ -35,7 +36,7 @@ class Tag(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
 
-    __table_args__ = (CheckConstraint(f"name ~ '{TAG_NAME_PATTERN}'", name='tag_name_shape'),)
+    __table_args__ = (CheckConstraint(f"name ~ '{TAG_NAME_PATTERN}'", name='tag_name_shape'), {'info': {KNOWN_BY: 'name'}})
 
     def __repr__(self) -> str:
         return f'Tag(name={self.name!r})'

@@ -26,6 +26,7 @@ from slate.database.base import Base
 from slate.models.record import Kind
 from slate.models.record import NumberedRecord
 from slate.models.record import record_link
+from slate.models.record_change import KNOWN_BY
 
 if TYPE_CHECKING:
     from slate.models.initiative import Initiative
@@ -187,6 +188,7 @@ class IssueLabel(Base):
     __table_args__ = (
         CheckConstraint("slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'", name='issue_label_slug_shape'),
         CheckConstraint("group_slug IS NULL OR group_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'", name='issue_label_group_slug_shape'),
+        {'info': {KNOWN_BY: 'slug'}},
     )
 
     def __repr__(self):

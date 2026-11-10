@@ -88,6 +88,13 @@ Three cases are set by hand in `services/record_changes.py`:
 - An issue's comments in `issue_comments`, a table imported rows name and no
   model maps, are read by the issue each one names.
 
+A row naming another by a key a person never sees, as a tagging names its tag
+by `tag_id`, reads that row's name beside the key in `referenced_names`. The
+named table marks the column a person knows it by in its `info` under
+`KNOWN_BY`: a tag's `name`, a label's `slug`. The read finds every column
+keying a marked table from the schema's foreign keys. A row since deleted reads
+the name its own delete held.
+
 An issue moving into an initiative is that issue's change, not the
 initiative's. Its key onto the initiative sets null on delete, so the
 initiative's deletion leaves the issue standing.
@@ -145,8 +152,9 @@ records a filter finds.
 tag_id)`, with an `ON DELETE CASCADE` key onto `records.number` and another
 onto `tags.id`. It hangs off `records` as claims and documents do, so one
 table serves ideas, initiatives and issues, deleting a record deletes its
-rows, and `slate show` prints each tagging among the record's changes. A rename
-writes the tag's row alone, because a membership names the tag by its id.
+rows, and `slate show` prints each tagging among the record's changes, under
+the tag's name. A rename writes the tag's row alone, because a membership names
+the tag by its id.
 
 An issue reads as carrying its own tags plus its initiative's, derived on every
 read as its effective priority is. Its read holds both: `tags` is its own,

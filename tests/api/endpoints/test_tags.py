@@ -59,15 +59,20 @@ def test_a_rename_keeps_every_carrier_and_a_delete_names_each_it_came_off(client
     closed = created(client, '/issues', {'title': 'Closed one', 'tags': ['performance']})['issue']
     ok(client.patch(f'/issues/{closed["number"]}', json={'status': 'completed'}))
 
+    def taggings(number: int) -> list[dict]:
+        return [row['referenced_names'] for row in ok(client.get(f'/records/{number}/changes')) if row['table_name'] == 'record_tags']
+
     renamed = ok(client.patch(f'{TAGS}/performance', json={'name': 'speed'}))['tag']
     assert (renamed['name'], renamed['open_record_count'], renamed['open_issue_count']) == ('speed', 1, 1)
     assert ok(client.get(f'/issues/{issue["number"]}'))['tags'] == ['speed']
+    assert taggings(issue['number']) == [{'tag_id': {'new': 'speed'}}]
     assert client.patch(f'{TAGS}/speed', json={'name': 'security'}).status_code == status.HTTP_409_CONFLICT
 
     deleted = ok(client.delete(f'{TAGS}/speed'))
     assert [effect['record'] for effect in deleted['side_effects']] == [issue['number'], closed['number']]
     assert ok(client.get(f'/issues/{issue["number"]}'))['tags'] == []
     assert [tag['name'] for tag in ok(client.get(TAGS))] == ['security']
+    assert taggings(issue['number']) == [{'tag_id': {'old': 'speed'}}, {'tag_id': {'new': 'speed'}}]
 
 
 def test_a_tag_body_refuses_a_field_it_does_not_have(client):

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import ColumnElement
 from sqlalchemy import and_
@@ -27,6 +28,7 @@ from slate import models
 from slate import schemas
 from slate.database.base import Base
 from slate.models.record import Kind
+from slate.models.record_change import KNOWN_BY
 from slate.models.record_change import RECORDED
 from slate.services.row_limit import apply_row_limit
 
@@ -96,10 +98,68 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
             and_(Change.operation == 'insert', Change.table_name == PROMOTION.table, names(PROMOTION.parent_column, record_id, 'new'))
         )
     query = select(Change).where(or_(*rows)).order_by(Change.changed_ts.desc(), Change.id.desc())
-    return [
+    changes = [
         schemas.RecordChange.model_validate(row).model_copy(update={'is_own_row': (row.table_name, row.record_id) in own})
         for row in session.scalars(apply_row_limit(query, limit))
     ]
+    return with_referenced_names(session, changes)
+
+
+@dataclass(frozen=True)
+class KnownBy:
+    """A table whose rows a person knows by a name, and its columns holding each row's key and that name."""
+
+    table: str
+    key: str
+    name: str
+
+
+def references_known_by_name() -> dict[tuple[str, str], KnownBy]:
+    """Each column holding the key of a row in a table `KNOWN_BY` marks, by its own table and name."""
+    known: dict[tuple[str, str], KnownBy] = {}
+    for table in Base.metadata.sorted_tables:
+        for constraint in table.foreign_key_constraints:
+            if len(constraint.elements) != 1:
+                continue
+            (key,) = constraint.elements
+            referenced = key.column.table
+            if (name := referenced.info.get(KNOWN_BY)) is not None:
+                known[(table.name, key.parent.name)] = KnownBy(referenced.name, key.column.name, name)
+    return known
+
+
+REFERENCES = references_known_by_name()
+
+
+def with_referenced_names(session: Session, changes: list[schemas.RecordChange]) -> list[schemas.RecordChange]:
+    """Each change with the name of every row it holds the key of, where `KNOWN_BY` says a person knows that row by name."""
+    wanted: dict[KnownBy, set[Any]] = defaultdict(set)
+    for change in changes:
+        for column, sides in change.changes.items():
+            if (known := REFERENCES.get((change.table_name, column))) is not None:
+                wanted[known].update(value for value in sides.values() if value is not None)
+    names: dict[tuple[str, str], str] = {}
+    for known, keys in wanted.items():
+        table = Base.metadata.tables[known.table]
+        current = select(table.c[known.key], table.c[known.name]).where(table.c[known.key].in_(sorted(keys)))
+        names.update(((known.table, str(key)), name) for key, name in session.execute(current))
+        if gone := sorted(str(key) for key in keys if (known.table, str(key)) not in names):
+            deleted = select(Change.record_id, Change.changes[known.name]['old'].astext).where(
+                Change.table_name == known.table, Change.operation == 'delete', Change.record_id.in_(gone)
+            )
+            names.update(((known.table, key), name) for key, name in session.execute(deleted))
+
+    def named(change: schemas.RecordChange) -> dict[str, dict[str, str]]:
+        found: dict[str, dict[str, str]] = {}
+        for column, sides in change.changes.items():
+            if (known := REFERENCES.get((change.table_name, column))) is None:
+                continue
+            sided = {side: names[(known.table, str(value))] for side, value in sides.items() if (known.table, str(value)) in names}
+            if sided:
+                found[column] = sided
+        return found
+
+    return [change.model_copy(update={'referenced_names': named(change)}) for change in changes]
 
 
 def names(column: str, key: int | str, side: str) -> ColumnElement[bool]:
