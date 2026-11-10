@@ -174,18 +174,18 @@ func newClaimsHoldCommand() *cobra.Command {
 }
 
 // heldHonorsFilter reads back the issue a --next hold took, because the hold's
-// answer names it without its tags and directions, and releases it where it
-// lacks --tag or is outside --direction.
+// answer names it without its tags and pursuits, and releases it where it
+// lacks --tag or is outside --pursuit.
 func heldHonorsFilter(cmd *cobra.Command, client *api.Client, filter api.ReadyFilter, written api.ClaimWritten, holder string) error {
-	if (filter.Tag == "" && filter.Direction == "") || written.Claim == nil {
+	if (filter.Tag == "" && filter.Pursuit == "") || written.Claim == nil {
 		return nil
 	}
 	number := strconv.Itoa(written.Claim.RecordNumber)
 	held, err := client.GetIssue(cmd.Context(), number, issueZone())
 	if err != nil {
-		return fmt.Errorf("#%s is held, but reading back whether it honors --tag and --direction failed: %w", number, handleAPIError(err))
+		return fmt.Errorf("#%s is held, but reading back whether it honors --tag and --pursuit failed: %w", number, handleAPIError(err))
 	}
-	refused := honoredGroupings(filter.Tag, filter.Direction, []api.Issue{held.Issue}, issueGrouped)
+	refused := honoredGroupings(filter.Tag, filter.Pursuit, []api.Issue{held.Issue}, issueGrouped)
 	if refused == nil {
 		return nil
 	}

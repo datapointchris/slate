@@ -122,7 +122,7 @@ type issueFilterFlags struct {
 	issueType   string
 	label       string
 	tag         string
-	direction   string
+	pursuit     string
 	initiative  string
 	parent      string
 	priority    string
@@ -141,7 +141,7 @@ func (v *issueFilterFlags) register(cmd *cobra.Command) {
 	withFlagValues(cmd, "type", api.IssueTypes...)
 	f.StringVar(&v.label, "label", "", "Only issues carrying this label (see: slate labels list)")
 	f.StringVar(&v.tag, "tag", "", tagFilterHelp)
-	f.StringVar(&v.direction, "direction", "", "Only issues whose initiative is in this direction, by number or exact name (see: slate directions list)")
+	f.StringVar(&v.pursuit, "pursuit", "", "Only issues whose initiative is in this pursuit, by number or exact name (see: slate pursuits list)")
 	f.StringVar(&v.initiative, "initiative", "", "Only issues in this initiative, by number, name or id")
 	f.StringVar(&v.parent, "parent", "", "Only the children of this issue")
 	f.StringVar(&v.priority, "priority", "", "Only issues whose own priority is this: "+priorityChoices())
@@ -173,7 +173,7 @@ func (v *issueFilterFlags) filter(cmd *cobra.Command) (api.IssueFilter, error) {
 		Type:       v.issueType,
 		Label:      v.label,
 		Tag:        v.tag,
-		Direction:  v.direction,
+		Pursuit:    v.pursuit,
 		Initiative: v.initiative,
 		Parent:     v.parent,
 		ClosedBy:   v.closedBy,
@@ -303,7 +303,7 @@ func newIssuesListCommand() *cobra.Command {
 			if err := honoredAutofixable(filter.Autofixable, issues); err != nil {
 				return err
 			}
-			if err := honoredGroupings(filter.Tag, filter.Direction, issues, issueGrouped); err != nil {
+			if err := honoredGroupings(filter.Tag, filter.Pursuit, issues, issueGrouped); err != nil {
 				return err
 			}
 			if !cmd.Flags().Changed("status") {
@@ -591,8 +591,8 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 	}
 	field("labels", strings.Join(issue.Labels, ", "))
 	field("tags", issueTagsLine(issue.Issue))
-	if issue.Initiative != nil && len(issue.Directions) > 0 {
-		field("directions", fmt.Sprintf("%s (from %d)", directionList(issue.Directions), issue.Initiative.Number))
+	if issue.Initiative != nil && len(issue.Pursuits) > 0 {
+		field("pursuits", fmt.Sprintf("%s (from %d)", pursuitList(issue.Pursuits), issue.Initiative.Number))
 	}
 	field("paths", strings.Join(issue.Paths, ", "))
 	field("deferred", strValue(issue.DeferredUntilDate))

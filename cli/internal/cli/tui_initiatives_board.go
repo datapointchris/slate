@@ -114,12 +114,12 @@ type cursorRowReads struct {
 const (
 	groupingTier       = "tier"
 	groupingRepo       = "repo"
-	groupingDirection  = "direction"
+	groupingPursuit    = "pursuit"
 	groupingTag        = "tag"
 	groupingInitiative = "initiative"
 )
 
-var initiativeGroupings = []string{groupingTier, groupingRepo, groupingDirection, groupingTag, groupingInitiative}
+var initiativeGroupings = []string{groupingTier, groupingRepo, groupingPursuit, groupingTag, groupingInitiative}
 
 // initiativesBoard is the initiatives tab. Its reads run off the program's goroutine and
 // touch only their sources, the cursor and readFailure. The keys and Frame run on it.
@@ -405,7 +405,7 @@ func initiativeKey(number int) string { return initiativeKeyPrefix + strconv.Ito
 func issueKey(number int) string { return issueKeyPrefix + strconv.Itoa(number) }
 
 // placedUnder is what every key under one drawing of an initiative ends in, where a
-// grouping draws it more than once: once for each repo its issues name, direction it
+// grouping draws it more than once: once for each repo its issues name, pursuit it
 // is in or tag it carries. It holds no colon, which a pull request's key reads past.
 func placedUnder(group string) string { return "@" + group }
 

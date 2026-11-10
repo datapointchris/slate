@@ -19,7 +19,7 @@ Actor = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 SUMMARY_CHARS = 240
 
-# Where an initiative or a direction ends, on one line a board draws under the name.
+# Where an initiative ends, or what a pursuit means, on one line a board draws under the name.
 SummaryText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=SUMMARY_CHARS, pattern=r'^[^\r\n]+$')]
 
 

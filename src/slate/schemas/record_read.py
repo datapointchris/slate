@@ -6,10 +6,10 @@ from typing import Literal
 from pydantic import BaseModel
 from pydantic import Field
 
-from slate.schemas.direction import DirectionDetail
 from slate.schemas.idea import IdeaDetail
 from slate.schemas.initiative import InitiativeDetail
 from slate.schemas.issue import IssueDetail
+from slate.schemas.pursuit import PursuitDetail
 
 
 class IssueRecord(BaseModel):
@@ -30,10 +30,10 @@ class IdeaRecord(BaseModel):
     record: IdeaDetail
 
 
-class DirectionRecord(BaseModel):
-    kind: Literal['direction'] = 'direction'
+class PursuitRecord(BaseModel):
+    kind: Literal['pursuit'] = 'pursuit'
     number: int
-    record: DirectionDetail
+    record: PursuitDetail
 
 
-RecordRead = Annotated[IssueRecord | InitiativeRecord | IdeaRecord | DirectionRecord, Field(discriminator='kind')]
+RecordRead = Annotated[IssueRecord | InitiativeRecord | IdeaRecord | PursuitRecord, Field(discriminator='kind')]

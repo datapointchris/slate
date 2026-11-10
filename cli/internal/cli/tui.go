@@ -53,7 +53,7 @@ func newTUICommand() *cobra.Command {
 			"pull request opens `prs tui` on it, and o opens it in the browser. d opens an\n" +
 			"initiative's or an issue's description, full screen where it runs past the\n" +
 			"screen. f adds summaries, s cycles the sort within a tier, and v cycles the\n" +
-			"grouping between " + strings.Join(initiativeGroupings, ", ") + ". A direction's or a\n" +
+			"grouping between " + strings.Join(initiativeGroupings, ", ") + ". A pursuit's or a\n" +
 			"tag's line counts the closes of every initiative in it, including one completed\n" +
 			"inside the window, and names its active initiative touched longest ago. An\n" +
 			"initiative in two draws under both. ? lists every key and every read.\n" +
@@ -82,10 +82,10 @@ func newTUICommand() *cobra.Command {
 			"  slate tui --per-tier 3\n" +
 			"  slate tui --status someday\n" +
 			"  COLUMNS=188 LINES=88 slate tui --once > frame.txt\n" +
-			"  slate tui --grouping direction --once\n" +
+			"  slate tui --grouping pursuit --once\n" +
 			"  slate tui --view repos --json | jq '.board.repos[] | {repo, ready: (.ready | length)}'\n" +
 			"  slate tui --json | jq '.board.totals.states'\n" +
-			"  slate tui --json | jq '.board.directions[] | {name: .direction.name, closes_30d: .closes.last_30d, untouched: .untouched_longest.name}'",
+			"  slate tui --json | jq '.board.pursuits[] | {name: .pursuit.name, closes_30d: .closes.last_30d, untouched: .untouched_longest.name}'",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {

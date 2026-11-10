@@ -31,7 +31,7 @@ class Refusal(enum.StrEnum):
 
 
 def with_article(noun: str) -> str:
-    """The noun after the article it takes, as `an idea` or `a direction`."""
+    """The noun after the article it takes, as `an idea` or `a pursuit`."""
     return f'{"an" if noun[:1] in "aeiou" else "a"} {noun}'
 
 

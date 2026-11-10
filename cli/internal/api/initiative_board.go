@@ -66,7 +66,7 @@ type BoardUntouched struct {
 	TouchedTS time.Time `json:"touched_ts"`
 }
 
-// BoardGroupingRollup is the board's initiatives in one direction, or carrying one
+// BoardGroupingRollup is the board's initiatives in one pursuit, or carrying one
 // tag. Members is the number of each one the board holds in the group, and
 // InitiativeCount and the issue counts cover those. Every count in Closes adds the
 // issues completed in the group's other initiatives, whatever their status, so one
@@ -78,10 +78,10 @@ type BoardGroupingRollup struct {
 	UntouchedLongest *BoardUntouched `json:"untouched_longest"`
 }
 
-// BoardDirectionRollup is the initiatives in one direction, or in none where Direction is nil.
-type BoardDirectionRollup struct {
+// BoardPursuitRollup is the initiatives in one pursuit, or in none where Pursuit is nil.
+type BoardPursuitRollup struct {
 	BoardGroupingRollup
-	Direction *DirectionSummary `json:"direction"`
+	Pursuit *PursuitSummary `json:"pursuit"`
 }
 
 // BoardTagRollup is the initiatives carrying one tag of their own, or none where Tag is nil.
@@ -116,41 +116,41 @@ type BoardInitiative struct {
 	Name     string `json:"name"`
 	Status   string `json:"status"`
 	Priority int    `json:"priority"`
-	// Tags and Directions are the initiative's own, and nil from an API older
+	// Tags and Pursuits are the initiative's own, and nil from an API older
 	// than either.
-	Tags       []string           `json:"tags"`
-	Directions []DirectionSummary `json:"directions"`
-	Repos      []string           `json:"repos"`
-	PinnedTS   *time.Time         `json:"pinned_ts"`
-	PinnedBy   *string            `json:"pinned_by"`
-	Claim      *Claim             `json:"claim"`
-	CreatedTS  time.Time          `json:"created_ts"`
-	ClosedTS   *time.Time         `json:"closed_ts"`
-	TouchedTS  *time.Time         `json:"touched_ts"`
-	Issues     []BoardIssue       `json:"issues"`
-	ByRepo     []BoardRepoCounts  `json:"by_repo"`
-	Steps      []CheckedStep      `json:"steps"`
-	Stage      string             `json:"stage"`
+	Tags []string `json:"tags"`
+	InPursuits
+	Repos     []string          `json:"repos"`
+	PinnedTS  *time.Time        `json:"pinned_ts"`
+	PinnedBy  *string           `json:"pinned_by"`
+	Claim     *Claim            `json:"claim"`
+	CreatedTS time.Time         `json:"created_ts"`
+	ClosedTS  *time.Time        `json:"closed_ts"`
+	TouchedTS *time.Time        `json:"touched_ts"`
+	Issues    []BoardIssue      `json:"issues"`
+	ByRepo    []BoardRepoCounts `json:"by_repo"`
+	Steps     []CheckedStep     `json:"steps"`
+	Stage     string            `json:"stage"`
 }
 
 // InitiativeBoard is the board as of ReadTS. Days are the calendar days each
 // ByDay counts, oldest first, in Zone. Tiers holds every priority, whether or
 // not an initiative is at it. Repos rolls up each repo the initiatives' cuts
 // name, most open first and no repo last, and is nil from an API older than
-// it. Directions holds every active direction and each other one a counted
+// it. Pursuits holds every active pursuit and each other one a counted
 // initiative is in, and Tags every tag, each the fewest closes in 30 days first
 // and the initiatives in none last. Both are nil from an API older than them.
 // Initiatives comes in list order.
 type InitiativeBoard struct {
-	ReadTS      time.Time              `json:"read_ts"`
-	Zone        string                 `json:"zone"`
-	Days        []string               `json:"days"`
-	Totals      BoardRollup            `json:"totals"`
-	Tiers       []BoardTier            `json:"tiers"`
-	Repos       []BoardRepoRollup      `json:"repos"`
-	Directions  []BoardDirectionRollup `json:"directions"`
-	Tags        []BoardTagRollup       `json:"tags"`
-	Initiatives []BoardInitiative      `json:"initiatives"`
+	ReadTS      time.Time            `json:"read_ts"`
+	Zone        string               `json:"zone"`
+	Days        []string             `json:"days"`
+	Totals      BoardRollup          `json:"totals"`
+	Tiers       []BoardTier          `json:"tiers"`
+	Repos       []BoardRepoRollup    `json:"repos"`
+	Pursuits    []BoardPursuitRollup `json:"pursuits"`
+	Tags        []BoardTagRollup     `json:"tags"`
+	Initiatives []BoardInitiative    `json:"initiatives"`
 }
 
 // BoardIssueText is an issue's first paragraph of prose, nil where it has none.

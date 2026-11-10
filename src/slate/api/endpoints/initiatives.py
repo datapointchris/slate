@@ -43,13 +43,13 @@ from slate.services.initiatives import work_order
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_initiative_delete
-from slate.services.record_directions import resolve_directions
-from slate.services.record_directions import set_record_directions
 from slate.services.record_groupings import GroupingsQuery
 from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
+from slate.services.record_pursuits import resolve_pursuits
+from slate.services.record_pursuits import set_record_pursuits
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import resolve_tags
@@ -249,8 +249,8 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
         ensure_active_name_available(session, resulting_name, exclude_id=initiative.id)
     if 'tags' in update_data:
         set_record_tags(session, initiative.number, resolve_tags(session, update_data.pop('tags')))
-    if 'directions' in update_data:
-        set_record_directions(session, initiative.number, resolve_directions(session, update_data.pop('directions')))
+    if 'pursuits' in update_data:
+        set_record_pursuits(session, initiative.number, resolve_pursuits(session, update_data.pop('pursuits')))
     apply_status_transition(initiative, update_data, session, effects, signed_in=caller_actor(caller))
     for attr, value in update_data.items():
         setattr(initiative, attr, value)

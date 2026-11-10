@@ -64,8 +64,8 @@ held, in `claimed`, at step `build`, so whoever holds it is seen beside the
 issues it gathers. `repo`, `type`, `label` and `autofixable` read only issues, so
 each leaves the ideas and initiatives out. `tag` keeps the ideas and initiatives
 carrying the tag, and the issues carrying it or in an initiative that does.
-`direction` keeps the ideas and initiatives in the direction, and the issues of
-those initiatives. A direction is never a row, because it holds no work.
+`pursuit` keeps the ideas and initiatives in the pursuit, and the issues of
+those initiatives. A pursuit is never a row, because it holds no work.
 `initiative` narrows to one initiative's rows.
 
 Each row says its `kind`, `number`, `step` and `priority`, and carries the
@@ -562,7 +562,7 @@ one entry per initiative, carrying every figure the text shows.
 `GET /initiatives/board` is what a live board polls. For each initiative at the
 `status` asked for, active by default and in the order `GET /initiatives` lists
 them, it answers the counts by state above, the repos, the pin, the live claim,
-the tags and directions, the closes, the checked steps and stage, and a slim row per issue: the unclosed in queue order, then the
+the tags and pursuits, the closes, the checked steps and stage, and a slim row per issue: the unclosed in queue order, then the
 closed, latest first. `totals` and `tiers` roll the same counts and closes up over
 every initiative and per priority. Every priority is in `tiers`, whether or not
 an initiative is at it.
@@ -575,18 +575,18 @@ initiatives with a cut there. The cuts are counted by the same `counts_of` as th
 tiers, so a client grouping by repo draws numbers it is handed rather than
 counting issues itself.
 
-**`directions` and `tags` roll up the initiatives in each direction and carrying
+**`pursuits` and `tags` roll up the initiatives in each pursuit and carrying
 each tag of their own.** An initiative in two counts in both, and those in none
-make a last rollup whose `direction` or `tag` is null, where any exist. Every
-active direction and every tag has a rollup, an empty one included, because a
-direction nothing moves in is the answer the grouping exists to give. Each comes
+make a last rollup whose `pursuit` or `tag` is null, where any exist. Every
+active pursuit and every tag has a rollup, an empty one included, because a
+pursuit no work serves is the answer the grouping exists to give. Each comes
 with the fewest closes in 30 days first, then by name.
 
 A rollup's `members` are the numbers of the initiatives the board holds in it,
 and its counts cover those. Every count in its `closes` also takes the issues
 completed in the group's other initiatives, whatever their status. The board
 holds one status, so an initiative completed last week is off it, and its closes
-are still effort spent in its direction. Those closes are read once, back as far
+are still effort spent in its pursuit. Those closes are read once, back as far
 as any count of closes reaches, so the read grows with recent closes and not
 with the initiatives.
 

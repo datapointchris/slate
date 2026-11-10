@@ -65,10 +65,10 @@ func newIdeasReorderCommand() *cobra.Command {
 
 func newIdeasListCommand() *cobra.Command {
 	var (
-		asJSON    bool
-		tag       string
-		direction string
-		limit     int
+		asJSON  bool
+		tag     string
+		pursuit string
+		limit   int
 	)
 	cmd := &cobra.Command{
 		Use:         "list",
@@ -82,11 +82,11 @@ func newIdeasListCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			ideas, err := client.ListIdeas(cmd.Context(), api.IdeaFilter{Tag: tag, Direction: direction}, limitFlag(cmd))
+			ideas, err := client.ListIdeas(cmd.Context(), api.IdeaFilter{Tag: tag, Pursuit: pursuit}, limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredGroupings(tag, direction, ideas, ideaGrouped); err != nil {
+			if err := honoredGroupings(tag, pursuit, ideas, ideaGrouped); err != nil {
 				return err
 			}
 			if asJSON {
@@ -98,7 +98,7 @@ func newIdeasListCommand() *cobra.Command {
 	}
 	addLimitFlag(cmd, &limit)
 	cmd.Flags().StringVar(&tag, "tag", "", tagFilterHelp)
-	cmd.Flags().StringVar(&direction, "direction", "", directionFilterHelp)
+	cmd.Flags().StringVar(&pursuit, "pursuit", "", pursuitFilterHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output ideas as JSON to stdout")
 	return cmd
 }
@@ -155,7 +155,7 @@ func newIdeasCreateCommand() *cobra.Command {
 		description string
 		priority    string
 		tags        []string
-		directions  []string
+		pursuits    []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
@@ -181,7 +181,7 @@ func newIdeasCreateCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			if in.Directions, err = directionNumbers(cmd, client, directions); err != nil {
+			if in.Pursuits, err = pursuitNumbers(cmd, client, pursuits); err != nil {
 				return err
 			}
 			written, err := client.CreateIdea(cmd.Context(), in)
@@ -194,14 +194,14 @@ func newIdeasCreateCommand() *cobra.Command {
 			if err := honoredTagWrite(&in.Tags, written.Idea.Number, written.Idea.Tags); err != nil {
 				return err
 			}
-			return honoredDirectionWrite(&in.Directions, written.Idea.Number, written.Idea.Directions)
+			return honoredPursuitWrite(&in.Pursuits, written.Idea.Number, written.Idea.Pursuits)
 		},
 	}
 	cmd.Flags().StringVar(&title, "title", "", "What the idea is, in a line (required)")
 	cmd.Flags().StringVar(&description, "description", "", "The idea in full")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagSetHelp)
-	cmd.Flags().StringArrayVar(&directions, "direction", nil, directionSetHelp)
+	cmd.Flags().StringArrayVar(&pursuits, "pursuit", nil, pursuitSetHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -212,15 +212,15 @@ func newIdeasEditCommand() *cobra.Command {
 		description string
 		priority    string
 		tags        []string
-		directions  []string
+		pursuits    []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "edit <idea> [flags]",
-		Short: "Change an idea's title, description, priority, tags or directions",
+		Short: "Change an idea's title, description, priority, tags or pursuits",
 		Long: "Update only the fields whose flags you pass. --description \"\" clears it.\n" +
-			"--tag and --direction each replace the whole set, and --tag \"\" or\n" +
-			"--direction \"\" removes every one.",
+			"--tag and --pursuit each replace the whole set, and --tag \"\" or\n" +
+			"--pursuit \"\" removes every one.",
 		Example:     "  slate ideas edit 1860 --priority urgent\n  slate ideas edit 1860 --tag agents --tag security",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
@@ -247,14 +247,14 @@ func newIdeasEditCommand() *cobra.Command {
 			if readFlagIntent(f, "description") == flagClears {
 				clear = append(clear, "description")
 			}
-			if in == (api.IdeaUpdateInput{}) && len(clear) == 0 && !f.Changed("direction") {
-				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --title/--description/--priority/--tag/--direction"))
+			if in == (api.IdeaUpdateInput{}) && len(clear) == 0 && !f.Changed("pursuit") {
+				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --title/--description/--priority/--tag/--pursuit"))
 			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			if in.Directions, err = directionsEdited(cmd, client, f, directions); err != nil {
+			if in.Pursuits, err = pursuitsEdited(cmd, client, f, pursuits); err != nil {
 				return err
 			}
 			written, err := client.UpdateIdea(cmd.Context(), args[0], in, clear)
@@ -267,14 +267,14 @@ func newIdeasEditCommand() *cobra.Command {
 			if err := honoredTagWrite(in.Tags, written.Idea.Number, written.Idea.Tags); err != nil {
 				return err
 			}
-			return honoredDirectionWrite(in.Directions, written.Idea.Number, written.Idea.Directions)
+			return honoredPursuitWrite(in.Pursuits, written.Idea.Number, written.Idea.Pursuits)
 		},
 	}
 	cmd.Flags().StringVar(&title, "title", "", "New title")
 	cmd.Flags().StringVar(&description, "description", "", "New description (empty clears)")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagReplaceHelp)
-	cmd.Flags().StringArrayVar(&directions, "direction", nil, directionReplaceHelp)
+	cmd.Flags().StringArrayVar(&pursuits, "pursuit", nil, pursuitReplaceHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -336,7 +336,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 		status      string
 		autofix     bool
 		tags        []string
-		directions  []string
+		pursuits    []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
@@ -345,7 +345,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 		Long: "Creates an initiative that names the idea, and prints it under the line naming\n" +
 			"the promotion. --summary is required, because an idea has none. Each other flag\n" +
 			"left out takes the idea's own: its title as the name, its description, its\n" +
-			"priority, its tags, its directions. --tag \"\" or --direction \"\" promotes it\n" +
+			"priority, its tags, its pursuits. --tag \"\" or --pursuit \"\" promotes it\n" +
 			"with none. The idea's claim ends as promoted, printed under the line too, since\n" +
 			"its work is the initiative's now. An idea already promoted is refused, naming\n" +
 			"its initiative. --status someday creates it set aside.",
@@ -389,7 +389,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			if in.Directions, err = directionsEdited(cmd, client, f, directions); err != nil {
+			if in.Pursuits, err = pursuitsEdited(cmd, client, f, pursuits); err != nil {
 				return err
 			}
 			written, err := client.PromoteIdea(cmd.Context(), args[0], in, issueZone())
@@ -406,7 +406,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 			if err := honoredTagWrite(in.Tags, promoted.Number, promoted.Tags); err != nil {
 				return err
 			}
-			return honoredDirectionWrite(in.Directions, promoted.Number, promoted.Directions)
+			return honoredPursuitWrite(in.Pursuits, promoted.Number, promoted.Pursuits)
 		},
 	}
 	cmd.Flags().StringVar(&summary, "summary", "", initiativeSummaryHelp+" (required)")
@@ -416,7 +416,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 	cmd.Flags().StringVar(&status, "status", "", "One of: "+strings.Join(promoteStatuses, ", ")+" (default active)")
 	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "Tag the initiative carries (repeatable; default the idea's, empty for none)")
-	cmd.Flags().StringArrayVar(&directions, "direction", nil, "Direction the initiative is in, by number or exact name (repeatable; default the idea's, empty for none)")
+	cmd.Flags().StringArrayVar(&pursuits, "pursuit", nil, "Pursuit the initiative is in, by number or exact name (repeatable; default the idea's, empty for none)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -456,8 +456,8 @@ func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 	if len(idea.Tags) > 0 {
 		_, _ = fmt.Fprintf(out, "  tags:        %s\n", strings.Join(idea.Tags, ", "))
 	}
-	if len(idea.Directions) > 0 {
-		_, _ = fmt.Fprintf(out, "  directions:  %s\n", directionList(idea.Directions))
+	if len(idea.Pursuits) > 0 {
+		_, _ = fmt.Fprintf(out, "  pursuits:    %s\n", pursuitList(idea.Pursuits))
 	}
 	if initiative := idea.Initiative; initiative != nil {
 		_, _ = fmt.Fprintf(out, "  initiative:  #%d %s (%s)\n", initiative.Number, initiative.Name, initiativeProgress(*initiative))

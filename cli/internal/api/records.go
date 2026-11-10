@@ -13,12 +13,12 @@ const (
 	RecordKindIdea       = "idea"
 	RecordKindInitiative = "initiative"
 	RecordKindIssue      = "issue"
-	RecordKindDirection  = "direction"
+	RecordKindPursuit    = "pursuit"
 )
 
 // RecordKinds is what --kind accepts: the kinds of work in the order a record
-// moves through them, then the direction work moves in.
-var RecordKinds = []string{RecordKindIdea, RecordKindInitiative, RecordKindIssue, RecordKindDirection}
+// moves through them, then the pursuit the work serves.
+var RecordKinds = []string{RecordKindIdea, RecordKindInitiative, RecordKindIssue, RecordKindPursuit}
 
 // RecordParts is what every kind's read carries beside its own fields: every
 // claim the record has had and every comment on it, oldest first, and its
@@ -30,14 +30,14 @@ type RecordParts struct {
 }
 
 // Record is the read of any record by its number. Kind says which of Idea,
-// Initiative, Issue and Direction holds it, and the others are nil.
+// Initiative, Issue and Pursuit holds it, and the others are nil.
 type Record struct {
 	Kind       string
 	Number     int
 	Idea       *IdeaDetail
 	Initiative *InitiativeDetail
 	Issue      *IssueDetail
-	Direction  *DirectionDetail
+	Pursuit    *PursuitDetail
 }
 
 // UnmarshalJSON decodes `record` into the read its `kind` names, so a caller
@@ -63,9 +63,9 @@ func (r *Record) UnmarshalJSON(data []byte) error {
 	case RecordKindIssue:
 		r.Issue = &IssueDetail{}
 		target = r.Issue
-	case RecordKindDirection:
-		r.Direction = &DirectionDetail{}
-		target = r.Direction
+	case RecordKindPursuit:
+		r.Pursuit = &PursuitDetail{}
+		target = r.Pursuit
 	default:
 		return fmt.Errorf("record #%d is of kind %q, which this CLI does not know", envelope.Number, envelope.Kind)
 	}

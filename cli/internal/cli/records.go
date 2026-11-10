@@ -45,8 +45,8 @@ func newShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "show <number>",
 		SuggestFor: []string{"get", "view", "record", "records"},
-		Short:      "Show the idea, initiative, issue, direction or worklog a number names",
-		Long: "Ideas, initiatives, issues and directions share one number sequence, so a\n" +
+		Short:      "Show the idea, initiative, issue, pursuit or worklog a number names",
+		Long: "Ideas, initiatives, issues and pursuits share one number sequence, so a\n" +
 			"number names one record whatever its kind. A worklog is named under its\n" +
 			"record's number, so 412.2 is the second worklog on #412. It prints what that\n" +
 			"kind's own show prints: `slate show 412` and `slate issues show 412` read the\n" +
@@ -104,12 +104,12 @@ func newShowCommand() *cobra.Command {
 					printIssueDetail(out, *record.Issue, now)
 					printChanges(out, changes, now)
 				}
-			case api.RecordKindDirection:
-				direction := readDirectionShown(cmd, client, *record.Direction)
-				defer noteInitiativeRows(cmd, direction)
-				direction.Changes = changes
-				shown.Record = direction
-				print = func() { printDirectionShown(out, direction, now) }
+			case api.RecordKindPursuit:
+				pursuit := readPursuitShown(cmd, client, *record.Pursuit)
+				defer noteInitiativeRows(cmd, pursuit)
+				pursuit.Changes = changes
+				shown.Record = pursuit
+				print = func() { printPursuitShown(out, pursuit, now) }
 			default:
 				return fmt.Errorf("#%d is of kind %q, which slate show cannot print", record.Number, record.Kind)
 			}
@@ -143,9 +143,9 @@ func newSearchCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "search <words>...",
 		SuggestFor: []string{"find", "grep"},
-		Short:      "Find ideas, initiatives, issues and directions by number, title or description",
+		Short:      "Find ideas, initiatives, issues and pursuits by number, title or description",
 		Long: "Every word must appear in the title, the description or an initiative's or\n" +
-			"a direction's summary, in any order. A word that is a number, as 2175 or #2175, also matches\n" +
+			"a pursuit's summary, in any order. A word that is a number, as 2175 or #2175, also matches\n" +
 			"the record with that number, and it lists first. Every status is searched,\n" +
 			"because the record you remember may be the one that closed. Unclosed records\n" +
 			"come next, then the most urgent, then the newest.",
@@ -190,7 +190,7 @@ func printRecordsTable(out io.Writer, records []api.RecordListed) {
 	_, _ = fmt.Fprintln(tw, "NUMBER\tKIND\tSTATUS\tPRIORITY\tTITLE")
 	for _, record := range records {
 		priority := priorityName(record.Priority)
-		if record.Kind == api.RecordKindDirection {
+		if record.Kind == api.RecordKindPursuit {
 			priority = "-"
 		}
 		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%s\t%s\t%s\n", record.Number, record.Kind, orDash(strValue(record.Status)), priority, record.Title)

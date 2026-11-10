@@ -96,8 +96,8 @@ type Issue struct {
 	// plus its initiative's, which a --tag filter matches.
 	Tags          []string `json:"tags"`
 	EffectiveTags []string `json:"effective_tags"`
-	// Directions are its initiative's, since an issue joins none itself.
-	Directions []DirectionSummary `json:"directions"`
+	// InPursuits holds its initiative's, since an issue joins none itself.
+	InPursuits
 	// Paths are the files and directories the issue changes, in its repo. A
 	// directory covers everything under it.
 	Paths     []string       `json:"paths"`
@@ -187,7 +187,7 @@ type IssueFilter struct {
 	Type        string
 	Label       string
 	Tag         string
-	Direction   string
+	Pursuit     string
 	Initiative  string
 	Parent      string
 	Priority    *int
@@ -204,7 +204,7 @@ func (f IssueFilter) query() url.Values {
 		"type":       f.Type,
 		"label":      f.Label,
 		"tag":        f.Tag,
-		"direction":  f.Direction,
+		"pursuit":    f.Pursuit,
 		"initiative": f.Initiative,
 		"parent":     f.Parent,
 		"closed_by":  f.ClosedBy,
@@ -233,7 +233,7 @@ type ReadyFilter struct {
 	Type        string  `json:"type,omitempty"`
 	Label       string  `json:"label,omitempty"`
 	Tag         string  `json:"tag,omitempty"`
-	Direction   string  `json:"direction,omitempty"`
+	Pursuit     string  `json:"pursuit,omitempty"`
 	Initiative  string  `json:"initiative,omitempty"`
 	Autofixable *bool   `json:"autofixable,omitempty"`
 }
@@ -241,7 +241,7 @@ type ReadyFilter struct {
 func (f ReadyFilter) query() url.Values {
 	query := repoQuery(f.Repo)
 	for name, value := range map[string]string{
-		"type": f.Type, "label": f.Label, "tag": f.Tag, "direction": f.Direction, "initiative": f.Initiative,
+		"type": f.Type, "label": f.Label, "tag": f.Tag, "pursuit": f.Pursuit, "initiative": f.Initiative,
 	} {
 		if value != "" {
 			query.Set(name, value)

@@ -24,7 +24,7 @@ type Vocabulary struct {
 	IssueTypes         []string       `json:"issue_types"`
 	Priorities         []PriorityName `json:"priorities"`
 	InitiativeStatuses []string       `json:"initiative_statuses"`
-	DirectionStatuses  []string       `json:"direction_statuses"`
+	PursuitStatuses    []string       `json:"pursuit_statuses"`
 	DocumentKinds      []string       `json:"document_kinds"`
 	WorklogSteps       []WorklogStep  `json:"worklog_steps"`
 	QueueSteps         []string       `json:"queue_steps"`

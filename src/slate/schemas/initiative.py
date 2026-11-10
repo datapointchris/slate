@@ -2,11 +2,13 @@ import datetime as dt
 from typing import Any
 from uuid import UUID
 
+from pydantic import Field
 from pydantic import model_validator
 
 from slate.schemas.claim import Claim
-from slate.schemas.direction import DirectionSummary
 from slate.schemas.not_null import NotNull
+from slate.schemas.pursuit import PURSUITS_OR_DIRECTIONS
+from slate.schemas.pursuit import InPursuits
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
@@ -52,13 +54,13 @@ class InitiativeCreate(InitiativeWrite):
     priority: Priority = 0
     autofix: bool = False
     tags: list[str] = []
-    directions: list[int] = []
+    pursuits: list[int] = Field(default=[], validation_alias=PURSUITS_OR_DIRECTIONS)
 
 
 class InitiativeUpdate(InitiativeWrite):
     """`closed_ts` is stamped on the move into a terminal status and cleared on reopen.
 
-    `tags` and `directions` each replace the whole set.
+    `tags` and `pursuits` each replace the whole set.
     """
 
     name: NotNull[str] = None
@@ -69,10 +71,10 @@ class InitiativeUpdate(InitiativeWrite):
     priority: NotNull[Priority] = None
     autofix: NotNull[bool] = None
     tags: NotNull[list[str]] = None
-    directions: NotNull[list[int]] = None
+    pursuits: NotNull[list[int]] = Field(default=None, validation_alias=PURSUITS_OR_DIRECTIONS)
 
 
-class Initiative(RecordModel):
+class Initiative(InPursuits):
     """An initiative and the counts that say whether work is left in it.
 
     The three counts partition `issue_count`. `repos` is derived from every issue
@@ -83,8 +85,8 @@ class Initiative(RecordModel):
     issue it waits on, and `waiting_initiatives` each initiative waiting on it,
     open or closed, by number. `steps` is each step checked on it, in position order, and `stage`
     the furthest of them, or `idea` before any. Both are derived on every read. `tags` is the
-    initiative's own, and each of its issues reads them as its own too. `directions` is each
-    direction it is in, in number order, and each of its issues reads them as its own.
+    initiative's own, and each of its issues reads them as its own too. `pursuits` is each
+    pursuit it is in, in number order, and each of its issues reads them as its own.
     """
 
     id: UUID
@@ -103,7 +105,6 @@ class Initiative(RecordModel):
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None
     tags: list[str] = []
-    directions: list[DirectionSummary] = []
     issue_count: int = 0
     open_count: int = 0
     completed_count: int = 0
