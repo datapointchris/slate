@@ -144,7 +144,8 @@ A new command takes a noun unless no one noun owns what it reads.
 - **A migration keeps the API one release behind working.** The API rolls out
   beside the release before it, so a column is added before code reads it and
   dropped only after no running code does. A type change goes through a new
-  column.
+  column. `tests/migrations/test_schema_removals.py` fails a migration that
+  removes a table or a column, unless its `REMOVED_ONCE_UNREAD` lists it.
 - `uv run alembic check` after a model change reports any drift between the
   models and the migrations.
 
