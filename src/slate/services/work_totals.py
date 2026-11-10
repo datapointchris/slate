@@ -65,7 +65,7 @@ def scope_worklog_ids(
     """
     conditions = []
     if record is not None:
-        conditions.append(within_reach(session, record, models.Worklog.record_number))
+        conditions.append(within_reach(record, models.Worklog.record_number))
     if worklog is not None:
         conditions.append(models.Worklog.id == worklog.id)
     if repo is not None:

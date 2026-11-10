@@ -16,7 +16,6 @@ from sqlalchemy import ColumnElement
 from sqlalchemy import Select
 from sqlalchemy import or_
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import SQLCoreOperations
 
@@ -35,7 +34,15 @@ def issue_tree_numbers(roots: Select) -> Select:
     return select(tree.c.number)
 
 
-def within_reach(session: Session, record: models.Record, number: SQLCoreOperations[int]) -> ColumnElement[bool]:
+def initiatives_reach(initiatives: Select, number: SQLCoreOperations[int]) -> ColumnElement[bool]:
+    """Whether `number` names an initiative whose id `initiatives` selects, the idea it came from, or an issue in its tree."""
+    chosen = select(models.Initiative.number, models.Initiative.idea_id).where(models.Initiative.id.in_(initiatives)).subquery()
+    promoted_from = select(models.Idea.number).where(models.Idea.id.in_(select(chosen.c.idea_id)))
+    issues = select(models.Issue.id).where(models.Issue.initiative_id.in_(initiatives))
+    return or_(number.in_(select(chosen.c.number)), number.in_(promoted_from), number.in_(issue_tree_numbers(issues)))
+
+
+def within_reach(record: models.Record, number: SQLCoreOperations[int]) -> ColumnElement[bool]:
     """Whether `number` names the record or one the record's work reaches through to."""
     match record.kind:
         case Kind.IDEA:
@@ -43,17 +50,12 @@ def within_reach(session: Session, record: models.Record, number: SQLCoreOperati
         case Kind.ISSUE:
             return number.in_(issue_tree_numbers(select(models.Issue.id).where(models.Issue.number == record.number)))
         case Kind.INITIATIVE:
-            initiative = session.scalars(select(models.Initiative).where(models.Initiative.number == record.number)).one()
-            own = [initiative.number, *([initiative.idea.number] if initiative.idea is not None else [])]
-            issues = select(models.Issue.id).where(models.Issue.initiative_id == initiative.id)
-            return or_(number.in_(own), number.in_(issue_tree_numbers(issues)))
+            return initiatives_reach(select(models.Initiative.id).where(models.Initiative.number == record.number), number)
         case Kind.DIRECTION:
             members = (
                 select(models.RecordDirection.record_number)
                 .join(models.Direction, models.Direction.id == models.RecordDirection.direction_id)
                 .where(models.Direction.number == record.number)
             )
-            initiatives = select(models.Initiative).where(models.Initiative.number.in_(members)).subquery()
-            promoted_from = select(models.Idea.number).where(models.Idea.id.in_(select(initiatives.c.idea_id)))
-            issues = select(models.Issue.id).where(models.Issue.initiative_id.in_(select(initiatives.c.id)))
-            return or_(number == record.number, number.in_(members), number.in_(promoted_from), number.in_(issue_tree_numbers(issues)))
+            initiatives = select(models.Initiative.id).where(models.Initiative.number.in_(members))
+            return or_(number == record.number, number.in_(members), initiatives_reach(initiatives, number))
