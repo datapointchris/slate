@@ -33,10 +33,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import Unmapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
-from sqlalchemy.orm import unmapped_column
 
 from slate.database.base import Base
 from slate.models.claim import CLAIM_ENDINGS
@@ -79,12 +77,6 @@ class WorklogOutcome(Base):
     name: Mapped[str] = mapped_column(Text, primary_key=True)
 
 
-# Nothing reads it. It stays until the migration that drops `worklogs.workflow` drops it too.
-class WorklogWorkflow(Base):
-    __tablename__ = 'worklog_workflows'
-    name: Mapped[str] = mapped_column(Text, primary_key=True)
-
-
 class WorklogStep(Base):
     __tablename__ = 'worklog_steps'
     name: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -107,9 +99,6 @@ class Worklog(Base):
     # The claim whose hold opened it. Null on one `worklogs start` opened.
     claim_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('claims.id', ondelete='CASCADE'), nullable=True, unique=True)
     opened_by: Mapped[str] = mapped_column(Text, nullable=False)
-    # In the table and out of the mapping, so no statement names it, and an API on this model keeps
-    # working once a migration drops it.
-    workflow: Unmapped[str | None] = unmapped_column(Text, ForeignKey('worklog_workflows.name'), nullable=True)
     step: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_steps.name'), nullable=True)
     # The tokens by kind the work is expected to spend, as a preflight estimates them. Null is no
     # estimate of that kind, which differs from an estimate of zero.

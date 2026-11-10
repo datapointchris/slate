@@ -9,7 +9,9 @@ CHECKED_AFTER = 'e2eebda09b7b'
 
 # A table, or a table.column, a migration removes once the release before it reads it no more, by
 # revision. One goes here only after a `git grep` on the release before that migration finds no reader.
-REMOVED_ONCE_UNREAD: dict[str, set[str]] = {}
+REMOVED_ONCE_UNREAD: dict[str, set[str]] = {
+    '525e28c1482c': {'worklogs.workflow', 'worklog_workflows'},
+}
 
 
 def tables_and_columns(connection: Connection) -> set[str]:
