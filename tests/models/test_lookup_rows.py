@@ -26,3 +26,9 @@ def test_the_migrated_lookup_rows_are_the_vocabulary_the_code_writes(txn_api, lo
     """A value the code writes with no row fails its foreign key at commit, so the close or hold writing it answers 500."""
     _, session = txn_api
     assert set(session.scalars(select(lookup.name)).all()) == set(declared)
+
+
+def test_the_step_rows_hold_their_positions_in_the_order_the_code_lists_them(txn_api):
+    """The marks and the stage read the code's order, so a position the table moved would draw one order and stage by another."""
+    _, session = txn_api
+    assert session.scalars(select(models.WorklogStep.name).order_by(models.WorklogStep.position)).all() == WORKLOG_STEPS

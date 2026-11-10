@@ -1,8 +1,8 @@
 """Every initiative's counts, closes and slim issue rows in one read, for a board that polls it.
 
 The read costs the same number of queries however many initiatives it answers. One readiness pass,
-one read of the live claims, one read of the issues and one of the checked steps serve them all, and
-everything else folds those rows. So it builds no `issue_views` row, which joins what a board does
+one read of the live claims, one read of the issues and the read of the checked steps serve them all,
+and everything else folds those rows. So it builds no `issue_views` row, which joins what a board does
 not draw.
 
 Long text is a second read, so a poll of the counts never carries a description.
@@ -37,7 +37,7 @@ from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_readiness import urgency
 from slate.services.issue_views import calendar_now
 from slate.services.issue_views import list_order
-from slate.services.record_steps import checked_steps
+from slate.services.record_steps import initiative_steps
 from slate.services.record_steps import stage_of
 
 CLOSES_BY_DAY = 14
@@ -196,7 +196,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
     for issue in sorted(issues, key=list_order(readiness)):
         issues_in[issue.initiative_id].append(board_issue(issue, claims.get(issue.number), readiness))
 
-    steps = checked_steps(session, [initiative.number for initiative in initiatives])
+    steps = initiative_steps(session, initiatives)
     rows = [
         board_initiative(initiative, issues_in[initiative.id], claims, steps.get(initiative.number, []), calendar)
         for initiative in initiatives

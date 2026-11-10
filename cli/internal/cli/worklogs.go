@@ -448,7 +448,8 @@ func newWorklogsFinishCommand() *cobra.Command {
 // stepHelp says what a step is, for each command whose --step names one.
 const stepHelp = "--step names the step of the record's life the worklog performs, which\n" +
 	"`slate vocabulary` lists in order. A step is checked on the record once that\n" +
-	"worklog ends any way but expired, and `slate show` of an initiative prints it."
+	"worklog ends, unless its claim ran out or the record was dropped or canceled.\n" +
+	"`slate show` of an initiative prints its steps with its idea's."
 
 func addStepFlag(cmd *cobra.Command, step *string, usage string) {
 	cmd.Flags().StringVar(step, "step", "", usage+", one of: "+strings.Join(api.WorklogSteps, ", "))

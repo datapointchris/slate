@@ -87,24 +87,24 @@ def test_a_worklog_started_with_no_claim_warns_of_another_open_one_and_ends_by_h
     assert current(client, 's2') is None
 
 
-def test_a_step_is_checked_once_a_worklog_of_it_ends_unexpired_and_the_furthest_is_the_initiative_stage(txn_api_logged_in):
+def test_a_step_is_checked_once_its_go_ends_and_the_furthest_on_the_initiative_or_its_idea_is_its_stage(txn_api_logged_in):
     """A hold names its step, so the initiative reads which steps it went through without a session remembering to record them."""
     client, session = txn_api_logged_in
-    created = ok(client.post('/initiatives', json={'name': 'Record the steps', 'summary': 'Each step shows.'}), status.HTTP_201_CREATED)
-    initiative = created['initiative']['number']
     holder = {'holder': 'claude-code/s3', 'session': 's3'}
+    idea = ok(client.post('/ideas', json={'title': 'Record the steps'}), status.HTTP_201_CREATED)['idea']['number']
+    ok(client.post('/claims', json={'record': idea, 'step': 'shape', **holder}))
+    initiative = ok(client.post(f'/ideas/{idea}/promote', json={'summary': 'Each step shows.'}))['idea']['initiative']['number']
 
     def read() -> tuple[str, list[tuple[str, str, str | None]]]:
         shown = ok(client.get(f'/initiatives/{initiative}'))
         return shown['stage'], [(step['step'], step['worklog'], step['session']) for step in shown['steps']]
 
-    held = ok(client.post('/claims', json={'record': initiative, 'step': 'design', **holder}))
-    assert held['side_effects'][0]['message'] == f'Opened worklog {initiative}.1 for step design, with session s3 in it.'
-    assert (ok(client.get(f'{WORKLOGS}/{initiative}.1'))['step'], read()) == ('design', ('idea', []))
-    again = ok(client.post('/claims', json={'record': initiative, 'step': 'preflight', **holder}))
-    assert f'Its worklog {initiative}.1 keeps step design.' in again['warnings'][0]['message']
+    assert read() == ('shape', [('shape', f'{idea}.1', 's3')])
+    ok(client.post('/claims', json={'record': initiative, 'step': 'design', **holder}))
+    ok(client.post('/claims', json={'record': initiative, 'step': 'preflight', **holder}))
+    assert (ok(client.get(f'{WORKLOGS}/{initiative}.1'))['step'], read()[0]) == ('design', 'shape')
     ok(client.post(f'/claims/{initiative}/release', json={'released_by': 'claude-code/s3'}))
-    assert read() == ('design', [('design', f'{initiative}.1', 's3')])
+    assert read() == ('design', [('shape', f'{idea}.1', 's3'), ('design', f'{initiative}.1', 's3')])
 
     ok(client.post(WORKLOGS, json={'record': initiative, 'opened_by': 'chris', 'step': 'shape'}), status.HTTP_201_CREATED)
     ok(client.post(f'{WORKLOGS}/{initiative}.2/finish', json={'finished_by': 'chris'}))
@@ -112,17 +112,19 @@ def test_a_step_is_checked_once_a_worklog_of_it_ends_unexpired_and_the_furthest_
 
     lapsing = ok(client.post('/claims', json={'record': initiative, 'step': 'preflight', **holder}))['claim']
     lapsed = dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)
+    held_from = lapsed - dt.timedelta(hours=1)
+    session.execute(update(models.Claim).where(models.Claim.id == lapsing['id']).values(started_ts=held_from, expires_ts=lapsed))
+    session.execute(update(models.Worklog).where(models.Worklog.claim_id == lapsing['id']).values(started_ts=held_from))
     session.execute(
-        update(models.Claim).where(models.Claim.id == lapsing['id']).values(started_ts=lapsed - dt.timedelta(hours=1), expires_ts=lapsed)
-    )
-    session.execute(
-        update(models.Worklog).where(models.Worklog.claim_id == lapsing['id']).values(started_ts=lapsed - dt.timedelta(hours=1))
-    )
-    session.execute(
-        update(models.WorklogSpan).where(models.WorklogSpan.session_id == 's3').values(started_ts=lapsed - dt.timedelta(hours=1))
+        update(models.WorklogSpan)
+        .where(models.WorklogSpan.session_id == 's3', models.WorklogSpan.ended_ts.is_(None))
+        .values(started_ts=held_from)
     )
     session.flush()
-    ok(client.post('/claims', json={'record': initiative, 'holder': 'claude-code/s4'}))
-    listed = next(row for row in ok(client.get('/initiatives')) if row['number'] == initiative)
-    boarded = next(row for row in ok(client.get('/initiatives/board'))['initiatives'] if row['number'] == initiative)
+    ok(client.post('/claims', json={'record': initiative, 'step': 'build', 'holder': 'claude-code/s4'}))
+    ok(client.patch(f'/initiatives/{initiative}', json={'status': 'dropped', 'status_reason': 'Set aside mid-build.'}))
+    listed = next(row for row in ok(client.get('/initiatives', params={'status': 'all'})) if row['number'] == initiative)
+    boarded = next(
+        row for row in ok(client.get('/initiatives/board', params={'status': 'all'}))['initiatives'] if row['number'] == initiative
+    )
     assert (listed['stage'], [step['step'] for step in boarded['steps']]) == ('design', ['shape', 'design'])

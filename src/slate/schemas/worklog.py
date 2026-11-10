@@ -4,6 +4,7 @@ import datetime as dt
 from typing import Annotated
 from typing import Literal
 
+from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import StringConstraints
 
@@ -104,7 +105,12 @@ class Worklog(RecordModel):
 
 
 class WorklogStart(RecordModel):
-    """Open a worklog with no claim. `session` joins it, and leaves any other worklog it was in."""
+    """Open a worklog with no claim. `session` joins it, and leaves any other worklog it was in.
+
+    A field it does not name is refused rather than dropped, so a client sending one learns it was not applied.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
 
     record: RecordRef
     opened_by: Actor
@@ -133,7 +139,9 @@ class WorklogLinkAdd(RecordModel):
 
 
 class WorklogUpdate(RecordModel):
-    """`step: null` clears it."""
+    """`step: null` clears it. A field it does not name is refused, as `WorklogStart` refuses one."""
+
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
 
     step: StepName | None = None
 

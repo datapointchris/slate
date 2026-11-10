@@ -19,7 +19,7 @@ from slate.services.claim_views import unended_claim_views
 from slate.services.initiative_waits import waited_on
 from slate.services.initiative_waits import waiting_initiatives
 from slate.services.record_parts import record_parts
-from slate.services.record_steps import checked_steps
+from slate.services.record_steps import initiative_steps
 from slate.services.record_steps import stage_of
 
 
@@ -83,7 +83,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
     claims = unended_claim_views(session, [initiative.number for initiative, _ in rows], dt.datetime.now(dt.UTC))
     depends_on = waited_on(session, [initiative.id for initiative, _ in rows])
     waiting = waiting_initiatives(session, [initiative.number for initiative, _ in rows])
-    steps = checked_steps(session, [initiative.number for initiative, _ in rows])
+    steps = initiative_steps(session, [initiative for initiative, _ in rows])
     idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
     ideas = {
         idea_id: schemas.RecordSummary(number=number, kind=models.Idea.RECORD_KIND, title=title)

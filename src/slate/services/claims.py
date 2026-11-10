@@ -126,13 +126,18 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
 
 
 def kept_step(claim: models.Claim, step: str | None) -> str:
-    """What a hold asking for a step its claim's worklog does not name leaves, said where it differs."""
+    """How to record the step a hold asked for, where its claim's worklog names another or none."""
     worklog = claim.worklog
     if step is None or worklog is None or worklog.step == step:
         return ''
+    if worklog.step is None:
+        return (
+            f' Its worklog {worklog.name} names no step. PATCH /worklogs/{worklog.name} with step {step} sets it, '
+            'which `slate worklogs edit` sends.'
+        )
     return (
-        f' Its worklog {worklog.name} keeps step {worklog.step or "none"}. Finish it and start a worklog on #{claim.record_number} '
-        f'with step {step} to record {step}.'
+        f' Its worklog {worklog.name} keeps step {worklog.step}. Release the claim and hold #{claim.record_number} '
+        f'again with step {step} to record {step} in a worklog of its own.'
     )
 
 

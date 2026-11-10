@@ -438,8 +438,9 @@ so a program reads it and the schema holds its shape, where a parse would have t
 guess which words were meant as the summary.
 
 **An initiative reads which steps of its life it went through.** Every read of
-one answers `steps`, each step a worklog of it checked, in position order, with
-that worklog's name, when it ended and the first session in it. `stage` is the
+one answers `steps`, each step a worklog of it or of its idea checked, in
+position order, with that worklog's name, when it ended and the first session
+in it. `stage` is the
 furthest, or `idea` before any. `services/record_steps.py` derives both on every
 read from the worklogs, so no stage is set by hand and none goes stale.
 [worklogs.md](worklogs.md) says when a step is checked. `slate show` prints a

@@ -149,23 +149,30 @@ names its worklog.
 
 ## A worklog names the step of its record's life it performed
 
-A worklog's `step` is `shape`, `design`, `preflight`, `build` or `retro`, the
-rows of `worklog_steps` in their `position` order. `slate vocabulary` lists
-each with its description. `slate claims hold <record> --step <step>` sets it on
-the worklog the hold opens, and `slate worklogs start <record> --step <step>`
-on one with no claim. `slate worklogs edit <worklog> --step <step>` corrects
-it, and `--step ""` clears it. No step is required.
+A worklog's `step` is one of the rows of `worklog_steps`, such as `design`,
+which `slate vocabulary` lists in `position` order with each description.
+`slate claims hold <record> --step <step>` sets it on the worklog the hold
+opens, and `slate worklogs start <record> --step <step>` on one with no claim.
+`slate worklogs edit <worklog> --step <step>` corrects it, and `--step ""`
+clears it. No step is required. Both writes refuse a field they do not name
+with a 422, so a client sending one learns it was not applied.
 
 A hold of a record its holder already holds opens no worklog, so it keeps the
-step it has. Its `already_held` warning then names that step and says to
-finish the worklog and start one with the step asked for.
+step the claim's worklog has. Where that worklog names no step, the
+`already_held` warning names the edit that sets it. Where it names another, the
+warning says to release the claim and hold the record again, which opens a
+worklog of its own under the new claim.
 
-A step is checked on a record once a worklog of that step ended by any outcome
-but `expired`. A claim that ran out ended nobody's go deliberately, so it
-checks nothing. An initiative's read derives `steps`, each checked step from
-its latest such worklog: the worklog's name, when it ended, and the first
-session in it. It derives `stage` too, the furthest checked step by
-`position`, or `idea` before any. [issues.md](issues.md) covers how the
+A step is checked on a record once a worklog of that step ended because its go
+did: finished by hand, released, or ended by the record completing or the idea
+being promoted. A claim that ran out ended nobody's go, and a record dropped or
+canceled abandoned it, so `expired`, `dropped` and `canceled` check nothing.
+
+An initiative's read derives `steps`, each checked step from its latest such
+worklog: the worklog's name, when it ended, and the first session in it. It
+reads the steps of the idea promoted into it too, because an idea is shaped
+before it has an initiative's number. It derives `stage` as well, the furthest
+checked step, or `idea` before any. [issues.md](issues.md) covers how the
 initiative reads print them. Nothing is read from a document's text, so a retro
 document checks `retro` only through a worklog of that step.
 
