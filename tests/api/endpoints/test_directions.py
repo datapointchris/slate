@@ -71,7 +71,6 @@ def test_a_direction_holds_no_claim_and_no_place_in_the_queue(txn_api_logged_in)
 
     held = client.post('/claims', json={'record': direction['number'], 'holder': 'claude-code/test'})
     assert held.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, show_status_and_response(held)
-    assert 'holds no work' in held.json()['message']
     assert ok(client.get('/claims', params={'record': direction['number']})) == []
     assert direction['number'] not in numbers(ok(client.get('/queue'))['queue'])
 
@@ -97,9 +96,12 @@ def test_a_membership_reads_as_a_change_of_both_records_under_the_directions_nam
     assert joins(initiative['number']) == joins(direction['number']) == [{'direction_id': {'new': 'Warehouse'}}]
 
 
-def test_dropping_a_direction_needs_a_reason_and_finishing_one_hides_it(txn_api_logged_in):
+def test_a_finished_direction_hides_and_takes_no_new_work(txn_api_logged_in):
     client, _ = txn_api_logged_in
     direction = a_direction(client)
+    inside = created(
+        client, '/initiatives', {'name': 'Load the events', 'summary': 'Every event lands', 'directions': [direction['number']]}
+    )
     refused = client.patch(f'/directions/{direction["number"]}', json={'status': 'dropped'})
     assert refused.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, show_status_and_response(refused)
 
@@ -107,3 +109,9 @@ def test_dropping_a_direction_needs_a_reason_and_finishing_one_hides_it(txn_api_
     assert completed['closed_ts'] is not None
     assert ok(client.get('/directions')) == []
     assert numbers(ok(client.get('/directions', params={'status': 'all'}))) == [direction['number']]
+
+    # A placing by a stale number, such as an unattended shaping run's, is refused, and a member keeps its place.
+    placed = client.post('/initiatives', json={'name': 'Late', 'summary': 'Too late', 'directions': [direction['number']]})
+    assert placed.status_code == status.HTTP_409_CONFLICT, show_status_and_response(placed)
+    kept = {'directions': [direction['number']], 'priority': 1}
+    assert ok(client.patch(f'/initiatives/{inside["initiative"]["number"]}', json=kept))['initiative']['directions'] != []

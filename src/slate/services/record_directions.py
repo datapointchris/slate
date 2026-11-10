@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
+from slate.models.direction import TERMINAL_DIRECTION_STATUSES
 from slate.models.record import Kind
 from slate.services.names_near import names_near
 from slate.services.record_refs import direction_names
@@ -63,9 +64,20 @@ def resolve_directions(session: Session, numbers: Iterable[int]) -> list[models.
 
 
 def set_record_directions(session: Session, number: int, directions: Iterable[models.Direction]) -> None:
-    """Make the record's directions exactly `directions`, leaving each row that stays, so its history holds."""
-    wanted = {direction.id for direction in directions}
+    """Make the record's directions exactly `directions`, leaving each row that stays, so its history holds.
+
+    A completed or dropped direction is refused with 409 where the write would newly place the record in
+    it. One the record is already in stays, so editing a record in a finished direction still works.
+    """
+    placed = list(directions)
+    wanted = {direction.id for direction in placed}
     held = set(session.scalars(select(models.RecordDirection.direction_id).where(models.RecordDirection.record_number == number)))
+    for direction in placed:
+        if direction.id not in held and direction.status in TERMINAL_DIRECTION_STATUSES:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f'Direction {direction.name!r} is {direction.status}. Reopen it before placing work in it.',
+            )
     if gone := held - wanted:
         session.execute(
             delete(models.RecordDirection).where(
