@@ -25,6 +25,10 @@ def summary_query(kind: Kind, numbers: list[int]) -> Select[int, str, str | None
             )
         case Kind.IDEA:
             return select(models.Idea.number, models.Idea.title, null()).where(models.Idea.number.in_(numbers))
+        case Kind.DIRECTION:
+            return select(models.Direction.number, models.Direction.name, models.Direction.status).where(
+                models.Direction.number.in_(numbers)
+            )
 
 
 def record_summaries(session: Session, numbers: Iterable[int]) -> dict[int, schemas.RecordSummary]:

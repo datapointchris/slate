@@ -61,6 +61,7 @@ from slate.services.issue_views import ISSUE_LOAD_OPTIONS
 from slate.services.issue_views import calendar_now
 from slate.services.issue_views import issue_views
 from slate.services.open_records import is_open
+from slate.services.record_directions import narrowed_to_direction
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_tags import narrowed_to_tag
 from slate.services.record_work import record_work
@@ -126,6 +127,7 @@ def queued_issues(
         query = query.where(models.Issue.initiative_id == resolve_initiative(session, filters.initiative).id)
     query = apply_label_filter(apply_repo_filter(query, filters.repo), filters.label, session)
     query = narrowed_to_tag(query, Kind.ISSUE, filters.tag, session)
+    query = narrowed_to_direction(query, Kind.ISSUE, filters.direction, session)
     issues = sorted(session.scalars(query).all(), key=readiness.sort_key)
     return autofixable_filtered(issues, readiness, filters.autofixable)
 
@@ -214,7 +216,7 @@ def queue_as_measured(
             place(readiness.sort_key(issue), issue_row)
 
     if reads_other_kinds and filters.step not in ('discuss', 'decide') and (work is None or work.kind == Kind.INITIATIVE):
-        for initiative_view in open_initiatives(session, initiative, filters.tag):
+        for initiative_view in open_initiatives(session, initiative, filters.tag, filters.direction):
             step = initiative_step(initiative_view)
             queued_alone = step != 'build' and initiative_view.number in readiness.slot_key_by_number
             if not wanted(filters, step) or not (queued_alone or initiative_view.number in held):
@@ -230,6 +232,7 @@ def queue_as_measured(
 
     if reads_other_kinds and initiative is None and wanted(filters, 'discuss'):
         query = narrowed_to_tag(select(models.Idea).options(*IDEA_LOAD_OPTIONS).where(is_open(Kind.IDEA)), Kind.IDEA, filters.tag, session)
+        query = narrowed_to_direction(query, Kind.IDEA, filters.direction, session)
         if work is not None:
             query = query.where(models.Idea.number == work.number)
         ideas = session.scalars(query).all()
@@ -246,10 +249,12 @@ def queue_as_measured(
     )
 
 
-def open_initiatives(session: Session, only: models.Initiative | None, tag: str | None = None) -> list[schemas.Initiative]:
+def open_initiatives(
+    session: Session, only: models.Initiative | None, tag: str | None = None, direction: int | str | None = None
+) -> list[schemas.Initiative]:
     """Active initiatives, and someday ones too since a claim may hold one, each counted.
 
-    `only` narrows to one, and `tag` to those carrying it.
+    `only` narrows to one, `tag` to those carrying it, and `direction` to those in it.
     """
     query: Any = (
         select(models.Initiative, *issue_count_columns())
@@ -259,6 +264,6 @@ def open_initiatives(session: Session, only: models.Initiative | None, tag: str 
     )
     if only is not None:
         query = query.where(models.Initiative.id == only.id)
-    query = narrowed_to_tag(query, Kind.INITIATIVE, tag, session)
+    query = narrowed_to_direction(narrowed_to_tag(query, Kind.INITIATIVE, tag, session), Kind.INITIATIVE, direction, session)
     rows = [(row[0], row[1:]) for row in session.execute(query).all()]
     return initiative_views(session, rows)

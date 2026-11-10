@@ -64,6 +64,8 @@ held, in `claimed`, at step `build`, so whoever holds it is seen beside the
 issues it gathers. `repo`, `type`, `label` and `autofixable` read only issues, so
 each leaves the ideas and initiatives out. `tag` keeps the ideas and initiatives
 carrying the tag, and the issues carrying it or in an initiative that does.
+`direction` keeps the ideas and initiatives in the direction, and the issues of
+those initiatives. A direction is never a row, because it holds no work.
 `initiative` narrows to one initiative's rows.
 
 Each row says its `kind`, `number`, `step` and `priority`, and carries the
@@ -560,7 +562,7 @@ one entry per initiative, carrying every figure the text shows.
 `GET /initiatives/board` is what a live board polls. For each initiative at the
 `status` asked for, active by default and in the order `GET /initiatives` lists
 them, it answers the counts by state above, the repos, the pin, the live claim,
-the closes, the checked steps and stage, and a slim row per issue: the unclosed in queue order, then the
+the tags and directions, the closes, the checked steps and stage, and a slim row per issue: the unclosed in queue order, then the
 closed, latest first. `totals` and `tiers` roll the same counts and closes up over
 every initiative and per priority. Every priority is in `tiers`, whether or not
 an initiative is at it.

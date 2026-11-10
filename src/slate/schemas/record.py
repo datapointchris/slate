@@ -17,6 +17,11 @@ Priority = Annotated[int, Field(ge=0, le=4, description='0 none, 1 urgent, 2 hig
 # Who acted, as the client names them: `claude-code/<session>`, `worker/<name>`, `user@host`.
 Actor = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
+SUMMARY_CHARS = 240
+
+# Where an initiative or a direction ends, on one line a board draws under the name.
+SummaryText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=SUMMARY_CHARS, pattern=r'^[^\r\n]+$')]
+
 
 class RecordModel(BaseModel):
     """A schema read from a model row's attributes, which every schema of a record is."""

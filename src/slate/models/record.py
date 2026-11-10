@@ -1,8 +1,8 @@
 """The planning records and the one number every kind is addressed by.
 
-Ideas, initiatives and issues are kinds of one record. `records` holds a row per number, saying
-which kind holds it, and each kind's table references its row one to one. That is class table
-inheritance. A claim, and anything else that attaches to "a record", holds one foreign key to
+Ideas, initiatives, issues and directions are kinds of one record. `records` holds a row per
+number, saying which kind holds it, and each kind's table references its row one to one. That is
+class table inheritance. A claim, and anything else that attaches to "a record", holds one foreign key to
 `records` whatever the kind.
 
 Each kind's table carries the kind it is beside the number, and references `records` on both. So
@@ -48,6 +48,7 @@ class Kind(enum.StrEnum):
     IDEA = 'idea'
     INITIATIVE = 'initiative'
     ISSUE = 'issue'
+    DIRECTION = 'direction'
 
 
 # Linear's scale, shared by every kind. 0 is the absence of a priority and sorts after every

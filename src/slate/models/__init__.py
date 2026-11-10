@@ -4,6 +4,9 @@ from slate.models.claim import Claim
 from slate.models.claim import ClaimEnding
 from slate.models.claim import ClaimWait
 from slate.models.comment import Comment
+from slate.models.direction import Direction
+from slate.models.direction import DirectionStatus
+from slate.models.direction import RecordDirection
 from slate.models.document import Document
 from slate.models.document import DocumentKind
 from slate.models.document import DocumentVersion
@@ -32,7 +35,9 @@ from slate.models.worklog import WorklogSpan
 from slate.models.worklog import WorklogStep
 
 # The table holding each kind of record, read from the kind each model declares.
-KIND_MODELS: dict[Kind, type[Idea] | type[Initiative] | type[Issue]] = {model.RECORD_KIND: model for model in (Idea, Initiative, Issue)}
+KIND_MODELS: dict[Kind, type[Idea] | type[Initiative] | type[Issue] | type[Direction]] = {
+    model.RECORD_KIND: model for model in (Idea, Initiative, Issue, Direction)
+}
 
 __all__ = [
     'KIND_MODELS',
@@ -41,6 +46,8 @@ __all__ = [
     'ClaimEnding',
     'ClaimWait',
     'Comment',
+    'Direction',
+    'DirectionStatus',
     'Document',
     'DocumentKind',
     'DocumentVersion',
@@ -58,6 +65,7 @@ __all__ = [
     'MessageTokens',
     'Record',
     'RecordChange',
+    'RecordDirection',
     'RecordKind',
     'RecordTag',
     'Tag',

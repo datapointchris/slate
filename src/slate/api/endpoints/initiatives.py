@@ -23,6 +23,7 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.record import Kind
+from slate.schemas.ready_filter import DIRECTION_FILTER
 from slate.schemas.ready_filter import TAG_FILTER
 from slate.services.claims import end_with_record
 from slate.services.initiative_board import initiative_board
@@ -44,6 +45,9 @@ from slate.services.initiatives import work_order
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_initiative_delete
+from slate.services.record_directions import narrowed_to_direction
+from slate.services.record_directions import resolve_directions
+from slate.services.record_directions import set_record_directions
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
@@ -94,6 +98,7 @@ def read_many(
         Query(description='priority: the order the queue takes them in. open: most unclosed issues first. newest: latest started first.'),
     ] = 'priority',
     tag: Annotated[str | None, Query(description=TAG_FILTER)] = None,
+    direction: Annotated[int | str | None, Query(description=DIRECTION_FILTER)] = None,
     limit: RowLimit = None,
 ):
     """Active initiatives, then someday, completed and dropped ones, each status in `sort`'s order.
@@ -114,7 +119,7 @@ def read_many(
         .group_by(models.Initiative.id)
         .order_by(*listing_order(*orders[sort]))
     )
-    query = narrowed_to_tag(query, Kind.INITIATIVE, tag, session)
+    query = narrowed_to_direction(narrowed_to_tag(query, Kind.INITIATIVE, tag, session), Kind.INITIATIVE, direction, session)
     rows = session.execute(apply_row_limit(narrowed_to_status(query, initiative_status, session), limit)).all()
     return initiative_views(session, [(row[0], row[1:]) for row in rows])
 
@@ -247,6 +252,8 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
         ensure_active_name_available(session, resulting_name, exclude_id=initiative.id)
     if 'tags' in update_data:
         set_record_tags(session, initiative.number, resolve_tags(session, update_data.pop('tags')))
+    if 'directions' in update_data:
+        set_record_directions(session, initiative.number, resolve_directions(session, update_data.pop('directions')))
     apply_status_transition(initiative, update_data, session, effects, signed_in=caller_actor(caller))
     for attr, value in update_data.items():
         setattr(initiative, attr, value)

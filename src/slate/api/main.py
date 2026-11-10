@@ -28,6 +28,7 @@ from slate.api import API_PREFIX
 from slate.api.callers import get_current_caller
 from slate.api.endpoints import claims
 from slate.api.endpoints import comments
+from slate.api.endpoints import directions
 from slate.api.endpoints import documents
 from slate.api.endpoints import ideas
 from slate.api.endpoints import initiatives
@@ -60,6 +61,7 @@ VALIDATION_SCOPES = ('body', 'query', 'path', 'header', 'cookie')
 RESOURCE_ROUTERS: tuple[tuple[str, APIRouter], ...] = (
     ('/claims', claims.router),
     ('/comments', comments.router),
+    ('/directions', directions.router),
     ('/documents', documents.router),
     ('/ideas', ideas.router),
     ('/initiatives', initiatives.router),

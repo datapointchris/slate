@@ -30,6 +30,9 @@ from slate.services.names_near import names_near
 from slate.services.open_records import is_open
 from slate.services.row_limit import apply_row_limit
 
+# The kinds a tag goes on. A direction is a grouping of its own rather than a record a category describes.
+TAGGED_KINDS = (Kind.IDEA, Kind.INITIATIVE, Kind.ISSUE)
+
 
 def unknown_tags(session: Session, unknown: list[str]) -> HTTPException:
     """The refusal of tags nobody made, naming every tag that exists and the ones each typed name comes near."""
@@ -139,10 +142,10 @@ def narrowed_to_tag(query: Select, kind: Kind, name: str | None, session: Sessio
 def tag_views(session: Session, name: str | None = None, limit: int | None = None) -> list[schemas.Tag]:
     """Every tag in name order, or the one named, with how many open records of each kind carry it themselves."""
     tagged = models.RecordTag.record_number
-    labels = {kind: f'open_{kind}_count' for kind in models.KIND_MODELS}
+    labels = {kind: f'open_{kind}_count' for kind in TAGGED_KINDS}
     open_counts = [
-        func.count(tagged).filter(tagged.in_(select(model.number).where(is_open(kind)))).label(labels[kind])
-        for kind, model in models.KIND_MODELS.items()
+        func.count(tagged).filter(tagged.in_(select(models.KIND_MODELS[kind].number).where(is_open(kind)))).label(labels[kind])
+        for kind in TAGGED_KINDS
     ]
     query = (
         select(models.Tag, *open_counts)

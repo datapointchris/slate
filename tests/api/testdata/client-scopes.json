@@ -19,6 +19,7 @@
   "slate.records.plan": [
     "DELETE /api/v1/issues/{id}/dependencies/{dep_id}",
     "DELETE /api/v1/records/{ref:path}/dependencies/{dep_id}",
+    "GET /api/v1/directions/{ref:path}",
     "GET /api/v1/vocabulary",
     "PATCH /api/v1/initiatives/{id:path}",
     "PATCH /api/v1/issues/{id}",
@@ -33,6 +34,8 @@
   "slate.records.read": [
     "GET /api/v1/claims",
     "GET /api/v1/comments",
+    "GET /api/v1/directions",
+    "GET /api/v1/directions/{ref:path}",
     "GET /api/v1/documents",
     "GET /api/v1/documents/{record}/{name}",
     "GET /api/v1/ideas",

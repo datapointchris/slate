@@ -72,8 +72,9 @@ one record are settled by that index: the loser's insert fails, and it answers
 409 naming the holder that won. `POST /claims/next` holds the head of the ready
 issues this way, moving to the next issue when it loses one.
 
-That 409 is the only refusal. A hold goes through whatever else it finds, and
-the answer carries a warning for each thing:
+That 409 is the only refusal of a hold on work. A direction holds none, so a
+hold on one answers 422 before anything is taken. A hold goes through whatever
+else it finds, and the answer carries a warning for each thing:
 
 | Code | When |
 | --- | --- |

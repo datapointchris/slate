@@ -60,10 +60,18 @@
     "completed",
     "dropped"
   ],
+  "direction_statuses": [
+    "active",
+    "someday",
+    "completed",
+    "dropped",
+    "all"
+  ],
   "record_kinds": [
     "idea",
     "initiative",
-    "issue"
+    "issue",
+    "direction"
   ],
   "document_kinds": [
     "research",

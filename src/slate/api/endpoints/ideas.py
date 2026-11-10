@@ -19,6 +19,7 @@ from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
+from slate.schemas.ready_filter import DIRECTION_FILTER
 from slate.schemas.ready_filter import TAG_FILTER
 from slate.services.claims import end_with_record
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
@@ -29,6 +30,10 @@ from slate.services.initiatives import new_initiative
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
+from slate.services.record_directions import directions_of
+from slate.services.record_directions import narrowed_to_direction
+from slate.services.record_directions import resolve_directions
+from slate.services.record_directions import set_record_directions
 from slate.services.record_pins import carry_pin
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
@@ -57,11 +62,16 @@ IdeaFromPath = Annotated[models.Idea, Depends(path_idea)]
 
 
 @router.get('', response_model=list[schemas.Idea], status_code=status.HTTP_200_OK)
-def read_many(session: DbSession, tag: str | None = Query(None, description=TAG_FILTER), limit: RowLimit = None):
+def read_many(
+    session: DbSession,
+    tag: str | None = Query(None, description=TAG_FILTER),
+    direction: int | str | None = Query(None, description=DIRECTION_FILTER),
+    limit: RowLimit = None,
+):
     """Every idea, promoted or not, most urgent first. Priority 0 is no priority and sorts last."""
     urgency = case((models.Idea.priority == 0, NO_PRIORITY_URGENCY), else_=models.Idea.priority)
     query = select(models.Idea).options(*IDEA_LOAD_OPTIONS).order_by(urgency.asc(), models.Idea.number.asc())
-    query = narrowed_to_tag(query, Kind.IDEA, tag, session)
+    query = narrowed_to_direction(narrowed_to_tag(query, Kind.IDEA, tag, session), Kind.IDEA, direction, session)
     return idea_views(session, session.scalars(apply_row_limit(query, limit)).all())
 
 
@@ -69,11 +79,13 @@ def read_many(session: DbSession, tag: str | None = Query(None, description=TAG_
 def create(idea: schemas.IdeaCreate, session: DbSession, effects: Effects):
     """Record an idea last in the queue, warning about each open record whose title reads like it."""
     tags = resolve_tags(session, idea.tags)
+    directions = resolve_directions(session, idea.directions)
     db_obj = models.Idea(title=idea.title, description=idea.description, priority=idea.priority)
     session.add(db_obj)
     session.flush()
     name_record(db_obj.number)
     set_record_tags(session, db_obj.number, tags)
+    set_record_directions(session, db_obj.number, directions)
     warn_likely_duplicates(session, db_obj.number, db_obj.title, None, effects)
     session.commit()
     session.refresh(db_obj)
@@ -122,6 +134,8 @@ def update(idea: IdeaFromPath, changes: schemas.IdeaUpdate, session: DbSession, 
     update_data = changes.model_dump(exclude_unset=True)
     if 'tags' in update_data:
         set_record_tags(session, idea.number, resolve_tags(session, update_data.pop('tags')))
+    if 'directions' in update_data:
+        set_record_directions(session, idea.number, resolve_directions(session, update_data.pop('directions')))
     for field, value in update_data.items():
         setattr(idea, field, value)
     idea.updated_ts = dt.datetime.now(dt.UTC)
@@ -152,7 +166,7 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
     """Create the initiative the idea becomes, naming the idea. A promoted idea is refused with 409.
 
     The summary is required, because an idea has none. Each other field the request leaves out
-    takes the idea's own: its title as the name, its description, its priority, its tags. The
+    takes the idea's own: its title as the name, its description, its priority, its tags, its directions. The
     answer is the idea, which then shows the initiative. The idea's claim ends as `promoted`,
     because its work is the initiative's now.
     """
@@ -171,6 +185,9 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
             priority=request.priority if request.priority is not None else idea.priority,
             autofix=request.autofix,
             tags=request.tags if request.tags is not None else own_tags(session, [idea.number]).get(idea.number, []),
+            directions=request.directions
+            if request.directions is not None
+            else [direction.number for direction in directions_of(session, [idea.number]).get(idea.number, [])],
         ),
         idea=idea,
     )

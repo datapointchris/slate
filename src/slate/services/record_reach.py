@@ -3,7 +3,8 @@
 A record always reaches itself. An issue reaches every issue under it, at any depth, because a
 parent is work too large for one issue, split into its children. An initiative reaches the idea it
 was promoted from, every issue in it, and every issue under those. A child does not take its
-parent's initiative, so without that walk an issue's work could exceed its initiative's.
+parent's initiative, so without that walk an issue's work could exceed its initiative's. A
+direction reaches each idea and initiative in it, and what each of those initiatives reaches.
 
 This is not membership. An issue is in an initiative when its `initiative_id` names it, which is
 what an initiative's counts by status and the queue read. Reach is the wider set its work spans.
@@ -46,3 +47,13 @@ def within_reach(session: Session, record: models.Record, number: SQLCoreOperati
             own = [initiative.number, *([initiative.idea.number] if initiative.idea is not None else [])]
             issues = select(models.Issue.id).where(models.Issue.initiative_id == initiative.id)
             return or_(number.in_(own), number.in_(issue_tree_numbers(issues)))
+        case Kind.DIRECTION:
+            members = (
+                select(models.RecordDirection.record_number)
+                .join(models.Direction, models.Direction.id == models.RecordDirection.direction_id)
+                .where(models.Direction.number == record.number)
+            )
+            initiatives = select(models.Initiative).where(models.Initiative.number.in_(members)).subquery()
+            promoted_from = select(models.Idea.number).where(models.Idea.id.in_(select(initiatives.c.idea_id)))
+            issues = select(models.Issue.id).where(models.Issue.initiative_id.in_(select(initiatives.c.id)))
+            return or_(number == record.number, number.in_(members), number.in_(promoted_from), number.in_(issue_tree_numbers(issues)))

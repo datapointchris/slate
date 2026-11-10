@@ -151,7 +151,7 @@ func newClaimsHoldCommand() *cobra.Command {
 				if err != nil {
 					return handleArgumentAPIError(err)
 				}
-				if err := heldHonorsTag(cmd, client, filter.Tag, written, lease.Holder); err != nil {
+				if err := heldHonorsFilter(cmd, client, filter, written, lease.Holder); err != nil {
 					return err
 				}
 			} else {
@@ -173,18 +173,22 @@ func newClaimsHoldCommand() *cobra.Command {
 	return cmd
 }
 
-// heldHonorsTag reads back the issue a --next hold took, because the hold's
-// answer names it without its tags, and releases it where it lacks --tag.
-func heldHonorsTag(cmd *cobra.Command, client *api.Client, tag string, written api.ClaimWritten, holder string) error {
-	if tag == "" || written.Claim == nil {
+// heldHonorsFilter reads back the issue a --next hold took, because the hold's
+// answer names it without its tags and directions, and releases it where it
+// lacks --tag or is outside --direction.
+func heldHonorsFilter(cmd *cobra.Command, client *api.Client, filter api.ReadyFilter, written api.ClaimWritten, holder string) error {
+	if (filter.Tag == "" && filter.Direction == "") || written.Claim == nil {
 		return nil
 	}
 	number := strconv.Itoa(written.Claim.RecordNumber)
 	held, err := client.GetIssue(cmd.Context(), number, issueZone())
 	if err != nil {
-		return fmt.Errorf("#%s is held, but reading back whether it carries --tag failed: %w", number, handleAPIError(err))
+		return fmt.Errorf("#%s is held, but reading back whether it honors --tag and --direction failed: %w", number, handleAPIError(err))
 	}
-	refused := honoredTagFilter(tag, []api.Issue{held.Issue}, issueTags)
+	refused := honoredTagFilter(filter.Tag, []api.Issue{held.Issue}, issueTags)
+	if refused == nil {
+		refused = honoredDirectionFilter(filter.Direction, []api.Issue{held.Issue}, issueDirections)
+	}
 	if refused == nil {
 		return nil
 	}

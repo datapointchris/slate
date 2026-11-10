@@ -79,20 +79,24 @@ type BoardIssue struct {
 // Steps and Stage are the initiative read's.
 type BoardInitiative struct {
 	BoardCounts
-	Number    int               `json:"number"`
-	Name      string            `json:"name"`
-	Status    string            `json:"status"`
-	Priority  int               `json:"priority"`
-	Repos     []string          `json:"repos"`
-	PinnedTS  *time.Time        `json:"pinned_ts"`
-	PinnedBy  *string           `json:"pinned_by"`
-	Claim     *Claim            `json:"claim"`
-	CreatedTS time.Time         `json:"created_ts"`
-	ClosedTS  *time.Time        `json:"closed_ts"`
-	Issues    []BoardIssue      `json:"issues"`
-	ByRepo    []BoardRepoCounts `json:"by_repo"`
-	Steps     []CheckedStep     `json:"steps"`
-	Stage     string            `json:"stage"`
+	Number   int    `json:"number"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Priority int    `json:"priority"`
+	// Tags and Directions are the initiative's own, and nil from an API older
+	// than either.
+	Tags       []string           `json:"tags"`
+	Directions []DirectionSummary `json:"directions"`
+	Repos      []string           `json:"repos"`
+	PinnedTS   *time.Time         `json:"pinned_ts"`
+	PinnedBy   *string            `json:"pinned_by"`
+	Claim      *Claim             `json:"claim"`
+	CreatedTS  time.Time          `json:"created_ts"`
+	ClosedTS   *time.Time         `json:"closed_ts"`
+	Issues     []BoardIssue       `json:"issues"`
+	ByRepo     []BoardRepoCounts  `json:"by_repo"`
+	Steps      []CheckedStep      `json:"steps"`
+	Stage      string             `json:"stage"`
 }
 
 // InitiativeBoard is the board as of ReadTS. Days are the calendar days each

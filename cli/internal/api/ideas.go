@@ -20,21 +20,23 @@ type IdeaEvidence struct {
 // Idea is work nobody has taken on yet. Initiative is the one it was promoted
 // into, with that initiative's progress, and nil until then.
 type Idea struct {
-	ID            string         `json:"id"`
-	Number        int            `json:"number"`
-	Title         string         `json:"title"`
-	Description   *string        `json:"description"`
-	Priority      int            `json:"priority"`
-	Rank          float64        `json:"rank"`
-	PinnedTS      *time.Time     `json:"pinned_ts"`
-	PinnedBy      *string        `json:"pinned_by"`
-	PinnedSession *string        `json:"pinned_session"`
-	CreatedTS     time.Time      `json:"created_ts"`
-	UpdatedTS     time.Time      `json:"updated_ts"`
-	Tags          []string       `json:"tags"`
-	Evidence      []IdeaEvidence `json:"evidence"`
-	Initiative    *Initiative    `json:"initiative"`
-	Claim         *Claim         `json:"claim"`
+	ID            string     `json:"id"`
+	Number        int        `json:"number"`
+	Title         string     `json:"title"`
+	Description   *string    `json:"description"`
+	Priority      int        `json:"priority"`
+	Rank          float64    `json:"rank"`
+	PinnedTS      *time.Time `json:"pinned_ts"`
+	PinnedBy      *string    `json:"pinned_by"`
+	PinnedSession *string    `json:"pinned_session"`
+	CreatedTS     time.Time  `json:"created_ts"`
+	UpdatedTS     time.Time  `json:"updated_ts"`
+	Tags          []string   `json:"tags"`
+	// Directions is each direction the idea is in, in number order.
+	Directions []DirectionSummary `json:"directions"`
+	Evidence   []IdeaEvidence     `json:"evidence"`
+	Initiative *Initiative        `json:"initiative"`
+	Claim      *Claim             `json:"claim"`
 }
 
 // IdeaDetail is an idea with its claims, comments and documents.
@@ -55,15 +57,17 @@ type IdeaCreateInput struct {
 	Description *string  `json:"description,omitempty"`
 	Priority    *int     `json:"priority,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
+	Directions  []int    `json:"directions,omitempty"`
 }
 
 // IdeaUpdateInput is a partial update, cleared the way IssueUpdateInput is.
-// Tags replaces the whole set.
+// Tags and Directions each replace the whole set.
 type IdeaUpdateInput struct {
 	Title       *string   `json:"title,omitempty"`
 	Description *string   `json:"description,omitempty"`
 	Priority    *int      `json:"priority,omitempty"`
 	Tags        *[]string `json:"tags,omitempty"`
+	Directions  *[]int    `json:"directions,omitempty"`
 }
 
 // IdeaEvidenceInput links each of Refs, with one note and linker for all.
@@ -84,6 +88,7 @@ type IdeaPromoteInput struct {
 	Status      string    `json:"status,omitempty"`
 	Autofix     *bool     `json:"autofix,omitempty"`
 	Tags        *[]string `json:"tags,omitempty"`
+	Directions  *[]int    `json:"directions,omitempty"`
 }
 
 func ideaPath(ref string) string {
@@ -92,7 +97,8 @@ func ideaPath(ref string) string {
 
 // IdeaFilter narrows a list of ideas. A zero field narrows nothing.
 type IdeaFilter struct {
-	Tag string
+	Tag       string
+	Direction string
 }
 
 // ListIdeas returns every idea, promoted or not, most urgent first.
@@ -100,6 +106,9 @@ func (c *Client) ListIdeas(ctx context.Context, filter IdeaFilter, limit *int) (
 	query := url.Values{}
 	if filter.Tag != "" {
 		query.Set("tag", filter.Tag)
+	}
+	if filter.Direction != "" {
+		query.Set("direction", filter.Direction)
 	}
 	applyLimit(query, limit)
 	var ideas []Idea

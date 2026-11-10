@@ -20,6 +20,7 @@ func TestShowReadsEachKindByItsNumber(t *testing.T) {
 		"/api/v1/records/1860":   `{"kind":"idea","number":1860,"record":{"number":1860,"title":"Ideas nobody took on","created_ts":"2026-10-01T00:00:00Z"}}`,
 		"/api/v1/records/1501":   `{"kind":"initiative","number":1501,"record":{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","number":1501,"name":"Ship the tracker","status":"active","created_ts":"2026-10-01T00:00:00Z"}}`,
 		"/api/v1/records/412":    `{"kind":"issue","number":412,"record":{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b","number":412,"title":"Routing drops issues","status":"open","created_ts":"2026-10-01T00:00:00Z"}}`,
+		"/api/v1/records/2950":   `{"kind":"direction","number":2950,"record":{"number":2950,"name":"Data Warehouse","summary":"All data flows through the warehouse","status":"active","created_ts":"2026-10-01T00:00:00Z","initiatives":[{"number":1501,"kind":"initiative","title":"Ship the tracker","status":"active"}]}}`,
 		"/api/v1/worklogs/412.2": `{"name":"412.2","record_number":412,"sequence":2,"record":{"number":412,"kind":"issue","title":"Routing drops issues"},"opened_by":"claude-code/s","started_ts":"2026-10-01T00:00:00Z","state":"live","stage":"build"}`,
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,6 +38,7 @@ func TestShowReadsEachKindByItsNumber(t *testing.T) {
 		{"1860", api.RecordKindIdea, "Ideas nobody took on"},
 		{"1501", api.RecordKindInitiative, "Unclosed issues (0)"},
 		{"412", api.RecordKindIssue, "Routing drops issues"},
+		{"2950", api.RecordKindDirection, "#1501 Ship the tracker (active)"},
 		{"412.2", recordKindWorklog, "412.2  #412 Routing drops issues"},
 	}
 	for _, kind := range api.RecordKinds {

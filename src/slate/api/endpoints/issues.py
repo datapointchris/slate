@@ -29,6 +29,7 @@ from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
+from slate.schemas.ready_filter import DIRECTION_FILTER
 from slate.schemas.ready_filter import TAG_FILTER
 from slate.services.claims import end_with_record
 from slate.services.issue_filters import apply_label_filter
@@ -45,6 +46,7 @@ from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_issue_delete
 from slate.services.record_dependencies import add_issue_dependency
 from slate.services.record_dependencies import remove_issue_dependency
+from slate.services.record_directions import narrowed_to_direction
 from slate.services.record_lists import word_matches
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
@@ -265,6 +267,7 @@ def read_many(
     type: str | None = Query(None, description='An issue type'),
     label: str | None = Query(None, description='A label slug'),
     tag: str | None = Query(None, description=TAG_FILTER),
+    direction: int | str | None = Query(None, description=DIRECTION_FILTER),
     initiative: str | None = Query(None, description='An initiative, by any reference GET /initiatives/{id} accepts'),
     parent: str | None = Query(None, description='A parent issue number or UUID: its children'),
     priority: int | None = Query(None, ge=0, le=4, description="The issue's own priority"),
@@ -314,6 +317,7 @@ def read_many(
     query = apply_repo_filter(query, repo)
     query = apply_label_filter(query, label, session)
     query = narrowed_to_tag(query, Kind.ISSUE, tag, session)
+    query = narrowed_to_direction(query, Kind.ISSUE, direction, session)
     query = apply_time_window(query, models.Issue.closed_ts, window, zone=None)
 
     today, now = calendar_now(zone)
