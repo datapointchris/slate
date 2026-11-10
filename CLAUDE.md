@@ -146,6 +146,9 @@ A new command takes a noun unless no one noun owns what it reads.
   dropped only after no running code does. A type change goes through a new
   column. `tests/migrations/test_schema_removals.py` fails a migration that
   removes a table or a column, unless its `REMOVED_ONCE_UNREAD` lists it.
+- **A migration that makes a column NOT NULL fills its NULL rows first.** A
+  database restored from before it, or one installed from an older release,
+  still holds them, and the `ALTER` fails on the first.
 - `uv run alembic check` after a model change reports any drift between the
   models and the migrations.
 
