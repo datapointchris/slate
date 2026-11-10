@@ -116,7 +116,7 @@ func newClaimsHoldCommand() *cobra.Command {
 			"  slate claims hold --next\n" +
 			"  slate claims hold --next --repo webapp --json",
 		Args:        cobra.MaximumNArgs(1),
-		Annotations: scopesForService(scopeClaimsHold),
+		Annotations: scopesForService(scopeClaimsHold, scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			if next == (len(args) == 1) {
@@ -151,6 +151,9 @@ func newClaimsHoldCommand() *cobra.Command {
 				if err != nil {
 					return handleArgumentAPIError(err)
 				}
+				if err := heldHonorsTag(cmd, client, filter.Tag, written, lease.Holder); err != nil {
+					return err
+				}
 			} else {
 				written, err = client.HoldClaim(cmd.Context(), args[0], lease, issueZone())
 				if err != nil {
@@ -168,6 +171,27 @@ func newClaimsHoldCommand() *cobra.Command {
 	addStepFlag(cmd, &step, "The step of the record's life the hold's worklog performs")
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
+}
+
+// heldHonorsTag reads back the issue a --next hold took, because the hold's
+// answer names it without its tags, and releases it where it lacks --tag.
+func heldHonorsTag(cmd *cobra.Command, client *api.Client, tag string, written api.ClaimWritten, holder string) error {
+	if tag == "" || written.Claim == nil {
+		return nil
+	}
+	number := strconv.Itoa(written.Claim.RecordNumber)
+	held, err := client.GetIssue(cmd.Context(), number, issueZone())
+	if err != nil {
+		return fmt.Errorf("#%s is held, but reading back whether it carries --tag failed: %w", number, handleAPIError(err))
+	}
+	refused := honoredTagFilter(tag, []api.Issue{held.Issue}, issueTags)
+	if refused == nil {
+		return nil
+	}
+	if _, err := client.ReleaseClaim(cmd.Context(), number, holder, issueZone()); err != nil {
+		return fmt.Errorf("%w, and releasing #%s failed: %w", refused, number, handleAPIError(err))
+	}
+	return fmt.Errorf("%w, and #%s was released", refused, number)
 }
 
 func newClaimsExtendCommand() *cobra.Command {

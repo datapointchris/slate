@@ -164,7 +164,11 @@ issue between initiatives changes what it reads with nothing stored on the
 issue. A finished initiative still lends its tags, because a category stays
 true of finished work.
 
-`tag` narrows `GET /ideas`, `GET /initiatives`, `GET /issues` and `GET /queue`.
+`tag` narrows each kind's list and every read `ReadyFilter` filters, such as
+`GET /queue` and `POST /claims/next`. An API from before tags drops `tag` and
+`tags` and answers 200, so the CLI checks every answer to a `--tag` it sent. A
+list row or a written record not carrying the tag fails the command. A hold
+whose issue lacks it is released.
 `tags` on a create sets the record's own, and `tags` on an update replaces the
 whole set. A promotion gives the initiative the idea's tags unless the request
 names its own. `GET /tags` lists each tag with how many open records of each

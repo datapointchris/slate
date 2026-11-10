@@ -107,6 +107,9 @@ func newInitiativesListCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
+			if err := honoredTagFilter(tag, initiatives, initiativeTags); err != nil {
+				return err
+			}
 			if !cmd.Flags().Changed("status") {
 				defer noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
 			}
@@ -247,7 +250,10 @@ func newInitiativesCreateCommand() *cobra.Command {
 				return handleArgumentAPIError(err)
 			}
 			initiative := written.Initiative
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Started initiative #%d %q", initiative.Number, initiative.Name))
+			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Started initiative #%d %q", initiative.Number, initiative.Name)); err != nil {
+				return err
+			}
+			return honoredTagWrite(&in.Tags, initiative.Number, initiative.Tags)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "Initiative name, unique among active ones (required)")
@@ -348,7 +354,10 @@ func runInitiativeUpdate(cmd *cobra.Command, ref string, in api.InitiativeUpdate
 	}
 	initiative := written.Initiative
 	summary := fmt.Sprintf("%s initiative #%d %q (%s)", verb, initiative.Number, initiative.Name, initiative.Status)
-	return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
+	if err := reportWrite(cmd, asJSON, written, written.WriteEffects, summary); err != nil {
+		return err
+	}
+	return honoredTagWrite(in.Tags, initiative.Number, initiative.Tags)
 }
 
 func newInitiativesCompleteCommand() *cobra.Command {

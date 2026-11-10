@@ -85,6 +85,9 @@ func newIdeasListCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
+			if err := honoredTagFilter(tag, ideas, ideaTags); err != nil {
+				return err
+			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), ideas)
 			}
@@ -179,7 +182,10 @@ func newIdeasCreateCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, ideaLine("Recorded", written.Idea))
+			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, ideaLine("Recorded", written.Idea)); err != nil {
+				return err
+			}
+			return honoredTagWrite(&in.Tags, written.Idea.Number, written.Idea.Tags)
 		},
 	}
 	cmd.Flags().StringVar(&title, "title", "", "What the idea is, in a line (required)")
@@ -240,7 +246,10 @@ func newIdeasEditCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, ideaLine("Updated", written.Idea))
+			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, ideaLine("Updated", written.Idea)); err != nil {
+				return err
+			}
+			return honoredTagWrite(in.Tags, written.Idea.Number, written.Idea.Tags)
 		},
 	}
 	cmd.Flags().StringVar(&title, "title", "", "New title")
@@ -364,7 +373,14 @@ func newIdeasPromoteCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, ideaLine("Promoted", written.Idea))
+			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, ideaLine("Promoted", written.Idea)); err != nil {
+				return err
+			}
+			number, carried := written.Idea.Number, []string(nil)
+			if promoted := written.Idea.Initiative; promoted != nil {
+				number, carried = initiativeTags(*promoted)
+			}
+			return honoredTagWrite(in.Tags, number, carried)
 		},
 	}
 	cmd.Flags().StringVar(&summary, "summary", "", initiativeSummaryHelp+" (required)")

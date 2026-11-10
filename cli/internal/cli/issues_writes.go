@@ -318,7 +318,10 @@ func newIssuesCreateCommand() *cobra.Command {
 			if issue.DiscoveredFrom != nil {
 				summary += fmt.Sprintf(", found in #%d", issue.DiscoveredFrom.Number)
 			}
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
+			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, summary); err != nil {
+				return err
+			}
+			return honoredTagWrite(&in.Tags, issue.Number, issue.Tags)
 		},
 	}
 	f := cmd.Flags()
@@ -568,7 +571,10 @@ func runIssueUpdate(cmd *cobra.Command, ref string, in api.IssueUpdateInput, cle
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	return reportIssueWrite(cmd, asJSON, written, verb)
+	if err := reportIssueWrite(cmd, asJSON, written, verb); err != nil {
+		return err
+	}
+	return honoredTagWrite(in.Tags, written.Issue.Number, written.Issue.Tags)
 }
 
 func reportIssueWrite(cmd *cobra.Command, asJSON bool, written api.IssueWritten, verb string) error {

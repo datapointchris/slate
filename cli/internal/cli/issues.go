@@ -300,6 +300,9 @@ func newIssuesListCommand() *cobra.Command {
 			if err := honoredAutofixable(filter.Autofixable, issues); err != nil {
 				return err
 			}
+			if err := honoredTagFilter(filter.Tag, issues, issueTags); err != nil {
+				return err
+			}
 			if !cmd.Flags().Changed("status") {
 				defer noteHiddenByStatus(cmd, "Completed and canceled issues")
 			}

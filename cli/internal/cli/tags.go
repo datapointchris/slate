@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -36,6 +37,67 @@ func tagsEdited(f *pflag.FlagSet, values []string) (*[]string, error) {
 	case flagUntouched:
 	}
 	return nil, nil
+}
+
+// An API from before tags drops --tag from a request and answers as though it
+// held it. Each check below refuses such an answer by the tags it carries.
+
+// honoredTagFilter refuses a reply in which a row does not carry the tag a
+// --tag filter asked for. carried reads a row's number and its tags.
+func honoredTagFilter[T any](tag string, rows []T, carried func(T) (int, []string)) error {
+	if tag == "" {
+		return nil
+	}
+	for _, row := range rows {
+		if number, tags := carried(row); !slices.Contains(tags, tag) {
+			return fmt.Errorf("the API ignored --tag: #%d came back without %s, so it predates tags", number, tag)
+		}
+	}
+	return nil
+}
+
+// honoredTagWrite refuses a write whose answer carries other tags than the
+// --tag it was sent. A nil want sent none, so there is nothing to check.
+func honoredTagWrite(want *[]string, number int, carried []string) error {
+	if want == nil || sameTags(*want, carried) {
+		return nil
+	}
+	return fmt.Errorf("the API ignored --tag: #%d was written carrying %s rather than %s, so it predates tags",
+		number, tagsOrNone(carried), tagsOrNone(*want))
+}
+
+func sameTags(a, b []string) bool {
+	x, y := slices.Clone(a), slices.Clone(b)
+	slices.Sort(x)
+	slices.Sort(y)
+	return slices.Equal(slices.Compact(x), slices.Compact(y))
+}
+
+func tagsOrNone(tags []string) string {
+	if len(tags) == 0 {
+		return "no tag"
+	}
+	return strings.Join(tags, ", ")
+}
+
+func issueTags(issue api.Issue) (int, []string) { return issue.Number, issue.EffectiveTags }
+func ideaTags(idea api.Idea) (int, []string)    { return idea.Number, idea.Tags }
+func initiativeTags(initiative api.Initiative) (int, []string) {
+	return initiative.Number, initiative.Tags
+}
+
+// queueRowTags is what a queue row carries for --tag: an issue's own and its
+// initiative's, and another kind's own.
+func queueRowTags(row api.QueueRow) (int, []string) {
+	switch {
+	case row.Issue != nil:
+		return issueTags(*row.Issue)
+	case row.Initiative != nil:
+		return initiativeTags(*row.Initiative)
+	case row.Idea != nil:
+		return ideaTags(*row.Idea)
+	}
+	return row.Number, nil
 }
 
 func newTagsCommand() *cobra.Command {
