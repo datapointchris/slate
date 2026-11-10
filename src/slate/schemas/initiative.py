@@ -1,16 +1,16 @@
 import datetime as dt
-from typing import Annotated
 from typing import Any
 from uuid import UUID
 
-from pydantic import StringConstraints
 from pydantic import model_validator
 
 from slate.schemas.claim import Claim
+from slate.schemas.direction import DirectionSummary
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
+from slate.schemas.record import SummaryText
 from slate.schemas.record_parts import RecordParts
 from slate.schemas.worklog import CheckedStep
 from slate.schemas.worklog import RecordStage
@@ -18,11 +18,6 @@ from slate.schemas.write_effects import Written
 
 # An initiative answers to its UUID, its number or its name, and the API resolves each.
 InitiativeRef = UUID | int | str
-
-SUMMARY_CHARS = 240
-
-# What is true when the work is done, on one line a board draws under the name.
-SummaryText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=SUMMARY_CHARS, pattern=r'^[^\r\n]+$')]
 
 
 class InitiativeSummary(RecordModel):
@@ -57,10 +52,14 @@ class InitiativeCreate(InitiativeWrite):
     priority: Priority = 0
     autofix: bool = False
     tags: list[str] = []
+    directions: list[int] = []
 
 
 class InitiativeUpdate(InitiativeWrite):
-    """`closed_ts` is stamped on the move into a terminal status and cleared on reopen. `tags` replaces the whole set."""
+    """`closed_ts` is stamped on the move into a terminal status and cleared on reopen.
+
+    `tags` and `directions` each replace the whole set.
+    """
 
     name: NotNull[str] = None
     summary: NotNull[SummaryText] = None
@@ -70,6 +69,7 @@ class InitiativeUpdate(InitiativeWrite):
     priority: NotNull[Priority] = None
     autofix: NotNull[bool] = None
     tags: NotNull[list[str]] = None
+    directions: NotNull[list[int]] = None
 
 
 class Initiative(RecordModel):
@@ -83,7 +83,8 @@ class Initiative(RecordModel):
     issue it waits on, and `waiting_initiatives` each initiative waiting on it,
     open or closed, by number. `steps` is each step checked on it, in position order, and `stage`
     the furthest of them, or `idea` before any. Both are derived on every read. `tags` is the
-    initiative's own, and each of its issues reads them as its own too.
+    initiative's own, and each of its issues reads them as its own too. `directions` is each
+    direction it is in, in number order, and each of its issues reads them as its own.
     """
 
     id: UUID
@@ -102,6 +103,7 @@ class Initiative(RecordModel):
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None
     tags: list[str] = []
+    directions: list[DirectionSummary] = []
     issue_count: int = 0
     open_count: int = 0
     completed_count: int = 0

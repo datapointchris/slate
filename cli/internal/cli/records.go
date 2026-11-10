@@ -45,13 +45,13 @@ func newShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "show <number>",
 		SuggestFor: []string{"get", "view", "record", "records"},
-		Short:      "Show the idea, initiative, issue or worklog a number names",
-		Long: "Ideas, initiatives and issues share one number sequence, so a number names\n" +
-			"one record whatever its kind. A worklog is named under its record's number,\n" +
-			"so 412.2 is the second worklog on #412. It prints what that kind's own show\n" +
-			"prints: `slate show 412` and `slate issues show 412` read the same. A record's\n" +
-			"show ends with its latest changes, newest first: each write to the record\n" +
-			"and to the rows hanging off it.",
+		Short:      "Show the idea, initiative, issue, direction or worklog a number names",
+		Long: "Ideas, initiatives, issues and directions share one number sequence, so a\n" +
+			"number names one record whatever its kind. A worklog is named under its\n" +
+			"record's number, so 412.2 is the second worklog on #412. It prints what that\n" +
+			"kind's own show prints: `slate show 412` and `slate issues show 412` read the\n" +
+			"same. A record's show ends with its latest changes, newest first: each write\n" +
+			"to the record and to the rows hanging off it.",
 		Example:     "  slate show 412\n  slate show '#1501' --json\n  slate show 412.2",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -104,6 +104,10 @@ func newShowCommand() *cobra.Command {
 					printIssueDetail(out, *record.Issue, now)
 					printChanges(out, changes, now)
 				}
+			case api.RecordKindDirection:
+				direction := directionShown{DirectionDetail: *record.Direction, Changes: changes}
+				shown.Record = direction
+				print = func() { printDirectionShown(out, direction, now) }
 			default:
 				return fmt.Errorf("#%d is of kind %q, which slate show cannot print", record.Number, record.Kind)
 			}
@@ -137,9 +141,9 @@ func newSearchCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "search <words>...",
 		SuggestFor: []string{"find", "grep"},
-		Short:      "Find ideas, initiatives and issues by number, title or description",
-		Long: "Every word must appear in the title, the description or an initiative's\n" +
-			"summary, in any order. A word that is a number, as 2175 or #2175, also matches\n" +
+		Short:      "Find ideas, initiatives, issues and directions by number, title or description",
+		Long: "Every word must appear in the title, the description or an initiative's or\n" +
+			"a direction's summary, in any order. A word that is a number, as 2175 or #2175, also matches\n" +
 			"the record with that number, and it lists first. Every status is searched,\n" +
 			"because the record you remember may be the one that closed. Unclosed records\n" +
 			"come next, then the most urgent, then the newest.",
@@ -183,7 +187,11 @@ func printRecordsTable(out io.Writer, records []api.RecordListed) {
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "NUMBER\tKIND\tSTATUS\tPRIORITY\tTITLE")
 	for _, record := range records {
-		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%s\t%s\t%s\n", record.Number, record.Kind, orDash(strValue(record.Status)), priorityName(record.Priority), record.Title)
+		priority := priorityName(record.Priority)
+		if record.Kind == api.RecordKindDirection {
+			priority = "-"
+		}
+		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%s\t%s\t%s\n", record.Number, record.Kind, orDash(strValue(record.Status)), priority, record.Title)
 	}
 	_ = tw.Flush()
 }

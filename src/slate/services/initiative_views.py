@@ -1,4 +1,4 @@
-"""Build the initiative read shape: the initiative, the counts of its issues, its claim, its idea and its checked steps."""
+"""Build the initiative read shape: the initiative, its issues' counts, its claim, its idea, its checked steps, tags and directions."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.services.claim_views import unended_claim_views
 from slate.services.initiative_waits import waited_on
 from slate.services.initiative_waits import waiting_initiatives
+from slate.services.record_directions import directions_of
 from slate.services.record_parts import record_parts
 from slate.services.record_steps import initiative_steps
 from slate.services.record_steps import stage_of
@@ -47,6 +48,7 @@ def initiative_view(
     waiting: list[schemas.RecordSummary],
     steps: list[schemas.CheckedStep],
     tags: list[str],
+    directions: list[schemas.DirectionSummary],
 ) -> schemas.Initiative:
     """`counts` is a row of `issue_count_columns()`."""
     issue_count, open_count, completed_count, canceled_count, repos = counts
@@ -67,6 +69,7 @@ def initiative_view(
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,
         tags=tags,
+        directions=directions,
         issue_count=issue_count,
         open_count=open_count,
         completed_count=completed_count,
@@ -88,6 +91,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
     waiting = waiting_initiatives(session, [initiative.number for initiative, _ in rows])
     steps = initiative_steps(session, [initiative for initiative, _ in rows])
     tags = own_tags(session, [initiative.number for initiative, _ in rows])
+    directions = directions_of(session, [initiative.number for initiative, _ in rows])
     idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
     ideas = {
         idea_id: schemas.RecordSummary(number=number, kind=models.Idea.RECORD_KIND, title=title)
@@ -105,6 +109,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
             waiting.get(initiative.number, []),
             steps.get(initiative.number, []),
             tags.get(initiative.number, []),
+            directions.get(initiative.number, []),
         )
         for initiative, counts in rows
     ]

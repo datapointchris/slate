@@ -37,8 +37,10 @@ from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_readiness import urgency
 from slate.services.issue_views import calendar_now
 from slate.services.issue_views import list_order
+from slate.services.record_directions import directions_of
 from slate.services.record_steps import initiative_steps
 from slate.services.record_steps import stage_of
+from slate.services.record_tags import own_tags
 
 CLOSES_BY_DAY = 14
 
@@ -197,8 +199,18 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
         issues_in[issue.initiative_id].append(board_issue(issue, claims.get(issue.number), readiness))
 
     steps = initiative_steps(session, initiatives)
+    numbers = [initiative.number for initiative in initiatives]
+    tags, directions = own_tags(session, numbers), directions_of(session, numbers)
     rows = [
-        board_initiative(initiative, issues_in[initiative.id], claims, steps.get(initiative.number, []), calendar)
+        board_initiative(
+            initiative,
+            issues_in[initiative.id],
+            claims,
+            steps.get(initiative.number, []),
+            tags.get(initiative.number, []),
+            directions.get(initiative.number, []),
+            calendar,
+        )
         for initiative in initiatives
     ]
     return schemas.InitiativeBoard(
@@ -220,6 +232,8 @@ def board_initiative(
     issues: list[schemas.BoardIssue],
     claims: dict[int, models.Claim],
     steps: list[schemas.CheckedStep],
+    tags: list[str],
+    directions: list[schemas.DirectionSummary],
     calendar: CloseCalendar,
 ) -> schemas.BoardInitiative:
     claim = claims.get(initiative.number)
@@ -228,6 +242,8 @@ def board_initiative(
         name=initiative.name,
         status=initiative.status,
         priority=initiative.priority,
+        tags=tags,
+        directions=directions,
         repos=sorted({issue.repo for issue in issues if issue.repo is not None and issue.state != 'canceled'}),
         pinned_ts=initiative.pinned_ts,
         pinned_by=initiative.pinned_by,

@@ -3,6 +3,7 @@
 import datetime as dt
 
 from slate.schemas.claim import Claim
+from slate.schemas.direction import DirectionSummary
 from slate.schemas.initiative_progress import IssueState
 from slate.schemas.initiative_progress import IssueStateCounts
 from slate.schemas.record import Priority
@@ -77,13 +78,15 @@ class BoardInitiative(BoardCounts):
 
     `by_repo` cuts those issues by the repo each names, most open first and no repo last. An
     initiative with no issues has one empty cut on no repo, so every initiative sits under some repo.
-    `steps` and `stage` are the initiative read's.
+    `steps`, `stage`, `tags` and `directions` are the initiative read's.
     """
 
     number: int
     name: str
     status: str
     priority: Priority
+    tags: list[str]
+    directions: list[DirectionSummary]
     repos: list[str]
     pinned_ts: dt.datetime | None
     pinned_by: str | None

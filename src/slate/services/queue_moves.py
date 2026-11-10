@@ -70,6 +70,8 @@ def standing(session: Session, readiness: IssueReadiness, record: models.Record)
                 promoted_to = f'#{idea.initiative.number}' if idea.initiative is not None else 'an initiative'
                 raise outside_the_queue(record, f'an idea promoted to {promoted_to}')
             return Standing(record, record.number, key.urgency, key.pin, key)
+        case Kind.DIRECTION:
+            raise outside_the_queue(record, 'a direction, which holds no work of its own')
 
 
 def conflict(detail: str) -> HTTPException:

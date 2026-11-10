@@ -1,8 +1,8 @@
 """What a hold warns about: the record's own state, and each neighbor that is open or claimed.
 
 None of these refuses the hold. Another holder's live claim on the record itself is the one
-conflict that does, in `claims.take`. A neighbor the same holder claims is that holder's own work,
-so it goes unnamed.
+conflict that does, in `claims.take`, and a direction is refused before it, since it holds no work.
+A neighbor the same holder claims is that holder's own work, so it goes unnamed.
 
 An issue's neighbors are its initiative, what that initiative waits on, any initiative whose plan
 holds it, its parent, its children, what it depends on, what depends on it, and every issue on its
@@ -18,6 +18,8 @@ from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Mapping
 
+from fastapi import HTTPException
+from fastapi import status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
@@ -40,20 +42,23 @@ from slate.services.write_effects import WriteEffects
 NeighborWarner = Callable[[Session, int, str, dt.datetime, dt.date, WriteEffects], None]
 
 
-def neighbor_warner(kind: Kind) -> NeighborWarner:
-    match kind:
+def neighbor_warner(record: models.Record) -> NeighborWarner:
+    """What a hold on `record` warns about, read before the hold so a direction is refused before any claim is written.
+
+    A direction holds no work. A claim on one would take every initiative in it out of the queue.
+    """
+    match record.kind:
         case Kind.ISSUE:
             return warn_about_issue
         case Kind.INITIATIVE:
             return warn_about_initiative
         case Kind.IDEA:
             return warn_about_idea
-
-
-def warn_about_neighbors(
-    session: Session, record: models.Record, holder: str, now: dt.datetime, today: dt.date, effects: WriteEffects
-) -> None:
-    neighbor_warner(record.kind)(session, record.number, holder, now, today, effects)
+        case Kind.DIRECTION:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f'#{record.number} is a direction, which holds no work, so no claim holds it. Hold an idea or an initiative in it.',
+            )
 
 
 def claimed_by_others(session: Session, numbers: Iterable[int], holder: str, now: dt.datetime) -> dict[int, models.Claim]:

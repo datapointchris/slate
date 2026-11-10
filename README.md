@@ -4,7 +4,9 @@ A work tracker built for coding agents. Ideas hold the work nobody has taken
 on, with their priority and evidence, until promotion makes each an
 initiative. Issues carry their dependencies, labels and the initiative they
 ship toward. Ideas, initiatives and issues carry tags from a short closed list,
-and an issue reads its initiative's tags as its own. Any record keeps versioned documents, such as its design and
+and an issue reads its initiative's tags as its own. Ideas and initiatives join
+directions, the few ways the work moves toward its vision, and an issue reads
+its initiative's. Any record keeps versioned documents, such as its design and
 plan, and comments on the record or on one line of a document.
 `slate next` lists every kind of open work in the order to take it, each with
 its step, and the work someone holds apart. A claim is a lease on a record that
@@ -160,12 +162,12 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives and ideas, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, a session's tokens, and the work's totals |
+| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives, ideas and directions, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, a session's tokens, and the work's totals |
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready issues, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.comments.write` | commenting on any record, or on one line of its document, under the service's own client id |
 | `slate.documents.write` | writing the next version of a document on any record, under the service's own client id, which keeps every earlier version |
 | `slate.issues.close` | closing an open issue |
-| `slate.records.plan` | filing into triage, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue or an initiative waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives |
+| `slate.records.plan` | filing into triage, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue or an initiative waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives, reading a direction to place one in it |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 | `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |

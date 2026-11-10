@@ -28,6 +28,7 @@ from slate.services.initiative_waits import waited_on
 from slate.services.initiative_waits import waiting_initiatives
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
+from slate.services.record_directions import issue_directions
 from slate.services.record_parts import record_parts
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import IssueTags
@@ -104,6 +105,7 @@ def issue_view(
     claims: dict[int, schemas.Claim],
     waits: IssueWaits,
     tags: IssueTags,
+    directions: list[schemas.DirectionSummary],
 ) -> schemas.Issue:
     initiative = issue.initiative
     return schemas.Issue(
@@ -142,6 +144,7 @@ def issue_view(
         labels=[label.slug for label in issue.labels],
         tags=tags.own,
         effective_tags=tags.effective,
+        directions=directions,
         depends_on=by_number(edge.depends_on for edge in issue.dependencies),
         blocks=by_number(edge.issue for edge in issue.dependents),
         initiative_waits_on=waits.of_initiative.get(issue.initiative_id, []) if issue.initiative_id and not issue.is_closed else [],
@@ -184,7 +187,8 @@ def issue_views(session: Session, issues: list[models.Issue], zone: str, readine
     claims = unended_claim_views(session, [issue.number for issue in issues], now)
     waits = issue_waits(session, issues, readiness)
     tags = issue_tags(session, issues)
-    return [issue_view(issue, readiness, counts, claims, waits, tags[issue.number]) for issue in issues]
+    directions = issue_directions(session, issues)
+    return [issue_view(issue, readiness, counts, claims, waits, tags[issue.number], directions[issue.number]) for issue in issues]
 
 
 def label_views(session: Session, slug: str | None = None) -> list[schemas.IssueLabel]:

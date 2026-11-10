@@ -1,14 +1,16 @@
 # Records
 
-slate's planning records are ideas, initiatives and issues. An idea is work
-that may happen. An initiative is a committed outcome that groups and orders
-issues. An issue is one change with its acceptance.
+slate's planning records are ideas, initiatives, issues and directions. An
+idea is work that may happen. An initiative is a committed outcome that groups
+and orders issues. An issue is one change with its acceptance. A direction is
+one way the work moves toward its vision, which ideas and initiatives join.
 
 ## Every kind is one record, numbered from one sequence
 
 `records` holds one row per number, saying which kind holds it. The number
 comes from the Postgres sequence `record_numbers`. Each kind's table,
-`ideas`, `initiatives` and `issues`, references its row one to one.
+`ideas`, `initiatives`, `issues` and `directions`, references its row one to
+one.
 
 That is class table inheritance: a supertype table with what every kind
 shares, and a table per kind with what is its own. Anything that attaches to
@@ -32,7 +34,8 @@ issue's parent, its dependencies, its labels. The number is the handle a
 person or an agent types.
 
 `records` also holds `rank`, the place each record takes in the queue, so
-every kind is ordered in one space. [issues.md](issues.md) gives the order.
+ideas, initiatives and issues are ordered in one space. A direction holds no
+work, so it never takes a place. [issues.md](issues.md) gives the order.
 
 ## A number reads as its kind's whole record
 
@@ -44,6 +47,7 @@ the read the kind's own route gives, with every claim the record has had:
 | `idea` | `GET /ideas/{number}` |
 | `initiative` | `GET /initiatives/{number}` |
 | `issue` | `GET /issues/{number}` |
+| `direction` | `GET /directions/{number}` |
 
 `kind` discriminates the union in the OpenAPI schema, so a typed client
 decodes `record` into the right shape before reading it. A number nobody
@@ -128,12 +132,13 @@ also matches the record with that number. That record lists first, ahead of the
 records whose text cites it, because a reader typing a number is looking for
 that record. It reads every status, because the record a reader remembers may
 be the one that closed. Unclosed records come next, then the most urgent, then
-the newest. An idea has no status, so it sorts with the unclosed. `kind`
+the newest. An idea has no status, so it sorts with the unclosed. A direction
+has no priority, so it sorts as none among its peers. `kind`
 narrows the list to one kind. `slate search <words>` prints it. `slate issues
 list --search <words>` asks `GET /issues?search=` instead, beside every issue
 filter, and matches a number the same way.
 
-## Tags are a short closed list every kind carries, and an issue reads its initiative's
+## Tags are a short closed list ideas, initiatives and issues carry, and an issue reads its initiative's
 
 A tag is a category with no end, such as `security`. A tag exists before a
 record carries it, created with a one-line description. A write naming a tag
@@ -185,6 +190,90 @@ and their groups exclude each other.
   every row carrying it, and change the key each row's history is read by.
 - *Rejected:* copying an initiative's tags onto its issues. The copy goes stale
   the moment the initiative's tags change or the issue moves.
+
+## A direction is a record ideas and initiatives join, and an issue reads its initiative's
+
+A direction is one way the work moves toward its vision, and it closes when the
+work gets there. Linear draws the same layer, where an Initiative groups Projects
+toward a company objective. OKRs differ by being time-boxed, and SAFe's
+strategic themes by lasting.
+
+`directions` is a fourth kind's table, so a direction takes its number from the
+same sequence, and `slate show`, `slate search`, comments and documents reach
+it. It holds a `name`, a one-line `summary` of where it ends, a `description`,
+and a `status` from `direction_statuses`, which `slate vocabulary` prints. A drop
+needs a `status_reason`, and completing or dropping one stamps `closed_ts`. An active direction's name is its own, through a partial
+unique index. A name shaped like a number is refused, because `--direction`
+takes either.
+
+`record_directions` holds one row per member and direction, keyed on
+`(record_number, direction_id)`. Each half is an `ON DELETE CASCADE` key, one
+onto `records.number` and one onto `directions.id`. Only an idea or an initiative
+joins. The membership hangs off both records, so `slate show` prints a placing
+among the member's changes and the direction's, under the direction's name.
+
+An issue reads its initiative's directions, derived on every read as its
+inherited tags are. It has none of its own, so its read holds one list.
+
+Every idea, initiative and issue read, and each initiative on `GET
+/initiatives/board`, carries `directions` as `[{number, name}]`, in number order.
+`directions` on an idea or initiative create sets them, and on an update
+replaces the set. Both take numbers. A number naming no direction is refused
+with 422, naming every active one:
+
+```text
+#9999 names no direction. The active directions: #2950 Data Warehouse. `slate directions create` adds a direction.
+```
+
+A completed or dropped direction takes no new members. A write placing a record
+in one answers 409:
+
+```text
+Direction 'Mobile App' is dropped. Reopen it before placing work in it.
+```
+
+A record already in it stays, so an edit to that record still goes through. A
+promotion carrying the idea's directions meets the same refusal.
+
+`--direction` takes a number or the exact name. The CLI reads a name's number
+with `GET /directions/{ref}` before the write, which is why `slate.records.plan`
+reaches that read. A promotion gives the initiative the idea's directions unless
+the request names its own.
+
+`direction` narrows `GET /ideas`, `GET /initiatives`, `GET /issues` through each
+issue's initiative, and every read `ReadyFilter` filters, such as `GET /queue`
+and `POST /claims/next`. A filter naming no direction answers the same 422,
+with the names near what was typed. The CLI checks every answer to a
+`--direction` it sent, as it does `--tag`, because an API from before directions
+drops the filter and answers 200.
+
+A tag and a direction are the two groupings, the filters that narrow ideas,
+initiatives and issues alike.
+`RecordGroupings` declares them and `narrowed_to_groupings` applies them, at each
+list and at the queue. A queue filter declared outside it reads only issues, so
+a filter added there leaves the ideas and initiatives out until it is made a
+grouping.
+
+A direction holds no work. `slate next` never lists one, a claim on one is
+refused with 422 before anything is taken, and a reorder refuses it. It lends no
+priority, because the tiers stay on initiatives and a pin moves a direction's
+work. `slate totals` on a direction sums each idea and initiative in it, as
+[totals.md](totals.md) gives.
+
+`GET|POST /directions` and `GET|PATCH /directions/{ref}` serve it, with
+`slate directions create|edit|list|show|complete|drop|shelve|reopen`, the
+initiatives' verbs. The list reads the
+active ones unless `status` asks for another or `all`, and its header counts the
+active ones, so spreading thin shows. Nothing deletes a direction. A drop keeps
+it, with why.
+
+- *Rejected:* a direction as a tag. A tag is a category that never ends. A
+  direction closes, says where it ends, and carries its own discussion.
+- *Rejected:* a membership keyed on the direction's number. `records.number`
+  would accept an issue's number as a direction, and only `directions.id`
+  makes the database refuse it.
+- *Rejected:* placing an issue in a direction itself. It moves with its
+  initiative, so its own membership would go stale on a move.
 
 ## Every write answers what it wrote and what else it did
 

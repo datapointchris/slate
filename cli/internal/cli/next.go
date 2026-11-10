@@ -51,7 +51,9 @@ func newNextCommand() *cobra.Command {
 			"\n" +
 			"--repo, --type, --label and --autofixable read only issues, so each leaves the\n" +
 			"ideas and initiatives out. --tag keeps the ideas and initiatives carrying the\n" +
-			"tag, and the issues carrying it or in an initiative that does.\n" +
+			"tag, and the issues carrying it or in an initiative that does. --direction\n" +
+			"keeps the ideas and initiatives in the direction, and the issues of those\n" +
+			"initiatives.\n" +
 			"`slate claims hold --next` holds the head of\n" +
 			"`slate next --step build` under the same flags. Reading the queue holds\n" +
 			"nothing, so hold what you take before working it.\n" +
@@ -90,7 +92,7 @@ func newNextCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredTagFilter(filter.Tag, slices.Concat(read.Queue, read.Claimed), queueRowTags); err != nil {
+			if err := honoredGroupings(filter.Tag, filter.Direction, slices.Concat(read.Queue, read.Claimed), queueRowGrouped); err != nil {
 				return err
 			}
 			if cmd.Flags().Changed("for") && !cmd.Flags().Changed("limit") {
@@ -245,6 +247,7 @@ type readyQueueFlags struct {
 	issueType   string
 	label       string
 	tag         string
+	direction   string
 	initiative  string
 	autofixable bool
 }
@@ -265,6 +268,7 @@ func (v *readyQueueFlags) register(cmd *cobra.Command) {
 	withFlagValues(cmd, "type", api.IssueTypes...)
 	f.StringVar(&v.label, "label", "", "Only issues carrying this label")
 	f.StringVar(&v.tag, "tag", "", tagFilterHelp)
+	f.StringVar(&v.direction, "direction", "", directionFilterHelp)
 	f.StringVar(&v.initiative, "initiative", "", "Only work in this initiative, by number, name or id")
 	f.BoolVar(&v.autofixable, "autofixable", false, autofixableFilterHelp)
 }
@@ -282,6 +286,7 @@ func (v *readyQueueFlags) filter(cmd *cobra.Command) (api.ReadyFilter, error) {
 		Type:       v.issueType,
 		Label:      v.label,
 		Tag:        v.tag,
+		Direction:  v.direction,
 		Initiative: v.initiative,
 	}
 	if cmd.Flags().Changed("autofixable") {

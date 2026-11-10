@@ -20,6 +20,12 @@ from slate.schemas.comment import CommentDeleted
 from slate.schemas.comment import CommentLine
 from slate.schemas.comment import CommentWritten
 from slate.schemas.comment import PlacedComment
+from slate.schemas.direction import Direction
+from slate.schemas.direction import DirectionCreate
+from slate.schemas.direction import DirectionDetail
+from slate.schemas.direction import DirectionSummary
+from slate.schemas.direction import DirectionUpdate
+from slate.schemas.direction import DirectionWritten
 from slate.schemas.document import Document
 from slate.schemas.document import DocumentSummary
 from slate.schemas.document import DocumentVersion
@@ -142,6 +148,12 @@ __all__ = [
     'CommentDeleted',
     'CommentLine',
     'CommentWritten',
+    'Direction',
+    'DirectionCreate',
+    'DirectionDetail',
+    'DirectionSummary',
+    'DirectionUpdate',
+    'DirectionWritten',
     'Document',
     'DocumentSummary',
     'DocumentVersion',

@@ -494,6 +494,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 	const fixtureSession = "0f6e2a4c-1b3d-4e5f-8a9b-0c1d2e3f4a5b"
 	agentSession := `{"id":"` + fixtureSession + `","first_seen_ts":"2026-11-02T10:00:00Z","message_count":5,"tokens":{},"tokens_outside_worklogs":null,"spans":[]}`
 	reportedSession := `{"session":` + agentSession + `,"side_effects":[],"warnings":[]}`
+	direction := `{"number":2950,"name":"Data Warehouse","status":"active","ideas":[],"initiatives":[]}`
 	plan := filepath.Join(t.TempDir(), "plan.md")
 	if err := os.WriteFile(plan, []byte("# Plan\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -573,6 +574,12 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"issues", "edit", "412", "--acceptance", "It answers 200", "--path", "src/slate"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--tag", "security"}, `{"issue":{"number":412,"tags":["security"]}}`, nil},
 		{[]string{"tags", "list", "--json"}, `[]`, nil},
+		{[]string{"directions", "list", "--json"}, `[]`, nil},
+		{
+			[]string{"directions", "show", "Data Warehouse", "--json"},
+			direction,
+			map[string]string{"/api/v1/records/2950/changes": `[]`},
+		},
 		{[]string{"dependencies", "add", "412", "--depends-on", "411"}, openIssue, nil},
 		{[]string{"dependencies", "remove", "412", "--depends-on", "411"}, openIssue, nil},
 		{[]string{"issues", "reorder", "412", "--after", "398"}, openIssue, nil},
@@ -588,6 +595,11 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		},
 		{[]string{"initiatives", "create", "--name", "Practical help guides", "--summary", "A person finds the guide they need", "--priority", "high"}, `{}`, nil},
 		{[]string{"initiatives", "edit", "Practical help guides", "--priority", "high"}, `{}`, nil},
+		{
+			[]string{"initiatives", "edit", "Practical help guides", "--direction", "Data Warehouse"},
+			`{"initiative":{"number":398,"directions":[{"number":2950,"name":"Data Warehouse"}]}}`,
+			map[string]string{"/api/v1/directions/Data Warehouse": direction},
+		},
 		{[]string{"initiatives", "complete", "Practical help guides"}, `{}`, nil},
 		{[]string{"initiatives", "drop", "Practical help guides", "--reason", "Merged into the help initiative"}, `{}`, nil},
 		{[]string{"initiatives", "shelve", "Practical help guides"}, `{}`, nil},
@@ -675,6 +687,12 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"tags", "edit", "security", "--description", "Credentials and roles"}, `{}`},
 		{[]string{"tags", "rename", "perf", "performance"}, `{}`},
 		{[]string{"tags", "delete", "perf", "--yes"}, `{}`},
+		{[]string{"directions", "create", "--name", "Data Warehouse", "--summary", "All data flows through the warehouse"}, `{}`},
+		{[]string{"directions", "edit", "Data Warehouse", "--summary", "Every tool reads the warehouse"}, `{}`},
+		{[]string{"directions", "shelve", "Data Warehouse"}, `{}`},
+		{[]string{"directions", "reopen", "Data Warehouse"}, `{}`},
+		{[]string{"directions", "complete", "Data Warehouse"}, `{}`},
+		{[]string{"directions", "drop", "Data Warehouse", "--reason", "Folded into another"}, `{}`},
 		{[]string{"ideas", "create", "--title", "Run review rounds on a schedule"}, idea},
 		{[]string{"ideas", "edit", "1860", "--priority", "urgent"}, idea},
 		{[]string{"ideas", "link", "1860", "inbox:4102"}, idea},

@@ -22,6 +22,7 @@ class Vocabulary(RecordModel):
     issue_types: list[str]
     priorities: list[PriorityName]
     initiative_statuses: list[str]
+    direction_statuses: list[str]
     document_kinds: list[str]
     worklog_steps: list[WorklogStep]
     queue_steps: list[str]

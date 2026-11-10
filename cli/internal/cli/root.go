@@ -111,9 +111,9 @@ func NewRootCommand() *cobra.Command {
 			"over any record, worklog, repo or window, and `slate tui` opens a live board\n" +
 			"with a tab per view.\n" +
 			"\n" +
-			"Ideas, initiatives and issues share one number sequence, so a number names\n" +
-			"one record whatever its kind. A worklog is named under its record's number:\n" +
-			"412.2 is the second worklog on #412.\n" +
+			"Ideas, initiatives, issues and directions share one number sequence, so a\n" +
+			"number names one record whatever its kind. A worklog is named under its\n" +
+			"record's number: 412.2 is the second worklog on #412.\n" +
 			"\n" +
 			"Nothing happens that a command does not print. A write names every change\n" +
 			"it made beyond the one asked for, and every warning it went past. A read that\n" +
@@ -175,6 +175,7 @@ func NewRootCommand() *cobra.Command {
 		withAPIFlag(newTUICommand()),
 	)...)
 	root.AddCommand(inGroup(groupPlanning,
+		withAPIFlag(newDirectionsCommand()),
 		withAPIFlag(newIdeasCommand()),
 		withAPIFlag(newInitiativesCommand()),
 		withAPIFlag(newIssuesCommand()),

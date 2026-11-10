@@ -1,8 +1,8 @@
 """Hold, extend, release, wait on and end claims. `claim_views` reads them back.
 
-Another holder's live claim refuses a hold, and nothing else does. A hold names everything else
-worth a look through `claim_neighbors.warn_about_neighbors`. Each write here also names every
-claim it ends beyond the one it was asked about.
+Another holder's live claim refuses a hold, and so does a direction, which holds no work. A hold
+names everything else worth a look through `claim_neighbors.neighbor_warner`. Each write here also
+names every claim it ends beyond the one it was asked about.
 
 A hold opens a worklog, and `end_claim` is the one way a claim ends, so its worklog and its open
 wait end with it at the same moment.
@@ -27,7 +27,7 @@ from slate import models
 from slate import schemas
 from slate.models.claim import ONE_UNENDED_CLAIM_PER_RECORD
 from slate.services import worklogs
-from slate.services.claim_neighbors import warn_about_neighbors
+from slate.services.claim_neighbors import neighbor_warner
 from slate.services.claim_neighbors import warn_about_passed_over
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
@@ -149,12 +149,13 @@ def lost_the_race(exc: IntegrityError) -> bool:
 def hold(
     session: Session, record: models.Record, lease: schemas.ClaimLease, now: dt.datetime, today: dt.date, effects: WriteEffects
 ) -> models.Claim:
-    """Take a claim on the record, refused only by another holder's live claim.
+    """Take a claim on the record, refused by another holder's live claim, and on a direction, which holds no work.
 
     The insert runs in a savepoint. A hold racing this one past the read loses
     to the partial unique index, and only its own savepoint rolls back. Any
     other integrity failure is not a lost race, so it is raised as it is.
     """
+    warn_about_neighbors = neighbor_warner(record)
     attempt = effects.attempt()
     try:
         with session.begin_nested():
@@ -166,7 +167,7 @@ def hold(
         held = f'is claimed by {held_by(current, effects)}' if current is not None else 'was taken by a hold that landed first'
         raise ClaimRefused(f'#{record.number} {held}.') from None
     effects.merge(attempt)
-    warn_about_neighbors(session, record, lease.holder, now, today, effects)
+    warn_about_neighbors(session, record.number, lease.holder, now, today, effects)
     return claim
 
 
