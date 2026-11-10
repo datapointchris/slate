@@ -92,8 +92,8 @@ func initiativePath(ref string) string {
 	return "/initiatives/" + url.PathEscape(ref)
 }
 
-// InitiativeFilter narrows a list of initiatives. A zero field narrows
-// nothing, and an empty Status takes the API's default, the active ones.
+// InitiativeFilter narrows a list of initiatives. A zero field is left off the
+// query, so the API's own default applies.
 type InitiativeFilter struct {
 	Status string
 	Sort   string

@@ -417,7 +417,7 @@ func newIssuesEditCommand() *cobra.Command {
 			"  slate issues edit 412 --autofix=false\n" +
 			"  slate issues edit 412 --description-file description.md\n" +
 			"  slate issues edit 412 --acceptance \"$(cat acceptance.md)\"\n" +
-			"  slate issues edit 412 --label area-api --label needs-design\n" +
+			"  slate issues edit 412 --label needs-design --tag security\n" +
 			"  slate issues edit 412 --path cli/internal/cli --path docs/issues.md\n" +
 			"  slate issues edit 412 --initiative \"\" --deferred-until 2026-11-01",
 		SuggestFor:  editMistakenFor,

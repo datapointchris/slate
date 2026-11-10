@@ -18,13 +18,16 @@ func newLabelsCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "labels",
 		Short: "Manage the labels an issue's --label accepts",
-		Long: "An issue carries only labels made here, so a typo is refused rather than\n" +
+		Long: "A label marks how an issue was filed, such as needs-design or agent-friction.\n" +
+			"What the work is about is a tag: see slate tags.\n" +
+			"\n" +
+			"An issue carries only labels made here, so a typo is refused rather than\n" +
 			"becoming a label nobody filters on. An issue carries at most one label from\n" +
-			"each group, so area-api and area-cli, both in the area group, never meet on\n" +
-			"one issue.",
-		Example: "  slate labels list                                every label, grouped, with its unclosed issues\n" +
-			"  slate labels create --slug area-db --group area  a label --label then accepts\n" +
-			"  slate labels show area-api                       one label",
+			"each group, so found-by-hook and found-by-review, both in the found-by group,\n" +
+			"never meet on one issue.",
+		Example: "  slate labels list                                          every label, grouped, with its unclosed issues\n" +
+			"  slate labels create --slug found-by-hook --group found-by  a label --label then accepts\n" +
+			"  slate labels show needs-design                             one label",
 	})
 	goclikit.WithRecoveryHints(cmd, labelHints...)
 	splitReadingFromChanging(cmd)
@@ -73,7 +76,7 @@ func newLabelsShowCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:         "show <label>",
 		Short:       "Show one label",
-		Example:     "  slate labels show area-api",
+		Example:     "  slate labels show needs-design",
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -108,7 +111,7 @@ func newLabelsCreateCommand() *cobra.Command {
 		Short: "Add a label to the vocabulary",
 		Long: "A slug is lowercase words joined by hyphens. --group makes it exclusive with\n" +
 			"the other labels in that group.",
-		Example: "  slate labels create --slug area-db --group area\n" +
+		Example: "  slate labels create --slug found-by-hook --group found-by\n" +
 			"  slate labels create --slug needs-design --description \"Waiting on a design call\"",
 		Args:        cobra.NoArgs,
 		Annotations: personOnly(),
@@ -152,7 +155,7 @@ func newLabelsEditCommand() *cobra.Command {
 		Long: "A label's slug is its name on every issue carrying it, so it does not change.\n" +
 			"An empty value clears a field. Moving a label into a group is refused while an\n" +
 			"issue carries it beside another label of that group.",
-		Example:     "  slate labels edit area-db --group area\n  slate labels edit area-db --group \"\"",
+		Example:     "  slate labels edit found-by-hook --group found-by\n  slate labels edit found-by-hook --group \"\"",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
@@ -200,7 +203,7 @@ func newLabelsDeleteCommand() *cobra.Command {
 		Long: "Every issue carrying it loses it, closed ones included, and each is printed.\n" +
 			"Putting it back means creating it and labeling each issue again, so it\n" +
 			"prompts unless --yes.",
-		Example:     "  slate labels delete area-db --yes",
+		Example:     "  slate labels delete found-by-hook --yes",
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {

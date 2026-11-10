@@ -274,7 +274,7 @@ func newIssuesListCommand() *cobra.Command {
 			"  slate issues list --type decision\n" +
 			"  slate issues list --status triage\n" +
 			"  slate issues list --blocked\n" +
-			"  slate issues list --label area-cli --priority high\n" +
+			"  slate issues list --label needs-design --priority high\n" +
 			"  slate issues list --status completed --since 2026-10-01 --json\n" +
 			"  slate issues list --status completed --since 7d\n" +
 			"  slate issues list --status completed --closed-by claude-code/",
