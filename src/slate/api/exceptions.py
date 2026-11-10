@@ -30,6 +30,11 @@ class Refusal(enum.StrEnum):
     SCOPED_CLIENT_WRITES_WORKLOGS_AS_ITSELF = 'A service client may only start, finish or link a worklog under its own client id'
 
 
+def with_article(noun: str) -> str:
+    """The noun after the article it takes, as `an idea` or `a direction`."""
+    return f'{"an" if noun[:1] in "aeiou" else "a"} {noun}'
+
+
 class NotFoundException(HTTPException):
     """Exception raised when a requested resource is not found.
 
@@ -56,7 +61,7 @@ class NotFoundException(HTTPException):
         logger.warning('resource_not_found', resource_type=resource_type, resource_id=resource_id, held_as=held_as)
         detail = f'{resource_type} {resource_id} not found'
         if held_as is not None:
-            detail += f': #{str(resource_id).removeprefix("#")} is an {held_as}'
+            detail += f': #{str(resource_id).removeprefix("#")} is {with_article(held_as)}'
         if near:
             detail += '. A name matches only in full, and these come near it: ' + ', '.join(repr(name) for name in near)
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)

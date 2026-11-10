@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate.api.exceptions import NotFoundException
+from slate.api.exceptions import with_article
 from slate.models.record import Kind
 from slate.services.names_near import names_near
 
@@ -153,10 +154,11 @@ def resolve_issue_or_initiative(session: Session, ref: str | UUID | int) -> mode
     record_id = ref if isinstance(ref, UUID) else parse_uuid(ref) if isinstance(ref, str) else None
     if number is not None:
         record = resolve_record(session, number)
-        if record.kind == Kind.IDEA:
+        if record.kind not in (Kind.ISSUE, Kind.INITIATIVE):
+            hint = ' Promote the idea first.' if record.kind == Kind.IDEA else ''
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f'#{number} is an idea, and only issues and initiatives wait or are waited on. Promote the idea first.',
+                detail=f'#{number} is {with_article(record.kind)}, and only issues and initiatives wait or are waited on.{hint}',
             )
         found = issue_by_number(session, number) if record.kind == Kind.ISSUE else initiative_by_number(session, number)
     elif record_id is not None:
