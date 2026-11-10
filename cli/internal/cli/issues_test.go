@@ -380,6 +380,68 @@ func TestIssueCreateFields_OffersEveryInitiativeThatTakesIssues(t *testing.T) {
 	}
 }
 
+// An issue a session files links to the issue the session's worklog is on,
+// unless the flag names another or none.
+func TestIssuesCreate_DiscoveredFromDefaultsToTheSessionsIssue(t *testing.T) {
+	t.Setenv("SLATE_REPOS_REGISTRY", filepath.Join(t.TempDir(), "repos.json"))
+	t.Setenv(claudeCodeSessionEnv, "s1")
+	issueWorklog := `{"name":"2857.1","record_number":2857,"sequence":1,"record":{"number":2857,"kind":"issue","title":"t","status":"open"},"state":"live","stage":"started"}`
+	var (
+		current string
+		sent    map[string]any
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/worklogs/current":
+			if current == "" {
+				t.Errorf("asked for the worklog of session %q", r.URL.Query().Get("session"))
+			}
+			_, _ = w.Write([]byte(current))
+		case "/api/v1/initiatives":
+			_, _ = w.Write([]byte(`[]`))
+		case "/api/v1/issues":
+			_ = json.NewDecoder(r.Body).Decode(&sent)
+			found := "null"
+			if ref, ok := sent["discovered_from"].(string); ok {
+				found = `{"number":` + ref + `}`
+			}
+			_, _ = w.Write([]byte(`{"issue":{"number":2900,"title":"t","status":"open","discovered_from":` + found + `}}`))
+		default:
+			_, _ = w.Write([]byte(`{}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	asService(t, serviceIDP(t).URL, srv.URL, serviceSecret)
+
+	for _, c := range []struct {
+		name, current string
+		args          []string
+		want          string
+	}{
+		{"the session's issue", issueWorklog, nil, "2857"},
+		{"a named issue wins", issueWorklog, []string{"--discovered-from", "412"}, "412"},
+		{"an empty flag sets none", issueWorklog, []string{"--discovered-from", ""}, ""},
+		{"a worklog on an initiative", strings.Replace(issueWorklog, `"kind":"issue"`, `"kind":"initiative"`, 1), nil, ""},
+		{"no live worklog", `null`, nil, ""},
+		{"no session", "", []string{"--session", ""}, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			current, sent = c.current, nil
+			out, err := runService(t, append([]string{"issues", "create", "--title", "t"}, c.args...)...)
+			if err != nil {
+				t.Fatalf("issues create: %v", err)
+			}
+			if got, _ := sent["discovered_from"].(string); got != c.want {
+				t.Errorf("sent discovered_from %q, want %q", got, c.want)
+			}
+			if c.want != "" && !strings.Contains(out, "found in #"+c.want) {
+				t.Errorf("printed %q, want it to name #%s", out, c.want)
+			}
+		})
+	}
+}
+
 func TestIssueTrees_HideFinishedWorkByDefault(t *testing.T) {
 	byID := map[string]treeRecord{
 		"a": {ID: "a", Kind: api.RecordKindIssue, Status: api.IssueStatusCompleted},

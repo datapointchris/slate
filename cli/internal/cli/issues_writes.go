@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -183,6 +184,7 @@ func newIssuesCreateCommand() *cobra.Command {
 		issueStatus    string
 		parent         string
 		discoveredFrom string
+		session        string
 		dependsOn      []string
 		paths          []string
 		deferredUntil  string
@@ -282,6 +284,11 @@ func newIssuesCreateCommand() *cobra.Command {
 			in.Status = valuedStrFlag(f, "status", &issueStatus)
 			in.Parent = valuedStrFlag(f, "parent", &parent)
 			in.DiscoveredFrom = valuedStrFlag(f, "discovered-from", &discoveredFrom)
+			if !f.Changed("discovered-from") {
+				if in.DiscoveredFrom, err = sessionIssue(cmd.Context(), client, session); err != nil {
+					return handleArgumentAPIError(err)
+				}
+			}
 			in.DeferredUntilDate = valuedStrFlag(f, "deferred-until", &deferredUntil)
 			if f.Changed("autofix") {
 				in.Autofix = &autofix
@@ -292,7 +299,11 @@ func newIssuesCreateCommand() *cobra.Command {
 				return handleArgumentAPIError(err)
 			}
 			issue := written.Issue
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Filed #%d %s (%s)", issue.Number, issue.Title, issue.Status))
+			summary := fmt.Sprintf("Filed #%d %s (%s)", issue.Number, issue.Title, issue.Status)
+			if issue.DiscoveredFrom != nil {
+				summary += fmt.Sprintf(", found in #%d", issue.DiscoveredFrom.Number)
+			}
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
 		},
 	}
 	f := cmd.Flags()
@@ -309,13 +320,28 @@ func newIssuesCreateCommand() *cobra.Command {
 	f.StringVar(&issueStatus, "status", "", "Where it starts: "+strings.Join(createStatuses, " or ")+" (default open)")
 	withFlagValues(cmd, "status", createStatuses...)
 	f.StringVar(&parent, "parent", "", "Parent issue, which waits on this one")
-	f.StringVar(&discoveredFrom, "discovered-from", "", "Issue whose work turned this up")
+	f.StringVar(&discoveredFrom, "discovered-from", "", "Issue whose work turned this up (default: the issue --session's worklog is on; empty sets none)")
+	f.StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp+", whose worklog's issue --discovered-from defaults to")
 	f.StringArrayVar(&dependsOn, "depends-on", nil, "Issue this waits on (repeatable)")
 	f.StringArrayVar(&paths, "path", nil, issuePathHelp)
 	f.StringVar(&deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD")
 	f.BoolVar(&autofix, "autofix", false, autofixSetHelp)
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
+}
+
+// sessionIssue is the issue the session's live worklog is on, as a reference
+// --discovered-from takes. It is nil for no session, no live worklog, or a
+// worklog on an initiative or idea.
+func sessionIssue(ctx context.Context, client *api.Client, session string) (*string, error) {
+	if strings.TrimSpace(session) == "" {
+		return nil, nil
+	}
+	worklog, err := client.CurrentWorklog(ctx, session)
+	if err != nil || worklog == nil || worklog.Record.Kind != api.RecordKindIssue {
+		return nil, err
+	}
+	return ptr(strconv.Itoa(worklog.RecordNumber)), nil
 }
 
 // --- Edit ---

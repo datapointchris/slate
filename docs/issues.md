@@ -214,7 +214,10 @@ life, and someday means nobody has taken the work on.
 An issue filed as `triage` sits outside the ready queue until someone accepts
 it as `open`. Work noticed in passing is filed there, with `discovered_from`
 naming the issue it was found during. It is recorded without jumping ahead of
-work someone chose.
+work someone chose. `slate issues create` fills `discovered_from` with the
+issue the session's worklog is on, so the link costs a session nothing. A
+retrospective then reads an initiative's trailing fixes as the issues
+discovered from its own.
 
 ## Order is a person's pin, then priority, then each initiative's work together, then rank
 

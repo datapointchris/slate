@@ -572,9 +572,12 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"initiatives", "reorder", "Practical help guides", "--before", "398"}, `{}`, nil},
 		{[]string{"ideas", "reorder", "412", "--after", "398"}, `{}`, nil},
 		{
-			[]string{"issues", "create", "--title", "Left of the guides", "--initiative", "Practical help guides", "--status", "triage"},
+			[]string{"issues", "create", "--title", "Left of the guides", "--initiative", "Practical help guides", "--status", "triage", "--session", "run-pod-session"},
 			`{}`,
-			map[string]string{"/api/v1/initiatives": `[{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","name":"Practical help guides"}]`},
+			map[string]string{
+				"/api/v1/initiatives":      `[{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","name":"Practical help guides"}]`,
+				"/api/v1/worklogs/current": worklog,
+			},
 		},
 		{[]string{"initiatives", "create", "--name", "Practical help guides", "--summary", "A person finds the guide they need", "--priority", "high"}, `{}`, nil},
 		{[]string{"initiatives", "edit", "Practical help guides", "--priority", "high"}, `{}`, nil},
