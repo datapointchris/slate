@@ -36,12 +36,16 @@ def compose_postgres_image() -> str:
     return compose['services']['postgres']['image']
 
 
-def migrate_to_head(settings: Settings) -> None:
+def alembic_config(db_uri: str) -> Config:
     config = Config(str(REPO_ROOT / 'alembic.ini'))
     # The option is read through ConfigParser interpolation, so the URL's percent-escapes are doubled.
-    config.set_main_option('sqlalchemy.url', settings.postgres.db_uri.replace('%', '%%'))
+    config.set_main_option('sqlalchemy.url', db_uri.replace('%', '%%'))
     config.attributes['configure_logger'] = False
-    command.upgrade(config, 'head')
+    return config
+
+
+def migrate_to_head(settings: Settings) -> None:
+    command.upgrade(alembic_config(settings.postgres.db_uri), 'head')
 
 
 class PrivateServices:

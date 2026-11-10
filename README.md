@@ -69,10 +69,13 @@ The `Dockerfile` builds the API's image, the same one `docker compose` runs.
 
 - It runs as uid and gid 10400, and owns none of its own files, so its root
   filesystem can mount read-only.
-- Migrations are a separate step in the same image: `alembic upgrade head`. Run
+- Migrations are a separate step in the same image:
+  `python -m slate.database.migrate`, which runs `alembic upgrade head`. Run
   it before the API starts, as the compose file's `migrate` service does.
   Each migration stays compatible with the API one release behind, so the two
-  can overlap during a rollout.
+  can overlap during a rollout. For the same reason, the step leaves a
+  database a later release migrated as it is and exits 0, so an earlier
+  release can be rolled back to.
 - SIGTERM stops new connections and drains the ones in flight for up to ten
   seconds before the process exits.
 - Logs go to stdout. Each request is one line carrying its `X-Request-ID` and
@@ -84,7 +87,7 @@ Each API release pushes `deploy/` to
 `oci://ghcr.io/datapointchris/slate/manifests:<version>`, with the image named
 by digest. It holds two kustomize paths:
 
-- `migrate/` runs `alembic upgrade head` as a Job.
+- `migrate/` runs `python -m slate.database.migrate` as a Job.
 - `app/` runs the API as a Deployment behind the Service `slate-api`.
 
 Apply `migrate/`, wait for its Job to complete, then apply `app/`. With Flux,

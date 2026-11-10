@@ -48,5 +48,5 @@ ENV PATH="/app/.venv/bin:$PATH" \
 USER 10400:10400
 EXPOSE 8000
 
-# Migrations run as their own step before a rollout: `alembic upgrade head` in this image.
+# Migrations run as their own step before a rollout: `python -m slate.database.migrate` in this image.
 CMD ["uvicorn", "--factory", "slate.api.main:create_app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--timeout-graceful-shutdown", "10"]

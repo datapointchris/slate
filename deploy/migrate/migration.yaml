@@ -2,7 +2,9 @@
 # API uses. It reads the same slate-settings ConfigMap and Secret as app/,
 # since the migration loads the API's settings. Each migration keeps the
 # release before it working, so the old pods serve on the new schema while
-# the new ones start.
+# the new ones start. For the same reason, a database a later release already
+# migrated is left as it is and the Job succeeds, so rolling back to an
+# earlier release's manifests rolls its API out.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -58,7 +60,7 @@ spec:
         - name: migrate
           image: slate
           imagePullPolicy: IfNotPresent
-          command: [alembic, upgrade, head]
+          command: [python, -m, slate.database.migrate]
           envFrom:
             - configMapRef:
                 name: slate-settings

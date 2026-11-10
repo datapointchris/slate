@@ -20,7 +20,7 @@ services:
   migrate:
     build: .
     image: slate:local
-    command: ["alembic", "upgrade", "head"]
+    command: ["python", "-m", "slate.database.migrate"]
     environment: &api-environment
       POSTGRES_HOST: postgres
       POSTGRES_USERNAME: slate
