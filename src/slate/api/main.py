@@ -18,6 +18,7 @@ from fastapi.routing import APIRoute
 from fastapi.utils import is_body_allowed_for_status_code
 from opentelemetry.sdk.trace import TracerProvider
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException
 from starlette.responses import Response
 from starlette.routing import Match
@@ -43,6 +44,7 @@ from slate.api.request_logging import RequestLoggingMiddleware
 from slate.config import Settings
 from slate.config import get_settings
 from slate.database.session import get_db_engine
+from slate.database.unavailable import postgres_unavailable
 from slate.logger import initialize_logging
 from slate.tracing.tracer_provider import initialize_tracing
 from slate.tracing.tracer_provider import instrument_api
@@ -148,6 +150,14 @@ async def request_validation_exception_handler(request, exc):
     return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, validation_message(errors), errors=errors)
 
 
+async def database_error_handler(request, exc):
+    """A request Postgres cannot serve answers 503. Every other database error raises on to `unhandled_exception_handler`."""
+    if not postgres_unavailable(exc):
+        raise exc
+    logger.error('api_postgres_unavailable', path=request.url.path, error=str(exc), error_type=type(exc.orig).__name__)
+    return error_response(status.HTTP_503_SERVICE_UNAVAILABLE, 'Postgres is unavailable')
+
+
 async def unhandled_exception_handler(request, exc):
     logger.error('api_unhandled_error', path=request.url.path, error=str(exc), error_type=type(exc).__name__)
     return error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, f'Internal server error: {type(exc).__name__}')
@@ -208,6 +218,7 @@ def create_api(settings: Settings, tracer_provider: TracerProvider | None = None
 
     api.add_exception_handler(HTTPException, http_exception_handler)
     api.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+    api.add_exception_handler(DBAPIError, database_error_handler)
     api.add_exception_handler(Exception, unhandled_exception_handler)
     instrument_api(api, tracer_provider)
     return api
