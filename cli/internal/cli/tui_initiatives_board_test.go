@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -34,7 +35,7 @@ func boardFromServer(t *testing.T, read api.InitiativeBoard, scope boardScope) *
 		}
 	}))
 	t.Cleanup(server.Close)
-	board := newInitiativesBoard(api.New(server.URL, server.Client()), "", scope)
+	board := newInitiativesBoard(api.New(server.URL, server.Client()), "", scope, "")
 	if err := board.readOnce(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +144,7 @@ func TestUnderTheRepoGroupingAReorderNamesTheInitiativesItPassesThatTheGroupDoes
 	read.Repos = []api.BoardRepoRollup{{Repo: &apiRepo}, {Repo: &cliRepo}, {}}
 	board := boardFromServer(t, read, boardScope{kind: scopeEveryInitiative})
 	board.Frame(time.Now(), groupingRepo)
-	step := board.places[initiativeUnderRepo(3, "api")].below
+	step := board.places[initiativeKey(3)+placedUnder("api")].below
 	if step == nil || step.to.number != 5 || len(step.passes) != 1 || step.passes[0].number != 4 {
 		t.Fatalf("initiative 3 under api moves behind %+v, want behind 5 naming 4, which only cli draws", step)
 	}
@@ -156,5 +157,34 @@ func TestTUIWithNoTerminalRefusesAsAUsageError(t *testing.T) {
 	err := root.Execute()
 	if !errors.Is(err, goclikit.ErrUsage) {
 		t.Fatalf("got %v, want a usage error", err)
+	}
+}
+
+func TestAnInitiativeInTwoDirectionsDrawsUnderBothWithNoKeyRepeated(t *testing.T) {
+	read := sevenHighAndTwoLow()
+	warehouse, security := api.DirectionSummary{Number: 100, Name: "Data Warehouse"}, api.DirectionSummary{Number: 101, Name: "Fleet Security"}
+	read.Initiatives[0].Directions = []api.DirectionSummary{warehouse, security}
+	read.Initiatives[0].Issues = []api.BoardIssue{{Number: 50, Title: "Rotate the keys", State: "ready"}}
+	read.Directions = []api.BoardDirectionRollup{{Direction: &warehouse}, {Direction: &security}, {}}
+	board := boardFromServer(t, read, boardScope{kind: scopeEveryInitiative})
+	frame := board.Frame(time.Now(), groupingDirection)
+
+	seen, under := map[string]bool{}, map[string]int{}
+	var walk func(groups []gotermboard.Group, top string)
+	walk = func(groups []gotermboard.Group, top string) {
+		for _, group := range groups {
+			if seen[group.Key] {
+				t.Errorf("key %q is drawn twice, so the cursor would jump back to its first", group.Key)
+			}
+			seen[group.Key] = true
+			if number, ok := numberFromKey(group.Key, initiativeKeyPrefix); ok && number == 1 {
+				under[top]++
+			}
+			walk(group.Groups, cmp.Or(top, group.Key))
+		}
+	}
+	walk(frame.Groups, "")
+	if len(under) != 2 {
+		t.Errorf("initiative 1 draws under %v, want under both of its directions", under)
 	}
 }
