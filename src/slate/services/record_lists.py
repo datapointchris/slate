@@ -3,7 +3,7 @@
 A word that is a number, as `N` or `#N`, also matches the record with that number, and that
 record lists first. Every kind is listed whatever its status, because the record a reader
 remembers may be the one that closed. A promoted idea lists among the closed, since its work is
-its initiative's. A direction has no priority, so it lists at none.
+its initiative's. A pursuit has no priority, so it lists at none.
 """
 
 from __future__ import annotations
@@ -73,12 +73,10 @@ def kind_query(kind: Kind, words: list[str]) -> Select[int, str, str, str | None
             number, title = models.Idea.number, models.Idea.title
             searched = (title, models.Idea.description)
             query = select(number, literal(kind.value), title, null(), models.Idea.priority, models.Idea.created_ts, ~is_open(kind))
-        case Kind.DIRECTION:
-            number, title = models.Direction.number, models.Direction.name
-            searched = (title, models.Direction.summary, models.Direction.description)
-            query = select(
-                number, literal(kind.value), title, models.Direction.status, literal(0), models.Direction.created_ts, ~is_open(kind)
-            )
+        case Kind.PURSUIT:
+            number, title = models.Pursuit.number, models.Pursuit.name
+            searched = (title, models.Pursuit.summary, models.Pursuit.description)
+            query = select(number, literal(kind.value), title, models.Pursuit.status, literal(0), models.Pursuit.created_ts, ~is_open(kind))
     for word in words:
         query = query.where(word_matches(word, number, searched))
     return query

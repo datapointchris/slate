@@ -1,7 +1,7 @@
 """Resolve the references a person or an agent types for records and labels.
 
 A record of any kind answers to its number, as `N` or `#N`. An issue or an idea also answers
-to its UUID, an initiative or a direction to its UUID or its name, and a label to its slug. Each endpoint resolves
+to its UUID, an initiative or a pursuit to its UUID or its name, and a label to its slug. Each endpoint resolves
 what it was given inside the request that was going to reach the database anyway.
 """
 
@@ -176,50 +176,50 @@ def initiative_names(session: Session) -> list[str]:
     return list(session.scalars(query))
 
 
-def direction_by_name(session: Session, name: str) -> models.Direction | None:
-    """The active direction holding the name, else a lone inactive one, else ambiguity named."""
-    matches = session.scalars(select(models.Direction).where(models.Direction.name == name).order_by(models.Direction.number)).all()
-    active = [direction for direction in matches if direction.status == 'active']
+def pursuit_by_name(session: Session, name: str) -> models.Pursuit | None:
+    """The active pursuit holding the name, else a lone inactive one, else ambiguity named."""
+    matches = session.scalars(select(models.Pursuit).where(models.Pursuit.name == name).order_by(models.Pursuit.number)).all()
+    active = [pursuit for pursuit in matches if pursuit.status == 'active']
     if active:
         return active[0]
     if len(matches) == 1:
         return matches[0]
     if matches:
-        candidates = ', '.join(f'#{direction.number} ({direction.status})' for direction in matches)
+        candidates = ', '.join(f'#{pursuit.number} ({pursuit.status})' for pursuit in matches)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f'{name!r} names {len(matches)} directions and no active one. Use a number: {candidates}',
+            detail=f'{name!r} names {len(matches)} pursuits and no active one. Use a number: {candidates}',
         )
     return None
 
 
-def find_direction(session: Session, ref: str | UUID | int) -> models.Direction | None:
-    """The direction a number, a UUID or an exact name names, or None where it names none."""
+def find_pursuit(session: Session, ref: str | UUID | int) -> models.Pursuit | None:
+    """The pursuit a number, a UUID or an exact name names, or None where it names none."""
     if isinstance(ref, int):
-        return session.scalar(select(models.Direction).where(models.Direction.number == ref))
+        return session.scalar(select(models.Pursuit).where(models.Pursuit.number == ref))
     if isinstance(ref, UUID):
-        return session.get(models.Direction, ref)
-    if (direction_id := parse_uuid(ref)) is not None:
-        return session.get(models.Direction, direction_id)
+        return session.get(models.Pursuit, ref)
+    if (pursuit_id := parse_uuid(ref)) is not None:
+        return session.get(models.Pursuit, pursuit_id)
     if (number := record_number(ref)) is not None:
-        return session.scalar(select(models.Direction).where(models.Direction.number == number))
-    return direction_by_name(session, ref)
+        return session.scalar(select(models.Pursuit).where(models.Pursuit.number == number))
+    return pursuit_by_name(session, ref)
 
 
-def resolve_direction(session: Session, ref: str | UUID | int) -> models.Direction:
-    """Fetch a direction by its number, its UUID or its exact name."""
-    direction = find_direction(session, ref)
-    if direction is not None:
-        return direction
+def resolve_pursuit(session: Session, ref: str | UUID | int) -> models.Pursuit:
+    """Fetch a pursuit by its number, its UUID or its exact name."""
+    pursuit = find_pursuit(session, ref)
+    if pursuit is not None:
+        return pursuit
     number = ref if isinstance(ref, int) else None if isinstance(ref, UUID) else record_number(ref)
     if number is None and isinstance(ref, str) and parse_uuid(ref) is None:
-        raise NotFoundException('direction', ref, logger, near=names_near(ref, direction_names(session)))
-    raise NotFoundException('direction', str(ref), logger, held_as=kind_holding(session, number))
+        raise NotFoundException('pursuit', ref, logger, near=names_near(ref, pursuit_names(session)))
+    raise NotFoundException('pursuit', str(ref), logger, held_as=kind_holding(session, number))
 
 
-def direction_names(session: Session) -> list[str]:
-    """Every direction's name, active ones first and each group in number order."""
-    query = select(models.Direction.name).order_by((models.Direction.status == 'active').desc(), models.Direction.number)
+def pursuit_names(session: Session) -> list[str]:
+    """Every pursuit's name, active ones first and each group in number order."""
+    query = select(models.Pursuit.name).order_by((models.Pursuit.status == 'active').desc(), models.Pursuit.number)
     return list(session.scalars(query))
 
 

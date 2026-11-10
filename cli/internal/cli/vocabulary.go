@@ -20,7 +20,7 @@ func newVocabularyCommand() *cobra.Command {
 			"and `initiatives --status` accept different values. Every noun's --priority\n" +
 			"takes one scale. Statuses, types, priorities and steps are fixed by the API. Labels\n" +
 			"are made with `slate labels create` and tags with `slate tags create`, so they\n" +
-			"are the lists that grow. A --direction takes a direction `slate directions list`\n" +
+			"are the lists that grow. A --pursuit takes a pursuit `slate pursuits list`\n" +
 			"prints, by number or exact name.",
 		Example:     "  slate vocabulary\n  slate vocabulary --json",
 		Args:        cobra.NoArgs,
@@ -54,7 +54,7 @@ func printVocabulary(out io.Writer, v api.Vocabulary) {
 	_, _ = fmt.Fprintf(tw, "issues --status:\t%s\n", strings.Join(v.IssueStatuses, ", "))
 	_, _ = fmt.Fprintf(tw, "issues --type:\t%s\n", strings.Join(v.IssueTypes, ", "))
 	_, _ = fmt.Fprintf(tw, "initiatives --status:\t%s\n", strings.Join(v.InitiativeStatuses, ", "))
-	_, _ = fmt.Fprintf(tw, "directions --status:\t%s\n", strings.Join(v.DirectionStatuses, ", "))
+	_, _ = fmt.Fprintf(tw, "pursuits --status:\t%s\n", strings.Join(v.PursuitStatuses, ", "))
 	_, _ = fmt.Fprintf(tw, "documents --kind:\t%s\n", strings.Join(v.DocumentKinds, ", "))
 	_, _ = fmt.Fprintf(tw, "--priority:\t%s\n", strings.Join(priorities, ", "))
 	_, _ = fmt.Fprintf(tw, "next --step:\t%s\n", strings.Join(v.QueueSteps, ", "))

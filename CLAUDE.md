@@ -73,7 +73,7 @@ an issue's dependencies sit at `/issues/{id}/dependencies`. These commands sit
 at the root instead:
 
 - **`show` and `search` read every kind.** Ideas, initiatives, issues and
-  directions share one number sequence, so no one noun owns a read across them.
+  pursuits share one number sequence, so no one noun owns a read across them.
 - **`next` is the order to take the work in**, a question about all of it
   rather than about one noun. Its API path is `/queue`.
 - **`vocabulary` is one read of the values every noun's flags accept**, so it

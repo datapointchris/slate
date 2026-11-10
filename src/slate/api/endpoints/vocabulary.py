@@ -7,11 +7,11 @@ from sqlalchemy import select
 from slate import models
 from slate import schemas
 from slate.api.callers import DbSession
-from slate.models.direction import DIRECTION_STATUSES
 from slate.models.document import DOCUMENT_KINDS
 from slate.models.initiative import INITIATIVE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
+from slate.models.pursuit import PURSUIT_STATUSES
 from slate.models.record import PRIORITIES
 from slate.schemas.queue import QUEUE_STEPS
 from slate.services.issue_views import label_views
@@ -30,7 +30,7 @@ def read(session: DbSession):
     issue_statuses = set(session.scalars(select(models.IssueStatus.name)).all())
     issue_types = set(session.scalars(select(models.IssueType.name)).all())
     initiative_statuses = set(session.scalars(select(models.InitiativeStatus.name)).all())
-    direction_statuses = set(session.scalars(select(models.DirectionStatus.name)).all())
+    pursuit_statuses = set(session.scalars(select(models.PursuitStatus.name)).all())
     document_kinds = set(session.scalars(select(models.DocumentKind.name)).all())
     worklog_steps = session.scalars(select(models.WorklogStep).order_by(models.WorklogStep.position)).all()
     return schemas.Vocabulary(
@@ -38,7 +38,7 @@ def read(session: DbSession):
         issue_types=in_declared_order(issue_types, ISSUE_TYPES),
         priorities=[schemas.PriorityName(value=value, name=name) for value, name in PRIORITIES.items()],
         initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),
-        direction_statuses=in_declared_order(direction_statuses, DIRECTION_STATUSES),
+        pursuit_statuses=in_declared_order(pursuit_statuses, PURSUIT_STATUSES),
         document_kinds=in_declared_order(document_kinds, DOCUMENT_KINDS),
         worklog_steps=[schemas.WorklogStep.model_validate(step) for step in worklog_steps],
         queue_steps=QUEUE_STEPS,

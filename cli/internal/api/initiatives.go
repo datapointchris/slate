@@ -45,20 +45,24 @@ type Initiative struct {
 	CreatedTS     time.Time  `json:"created_ts"`
 	ClosedTS      *time.Time `json:"closed_ts"`
 	Tags          []string   `json:"tags"`
-	// Directions is each direction it is in, in number order. Each of its
+	// Pursuits is each pursuit it is in, in number order. Each of its
 	// issues reads them as its own.
-	Directions         []DirectionSummary `json:"directions"`
-	IssueCount         int                `json:"issue_count"`
-	OpenCount          int                `json:"open_count"`
-	CompletedCount     int                `json:"completed_count"`
-	CanceledCount      int                `json:"canceled_count"`
-	Repos              []string           `json:"repos"`
-	Claim              *Claim             `json:"claim"`
-	Idea               *RecordSummary     `json:"idea"`
-	DependsOn          []RecordSummary    `json:"depends_on"`
-	WaitingInitiatives []RecordSummary    `json:"waiting_initiatives"`
-	Steps              []CheckedStep      `json:"steps"`
-	Stage              string             `json:"stage"`
+	Pursuits []PursuitSummary `json:"pursuits"`
+	// Directions is Pursuits under the name the release before pursuits
+	// served, so a reader of that name keeps reading it until a later release
+	// drops it.
+	Directions         []PursuitSummary `json:"directions"`
+	IssueCount         int              `json:"issue_count"`
+	OpenCount          int              `json:"open_count"`
+	CompletedCount     int              `json:"completed_count"`
+	CanceledCount      int              `json:"canceled_count"`
+	Repos              []string         `json:"repos"`
+	Claim              *Claim           `json:"claim"`
+	Idea               *RecordSummary   `json:"idea"`
+	DependsOn          []RecordSummary  `json:"depends_on"`
+	WaitingInitiatives []RecordSummary  `json:"waiting_initiatives"`
+	Steps              []CheckedStep    `json:"steps"`
+	Stage              string           `json:"stage"`
 }
 
 // InitiativeDetail is an initiative with its claims, comments and documents.
@@ -76,11 +80,11 @@ type InitiativeCreateInput struct {
 	Priority    *int     `json:"priority,omitempty"`
 	Autofix     *bool    `json:"autofix,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
-	Directions  []int    `json:"directions,omitempty"`
+	Pursuits    []int    `json:"pursuits,omitempty"`
 }
 
 // InitiativeUpdateInput is a partial update, cleared the way IssueUpdateInput
-// is. Tags and Directions each replace the whole set, and every issue in it
+// is. Tags and Pursuits each replace the whole set, and every issue in it
 // reads the new set.
 type InitiativeUpdateInput struct {
 	Name         *string   `json:"name,omitempty"`
@@ -91,7 +95,7 @@ type InitiativeUpdateInput struct {
 	Priority     *int      `json:"priority,omitempty"`
 	Autofix      *bool     `json:"autofix,omitempty"`
 	Tags         *[]string `json:"tags,omitempty"`
-	Directions   *[]int    `json:"directions,omitempty"`
+	Pursuits     *[]int    `json:"pursuits,omitempty"`
 }
 
 func initiativePath(ref string) string {
@@ -101,17 +105,17 @@ func initiativePath(ref string) string {
 // InitiativeFilter narrows a list of initiatives. A zero field is left off the
 // query, so the API's own default applies.
 type InitiativeFilter struct {
-	Status    string
-	Sort      string
-	Tag       string
-	Direction string
+	Status  string
+	Sort    string
+	Tag     string
+	Pursuit string
 }
 
 // ListInitiatives returns initiatives in the order to work them.
 func (c *Client) ListInitiatives(ctx context.Context, filter InitiativeFilter, limit *int) ([]Initiative, error) {
 	query := url.Values{}
 	for name, value := range map[string]string{
-		"status": filter.Status, "sort": filter.Sort, "tag": filter.Tag, "direction": filter.Direction,
+		"status": filter.Status, "sort": filter.Sort, "tag": filter.Tag, "pursuit": filter.Pursuit,
 	} {
 		if value != "" {
 			query.Set(name, value)

@@ -9,7 +9,8 @@ The audit trigger stores only the columns an update changed, so the update endin
 record. An insert or a delete holds the whole row. So a row hanging off a record is found by the
 parent its insert or its delete names, and every write to that row is then read by its own key.
 Audit rows imported with another tracker's rows are found the same way, under the table names they
-were written with.
+were written with. A kind's table names in `FORMERLY` the tables its rows lived in before, under the
+same ids, so a record's writes there read as its own.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from slate import models
 from slate import schemas
 from slate.database.base import Base
 from slate.models.record import Kind
+from slate.models.record_change import FORMERLY
 from slate.models.record_change import KNOWN_BY
 from slate.models.record_change import RECORDED
 from slate.services.row_limit import apply_row_limit
@@ -79,7 +81,8 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
     """Every write to `record` and to each row hanging off it, newest first, the latest `limit` of them."""
     kind_model = models.KIND_MODELS[record.kind]
     record_id = str(session.scalars(select(kind_model.id).where(kind_model.number == record.number)).one())
-    own = {(models.Record.__tablename__, str(record.number)), (kind_model.__tablename__, record_id)}
+    formerly = Base.metadata.tables[kind_model.__tablename__].info.get(FORMERLY, ())
+    own = {(models.Record.__tablename__, str(record.number)), *((table, record_id) for table in (kind_model.__tablename__, *formerly))}
     written = set(own)
     found = own
     while found:

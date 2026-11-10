@@ -32,11 +32,15 @@ type Idea struct {
 	CreatedTS     time.Time  `json:"created_ts"`
 	UpdatedTS     time.Time  `json:"updated_ts"`
 	Tags          []string   `json:"tags"`
-	// Directions is each direction the idea is in, in number order.
-	Directions []DirectionSummary `json:"directions"`
-	Evidence   []IdeaEvidence     `json:"evidence"`
-	Initiative *Initiative        `json:"initiative"`
-	Claim      *Claim             `json:"claim"`
+	// Pursuits is each pursuit the idea is in, in number order.
+	Pursuits []PursuitSummary `json:"pursuits"`
+	// Directions is Pursuits under the name the release before pursuits
+	// served, so a reader of that name keeps reading it until a later release
+	// drops it.
+	Directions []PursuitSummary `json:"directions"`
+	Evidence   []IdeaEvidence   `json:"evidence"`
+	Initiative *Initiative      `json:"initiative"`
+	Claim      *Claim           `json:"claim"`
 }
 
 // IdeaDetail is an idea with its claims, comments and documents.
@@ -57,17 +61,17 @@ type IdeaCreateInput struct {
 	Description *string  `json:"description,omitempty"`
 	Priority    *int     `json:"priority,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
-	Directions  []int    `json:"directions,omitempty"`
+	Pursuits    []int    `json:"pursuits,omitempty"`
 }
 
 // IdeaUpdateInput is a partial update, cleared the way IssueUpdateInput is.
-// Tags and Directions each replace the whole set.
+// Tags and Pursuits each replace the whole set.
 type IdeaUpdateInput struct {
 	Title       *string   `json:"title,omitempty"`
 	Description *string   `json:"description,omitempty"`
 	Priority    *int      `json:"priority,omitempty"`
 	Tags        *[]string `json:"tags,omitempty"`
-	Directions  *[]int    `json:"directions,omitempty"`
+	Pursuits    *[]int    `json:"pursuits,omitempty"`
 }
 
 // IdeaEvidenceInput links each of Refs, with one note and linker for all.
@@ -88,7 +92,7 @@ type IdeaPromoteInput struct {
 	Status      string    `json:"status,omitempty"`
 	Autofix     *bool     `json:"autofix,omitempty"`
 	Tags        *[]string `json:"tags,omitempty"`
-	Directions  *[]int    `json:"directions,omitempty"`
+	Pursuits    *[]int    `json:"pursuits,omitempty"`
 }
 
 func ideaPath(ref string) string {
@@ -97,8 +101,8 @@ func ideaPath(ref string) string {
 
 // IdeaFilter narrows a list of ideas. A zero field narrows nothing.
 type IdeaFilter struct {
-	Tag       string
-	Direction string
+	Tag     string
+	Pursuit string
 }
 
 // ListIdeas returns every idea, promoted or not, most urgent first.
@@ -107,8 +111,8 @@ func (c *Client) ListIdeas(ctx context.Context, filter IdeaFilter, limit *int) (
 	if filter.Tag != "" {
 		query.Set("tag", filter.Tag)
 	}
-	if filter.Direction != "" {
-		query.Set("direction", filter.Direction)
+	if filter.Pursuit != "" {
+		query.Set("pursuit", filter.Pursuit)
 	}
 	applyLimit(query, limit)
 	var ideas []Idea

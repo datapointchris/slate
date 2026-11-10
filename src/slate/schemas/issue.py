@@ -6,10 +6,10 @@ from pydantic import AfterValidator
 from pydantic import StringConstraints
 
 from slate.schemas.claim import Claim
-from slate.schemas.direction import DirectionSummary
 from slate.schemas.initiative import InitiativeRef
 from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.not_null import NotNull
+from slate.schemas.pursuit import InPursuits
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
@@ -119,7 +119,7 @@ class Blocker(RecordSummary):
     through_initiative: int | None = None
 
 
-class Issue(RecordModel):
+class Issue(InPursuits):
     """An issue travels with everything a list row needs, so no client fans out.
 
     `effective_priority` is the priority the ready queue sorts by: the most
@@ -135,7 +135,7 @@ class Issue(RecordModel):
     it back now, whatever the cause, and is empty exactly when `is_blocked` is
     false. `waiting_initiatives` is each initiative waiting on this issue. `tags` is the
     issue's own, which a write sets, and `effective_tags` its own plus its initiative's, which a
-    `tag` filter matches. `directions` is its initiative's, since an issue joins none itself.
+    `tag` filter matches. `pursuits` is its initiative's, since an issue joins none itself.
     """
 
     id: UUID
@@ -164,7 +164,6 @@ class Issue(RecordModel):
     labels: list[str] = []
     tags: list[str] = []
     effective_tags: list[str] = []
-    directions: list[DirectionSummary] = []
     depends_on: list[IssueSummary] = []
     blocks: list[IssueSummary] = []
     initiative_waits_on: list[RecordSummary] = []

@@ -1,15 +1,16 @@
 # Records
 
-slate's planning records are ideas, initiatives, issues and directions. An
+slate's planning records are ideas, initiatives, issues and pursuits. An
 idea is work that may happen. An initiative is a committed outcome that groups
-and orders issues. An issue is one change with its acceptance. A direction is
-one way the work moves toward its vision, which ideas and initiatives join.
+and orders issues. An issue is one change with its acceptance. A pursuit is a
+condition the work should bring about and hold, read from what is measured,
+which ideas and initiatives join.
 
 ## Every kind is one record, numbered from one sequence
 
 `records` holds one row per number, saying which kind holds it. The number
 comes from the Postgres sequence `record_numbers`. Each kind's table,
-`ideas`, `initiatives`, `issues` and `directions`, references its row one to
+`ideas`, `initiatives`, `issues` and `pursuits`, references its row one to
 one.
 
 That is class table inheritance: a supertype table with what every kind
@@ -34,7 +35,7 @@ issue's parent, its dependencies, its labels. The number is the handle a
 person or an agent types.
 
 `records` also holds `rank`, the place each record takes in the queue, so
-ideas, initiatives and issues are ordered in one space. A direction holds no
+ideas, initiatives and issues are ordered in one space. A pursuit holds no
 work, so it never takes a place. [issues.md](issues.md) gives the order.
 
 ## A number reads as its kind's whole record
@@ -47,7 +48,7 @@ the read the kind's own route gives, with every claim the record has had:
 | `idea` | `GET /ideas/{number}` |
 | `initiative` | `GET /initiatives/{number}` |
 | `issue` | `GET /issues/{number}` |
-| `direction` | `GET /directions/{number}` |
+| `pursuit` | `GET /pursuits/{number}` |
 
 `kind` discriminates the union in the OpenAPI schema, so a typed client
 decodes `record` into the right shape before reading it. A number nobody
@@ -132,7 +133,7 @@ also matches the record with that number. That record lists first, ahead of the
 records whose text cites it, because a reader typing a number is looking for
 that record. It reads every status, because the record a reader remembers may
 be the one that closed. Unclosed records come next, then the most urgent, then
-the newest. An idea has no status, so it sorts with the unclosed. A direction
+the newest. An idea has no status, so it sorts with the unclosed. A pursuit
 has no priority, so it sorts as none among its peers. `kind`
 narrows the list to one kind. `slate search <words>` prints it. `slate issues
 list --search <words>` asks `GET /issues?search=` instead, beside every issue
@@ -191,83 +192,96 @@ and their groups exclude each other.
 - *Rejected:* copying an initiative's tags onto its issues. The copy goes stale
   the moment the initiative's tags change or the issue moves.
 
-## A direction is a record ideas and initiatives join, and an issue reads its initiative's
+## A pursuit is a measured condition ideas and initiatives join, and an issue reads its initiative's
 
-A direction is one way the work moves toward its vision, and it closes when the
-work gets there. Linear draws the same layer, where an Initiative groups Projects
-toward a company objective. OKRs differ by being time-boxed, and SAFe's
-strategic themes by lasting.
+A pursuit is a condition the work should bring about and hold, read from what
+is measured rather than from time spent. It closes when it is met or dropped.
+Linear draws the same layer, where an Initiative groups Projects toward a
+company objective. An OKR pairs an objective with the key results that measure
+it, as a pursuit pairs its summary with its measure, and differs by being
+time-boxed.
 
-`directions` is a fourth kind's table, so a direction takes its number from the
+`pursuits` is a fourth kind's table, so a pursuit takes its number from the
 same sequence, and `slate show`, `slate search`, comments and documents reach
-it. It holds a `name`, a one-line `summary` of where it ends, a `description`,
-and a `status` from `direction_statuses`, which `slate vocabulary` prints. A drop
-needs a `status_reason`, and completing or dropping one stamps `closed_ts`. An active direction's name is its own, through a partial
-unique index. A name shaped like a number is refused, because `--direction`
-takes either.
+it. It holds a `name`, a one-line `summary` of what the condition means, a
+`description`, a `measure`, and a `status` from `pursuit_statuses`, which
+`slate vocabulary` prints. A drop needs a `status_reason`, and completing or
+dropping one stamps `closed_ts`. An active pursuit's name is its own, through a
+partial unique index. A name shaped like a number is refused, because
+`--pursuit` takes either.
 
-`record_directions` holds one row per member and direction, keyed on
-`(record_number, direction_id)`. Each half is an `ON DELETE CASCADE` key, one
-onto `records.number` and one onto `directions.id`. Only an idea or an initiative
+`measure` is one line naming the command that reads where the pursuit stands,
+and null where nothing measures it yet. `--measure` sets it on `slate pursuits
+create` and `edit`, and an empty value clears it. `slate pursuits list` prints
+it under `MEASURE`, `-` where it is null, and `slate pursuits show` prints it
+on a `measure:` line, `none` where it is null.
+
+`record_pursuits` holds one row per member and pursuit, keyed on
+`(record_number, pursuit_id)`. Each half is an `ON DELETE CASCADE` key, one
+onto `records.number` and one onto `pursuits.id`. Only an idea or an initiative
 joins. The membership hangs off both records, so `slate show` prints a placing
-among the member's changes and the direction's, under the direction's name.
+among the member's changes and the pursuit's, under the pursuit's name.
 
-An issue reads its initiative's directions, derived on every read as its
+An issue reads its initiative's pursuits, derived on every read as its
 inherited tags are. It has none of its own, so its read holds one list.
 
 Every idea, initiative and issue read, and each initiative on `GET
-/initiatives/board`, carries `directions` as `[{number, name}]`, in number order.
-`directions` on an idea or initiative create sets them, and on an update
-replaces the set. Both take numbers. A number naming no direction is refused
+/initiatives/board`, carries `pursuits` as `[{number, name}]`, in number order.
+Each also carries `directions`, the same list under the name the release before
+pursuits served, and the `direction` filter narrows as `pursuit` does, so a
+reader of the old name keeps working until a later release drops both. The
+CLI's `--json` carries both fields too.
+`pursuits` on an idea or initiative create sets them, and on an update
+replaces the set. Both take numbers. A number naming no pursuit is refused
 with 422, naming every active one:
 
 ```text
-#9999 names no direction. The active directions: #2950 Data Warehouse. `slate directions create` adds a direction.
+#9999 names no pursuit. The active pursuits: #2950 Data Warehouse. `slate pursuits create` adds a pursuit.
 ```
 
-A completed or dropped direction takes no new members. A write placing a record
+A completed or dropped pursuit takes no new members. A write placing a record
 in one answers 409:
 
 ```text
-Direction 'Mobile App' is dropped. Reopen it before placing work in it.
+Pursuit 'Mobile App' is dropped. Reopen it before placing work in it.
 ```
 
 A record already in it stays, so an edit to that record still goes through. A
-promotion carrying the idea's directions meets the same refusal.
+promotion carrying the idea's pursuits meets the same refusal.
 
-`--direction` takes a number or the exact name. The CLI reads a name's number
-with `GET /directions/{ref}` before the write, which is why `slate.records.plan`
-reaches that read. A promotion gives the initiative the idea's directions unless
+`--pursuit` takes a number or the exact name. The CLI reads a name's number
+with `GET /pursuits/{ref}` before the write, which is why `slate.records.plan`
+reaches that read. A promotion gives the initiative the idea's pursuits unless
 the request names its own.
 
-`direction` narrows `GET /ideas`, `GET /initiatives`, `GET /issues` through each
+`pursuit` narrows `GET /ideas`, `GET /initiatives`, `GET /issues` through each
 issue's initiative, and every read `ReadyFilter` filters, such as `GET /queue`
-and `POST /claims/next`. A filter naming no direction answers the same 422,
+and `POST /claims/next`. A filter naming no pursuit answers the same 422,
 with the names near what was typed. The CLI checks every answer to a
-`--direction` it sent, as it does `--tag`, because an API from before directions
+`--pursuit` it sent, as it does `--tag`, because an API from before pursuits
 drops the filter and answers 200.
 
-A tag and a direction are the two groupings, the filters that narrow ideas,
+A tag and a pursuit are the two groupings, the filters that narrow ideas,
 initiatives and issues alike.
 `RecordGroupings` declares them and `narrowed_to_groupings` applies them, at each
 list and at the queue. A queue filter declared outside it reads only issues, so
 a filter added there leaves the ideas and initiatives out until it is made a
 grouping.
 
-A direction holds no work. `slate next` never lists one, a claim on one is
+A pursuit holds no work. `slate next` never lists one, a claim on one is
 refused with 422 before anything is taken, and a reorder refuses it. It lends no
-priority, because the tiers stay on initiatives and a pin moves a direction's
-work. `slate totals` on a direction sums each idea and initiative in it, as
+priority, because the tiers stay on initiatives and a pin moves a pursuit's
+work. `slate totals` on a pursuit sums each idea and initiative in it, as
 [totals.md](totals.md) gives.
 
-`GET|POST /directions` and `GET|PATCH /directions/{ref}` serve it, with
-`slate directions create|edit|list|show|complete|drop|shelve|reopen`, the
+`GET|POST /pursuits` and `GET|PATCH /pursuits/{ref}` serve it, with
+`slate pursuits create|edit|list|show|complete|drop|shelve|reopen`, the
 initiatives' verbs. The list reads the
 active ones unless `status` asks for another or `all`, and its header counts the
-active ones, so spreading thin shows. Nothing deletes a direction. A drop keeps
+active ones, so spreading thin shows. Nothing deletes a pursuit. A drop keeps
 it, with why.
 
-`slate show` of a direction and `slate directions show` print a line per
+`slate show` of a pursuit and `slate pursuits show` print a line per
 initiative in it, whatever its status, with its open, done and canceled issues
 and each step checked on it:
 
@@ -277,18 +291,26 @@ and each step checked on it:
 ```
 
 So a low-priority initiative is found and counted from the effort it serves. The
-CLI reads the lines from `GET /initiatives?direction=<n>&status=all`, and `--json`
+CLI reads the lines from `GET /initiatives?pursuit=<n>&status=all`, and `--json`
 carries those rows as `initiative_rows`. The rows are one section of the show, so
 a failed read prints each initiative by number and name, warns why, and `--json`
 carries `initiative_rows` as null beside `initiative_rows_error`. An idea in it
 prints by number and name.
 
-- *Rejected:* a direction as a tag. A tag is a category that never ends. A
-  direction closes, says where it ends, and carries its own discussion.
-- *Rejected:* a membership keyed on the direction's number. `records.number`
-  would accept an issue's number as a direction, and only `directions.id`
+`directions`, `direction_statuses` and `record_directions` hold each pursuit and
+placement under the kind's former name, as they stood when the kind was renamed.
+They stay for the release before, which reads them while both serve, and nothing
+here reads them. Each pursuit kept its number and its id, and `pursuits` names
+`directions` under `FORMERLY` in its table info. So a pursuit's changes include
+the writes it took as a direction, and the placements made in it then.
+
+- *Rejected:* a pursuit as a tag. A tag is a category that never ends. A
+  pursuit closes, says what it means and what measures it, and carries its own
+  discussion.
+- *Rejected:* a membership keyed on the pursuit's number. `records.number`
+  would accept an issue's number as a pursuit, and only `pursuits.id`
   makes the database refuse it.
-- *Rejected:* placing an issue in a direction itself. It moves with its
+- *Rejected:* placing an issue in a pursuit itself. It moves with its
   initiative, so its own membership would go stale on a move.
 
 ## Every write answers what it wrote and what else it did

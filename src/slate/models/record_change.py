@@ -42,6 +42,9 @@ ACTOR = 'record_changes_actor'
 # A table's `info` key naming the column a person knows its rows by, as a tag by its name. A change
 # to a row holding one of its keys reads that name beside the key.
 KNOWN_BY = 'record_changes_known_by'
+# A kind's table `info` key naming the tables its rows were held in before, under the same ids. The
+# writes a record's row took there read as the record's own.
+FORMERLY = 'record_changes_formerly'
 
 
 class RecordChange(Base):

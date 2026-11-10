@@ -14,17 +14,17 @@ from slate import schemas
 from slate.api.callers import DbSession
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
-from slate.schemas.record_read import DirectionRecord
 from slate.schemas.record_read import IdeaRecord
 from slate.schemas.record_read import InitiativeRecord
 from slate.schemas.record_read import IssueRecord
+from slate.schemas.record_read import PursuitRecord
 from slate.schemas.record_read import RecordRead
-from slate.services.directions import direction_detail
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
 from slate.services.initiative_views import counted
 from slate.services.initiative_views import initiative_detail
 from slate.services.issue_views import fresh_issue_detail
+from slate.services.pursuits import pursuit_detail
 from slate.services.record_changes import record_changes
 from slate.services.record_dependencies import add_initiative_wait
 from slate.services.record_dependencies import add_issue_dependency
@@ -77,9 +77,9 @@ def read_one(number: str, session: DbSession, zone: RequestZone) -> RecordRead:
         case Kind.IDEA:
             idea = session.scalars(select(models.Idea).options(*IDEA_LOAD_OPTIONS).where(models.Idea.number == record.number)).one()
             return IdeaRecord(number=record.number, record=idea_detail(session, idea))
-        case Kind.DIRECTION:
-            direction = session.scalars(select(models.Direction).where(models.Direction.number == record.number)).one()
-            return DirectionRecord(number=record.number, record=direction_detail(session, direction))
+        case Kind.PURSUIT:
+            pursuit = session.scalars(select(models.Pursuit).where(models.Pursuit.number == record.number)).one()
+            return PursuitRecord(number=record.number, record=pursuit_detail(session, pursuit))
 
 
 @router.get('/{number}/changes', response_model=list[schemas.RecordChange], status_code=status.HTTP_200_OK)

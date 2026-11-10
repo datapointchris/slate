@@ -135,7 +135,7 @@ counts is left unlabeled rather than rounded.
 A CLI released ahead of its API says so where a chart would be: the repos tab names the missing
 read, and the burn-up says the API answers none.
 
-## `v` groups the same initiatives by tier, repo, direction, tag or alone
+## `v` groups the same initiatives by tier, repo, pursuit, tag or alone
 
 Tier is the default, because priority is the order the queue takes them in. Repo draws a group
 per repo the issues name, the most open first and `no repo` last. Under it sits each initiative
@@ -154,26 +154,26 @@ finds its row by key, so two rows sharing one would pull the cursor back to the 
 read. An initiative's key, its issues', and their sessions' and pull requests' all end in
 `@` and the group.
 
-## Direction and tag answer which way the work has been neglected
+## Pursuit and tag answer which way the work has been neglected
 
-Direction draws a group per direction and tag one per tag, each holding every initiative in it
-whole. An initiative in two directions draws under both, and one in none under `no direction`,
-last. The groups come with the fewest closes in 30 days first, so the direction nothing has moved
+Pursuit draws a group per pursuit and tag one per tag, each holding every initiative in it
+whole. An initiative in two pursuits draws under both, and one in none under `no pursuit`,
+last. The groups come with the fewest closes in 30 days first, so the pursuit nothing has moved
 in leads the screen. That is Slurm's fair-share without assigned shares: the least served goes
-first. An active direction holding no initiative still draws, at zero, and so does an unused tag.
+first. An active pursuit holding no initiative still draws, at zero, and so does an unused tag.
 A group whose initiatives all sit past the scope draws too, as `Neglected Way · 0 of 1`. A
-direction whose work all ranks low is the one this grouping exists to show. The board read
+pursuit whose work all ranks low is the one this grouping exists to show. The board read
 names each group's members, so the client never decides which initiatives a group holds.
 
 A group's line is its rollup on the same columns, and the line under it names its active
 initiative touched longest ago and how long ago. The group's closes, 24H, 7D, 30D, LAST and the
 spark, count every initiative in it, including one completed inside the window that the board
-does not hold. DONE, RUN, BLK and RDY count only the initiatives the board holds. So a direction
+does not hold. DONE, RUN, BLK and RDY count only the initiatives the board holds. So a pursuit
 whose work finished last week still shows the effort. The panel says so. `docs/issues.md` says
 what counts as a touch.
 
 - *Rejected:* summing the drawn initiatives' closes in the client. The board holds only the
-  initiatives at one status, so a direction's completed work would vanish from it the day the
+  initiatives at one status, so a pursuit's completed work would vanish from it the day the
   initiative closed.
 
 ## An issue unfolds into the sessions and pull requests its worklogs hold

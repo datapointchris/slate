@@ -30,7 +30,7 @@ from slate.services.names_near import names_near
 from slate.services.open_records import is_open
 from slate.services.row_limit import apply_row_limit
 
-# The kinds a tag goes on. A direction is a grouping of its own rather than a record a category describes.
+# The kinds a tag goes on. A pursuit is a grouping of its own rather than a record a category describes.
 TAGGED_KINDS = (Kind.IDEA, Kind.INITIATIVE, Kind.ISSUE)
 
 

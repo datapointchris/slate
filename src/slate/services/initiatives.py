@@ -18,8 +18,8 @@ from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.issue_readiness import PINNED
 from slate.services.issue_readiness import UNPINNED
-from slate.services.record_directions import resolve_directions
-from slate.services.record_directions import set_record_directions
+from slate.services.record_pursuits import resolve_pursuits
+from slate.services.record_pursuits import set_record_pursuits
 from slate.services.record_refs import record_number
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
@@ -123,7 +123,7 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
     if initiative.status == 'active':
         ensure_active_name_available(session, initiative.name)
     tags = resolve_tags(session, initiative.tags)
-    directions = resolve_directions(session, initiative.directions)
+    pursuits = resolve_pursuits(session, initiative.pursuits)
 
     db_obj = models.Initiative(
         name=initiative.name,
@@ -141,5 +141,5 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
     session.add(db_obj)
     session.flush()
     set_record_tags(session, db_obj.number, tags)
-    set_record_directions(session, db_obj.number, directions)
+    set_record_pursuits(session, db_obj.number, pursuits)
     return db_obj

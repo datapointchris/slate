@@ -1,6 +1,6 @@
 """Hold, extend, release, wait on and end claims. `claim_views` reads them back.
 
-Another holder's live claim refuses a hold, and so does a direction, which holds no work. A hold
+Another holder's live claim refuses a hold, and so does a pursuit, which holds no work. A hold
 names everything else worth a look through `claim_neighbors.neighbor_warner`. Each write here also
 names every claim it ends beyond the one it was asked about.
 
@@ -149,7 +149,7 @@ def lost_the_race(exc: IntegrityError) -> bool:
 def hold(
     session: Session, record: models.Record, lease: schemas.ClaimLease, now: dt.datetime, today: dt.date, effects: WriteEffects
 ) -> models.Claim:
-    """Take a claim on the record, refused by another holder's live claim, and on a direction, which holds no work.
+    """Take a claim on the record, refused by another holder's live claim, and on a pursuit, which holds no work.
 
     The insert runs in a savepoint. A hold racing this one past the read loses
     to the partial unique index, and only its own savepoint rolls back. Any

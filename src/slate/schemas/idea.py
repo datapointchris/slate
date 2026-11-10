@@ -7,9 +7,9 @@ from pydantic import Field
 from pydantic import StringConstraints
 
 from slate.schemas.claim import Claim
-from slate.schemas.direction import DirectionSummary
 from slate.schemas.initiative import Initiative
 from slate.schemas.not_null import NotNull
+from slate.schemas.pursuit import InPursuits
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
@@ -34,17 +34,17 @@ class IdeaCreate(RecordModel):
     description: str | None = None
     priority: Priority = 0
     tags: list[str] = []
-    directions: list[int] = []
+    pursuits: list[int] = []
 
 
 class IdeaUpdate(RecordModel):
-    """`tags` and `directions` each replace the idea's whole set."""
+    """`tags` and `pursuits` each replace the idea's whole set."""
 
     title: NotNull[Title] = None
     description: str | None = None
     priority: NotNull[Priority] = None
     tags: NotNull[list[str]] = None
-    directions: NotNull[list[int]] = None
+    pursuits: NotNull[list[int]] = None
 
 
 class IdeaEvidenceLink(RecordModel):
@@ -65,7 +65,7 @@ class IdeaPromote(RecordModel):
     status: Literal['active', 'someday'] = 'active'
     autofix: bool = False
     tags: list[str] | None = None
-    directions: list[int] | None = None
+    pursuits: list[int] | None = None
 
 
 class IdeaEvidence(RecordModel):
@@ -78,11 +78,11 @@ class IdeaEvidence(RecordModel):
     linked_ts: dt.datetime
 
 
-class Idea(RecordModel):
+class Idea(InPursuits):
     """An idea, its evidence oldest first, and the initiative it became with that initiative's progress.
 
     `claim` is the idea's unended claim, live or expired. `rank` places it among the records of its
-    priority in the queue. `directions` is each direction it is in, in number order.
+    priority in the queue. `pursuits` is each pursuit it is in, in number order.
     """
 
     id: UUID
@@ -97,7 +97,6 @@ class Idea(RecordModel):
     created_ts: dt.datetime
     updated_ts: dt.datetime
     tags: list[str] = []
-    directions: list[DirectionSummary] = []
     evidence: list[IdeaEvidence] = []
     initiative: Initiative | None = None
     claim: Claim | None = None

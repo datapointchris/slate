@@ -1,7 +1,7 @@
 """What a hold warns about: the record's own state, and each neighbor that is open or claimed.
 
 None of these refuses the hold. Another holder's live claim on the record itself is the one
-conflict that does, in `claims.take`, and a direction is refused before it, since it holds no work.
+conflict that does, in `claims.take`, and a pursuit is refused before it, since it holds no work.
 A neighbor the same holder claims is that holder's own work, so it goes unnamed.
 
 An issue's neighbors are its initiative, what that initiative waits on, any initiative whose plan
@@ -43,9 +43,9 @@ NeighborWarner = Callable[[Session, int, str, dt.datetime, dt.date, WriteEffects
 
 
 def neighbor_warner(record: models.Record) -> NeighborWarner:
-    """What a hold on `record` warns about, read before the hold so a direction is refused before any claim is written.
+    """What a hold on `record` warns about, read before the hold so a pursuit is refused before any claim is written.
 
-    A direction holds no work. A claim on one would take every initiative in it out of the queue.
+    A pursuit holds no work. A claim on one would take every initiative in it out of the queue.
     """
     match record.kind:
         case Kind.ISSUE:
@@ -54,10 +54,10 @@ def neighbor_warner(record: models.Record) -> NeighborWarner:
             return warn_about_initiative
         case Kind.IDEA:
             return warn_about_idea
-        case Kind.DIRECTION:
+        case Kind.PURSUIT:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f'#{record.number} is a direction, which holds no work, so no claim holds it. Hold an idea or an initiative in it.',
+                detail=f'#{record.number} is a pursuit, which holds no work, so no claim holds it. Hold an idea or an initiative in it.',
             )
 
 

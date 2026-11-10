@@ -5,6 +5,7 @@ from slate import models
 from slate.models.claim import CLAIM_ENDINGS
 from slate.models.document import DOCUMENT_KINDS
 from slate.models.record import Kind
+from slate.models.retired_direction_tables import RETIRED_RECORD_KIND
 from slate.models.worklog import WORKLOG_LINK_KINDS
 from slate.models.worklog import WORKLOG_OUTCOMES
 from slate.models.worklog import WORKLOG_STEPS
@@ -13,7 +14,7 @@ from slate.models.worklog import WORKLOG_STEPS
 @pytest.mark.parametrize(
     ('lookup', 'declared'),
     [
-        (models.RecordKind, list(Kind)),
+        (models.RecordKind, [*Kind, RETIRED_RECORD_KIND]),
         (models.ClaimEnding, CLAIM_ENDINGS),
         (models.WorklogOutcome, WORKLOG_OUTCOMES),
         (models.WorklogStep, WORKLOG_STEPS),

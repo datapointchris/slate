@@ -50,8 +50,8 @@ SCOPED_URLS = {
     f'{API_PREFIX}/records/{{number}}/changes': '/records/{issue}/changes',
     f'{API_PREFIX}/claims': f'/claims?holder={SERVICE}',
     f'{API_PREFIX}/comments': '/comments?record={issue}',
-    f'{API_PREFIX}/directions': '/directions',
-    f'{API_PREFIX}/directions/{{ref:path}}': '/directions/{direction}',
+    f'{API_PREFIX}/pursuits': '/pursuits',
+    f'{API_PREFIX}/pursuits/{{ref:path}}': '/pursuits/{pursuit}',
     f'{API_PREFIX}/documents': '/documents?record={issue}',
     f'{API_PREFIX}/documents/{{record}}/{{name}}': '/documents/{issue}/plan',
     f'{API_PREFIX}/ideas': '/ideas',
@@ -199,7 +199,7 @@ def scoped(scope: str) -> ScopedClient:
 def as_caller(txn_api):
     """Seed the rows each scoped route reads.
 
-    They are two issues of one priority, an initiative, an idea, a tag, a direction, the service's
+    They are two issues of one priority, an initiative, an idea, a tag, a pursuit, the service's
     claim on the neighbor, its worklog, a session and a plan. `caller(identity)` sets who the token says is
     calling and returns the client, and `url(template)` fills a template with the seeded rows. The
     initiative is named, as the CLI names one.
@@ -211,8 +211,8 @@ def as_caller(txn_api):
     initiative = models.Initiative(name='scheduler-initiative', summary='The scheduler can reach it.')
     idea = models.Idea(title='scheduler idea')
     tag = models.Tag(name='security', description='What an attacker reaches')
-    direction = models.Direction(name='Scheduler on k3s', summary='The scheduler runs from a released image.')
-    session.add_all([issue, neighbor, blocker, initiative, idea, tag, direction])
+    pursuit = models.Pursuit(name='Scheduler on k3s', summary='The scheduler runs from a released image.')
+    session.add_all([issue, neighbor, blocker, initiative, idea, tag, pursuit])
     session.flush()
     session.add(models.IssueDependency(issue_id=neighbor.id, depends_on_id=blocker.id))
     session.add(models.InitiativeDependency(initiative_id=initiative.id, depends_on_number=blocker.number))
@@ -235,7 +235,7 @@ def as_caller(txn_api):
             blocker=blocker.number,
             initiative=initiative.name,
             idea=idea.number,
-            direction=direction.name,
+            pursuit=pursuit.name,
             worklog=f'{issue.number}.1',
         )
 

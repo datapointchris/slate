@@ -281,7 +281,7 @@ func (b *initiativesBoard) reorderable(m *gotermboard.Model) bool {
 
 // reorder is < and >: it moves the row ahead of the row drawn above it, or behind the one
 // drawn below, through what `slate issues reorder` and `slate initiatives reorder` run.
-func (b *initiativesBoard) reorder(direction int) func(*gotermboard.Model) tea.Cmd {
+func (b *initiativesBoard) reorder(pursuit int) func(*gotermboard.Model) tea.Cmd {
 	return func(m *gotermboard.Model) tea.Cmd {
 		place, ok := b.places[m.Cursor()]
 		if !ok {
@@ -289,7 +289,7 @@ func (b *initiativesBoard) reorder(direction int) func(*gotermboard.Model) tea.C
 		}
 		step, side, edge := place.above, "ahead of", "first"
 		move := func(ref string) api.RankMove { return api.RankMove{Before: ref} }
-		if direction > 0 {
+		if pursuit > 0 {
 			step, side, edge = place.below, "behind", "last"
 			move = func(ref string) api.RankMove { return api.RankMove{After: ref} }
 		}

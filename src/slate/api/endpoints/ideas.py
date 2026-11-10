@@ -27,14 +27,14 @@ from slate.services.initiatives import new_initiative
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
-from slate.services.record_directions import directions_of
-from slate.services.record_directions import resolve_directions
-from slate.services.record_directions import set_record_directions
 from slate.services.record_groupings import GroupingsQuery
 from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_pins import carry_pin
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
+from slate.services.record_pursuits import pursuits_of
+from slate.services.record_pursuits import resolve_pursuits
+from slate.services.record_pursuits import set_record_pursuits
 from slate.services.record_refs import resolve_idea
 from slate.services.record_tags import own_tags
 from slate.services.record_tags import resolve_tags
@@ -71,13 +71,13 @@ def read_many(session: DbSession, groupings: GroupingsQuery, limit: RowLimit = N
 def create(idea: schemas.IdeaCreate, session: DbSession, effects: Effects):
     """Record an idea last in the queue, warning about each open record whose title reads like it."""
     tags = resolve_tags(session, idea.tags)
-    directions = resolve_directions(session, idea.directions)
+    pursuits = resolve_pursuits(session, idea.pursuits)
     db_obj = models.Idea(title=idea.title, description=idea.description, priority=idea.priority)
     session.add(db_obj)
     session.flush()
     name_record(db_obj.number)
     set_record_tags(session, db_obj.number, tags)
-    set_record_directions(session, db_obj.number, directions)
+    set_record_pursuits(session, db_obj.number, pursuits)
     warn_likely_duplicates(session, db_obj.number, db_obj.title, None, effects)
     session.commit()
     session.refresh(db_obj)
@@ -126,8 +126,8 @@ def update(idea: IdeaFromPath, changes: schemas.IdeaUpdate, session: DbSession, 
     update_data = changes.model_dump(exclude_unset=True)
     if 'tags' in update_data:
         set_record_tags(session, idea.number, resolve_tags(session, update_data.pop('tags')))
-    if 'directions' in update_data:
-        set_record_directions(session, idea.number, resolve_directions(session, update_data.pop('directions')))
+    if 'pursuits' in update_data:
+        set_record_pursuits(session, idea.number, resolve_pursuits(session, update_data.pop('pursuits')))
     for field, value in update_data.items():
         setattr(idea, field, value)
     idea.updated_ts = dt.datetime.now(dt.UTC)
@@ -158,7 +158,7 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
     """Create the initiative the idea becomes, naming the idea. A promoted idea is refused with 409.
 
     The summary is required, because an idea has none. Each other field the request leaves out
-    takes the idea's own: its title as the name, its description, its priority, its tags, its directions. The
+    takes the idea's own: its title as the name, its description, its priority, its tags, its pursuits. The
     answer is the idea, which then shows the initiative. The idea's claim ends as `promoted`,
     because its work is the initiative's now.
     """
@@ -177,9 +177,9 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
             priority=request.priority if request.priority is not None else idea.priority,
             autofix=request.autofix,
             tags=request.tags if request.tags is not None else own_tags(session, [idea.number]).get(idea.number, []),
-            directions=request.directions
-            if request.directions is not None
-            else [direction.number for direction in directions_of(session, [idea.number]).get(idea.number, [])],
+            pursuits=request.pursuits
+            if request.pursuits is not None
+            else [pursuit.number for pursuit in pursuits_of(session, [idea.number]).get(idea.number, [])],
         ),
         idea=idea,
     )

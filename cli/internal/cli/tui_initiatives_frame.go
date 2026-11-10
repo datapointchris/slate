@@ -84,7 +84,7 @@ func (b *initiativesBoard) Frame(now time.Time, grouping string) gotermboard.Fra
 			frame.StartAt = repos[0].Key
 		}
 		frame.Groups = append(frame.Groups, repos...)
-	case groupingDirection, groupingTag:
+	case groupingPursuit, groupingTag:
 		groups := b.memberGroups(memberships(drawn.read, grouping), grouping, ordered, drawn)
 		if len(groups) > 0 {
 			frame.StartAt = groups[0].Key
@@ -314,13 +314,13 @@ func (b *initiativesBoard) repoGroups(ordered []api.BoardInitiative, drawn board
 	return groups
 }
 
-// The groups holding the initiatives in no direction, and those carrying no tag of their own.
+// The groups holding the initiatives in no pursuit, and those carrying no tag of their own.
 const (
-	noDirection = "no direction"
-	noTag       = "no tag"
+	noPursuit = "no pursuit"
+	noTag     = "no tag"
 )
 
-// membership is one direction's or one tag's group: its number where it is a record, its
+// membership is one pursuit's or one tag's group: its number where it is a record, its
 // name, what the keys under it end in, and its rollup, which names its members.
 type membership struct {
 	number    int
@@ -329,7 +329,7 @@ type membership struct {
 	rollup    api.BoardGroupingRollup
 }
 
-// memberships is a group for each direction or each tag the board read rolls up, in its
+// memberships is a group for each pursuit or each tag the board read rolls up, in its
 // order, or nil from an API older than the rollup.
 func memberships(read api.InitiativeBoard, grouping string) []membership {
 	if grouping == groupingTag {
@@ -346,22 +346,22 @@ func memberships(read api.InitiativeBoard, grouping string) []membership {
 		}
 		return groups
 	}
-	if read.Directions == nil {
+	if read.Pursuits == nil {
 		return nil
 	}
-	groups := make([]membership, 0, len(read.Directions))
-	for _, rollup := range read.Directions {
-		group := membership{name: noDirection, placement: placedUnder("no-direction"), rollup: rollup.BoardGroupingRollup}
-		if direction := rollup.Direction; direction != nil {
-			group.number, group.name = direction.Number, direction.Name
-			group.placement = placedUnder("direction-" + strconv.Itoa(direction.Number))
+	groups := make([]membership, 0, len(read.Pursuits))
+	for _, rollup := range read.Pursuits {
+		group := membership{name: noPursuit, placement: placedUnder("no-pursuit"), rollup: rollup.BoardGroupingRollup}
+		if pursuit := rollup.Pursuit; pursuit != nil {
+			group.number, group.name = pursuit.Number, pursuit.Name
+			group.placement = placedUnder("pursuit-" + strconv.Itoa(pursuit.Number))
 		}
 		groups = append(groups, group)
 	}
 	return groups
 }
 
-// memberGroups is a group for each direction or tag, holding every initiative its rollup
+// memberGroups is a group for each pursuit or tag, holding every initiative its rollup
 // names, each drawn whole. An initiative in two draws under both, and one in none under
 // the group of none. A group's line is its rollup, whose closes count the initiatives off
 // the board too, and the line under it names its active initiative untouched longest.

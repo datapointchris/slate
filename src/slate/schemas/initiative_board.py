@@ -3,9 +3,10 @@
 import datetime as dt
 
 from slate.schemas.claim import Claim
-from slate.schemas.direction import DirectionSummary
 from slate.schemas.initiative_progress import IssueState
 from slate.schemas.initiative_progress import IssueStateCounts
+from slate.schemas.pursuit import InPursuits
+from slate.schemas.pursuit import PursuitSummary
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.worklog import CheckedStep
@@ -68,7 +69,7 @@ class BoardUntouched(RecordModel):
 
 
 class BoardGroupingRollup(BoardRollup):
-    """The board's initiatives in one direction, or carrying one tag, with the group's closes over every initiative in it.
+    """The board's initiatives in one pursuit, or carrying one tag, with the group's closes over every initiative in it.
 
     `members` is the number of each initiative the board holds in the group, in the board's order,
     and `initiative_count` and the issue counts cover those. Every count in `closes` adds the issues
@@ -81,10 +82,10 @@ class BoardGroupingRollup(BoardRollup):
     untouched_longest: BoardUntouched | None
 
 
-class BoardDirectionRollup(BoardGroupingRollup):
-    """The initiatives in one direction, or in none where `direction` is null."""
+class BoardPursuitRollup(BoardGroupingRollup):
+    """The initiatives in one pursuit, or in none where `pursuit` is null."""
 
-    direction: DirectionSummary | None
+    pursuit: PursuitSummary | None
 
 
 class BoardTagRollup(BoardGroupingRollup):
@@ -107,12 +108,12 @@ class BoardIssue(RecordModel):
     closed_ts: dt.datetime | None
 
 
-class BoardInitiative(BoardCounts):
+class BoardInitiative(BoardCounts, InPursuits):
     """One initiative on the board. `issues` holds every issue in it: the unclosed in queue order, then the closed, latest first.
 
     `by_repo` cuts those issues by the repo each names, most open first and no repo last. An
     initiative with no issues has one empty cut on no repo, so every initiative sits under some repo.
-    `steps`, `stage`, `tags` and `directions` are the initiative read's. `touched_ts` is the latest
+    `steps`, `stage`, `tags` and `pursuits` are the initiative read's. `touched_ts` is the latest
     of when it was created, when a claim on it or one of its issues started, and when one of its
     issues closed.
     """
@@ -122,7 +123,6 @@ class BoardInitiative(BoardCounts):
     status: str
     priority: Priority
     tags: list[str]
-    directions: list[DirectionSummary]
     repos: list[str]
     pinned_ts: dt.datetime | None
     pinned_by: str | None
@@ -141,7 +141,7 @@ class InitiativeBoard(RecordModel):
 
     `tiers` holds every priority, most urgent first and `none` last, whether or not any initiative
     is at it. `repos` rolls up each repo the initiatives' cuts name, most open first and no repo
-    last. `directions` holds every active direction and each other one an initiative it counts is
+    last. `pursuits` holds every active pursuit and each other one an initiative it counts is
     in, and `tags` every tag. Each puts the fewest closes in 30 days first, then the rest by name,
     and the initiatives in none last, where any are. `initiatives` comes in the order
     `GET /initiatives` answers.
@@ -153,7 +153,7 @@ class InitiativeBoard(RecordModel):
     totals: BoardRollup
     tiers: list[BoardTier]
     repos: list[BoardRepoRollup]
-    directions: list[BoardDirectionRollup]
+    pursuits: list[BoardPursuitRollup]
     tags: list[BoardTagRollup]
     initiatives: list[BoardInitiative]
 

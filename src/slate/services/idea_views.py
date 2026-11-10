@@ -14,8 +14,8 @@ from slate import schemas
 from slate.schemas.idea import EvidenceKind
 from slate.services.claim_views import unended_claim_views
 from slate.services.initiative_views import initiatives_of_ideas
-from slate.services.record_directions import directions_of
 from slate.services.record_parts import record_parts
+from slate.services.record_pursuits import pursuits_of
 from slate.services.record_tags import own_tags
 
 IDEA_LOAD_OPTIONS = (selectinload(models.Idea.evidence),)
@@ -40,7 +40,7 @@ def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.I
     initiatives = initiatives_of_ideas(session, [idea.id for idea in ideas])
     claims = unended_claim_views(session, [idea.number for idea in ideas], dt.datetime.now(dt.UTC))
     tags = own_tags(session, [idea.number for idea in ideas])
-    directions = directions_of(session, [idea.number for idea in ideas])
+    pursuits = pursuits_of(session, [idea.number for idea in ideas])
     return [
         schemas.Idea(
             id=idea.id,
@@ -55,7 +55,7 @@ def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.I
             created_ts=idea.created_ts,
             updated_ts=idea.updated_ts,
             tags=tags.get(idea.number, []),
-            directions=directions.get(idea.number, []),
+            pursuits=pursuits.get(idea.number, []),
             evidence=[evidence_view(evidence) for evidence in idea.evidence],
             initiative=initiatives.get(idea.id),
             claim=claims.get(idea.number),

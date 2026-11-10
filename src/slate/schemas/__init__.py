@@ -20,12 +20,6 @@ from slate.schemas.comment import CommentDeleted
 from slate.schemas.comment import CommentLine
 from slate.schemas.comment import CommentWritten
 from slate.schemas.comment import PlacedComment
-from slate.schemas.direction import Direction
-from slate.schemas.direction import DirectionCreate
-from slate.schemas.direction import DirectionDetail
-from slate.schemas.direction import DirectionSummary
-from slate.schemas.direction import DirectionUpdate
-from slate.schemas.direction import DirectionWritten
 from slate.schemas.document import Document
 from slate.schemas.document import DocumentSummary
 from slate.schemas.document import DocumentVersion
@@ -48,12 +42,12 @@ from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.initiative import InitiativeUpdate
 from slate.schemas.initiative import InitiativeWritten
 from slate.schemas.initiative_board import BoardCloses
-from slate.schemas.initiative_board import BoardDirectionRollup
 from slate.schemas.initiative_board import BoardGroupingRollup
 from slate.schemas.initiative_board import BoardInitiative
 from slate.schemas.initiative_board import BoardInitiativeText
 from slate.schemas.initiative_board import BoardIssue
 from slate.schemas.initiative_board import BoardIssueText
+from slate.schemas.initiative_board import BoardPursuitRollup
 from slate.schemas.initiative_board import BoardRepoCounts
 from slate.schemas.initiative_board import BoardRepoRollup
 from slate.schemas.initiative_board import BoardRollup
@@ -78,6 +72,12 @@ from slate.schemas.issue import IssueLabelWritten
 from slate.schemas.issue import IssueSummary
 from slate.schemas.issue import IssueUpdate
 from slate.schemas.issue import IssueWritten
+from slate.schemas.pursuit import Pursuit
+from slate.schemas.pursuit import PursuitCreate
+from slate.schemas.pursuit import PursuitDetail
+from slate.schemas.pursuit import PursuitSummary
+from slate.schemas.pursuit import PursuitUpdate
+from slate.schemas.pursuit import PursuitWritten
 from slate.schemas.queue import PathOverlap
 from slate.schemas.queue import Queue
 from slate.schemas.queue import QueueFilter
@@ -125,7 +125,7 @@ __all__ = [
     'AgentSession',
     'Blocker',
     'BoardCloses',
-    'BoardDirectionRollup',
+    'BoardPursuitRollup',
     'BoardGroupingRollup',
     'BoardInitiative',
     'BoardInitiativeText',
@@ -156,12 +156,12 @@ __all__ = [
     'CommentDeleted',
     'CommentLine',
     'CommentWritten',
-    'Direction',
-    'DirectionCreate',
-    'DirectionDetail',
-    'DirectionSummary',
-    'DirectionUpdate',
-    'DirectionWritten',
+    'Pursuit',
+    'PursuitCreate',
+    'PursuitDetail',
+    'PursuitSummary',
+    'PursuitUpdate',
+    'PursuitWritten',
     'Document',
     'DocumentSummary',
     'DocumentVersion',

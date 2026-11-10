@@ -2,7 +2,7 @@
 
 The read costs the same number of queries however many initiatives it answers: every read is one
 query over all of them, and everything else folds those rows. So it builds no `issue_views` row,
-which joins what a board does not draw. The closes a direction or a tag counts from initiatives off
+which joins what a board does not draw. The closes a pursuit or a tag counts from initiatives off
 the board are read once, bounded by `OLDEST_CLOSE_COUNTED`, and grow with recent closes rather than
 with the initiatives. `test_the_board_asks_the_same_queries_however_many_initiatives_it_answers`
 pins it.
@@ -43,7 +43,7 @@ from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_readiness import urgency
 from slate.services.issue_views import calendar_now
 from slate.services.issue_views import list_order
-from slate.services.record_directions import directions_of
+from slate.services.record_pursuits import pursuits_of
 from slate.services.record_steps import initiative_steps
 from slate.services.record_steps import stage_of
 from slate.services.record_tags import own_tags
@@ -215,7 +215,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
 
     steps = initiative_steps(session, initiatives)
     numbers = [initiative.number for initiative in initiatives]
-    tags, directions = own_tags(session, numbers), directions_of(session, numbers)
+    tags, pursuits = own_tags(session, numbers), pursuits_of(session, numbers)
     claimed = last_claimed(session, initiatives)
     rows = [
         board_initiative(
@@ -224,7 +224,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
             claims,
             steps.get(initiative.number, []),
             tags.get(initiative.number, []),
-            directions.get(initiative.number, []),
+            pursuits.get(initiative.number, []),
             claimed.get(initiative.number),
             calendar,
         )
@@ -241,7 +241,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
             for priority in sorted(PRIORITIES, key=urgency)
         ],
         repos=repo_rollups(rows, calendar),
-        directions=direction_rollups(session, rows, elsewhere, calendar),
+        pursuits=pursuit_rollups(session, rows, elsewhere, calendar),
         tags=tag_rollups(session, rows, elsewhere, calendar),
         initiatives=rows,
     )
@@ -274,17 +274,17 @@ def touched_at(initiative: models.Initiative, issues: Iterable[schemas.BoardIssu
 
 @dataclass(frozen=True)
 class ClosesElsewhere:
-    """The issues completed inside `OLDEST_CLOSE_COUNTED` in each initiative off the board, with its directions and tags."""
+    """The issues completed inside `OLDEST_CLOSE_COUNTED` in each initiative off the board, with its pursuits and tags."""
 
     moments: dict[int, list[dt.datetime]]
-    directions: dict[int, list[schemas.DirectionSummary]]
+    pursuits: dict[int, list[schemas.PursuitSummary]]
     tags: dict[int, list[str]]
 
 
 def closes_off_the_board(session: Session, initiatives: Sequence[models.Initiative], calendar: CloseCalendar) -> ClosesElsewhere:
     """Each issue completed inside `OLDEST_CLOSE_COUNTED` in an initiative the board does not hold, such as one completed this month.
 
-    The board holds the initiatives at one status, so a direction or a tag counts the rest's closes from here.
+    The board holds the initiatives at one status, so a pursuit or a tag counts the rest's closes from here.
     """
     rows = session.execute(
         select(models.Initiative.number, models.Issue.closed_ts)
@@ -299,7 +299,7 @@ def closes_off_the_board(session: Session, initiatives: Sequence[models.Initiati
     for number, closed in rows:
         if closed is not None:
             moments[number].append(closed)
-    return ClosesElsewhere(dict(moments), directions_of(session, moments), own_tags(session, moments))
+    return ClosesElsewhere(dict(moments), pursuits_of(session, moments), own_tags(session, moments))
 
 
 @dataclass
@@ -354,28 +354,28 @@ def fewest_closes_first(rollup: schemas.BoardGroupingRollup, name: str | None) -
     return (name is None, rollup.closes.last_30d, name or '')
 
 
-def direction_rollups(
+def pursuit_rollups(
     session: Session, rows: Sequence[schemas.BoardInitiative], elsewhere: ClosesElsewhere, calendar: CloseCalendar
-) -> list[schemas.BoardDirectionRollup]:
-    """Every active direction, each other one an initiative counted is in, and the initiatives in none, the fewest closes first."""
-    named = dict(session.execute(select(models.Direction.number, models.Direction.name).where(models.Direction.status == 'active')).all())
-    for direction in (*(d for row in rows for d in row.directions), *(d for held in elsewhere.directions.values() for d in held)):
-        named[direction.number] = direction.name
+) -> list[schemas.BoardPursuitRollup]:
+    """Every active pursuit, each other one an initiative counted is in, and the initiatives in none, the fewest closes first."""
+    named = dict(session.execute(select(models.Pursuit.number, models.Pursuit.name).where(models.Pursuit.status == 'active')).all())
+    for pursuit in (*(d for row in rows for d in row.pursuits), *(d for held in elsewhere.pursuits.values() for d in held)):
+        named[pursuit.number] = pursuit.name
     tallies = tally_groups(
         rows,
-        lambda row: [direction.number for direction in row.directions],
+        lambda row: [pursuit.number for pursuit in row.pursuits],
         elsewhere.moments,
-        {number: [direction.number for direction in held] for number, held in elsewhere.directions.items()},
+        {number: [pursuit.number for pursuit in held] for number, held in elsewhere.pursuits.items()},
         named,
     )
     rollups = [
-        schemas.BoardDirectionRollup(
-            direction=None if number is None else schemas.DirectionSummary(number=number, name=named[number]),
+        schemas.BoardPursuitRollup(
+            pursuit=None if number is None else schemas.PursuitSummary(number=number, name=named[number]),
             **grouping_rollup(tally, calendar),
         )
         for number, tally in tallies.items()
     ]
-    return sorted(rollups, key=lambda rollup: fewest_closes_first(rollup, rollup.direction.name if rollup.direction else None))
+    return sorted(rollups, key=lambda rollup: fewest_closes_first(rollup, rollup.pursuit.name if rollup.pursuit else None))
 
 
 def tag_rollups(
@@ -393,7 +393,7 @@ def board_initiative(
     claims: dict[int, models.Claim],
     steps: list[schemas.CheckedStep],
     tags: list[str],
-    directions: list[schemas.DirectionSummary],
+    pursuits: list[schemas.PursuitSummary],
     claimed: dt.datetime | None,
     calendar: CloseCalendar,
 ) -> schemas.BoardInitiative:
@@ -404,7 +404,7 @@ def board_initiative(
         status=initiative.status,
         priority=initiative.priority,
         tags=tags,
-        directions=directions,
+        pursuits=pursuits,
         repos=sorted({issue.repo for issue in issues if issue.repo is not None and issue.state != 'canceled'}),
         pinned_ts=initiative.pinned_ts,
         pinned_by=initiative.pinned_by,

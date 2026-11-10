@@ -26,8 +26,8 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/records/{{number}}/changes'),
             ('GET', f'{API_PREFIX}/claims'),
             ('GET', f'{API_PREFIX}/comments'),
-            ('GET', f'{API_PREFIX}/directions'),
-            ('GET', f'{API_PREFIX}/directions/{{ref:path}}'),
+            ('GET', f'{API_PREFIX}/pursuits'),
+            ('GET', f'{API_PREFIX}/pursuits/{{ref:path}}'),
             ('GET', f'{API_PREFIX}/documents'),
             ('GET', f'{API_PREFIX}/documents/{{record}}/{{name}}'),
             ('GET', f'{API_PREFIX}/ideas'),
@@ -98,14 +98,14 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # Filing an issue, setting the issue fields `SCOPED_PLAN_FIELDS` in `endpoints/issues.py` names,
     # adding and removing what an issue or an initiative waits on, creating and updating an
     # initiative, and moving an issue, initiative or idea in the queue, for a job ordering and
-    # specifying the work. A filing reads the vocabulary first, and an initiative placed in a direction
-    # by name reads the direction for its number. The handlers narrow any other update to those
+    # specifying the work. A filing reads the vocabulary first, and an initiative placed in a pursuit
+    # by name reads the pursuit for its number. The handlers narrow any other update to those
     # fields, and a filing to triage under no parent. A description stays out, because a person and a
     # worker read it as the issue's meaning. Nothing here deletes a record.
     RECORDS_PLAN: frozenset(
         {
             ('GET', f'{API_PREFIX}/vocabulary'),
-            ('GET', f'{API_PREFIX}/directions/{{ref:path}}'),
+            ('GET', f'{API_PREFIX}/pursuits/{{ref:path}}'),
             ('POST', f'{API_PREFIX}/issues'),
             ('PATCH', f'{API_PREFIX}/issues/{{id}}'),
             ('POST', f'{API_PREFIX}/issues/{{id}}/rank'),

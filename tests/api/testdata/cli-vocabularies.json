@@ -60,7 +60,7 @@
     "completed",
     "dropped"
   ],
-  "direction_statuses": [
+  "pursuit_statuses": [
     "active",
     "someday",
     "completed",
@@ -71,7 +71,7 @@
     "idea",
     "initiative",
     "issue",
-    "direction"
+    "pursuit"
   ],
   "document_kinds": [
     "research",

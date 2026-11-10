@@ -10,12 +10,12 @@ from slate.api.endpoints import issues
 from slate.api.endpoints.claims import ClaimStateFilter
 from slate.api.endpoints.initiatives import InitiativeSort
 from slate.api.endpoints.worklogs import WorklogStateFilter
-from slate.models.direction import DIRECTION_STATUSES
 from slate.models.document import DOCUMENT_KINDS
 from slate.models.initiative import INITIATIVE_STATUSES
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
+from slate.models.pursuit import PURSUIT_STATUSES
 from slate.models.record import PRIORITIES
 from slate.models.record import Kind
 from slate.models.worklog import WORKLOG_LINK_KINDS
@@ -42,7 +42,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'initiative_statuses': [*INITIATIVE_STATUSES, initiatives.ALL_STATUSES],
         'initiative_sorts': list(get_args(InitiativeSort)),
         'initiative_statuses_closed': TERMINAL_INITIATIVE_STATUSES,
-        'direction_statuses': [*DIRECTION_STATUSES, initiatives.ALL_STATUSES],
+        'pursuit_statuses': [*PURSUIT_STATUSES, initiatives.ALL_STATUSES],
         'record_kinds': [kind.value for kind in Kind],
         'document_kinds': DOCUMENT_KINDS,
         'queue_steps': list(get_args(Step)),

@@ -31,7 +31,7 @@ record's totals calls it rather than summing a second way.
 | an idea's number | its own worklogs |
 | an issue's number | its own worklogs, and those of every issue under it, at any depth |
 | an initiative's number | its own worklogs, the idea it was promoted from, every issue in it, and every issue under those |
-| a direction's number | its own worklogs, each idea and initiative in it, and what each of those initiatives reaches |
+| a pursuit's number | its own worklogs, each idea and initiative in it, and what each of those initiatives reaches |
 | a worklog's name | that worklog |
 | `repo` | the worklogs of the issues whose `repo` is that name; an empty name reaches the issues on no repo |
 | none | every worklog, and every message no worklog held |
