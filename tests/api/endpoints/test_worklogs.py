@@ -2,7 +2,9 @@ import datetime as dt
 
 import pytest
 from fastapi import status
+from sqlalchemy import update
 
+from slate import models
 from tests.session_database import insert_test_data_transactional
 from tests.util import show_status_and_response
 
@@ -83,3 +85,44 @@ def test_a_worklog_started_with_no_claim_warns_of_another_open_one_and_ends_by_h
     ended = ok(client.get(f'{WORKLOGS}/{idea}.1'))
     assert (ended['outcome'], [span['ended_ts'] for span in ended['spans']]) == ('promoted', [ended['ended_ts']])
     assert current(client, 's2') is None
+
+
+def test_a_step_is_checked_once_a_worklog_of_it_ends_unexpired_and_the_furthest_is_the_initiative_stage(txn_api_logged_in):
+    """A hold names its step, so the initiative reads which steps it went through without a session remembering to record them."""
+    client, session = txn_api_logged_in
+    created = ok(client.post('/initiatives', json={'name': 'Record the steps', 'summary': 'Each step shows.'}), status.HTTP_201_CREATED)
+    initiative = created['initiative']['number']
+    holder = {'holder': 'claude-code/s3', 'session': 's3'}
+
+    def read() -> tuple[str, list[tuple[str, str, str | None]]]:
+        shown = ok(client.get(f'/initiatives/{initiative}'))
+        return shown['stage'], [(step['step'], step['worklog'], step['session']) for step in shown['steps']]
+
+    held = ok(client.post('/claims', json={'record': initiative, 'step': 'design', **holder}))
+    assert held['side_effects'][0]['message'] == f'Opened worklog {initiative}.1 for step design, with session s3 in it.'
+    assert (ok(client.get(f'{WORKLOGS}/{initiative}.1'))['step'], read()) == ('design', ('idea', []))
+    again = ok(client.post('/claims', json={'record': initiative, 'step': 'preflight', **holder}))
+    assert f'Its worklog {initiative}.1 keeps step design.' in again['warnings'][0]['message']
+    ok(client.post(f'/claims/{initiative}/release', json={'released_by': 'claude-code/s3'}))
+    assert read() == ('design', [('design', f'{initiative}.1', 's3')])
+
+    ok(client.post(WORKLOGS, json={'record': initiative, 'opened_by': 'chris', 'step': 'shape'}), status.HTTP_201_CREATED)
+    ok(client.post(f'{WORKLOGS}/{initiative}.2/finish', json={'finished_by': 'chris'}))
+    assert read() == ('design', [('shape', f'{initiative}.2', None), ('design', f'{initiative}.1', 's3')])
+
+    lapsing = ok(client.post('/claims', json={'record': initiative, 'step': 'preflight', **holder}))['claim']
+    lapsed = dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)
+    session.execute(
+        update(models.Claim).where(models.Claim.id == lapsing['id']).values(started_ts=lapsed - dt.timedelta(hours=1), expires_ts=lapsed)
+    )
+    session.execute(
+        update(models.Worklog).where(models.Worklog.claim_id == lapsing['id']).values(started_ts=lapsed - dt.timedelta(hours=1))
+    )
+    session.execute(
+        update(models.WorklogSpan).where(models.WorklogSpan.session_id == 's3').values(started_ts=lapsed - dt.timedelta(hours=1))
+    )
+    session.flush()
+    ok(client.post('/claims', json={'record': initiative, 'holder': 'claude-code/s4'}))
+    listed = next(row for row in ok(client.get('/initiatives')) if row['number'] == initiative)
+    boarded = next(row for row in ok(client.get('/initiatives/board'))['initiatives'] if row['number'] == initiative)
+    assert (listed['stage'], [step['step'] for step in boarded['steps']]) == ('design', ['shape', 'design'])

@@ -86,7 +86,7 @@ SCOPED_WRITES = {
     ),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/resume'): ('/claims/{neighbor}/resume', {'holder': SERVICE}, status.HTTP_200_OK),
     (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs'): ('/worklogs', {'record': '{issue}', 'opened_by': SERVICE}, status.HTTP_201_CREATED),
-    (WORKLOGS, 'PATCH', f'{API_PREFIX}/worklogs/{{name}}'): ('/worklogs/{worklog}', {'workflow': 'oneshot'}, status.HTTP_200_OK),
+    (WORKLOGS, 'PATCH', f'{API_PREFIX}/worklogs/{{name}}'): ('/worklogs/{worklog}', {'step': 'build'}, status.HTTP_200_OK),
     (WORKLOGS, 'POST', f'{API_PREFIX}/worklogs/{{name}}/join'): (
         '/worklogs/{worklog}/join',
         {'session': 'run-pod-session'},
@@ -413,7 +413,7 @@ def test_the_hold_scope_holds_under_its_own_id_and_releases_only_that(as_caller)
     [
         ('POST', '/finish', {'finished_by': SERVICE}),
         ('POST', '/join', {'session': 'peer-session'}),
-        ('PATCH', '', {'workflow': 'oneshot'}),
+        ('PATCH', '', {'step': 'build'}),
     ],
     ids=['finish', 'join', 'edit'],
 )

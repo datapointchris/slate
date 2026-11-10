@@ -20,7 +20,7 @@ one-program TUI at a view. A flag shows in `--help`, where an optional argument 
 With no terminal and neither flag the command refuses and names both, so an agent reads what
 a person reads rather than waiting on a screen that never draws.
 
-## Each initiative is two lines: its name, then dim repos beside its counts
+## Each initiative is two lines: its name, then dim repos beside its counts, and a third once a step is checked
 
 ```text
                                     DONE  24H   7D  30D  LAST  RUN  BLK  RDY  ISSUES
@@ -36,6 +36,12 @@ under itself rather than being cut. Columns let the eye run down one figure acro
 and a tier's totals line up over the rows they sum. Repos are read when acting on a row rather
 than when scanning, so they stay dim in the first column and end in `+N`, because a repo cut in
 half names nothing. The side panel lists them all, and the filter matches every one.
+
+An initiative a worklog stepped through draws a third line marking each step of its life, a
+checked one green with the day its worklog ended and the rest dim, as `slate initiatives list`
+marks them. An initiative no step reached stays two lines, so a board of unshaped work holds as
+many rows as before. The side panel lists each checked step with its worklog, when it ended and
+the first session in it.
 
 - *Rejected:* three lines, keeping every repo on one of its own. Repos were the loudest line on
   the board, and a screen holds a third fewer initiatives.

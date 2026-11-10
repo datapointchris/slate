@@ -8,6 +8,14 @@ type PriorityName struct {
 	Name  string `json:"name"`
 }
 
+// WorklogStep is one step of a record's life, at its Position in the order a
+// record goes through them.
+type WorklogStep struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Position    int    `json:"position"`
+}
+
 // Vocabulary is every closed value a field takes, in the order a picker lists
 // them. Labels come with it because they are the one vocabulary that grows at
 // runtime.
@@ -17,7 +25,7 @@ type Vocabulary struct {
 	Priorities         []PriorityName `json:"priorities"`
 	InitiativeStatuses []string       `json:"initiative_statuses"`
 	DocumentKinds      []string       `json:"document_kinds"`
-	WorklogWorkflows   []string       `json:"worklog_workflows"`
+	WorklogSteps       []WorklogStep  `json:"worklog_steps"`
 	Labels             []IssueLabel   `json:"labels"`
 }
 

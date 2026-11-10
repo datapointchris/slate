@@ -9,7 +9,7 @@ import (
 )
 
 // DocumentKinds is what a document's --kind accepts.
-var DocumentKinds = []string{"research", "design", "plan"}
+var DocumentKinds = []string{"research", "design", "plan", "retro"}
 
 // DocumentVersionSummary is one version of a document: who wrote it, the agent
 // session that did, and the worklog that session was in.

@@ -86,7 +86,7 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
             effects.warn(
                 WriteEffectCode.ALREADY_HELD,
                 f'{lease.holder} already holds #{number} until {effects.moment(current.expires_ts)}. '
-                'Holding it again left the claim as it was. Extend the claim to keep it longer.',
+                'Holding it again left the claim as it was. Extend the claim to keep it longer.' + kept_step(current, lease.step),
                 number,
             )
             if lease.session is not None and current.worklog is not None:
@@ -115,13 +115,25 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
     session.add(claim)
     session.flush()
     logger.info('claim_held', record=number, holder=lease.holder, expires_ts=claim.expires_ts.isoformat())
-    worklog = worklogs.open_worklog(session, number, lease.holder, now, claim=claim)
+    worklog = worklogs.open_worklog(session, number, lease.holder, now, claim=claim, step=lease.step)
+    opened = f'Opened worklog {worklog.name}' + (f' for step {lease.step}' if lease.step is not None else '')
     if lease.session is None:
-        effects.did(WriteEffectCode.WORKLOG_OPENED, f'Opened worklog {worklog.name}.', number)
+        effects.did(WriteEffectCode.WORKLOG_OPENED, f'{opened}.', number)
         return claim
-    effects.did(WriteEffectCode.WORKLOG_OPENED, f'Opened worklog {worklog.name}, with session {lease.session} in it.', number)
+    effects.did(WriteEffectCode.WORKLOG_OPENED, f'{opened}, with session {lease.session} in it.', number)
     worklogs.join(session, worklog, lease.session, lease.host, lease.directory, now, effects)
     return claim
+
+
+def kept_step(claim: models.Claim, step: str | None) -> str:
+    """What a hold asking for a step its claim's worklog does not name leaves, said where it differs."""
+    worklog = claim.worklog
+    if step is None or worklog is None or worklog.step == step:
+        return ''
+    return (
+        f' Its worklog {worklog.name} keeps step {worklog.step or "none"}. Finish it and start a worklog on #{claim.record_number} '
+        f'with step {step} to record {step}.'
+    )
 
 
 def lost_the_race(exc: IntegrityError) -> bool:

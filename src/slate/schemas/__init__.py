@@ -88,6 +88,8 @@ from slate.schemas.vocabulary import Vocabulary
 from slate.schemas.work_totals import ModelTokens
 from slate.schemas.work_totals import TotalsScope
 from slate.schemas.work_totals import WorkTotals
+from slate.schemas.worklog import CheckedStep
+from slate.schemas.worklog import RecordStage
 from slate.schemas.worklog import Worklog
 from slate.schemas.worklog import WorklogFinish
 from slate.schemas.worklog import WorklogJoin
@@ -95,6 +97,7 @@ from slate.schemas.worklog import WorklogLink
 from slate.schemas.worklog import WorklogLinkAdd
 from slate.schemas.worklog import WorklogSpan
 from slate.schemas.worklog import WorklogStart
+from slate.schemas.worklog import WorklogStep
 from slate.schemas.worklog import WorklogUpdate
 from slate.schemas.worklog import WorklogWritten
 from slate.schemas.write_effects import RecordDeleted
@@ -115,6 +118,7 @@ __all__ = [
     'BoardRollup',
     'BoardTier',
     'BurnupStep',
+    'CheckedStep',
     'Claim',
     'ClaimExtend',
     'ClaimHold',
@@ -183,6 +187,7 @@ __all__ = [
     'RecordParts',
     'RecordPin',
     'RecordRankMove',
+    'RecordStage',
     'RecordSummary',
     'RepoBoard',
     'RepoRollup',
@@ -200,6 +205,7 @@ __all__ = [
     'WorklogLinkAdd',
     'WorklogSpan',
     'WorklogStart',
+    'WorklogStep',
     'WorklogUpdate',
     'WorklogWritten',
     'WriteEffect',

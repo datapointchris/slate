@@ -1,4 +1,4 @@
-"""A record's research, design and plan documents, each a series of versions never edited once written.
+"""A record's research, design, plan and retro documents, each a series of versions never edited once written.
 
 A document is named on its record, so `1811/plan` is record 1811's plan. Writing it adds the next
 version. Each version names who wrote it, the agent session that did, and the worklog that session
@@ -29,7 +29,7 @@ from slate.database.base import Base
 from slate.models.record import Record
 
 # What a document is for. A worklog that wrote a plan has reached its `planned` stage.
-DocumentKindName = Literal['research', 'design', 'plan']
+DocumentKindName = Literal['research', 'design', 'plan', 'retro']
 DOCUMENT_KINDS: list[str] = list(get_args(DocumentKindName))
 PLAN: DocumentKindName = 'plan'
 

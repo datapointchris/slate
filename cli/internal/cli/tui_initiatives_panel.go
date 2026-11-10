@@ -99,6 +99,17 @@ func (b *initiativesBoard) initiativePanel(initiative api.BoardInitiative, long 
 	if len(initiative.Repos) > 0 {
 		lines = append(lines, dimLine(strings.Join(initiative.Repos, ", ")))
 	}
+	lines = append(lines, gotermboard.Line{}, heading("Steps"), stepMarksLine(initiative.Steps))
+	for _, step := range initiative.Steps {
+		line := gotermboard.Line{
+			gotermboard.C("✓ "+step.Step, gotermboard.Green),
+			gotermboard.C("  "+step.Worklog+"  "+localClock(step.EndedTS, now), ""),
+		}
+		if session := strValue(step.Session); session != "" {
+			line = append(line, gotermboard.C("  "+session, dimCode))
+		}
+		lines = append(lines, line)
+	}
 	lines = append(lines, gotermboard.Line{})
 	lines = append(lines, closesLines(initiative.Closes, now)...)
 	progress, held := rows.progress[initiative.Number]

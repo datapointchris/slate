@@ -8,7 +8,7 @@ from pydantic import Field
 from pydantic import StringConstraints
 
 from slate.models.worklog import LinkKindName
-from slate.models.worklog import WorkflowName
+from slate.models.worklog import StepName
 from slate.models.worklog import WorklogStage
 from slate.schemas.claim import Claim
 from slate.schemas.claim import ClaimWait
@@ -25,6 +25,29 @@ from slate.schemas.write_effects import Written
 WorklogState = Literal['live', 'expired', 'ended']
 
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+# The furthest step checked on a record, or `idea` before any.
+RecordStage = Literal['idea'] | StepName
+
+
+class WorklogStep(RecordModel):
+    """One step of a record's life, at its `position` in the order a record goes through them."""
+
+    name: str
+    description: str
+    position: int
+
+
+class CheckedStep(RecordModel):
+    """A step checked on a record, read from the latest worklog of that step that ended by any outcome but `expired`.
+
+    `session` is the first agent session that worked in that worklog, null where none did.
+    """
+
+    step: StepName
+    worklog: str
+    ended_ts: dt.datetime
+    session: str | None = None
 
 
 class WorklogSpan(RecordModel):
@@ -56,7 +79,8 @@ class Worklog(RecordModel):
     `state`, `stage` and `tokens` are derived on every read. `claim` is the claim whose hold opened
     it, and `waits` every stretch that claim's holder spent waiting. `tokens` sums its spans', as
     each session last reported them, and is null while none of its spans holds a reported message.
-    `document_versions` is every version a session wrote while in it, oldest first.
+    `document_versions` is every version a session wrote while in it, oldest first. `step` is the
+    step of its record's life it performed, null where it names none.
     """
 
     name: str
@@ -64,7 +88,7 @@ class Worklog(RecordModel):
     sequence: int
     record: RecordSummary
     opened_by: str
-    workflow: str | None = None
+    step: str | None = None
     started_ts: dt.datetime
     ended_ts: dt.datetime | None = None
     outcome: str | None = None
@@ -84,7 +108,7 @@ class WorklogStart(RecordModel):
 
     record: RecordRef
     opened_by: Actor
-    workflow: WorkflowName | None = None
+    step: StepName | None = None
     session: NonBlank | None = None
     host: str | None = None
     directory: str | None = None
@@ -109,9 +133,9 @@ class WorklogLinkAdd(RecordModel):
 
 
 class WorklogUpdate(RecordModel):
-    """`workflow: null` clears it."""
+    """`step: null` clears it."""
 
-    workflow: WorkflowName | None = None
+    step: StepName | None = None
 
 
 class WorklogWritten(Written):

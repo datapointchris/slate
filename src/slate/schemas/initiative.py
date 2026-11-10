@@ -12,6 +12,8 @@ from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
 from slate.schemas.record_parts import RecordParts
+from slate.schemas.worklog import CheckedStep
+from slate.schemas.worklog import RecordStage
 from slate.schemas.write_effects import Written
 
 # An initiative answers to its UUID, its number or its name, and the API resolves each.
@@ -77,7 +79,8 @@ class Initiative(RecordModel):
     idea promoted into it. `rank` places it, with its issues, among the
     records of its priority in the queue. `depends_on` is each initiative or
     issue it waits on, and `waiting_initiatives` each initiative waiting on it,
-    open or closed, by number.
+    open or closed, by number. `steps` is each step checked on it, in position order, and `stage`
+    the furthest of them, or `idea` before any. Both are derived on every read.
     """
 
     id: UUID
@@ -104,6 +107,8 @@ class Initiative(RecordModel):
     idea: RecordSummary | None = None
     depends_on: list[RecordSummary] = []
     waiting_initiatives: list[RecordSummary] = []
+    steps: list[CheckedStep] = []
+    stage: RecordStage = 'idea'
 
 
 class InitiativeDetail(Initiative, RecordParts):

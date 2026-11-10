@@ -78,6 +78,7 @@ func newClaimsHoldCommand() *cobra.Command {
 		queue   readyQueueFlags
 		holder  string
 		minutes int
+		step    string
 	)
 	cmd := &cobra.Command{
 		Use:   "hold [<record>]",
@@ -96,6 +97,10 @@ func newClaimsHoldCommand() *cobra.Command {
 			"--json gives it as claim.worklog. The Claude Code session joins it, leaving any\n" +
 			"other worklog it was in, which is printed too. `slate worklogs` reads it.\n" +
 			"\n" +
+			stepHelp + "\n" +
+			"Holding a record you already hold keeps its worklog's step, and the warning\n" +
+			"says how to record another.\n" +
+			"\n" +
 			"--next holds the first issue at step build that `slate next` would offer you\n" +
 			"under the same flags, including the plan of an initiative you hold, in one\n" +
 			"request, so two callers asking at once never hold the same issue. A decision\n" +
@@ -107,6 +112,7 @@ func newClaimsHoldCommand() *cobra.Command {
 			"from $CLAUDE_CODE_SESSION_ID, this host, and the working directory.",
 		Example: "  slate claims hold 412\n" +
 			"  slate claims hold 412 --minutes 60\n" +
+			"  slate claims hold 2804 --step design\n" +
 			"  slate claims hold --next\n" +
 			"  slate claims hold --next --repo webapp --json",
 		Args:        cobra.MaximumNArgs(1),
@@ -123,10 +129,14 @@ func newClaimsHoldCommand() *cobra.Command {
 					}
 				}
 			}
+			if err := validStep(step); err != nil {
+				return err
+			}
 			lease, err := claimLease(cmd, holder, minutes)
 			if err != nil {
 				return err
 			}
+			lease.Step = nonEmpty(step)
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
@@ -155,6 +165,7 @@ func newClaimsHoldCommand() *cobra.Command {
 	queue.register(cmd)
 	f.StringVar(&holder, "holder", actorIdentity(), "Who holds the claim")
 	addClaimMinutesFlag(cmd, &minutes)
+	addStepFlag(cmd, &step, "The step of the record's life the hold's worklog performs")
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }

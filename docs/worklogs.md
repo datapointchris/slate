@@ -147,9 +147,27 @@ document version written in it as `document_versions`.
 [documents-and-comments.md](documents-and-comments.md) covers how a version
 names its worklog.
 
-Its `workflow` says how the work was approached: `oneshot`, `plan-first` or
-`design-first`. `start --workflow` or `slate worklogs edit --workflow` sets
-it, and it may stay unset.
+## A worklog names the step of its record's life it performed
+
+A worklog's `step` is `shape`, `design`, `preflight`, `build` or `retro`, the
+rows of `worklog_steps` in their `position` order. `slate vocabulary` lists
+each with its description. `slate claims hold <record> --step <step>` sets it on
+the worklog the hold opens, and `slate worklogs start <record> --step <step>`
+on one with no claim. `slate worklogs edit <worklog> --step <step>` corrects
+it, and `--step ""` clears it. No step is required.
+
+A hold of a record its holder already holds opens no worklog, so it keeps the
+step it has. Its `already_held` warning then names that step and says to
+finish the worklog and start one with the step asked for.
+
+A step is checked on a record once a worklog of that step ended by any outcome
+but `expired`. A claim that ran out ended nobody's go deliberately, so it
+checks nothing. An initiative's read derives `steps`, each checked step from
+its latest such worklog: the worklog's name, when it ended, and the first
+session in it. It derives `stage` too, the furthest checked step by
+`position`, or `idea` before any. [issues.md](issues.md) covers how the
+initiative reads print them. Nothing is read from a document's text, so a retro
+document checks `retro` only through a worklog of that step.
 
 ## A service writes worklogs under its own client id
 

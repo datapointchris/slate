@@ -22,7 +22,7 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 	for name, copied := range map[string][]string{
 		"claim_states":               ClaimStates,
 		"worklog_states":             WorklogStates,
-		"worklog_workflows":          WorklogWorkflows,
+		"worklog_steps":              WorklogSteps,
 		"worklog_link_kinds":         WorklogLinkKinds,
 		"issue_statuses":             IssueStatuses,
 		"issue_types":                IssueTypes,

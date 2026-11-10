@@ -1,9 +1,9 @@
 # Documents and comments
 
-A record of any kind keeps research, design and plan documents, and comments
-on the record or on one line of a document. `slate documents` and `slate
-comments` are the CLI, and the API serves them under `/api/v1/documents` and
-`/api/v1/comments`.
+A record of any kind keeps research, design, plan and retro documents, and
+comments on the record or on one line of a document. `slate documents` and
+`slate comments` are the CLI, and the API serves them under
+`/api/v1/documents` and `/api/v1/comments`.
 
 ## A document is named on its record, and every write adds a version
 
