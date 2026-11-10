@@ -39,8 +39,8 @@ half names nothing. The side panel lists them all, and the filter matches every 
 
 An initiative a worklog stepped through draws a third line marking each step of its life, a
 checked one green with the day its worklog ended and the rest dim, as `slate initiatives list`
-marks them. An initiative no step reached stays two lines, so a board of unshaped work holds as
-many rows as before. The side panel lists each checked step with its worklog, when it ended and
+marks them. An initiative no step reached stays two lines, so marks cost screen rows only where a
+step was checked. The side panel lists each checked step with its worklog, when it ended and
 the first session in it.
 
 - *Rejected:* three lines, keeping every repo on one of its own. Repos were the loudest line on

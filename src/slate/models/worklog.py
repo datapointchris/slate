@@ -69,7 +69,7 @@ class WorklogOutcome(Base):
     name: Mapped[str] = mapped_column(Text, primary_key=True)
 
 
-# Read by the API one release behind, and by nothing here.
+# Nothing here reads it. It stays until a migration drops `worklogs.workflow`, so an API that still reads it keeps working.
 class WorklogWorkflow(Base):
     __tablename__ = 'worklog_workflows'
     name: Mapped[str] = mapped_column(Text, primary_key=True)

@@ -1,4 +1,4 @@
-"""A record's research, design, plan and retro documents, each a series of versions never edited once written.
+"""A record's documents, such as its design and plan, each a series of versions never edited once written.
 
 A document is named on its record, so `1811/plan` is record 1811's plan. Writing it adds the next
 version. Each version names who wrote it, the agent session that did, and the worklog that session
