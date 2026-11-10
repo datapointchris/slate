@@ -36,8 +36,9 @@ OIDC_ISSUER=https://auth.example.com docker compose up --build
 
 That starts Postgres, runs the migrations to head and serves the API at
 `http://localhost:8000`. `/health` answers while the process is up, and
-`/ready` while Postgres answers too. The API's routes are under `/api/v1`, and
-its OpenAPI page is `/api/v1/docs`.
+`/ready` once Postgres has answered once. A later Postgres outage leaves it
+ready, and each request answers 503 until Postgres is back. The API's routes
+are under `/api/v1`, and its OpenAPI page is `/api/v1/docs`.
 
 ### Settings
 

@@ -53,8 +53,13 @@ def test_postgres_stopping_after_its_first_answer_leaves_the_api_ready_and_answe
 
         # Postgres's image stops on SIGINT, a fast shutdown, as a replaced pod's does.
         postgres.get_wrapped_container().stop()
+        ready = client.get('/ready')
         response = client.get(f'{API_PREFIX}/labels')
-        assert (response.status_code, response.json()) == (503, {'error': 'Service Unavailable', 'message': 'Postgres is unavailable'})
+        assert (ready.status_code, response.status_code, response.json()) == (
+            200,
+            503,
+            {'error': 'Service Unavailable', 'message': 'Postgres is unavailable'},
+        )
     finally:
         postgres.stop()
         get_db_engine(settings).dispose()

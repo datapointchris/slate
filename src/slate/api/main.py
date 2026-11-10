@@ -1,3 +1,4 @@
+import threading
 from collections.abc import AsyncGenerator
 from collections.abc import Callable
 from collections.abc import Mapping
@@ -164,19 +165,29 @@ async def unhandled_exception_handler(request, exc):
 
 
 def add_probe_routes(api: FastAPI, settings: Settings) -> None:
-    """`/health` answers while the process can serve, and `/ready` while Postgres answers too."""
+    """`/health` answers while the process can serve, and `/ready` once Postgres has answered once.
+
+    Every replica shares Postgres, so a later outage leaves the pod in the Service, and each
+    request answers its own 503 through `database_error_handler`.
+    """
+    postgres_answered = threading.Event()
 
     def health() -> dict[str, str]:
         return {'status': 'ok'}
 
     def ready() -> Response:
-        try:
-            with get_db_engine(settings).connect() as connection:
-                connection.execute(text('SELECT 1'))
-        except Exception as exc:
-            logger.warning('not_ready', reason='postgres', error=str(exc))
-            return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={'status': 'unavailable', 'postgres': str(exc)})
-        return JSONResponse(content={'status': 'ok', 'postgres': 'ok'})
+        if not postgres_answered.is_set():
+            try:
+                with get_db_engine(settings).connect() as connection:
+                    connection.execute(text('SELECT 1'))
+            except Exception as exc:
+                logger.warning('not_ready', reason='postgres', error=str(exc))
+                return JSONResponse(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={'status': 'unavailable', 'postgres': str(exc)}
+                )
+            postgres_answered.set()
+            logger.info('ready', postgres='answered')
+        return JSONResponse(content={'status': 'ok', 'postgres': 'answered'})
 
     api.add_api_route('/health', health, methods=['GET'], include_in_schema=False)
     api.add_api_route('/ready', ready, methods=['GET'], include_in_schema=False)
