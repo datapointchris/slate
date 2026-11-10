@@ -342,10 +342,11 @@ const issuePathHelp = "File or directory it changes, from the repo root (repeata
 const autofixSetHelp = "True opens it to an unattended fix, unless its initiative or a parent is off; false keeps it and its children from one"
 
 type issueEditFlags struct {
-	title, description, acceptance, repo, issueType, priority string
-	initiative, parent, discoveredFrom, deferredUntil         string
-	labels, paths                                             []string
-	autofix                                                   bool
+	title, description, descriptionFile, acceptance, repo string
+	issueType, priority                                   string
+	initiative, parent, discoveredFrom, deferredUntil     string
+	labels, paths                                         []string
+	autofix                                               bool
 }
 
 func newIssuesEditCommand() *cobra.Command {
@@ -364,9 +365,11 @@ func newIssuesEditCommand() *cobra.Command {
 			"and --label \"\" removes every label. --path does the same for the paths it\n" +
 			"changes. --title, --type and --priority cannot be emptied. --priority none\n" +
 			"drops the issue's own, so it takes its parent's or its initiative's.\n" +
-			"--autofix=false keeps it and its children from an unattended fix.",
+			"--autofix=false keeps it and its children from an unattended fix.\n" +
+			"--description-file reads the description from a file, or from stdin as -.",
 		Example: "  slate issues edit 412 --priority urgent\n" +
 			"  slate issues edit 412 --autofix=false\n" +
+			"  slate issues edit 412 --description-file description.md\n" +
 			"  slate issues edit 412 --acceptance \"$(cat acceptance.md)\"\n" +
 			"  slate issues edit 412 --label area-api --label needs-design\n" +
 			"  slate issues edit 412 --path cli/internal/cli --path docs/issues.md\n" +
@@ -391,6 +394,7 @@ func (v *issueEditFlags) register(cmd *cobra.Command) {
 	f := cmd.Flags()
 	f.StringVar(&v.title, "title", "", "New title")
 	f.StringVar(&v.description, "description", "", "New description (empty clears)")
+	f.StringVar(&v.descriptionFile, "description-file", "", "File holding the new description, or - for stdin (a blank one clears)")
 	f.StringVar(&v.acceptance, "acceptance", "", "New acceptance (empty clears)")
 	f.StringVar(&v.repo, "repo", "", "Repo by registry name (empty takes it off every repo)")
 	f.StringVar(&v.issueType, "type", "", "One of: "+strings.Join(api.IssueTypes, ", "))
@@ -432,6 +436,9 @@ func (v *issueEditFlags) update(cmd *cobra.Command) (api.IssueUpdateInput, []str
 		if err := parseDay("deferred-until", v.deferredUntil); err != nil {
 			return api.IssueUpdateInput{}, nil, err
 		}
+	}
+	if err := v.readDescriptionFile(cmd); err != nil {
+		return api.IssueUpdateInput{}, nil, err
 	}
 
 	in := api.IssueUpdateInput{
@@ -481,6 +488,25 @@ func (v *issueEditFlags) update(cmd *cobra.Command) (api.IssueUpdateInput, []str
 		return api.IssueUpdateInput{}, nil, goclikit.UsageError(errors.New("nothing to change — pass at least one field flag"))
 	}
 	return in, clear, nil
+}
+
+// readDescriptionFile sets --description from the file --description-file
+// names, so a body too long to quote on a command line goes through as
+// --description would. Trailing line breaks are dropped, as "$(cat file)"
+// drops them, and a blank file clears the description as an empty value does.
+func (v *issueEditFlags) readDescriptionFile(cmd *cobra.Command) error {
+	f := cmd.Flags()
+	if !f.Changed("description-file") {
+		return nil
+	}
+	if f.Changed("description") {
+		return goclikit.UsageError(errors.New("--description and --description-file both set the description — pass one"))
+	}
+	body, err := readBodyFlag(cmd, "description-file", v.descriptionFile)
+	if err != nil {
+		return err
+	}
+	return f.Set("description", strings.TrimRight(body, "\r\n"))
 }
 
 // runIssueUpdate applies a PATCH and reports the issue it left.

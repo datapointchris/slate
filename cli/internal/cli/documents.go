@@ -170,7 +170,7 @@ func newDocumentsWriteCommand() *cobra.Command {
 			if kind != "" && !slices.Contains(api.DocumentKinds, kind) {
 				return goclikit.UsageError(fmt.Errorf("unknown kind %q — one of: %s", kind, strings.Join(api.DocumentKinds, ", ")))
 			}
-			body, err := readDocumentBody(cmd, file)
+			body, err := readBodyFlag(cmd, "file", file)
 			if err != nil {
 				return err
 			}
@@ -198,19 +198,20 @@ func newDocumentsWriteCommand() *cobra.Command {
 	return cmd
 }
 
-// readDocumentBody reads the body from the file named, or from stdin. A
-// terminal on stdin with no file is refused, since a read would wait on typing.
-func readDocumentBody(cmd *cobra.Command, file string) (string, error) {
+// readBodyFlag reads a body from the file flag names, or from stdin when its
+// value is - or empty. A terminal on stdin with no file is refused, since a read
+// would wait on typing.
+func readBodyFlag(cmd *cobra.Command, flag, file string) (string, error) {
 	if file != "" && file != "-" {
 		raw, err := os.ReadFile(file)
 		if err != nil {
-			return "", goclikit.UsageError(fmt.Errorf("read --file: %w", err))
+			return "", goclikit.UsageError(fmt.Errorf("read --%s: %w", flag, err))
 		}
 		return string(raw), nil
 	}
 	in := cmd.InOrStdin()
 	if stdin, ok := in.(*os.File); ok && file == "" && term.IsTerminal(int(stdin.Fd())) {
-		return "", goclikit.UsageError(errors.New("pass the body with --file, or pipe it in"))
+		return "", goclikit.UsageError(fmt.Errorf("pass the body with --%s, or pipe it in", flag))
 	}
 	raw, err := io.ReadAll(in)
 	if err != nil {

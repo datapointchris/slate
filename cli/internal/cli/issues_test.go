@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -41,6 +42,7 @@ func TestIssues_AUsageRefusalDoesNotWaitOnTheNetwork(t *testing.T) {
 		{"a label beside an empty one", []string{"issues", "edit", "412", "--label", "area-api", "--label", ""}},
 		{"a deferral that is not a day", []string{"issues", "edit", "412", "--deferred-until", "tomorrow"}},
 		{"an unknown type", []string{"issues", "edit", "412", "--type", "epic"}},
+		{"a description given inline and as a file", []string{"issues", "edit", "412", "--description", "x", "--description-file", "-"}},
 		{"a title missing with no terminal", []string{"issues", "create", "--no-input"}},
 		{"a new issue already closed", []string{"issues", "create", "--title", "x", "--status", "completed"}},
 		{"an unknown status", []string{"issues", "list", "--status", "done"}},
@@ -97,6 +99,43 @@ func TestIssueEdit_EmptyValuesClearEachFieldItsOwnWay(t *testing.T) {
 	}
 	if in.DeferredUntilDate != nil || in.Initiative != nil {
 		t.Errorf("a cleared field also went in the body: %+v", in)
+	}
+}
+
+// --description-file sends what --description would: the file's text, or
+// stdin's under -, with trailing line breaks dropped, and a blank one clears.
+func TestIssueEdit_DescriptionFileSendsWhatDescriptionWould(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "description.md")
+	if err := os.WriteFile(path, []byte("| a | b |\n|---|---|\n\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	blank := filepath.Join(t.TempDir(), "blank.md")
+	if err := os.WriteFile(blank, []byte("\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name, value, stdin string
+		want               *string
+		clear              string
+	}{
+		{"a file", path, "", ptr("| a | b |\n|---|---|"), ""},
+		{"stdin", "-", "it's \"quoted\" $HOME\n", ptr("it's \"quoted\" $HOME"), ""},
+		{"a blank file", blank, "", nil, "description"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			v, cmd := parsedEdit(t, "--description-file", c.value)
+			cmd.SetIn(strings.NewReader(c.stdin))
+			in, clear, err := v.update(cmd)
+			if err != nil {
+				t.Fatalf("update: %v", err)
+			}
+			if (in.Description == nil) != (c.want == nil) || (c.want != nil && *in.Description != *c.want) {
+				t.Errorf("description = %v, want %v", in.Description, c.want)
+			}
+			if strings.Join(clear, ",") != c.clear {
+				t.Errorf("clear = %v, want %q", clear, c.clear)
+			}
+		})
 	}
 }
 
