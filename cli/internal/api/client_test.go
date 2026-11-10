@@ -69,7 +69,7 @@ func TestListInitiatives_AuthenticatesUnderTheAPIPrefix(t *testing.T) {
 	defer srv.Close()
 
 	client := New(srv.URL+"/", staticTokenClient("abc123"))
-	if _, err := client.ListInitiatives(context.Background(), "", "", nil); err != nil {
+	if _, err := client.ListInitiatives(context.Background(), InitiativeFilter{}, nil); err != nil {
 		t.Fatalf("ListInitiatives: %v", err)
 	}
 
@@ -126,7 +126,7 @@ func TestSend_NonJSONErrorBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := New(srv.URL, staticTokenClient("t")).ListInitiatives(context.Background(), "", "", nil)
+	_, err := New(srv.URL, staticTokenClient("t")).ListInitiatives(context.Background(), InitiativeFilter{}, nil)
 
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) {

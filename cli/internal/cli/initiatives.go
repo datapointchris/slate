@@ -74,6 +74,7 @@ func newInitiativesListCommand() *cobra.Command {
 		asJSON           bool
 		initiativeStatus string
 		sort             string
+		tag              string
 		limit            int
 	)
 	cmd := &cobra.Command{
@@ -87,7 +88,7 @@ func newInitiativesListCommand() *cobra.Command {
 			"Once a step of its life is checked, a second line marks each step, a checked\n" +
 			"one with the day its worklog ended.\n\n" +
 			"`slate tui` opens the same initiatives as a board that keeps itself current.",
-		Example:     "  slate initiatives list\n  slate initiatives list --sort open\n  slate initiatives list --status all --json",
+		Example:     "  slate initiatives list\n  slate initiatives list --sort open --tag security\n  slate initiatives list --status all --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -101,9 +102,13 @@ func newInitiativesListCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			initiatives, err := client.ListInitiatives(cmd.Context(), initiativeStatus, sort, limitFlag(cmd))
+			filter := api.InitiativeFilter{Status: initiativeStatus, Sort: sort, Tag: tag}
+			initiatives, err := client.ListInitiatives(cmd.Context(), filter, limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
+			}
+			if err := honoredTagFilter(tag, initiatives, initiativeTags); err != nil {
+				return err
 			}
 			if !cmd.Flags().Changed("status") {
 				defer noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
@@ -119,6 +124,7 @@ func newInitiativesListCommand() *cobra.Command {
 	withFlagValues(cmd, "status", api.InitiativeStatuses...)
 	cmd.Flags().StringVar(&sort, "sort", "", "One of: "+strings.Join(api.InitiativeSorts, ", ")+" (default priority); open puts the most unclosed issues first")
 	withFlagValues(cmd, "sort", api.InitiativeSorts...)
+	cmd.Flags().StringVar(&tag, "tag", "", "Only initiatives carrying this tag (see: slate tags list)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output initiatives as JSON to stdout")
 	addLimitFlag(cmd, &limit)
 	return cmd
@@ -204,6 +210,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 		description string
 		priority    string
 		autofix     bool
+		tags        []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
@@ -223,7 +230,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 				return goclikit.UsageError(errors.New("--summary is required: " + initiativeSummaryHelp))
 			}
 			f := cmd.Flags()
-			in := api.InitiativeCreateInput{Name: name, Summary: summary, Description: valuedStrFlag(f, "description", &description)}
+			in := api.InitiativeCreateInput{Name: name, Summary: summary, Description: valuedStrFlag(f, "description", &description), Tags: tags}
 			if f.Changed("priority") {
 				value, err := parsePriority(priority)
 				if err != nil {
@@ -243,7 +250,10 @@ func newInitiativesCreateCommand() *cobra.Command {
 				return handleArgumentAPIError(err)
 			}
 			initiative := written.Initiative
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Started initiative #%d %q", initiative.Number, initiative.Name))
+			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, fmt.Sprintf("Started initiative #%d %q", initiative.Number, initiative.Name)); err != nil {
+				return err
+			}
+			return honoredTagWrite(&in.Tags, initiative.Number, initiative.Tags)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "Initiative name, unique among active ones (required)")
@@ -252,6 +262,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagSetHelp+"; its issues read it too")
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -263,16 +274,19 @@ func newInitiativesEditCommand() *cobra.Command {
 		description string
 		priority    string
 		autofix     bool
+		tags        []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "edit <initiative> [flags]",
 		Short: "Change an initiative's fields",
 		Long: "Update only the fields whose flags you pass. --description \"\" clears it.\n" +
-			"Status moves through complete, drop, shelve and reopen, and its place in the\n" +
-			"queue through reorder.",
+			"--tag replaces the whole set, and --tag \"\" removes every tag; each of its\n" +
+			"issues reads the new set as its own too. Status moves through complete, drop,\n" +
+			"shelve and reopen, and its place in the queue through reorder.",
 		Example: "  slate initiatives edit \"Ship the tracker\" --priority urgent\n" +
-			"  slate initiatives edit 1491 --autofix=false",
+			"  slate initiatives edit 1491 --autofix=false\n" +
+			"  slate initiatives edit 1491 --tag security",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),
@@ -299,12 +313,17 @@ func newInitiativesEditCommand() *cobra.Command {
 			if f.Changed("autofix") {
 				in.Autofix = &autofix
 			}
+			tagSet, err := tagsEdited(f, tags)
+			if err != nil {
+				return err
+			}
+			in.Tags = tagSet
 			var clear []string
 			if readFlagIntent(f, "description") == flagClears {
 				clear = append(clear, "description")
 			}
 			if in == (api.InitiativeUpdateInput{}) && len(clear) == 0 {
-				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --name/--summary/--description/--priority/--autofix"))
+				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --name/--summary/--description/--priority/--autofix/--tag"))
 			}
 			return runInitiativeUpdate(cmd, args[0], in, clear, asJSON, "Updated")
 		},
@@ -315,6 +334,7 @@ func newInitiativesEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagReplaceHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -334,7 +354,10 @@ func runInitiativeUpdate(cmd *cobra.Command, ref string, in api.InitiativeUpdate
 	}
 	initiative := written.Initiative
 	summary := fmt.Sprintf("%s initiative #%d %q (%s)", verb, initiative.Number, initiative.Name, initiative.Status)
-	return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
+	if err := reportWrite(cmd, asJSON, written, written.WriteEffects, summary); err != nil {
+		return err
+	}
+	return honoredTagWrite(in.Tags, initiative.Number, initiative.Tags)
 }
 
 func newInitiativesCompleteCommand() *cobra.Command {
@@ -675,6 +698,9 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 		initiative.IssueCount, initiative.OpenCount, initiative.CompletedCount, initiative.CanceledCount)
 	_, _ = fmt.Fprintf(out, "  repos:     %s\n", repoList(initiative.Repos))
 	_, _ = fmt.Fprintf(out, "  steps:     %s\n", paintedStepMarks(p, initiative.Steps))
+	if len(initiative.Tags) > 0 {
+		_, _ = fmt.Fprintf(out, "  tags:      %s\n", strings.Join(initiative.Tags, ", "))
+	}
 	if initiative.Claim != nil {
 		_, _ = fmt.Fprintf(out, "  claim:     %s\n", claimNote(*initiative.Claim, time.Now()))
 	}

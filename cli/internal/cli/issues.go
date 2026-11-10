@@ -121,6 +121,7 @@ type issueFilterFlags struct {
 	repo        string
 	issueType   string
 	label       string
+	tag         string
 	initiative  string
 	parent      string
 	priority    string
@@ -138,6 +139,7 @@ func (v *issueFilterFlags) register(cmd *cobra.Command) {
 	f.StringVar(&v.issueType, "type", "", "One of: "+strings.Join(api.IssueTypes, ", "))
 	withFlagValues(cmd, "type", api.IssueTypes...)
 	f.StringVar(&v.label, "label", "", "Only issues carrying this label (see: slate labels list)")
+	f.StringVar(&v.tag, "tag", "", tagFilterHelp)
 	f.StringVar(&v.initiative, "initiative", "", "Only issues in this initiative, by number, name or id")
 	f.StringVar(&v.parent, "parent", "", "Only the children of this issue")
 	f.StringVar(&v.priority, "priority", "", "Only issues whose own priority is this: "+priorityChoices())
@@ -168,6 +170,7 @@ func (v *issueFilterFlags) filter(cmd *cobra.Command) (api.IssueFilter, error) {
 		Repo:       repo,
 		Type:       v.issueType,
 		Label:      v.label,
+		Tag:        v.tag,
 		Initiative: v.initiative,
 		Parent:     v.parent,
 		ClosedBy:   v.closedBy,
@@ -271,7 +274,7 @@ func newIssuesListCommand() *cobra.Command {
 			"  slate issues list --type decision\n" +
 			"  slate issues list --status triage\n" +
 			"  slate issues list --blocked\n" +
-			"  slate issues list --label area-cli --priority high\n" +
+			"  slate issues list --label needs-design --priority high\n" +
 			"  slate issues list --status completed --since 2026-10-01 --json\n" +
 			"  slate issues list --status completed --since 7d\n" +
 			"  slate issues list --status completed --closed-by claude-code/",
@@ -295,6 +298,9 @@ func newIssuesListCommand() *cobra.Command {
 				return handleArgumentAPIError(err)
 			}
 			if err := honoredAutofixable(filter.Autofixable, issues); err != nil {
+				return err
+			}
+			if err := honoredTagFilter(filter.Tag, issues, issueTags); err != nil {
 				return err
 			}
 			if !cmd.Flags().Changed("status") {
@@ -581,6 +587,7 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 		field("found in", summaryLine(*issue.DiscoveredFrom))
 	}
 	field("labels", strings.Join(issue.Labels, ", "))
+	field("tags", issueTagsLine(issue.Issue))
 	field("paths", strings.Join(issue.Paths, ", "))
 	field("deferred", strValue(issue.DeferredUntilDate))
 	field("created", localDay(issue.CreatedTS))

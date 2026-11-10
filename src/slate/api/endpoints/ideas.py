@@ -7,6 +7,7 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi import status
 from sqlalchemy import case
 from sqlalchemy import select
@@ -17,6 +18,8 @@ from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
+from slate.models.record import Kind
+from slate.schemas.ready_filter import TAG_FILTER
 from slate.services.claims import end_with_record
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
@@ -30,6 +33,10 @@ from slate.services.record_pins import carry_pin
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_refs import resolve_idea
+from slate.services.record_tags import narrowed_to_tag
+from slate.services.record_tags import own_tags
+from slate.services.record_tags import resolve_tags
+from slate.services.record_tags import set_record_tags
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
@@ -50,20 +57,23 @@ IdeaFromPath = Annotated[models.Idea, Depends(path_idea)]
 
 
 @router.get('', response_model=list[schemas.Idea], status_code=status.HTTP_200_OK)
-def read_many(session: DbSession, limit: RowLimit = None):
+def read_many(session: DbSession, tag: str | None = Query(None, description=TAG_FILTER), limit: RowLimit = None):
     """Every idea, promoted or not, most urgent first. Priority 0 is no priority and sorts last."""
     urgency = case((models.Idea.priority == 0, NO_PRIORITY_URGENCY), else_=models.Idea.priority)
     query = select(models.Idea).options(*IDEA_LOAD_OPTIONS).order_by(urgency.asc(), models.Idea.number.asc())
+    query = narrowed_to_tag(query, Kind.IDEA, tag, session)
     return idea_views(session, session.scalars(apply_row_limit(query, limit)).all())
 
 
 @router.post('', response_model=schemas.IdeaWritten, status_code=status.HTTP_201_CREATED)
 def create(idea: schemas.IdeaCreate, session: DbSession, effects: Effects):
     """Record an idea last in the queue, warning about each open record whose title reads like it."""
+    tags = resolve_tags(session, idea.tags)
     db_obj = models.Idea(title=idea.title, description=idea.description, priority=idea.priority)
     session.add(db_obj)
     session.flush()
     name_record(db_obj.number)
+    set_record_tags(session, db_obj.number, tags)
     warn_likely_duplicates(session, db_obj.number, db_obj.title, None, effects)
     session.commit()
     session.refresh(db_obj)
@@ -109,7 +119,10 @@ def read_one(idea: IdeaFromPath, session: DbSession):
 
 @router.patch('/{id}', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
 def update(idea: IdeaFromPath, changes: schemas.IdeaUpdate, session: DbSession, effects: Effects):
-    for field, value in changes.model_dump(exclude_unset=True).items():
+    update_data = changes.model_dump(exclude_unset=True)
+    if 'tags' in update_data:
+        set_record_tags(session, idea.number, resolve_tags(session, update_data.pop('tags')))
+    for field, value in update_data.items():
         setattr(idea, field, value)
     idea.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
@@ -138,9 +151,10 @@ def link_evidence(idea: IdeaFromPath, link: schemas.IdeaEvidenceLink, session: D
 def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession, caller: CurrentCaller, effects: Effects):
     """Create the initiative the idea becomes, naming the idea. A promoted idea is refused with 409.
 
-    The summary is required, because an idea has none. Each other field the request leaves
-    out takes the idea's own: its title as the name, its description, its priority. The answer is the idea, which then shows the initiative.
-    The idea's claim ends as `promoted`, because its work is the initiative's now.
+    The summary is required, because an idea has none. Each other field the request leaves out
+    takes the idea's own: its title as the name, its description, its priority, its tags. The
+    answer is the idea, which then shows the initiative. The idea's claim ends as `promoted`,
+    because its work is the initiative's now.
     """
     if idea.initiative is not None:
         raise HTTPException(
@@ -156,6 +170,7 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
             status=request.status,
             priority=request.priority if request.priority is not None else idea.priority,
             autofix=request.autofix,
+            tags=request.tags if request.tags is not None else own_tags(session, [idea.number]).get(idea.number, []),
         ),
         idea=idea,
     )

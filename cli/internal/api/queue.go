@@ -13,9 +13,7 @@ import (
 // decision issue.
 var QueueSteps = []string{"discuss", "shape", "design", "preflight", "decide", "build", "retro"}
 
-// QueueFilter narrows the queue. Step keeps one step's rows. Every
-// ReadyFilter field but Initiative reads only issues, so setting one leaves
-// every idea and initiative out.
+// QueueFilter narrows the queue. Step keeps one step's rows.
 type QueueFilter struct {
 	ReadyFilter
 	Step string

@@ -19,7 +19,8 @@ func newVocabularyCommand() *cobra.Command {
 		Long: "Each list is named for the command whose flag takes it: `issues --status`\n" +
 			"and `initiatives --status` accept different values. Every noun's --priority\n" +
 			"takes one scale. Statuses, types, priorities and steps are fixed by the API. Labels\n" +
-			"are made with `slate labels create`, so they are the one list that grows.",
+			"are made with `slate labels create` and tags with `slate tags create`, so they\n" +
+			"are the lists that grow.",
 		Example:     "  slate vocabulary\n  slate vocabulary --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
@@ -60,6 +61,8 @@ func printVocabulary(out io.Writer, v api.Vocabulary) {
 	printWorklogSteps(out, v.WorklogSteps)
 	_, _ = fmt.Fprintln(out, "\nissues --label:")
 	printIssueLabels(out, v.Labels)
+	_, _ = fmt.Fprintln(out, "\nideas, initiatives, issues and next --tag:")
+	printTags(out, v.Tags)
 }
 
 func printWorklogSteps(out io.Writer, steps []api.WorklogStep) {

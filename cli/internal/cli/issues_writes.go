@@ -28,8 +28,8 @@ var unclosedStatuses = []string{api.IssueStatusTriage, api.IssueStatusOpen}
 // --- Create ---
 
 // issueCreateFields is the record `issues create` builds, in the order it asks.
-// The initiatives and labels are read from the API because both change without
-// this file changing.
+// The initiatives, labels and tags are read from the API because each changes
+// without this file changing.
 func issueCreateFields(ctx context.Context, client *api.Client) ([]prompt.Field, error) {
 	vocabulary, err := client.GetVocabulary(ctx)
 	if err != nil {
@@ -37,7 +37,7 @@ func issueCreateFields(ctx context.Context, client *api.Client) ([]prompt.Field,
 	}
 	// A someday initiative takes issues as an active one does, and the API's
 	// default list holds only the active ones.
-	listed, err := client.ListInitiatives(ctx, "all", "", nil)
+	listed, err := client.ListInitiatives(ctx, api.InitiativeFilter{Status: "all"}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +55,10 @@ func issueCreateFields(ctx context.Context, client *api.Client) ([]prompt.Field,
 	slugs := make([]string, 0, len(vocabulary.Labels))
 	for _, label := range vocabulary.Labels {
 		slugs = append(slugs, label.Slug)
+	}
+	tags := make([]string, 0, len(vocabulary.Tags))
+	for _, tag := range vocabulary.Tags {
+		tags = append(tags, tag.Name)
 	}
 	return []prompt.Field{
 		{Key: "title", Label: "Title"},
@@ -97,6 +101,15 @@ func issueCreateFields(ctx context.Context, client *api.Client) ([]prompt.Field,
 			Optional: true,
 			Repeat:   true,
 			Validate: prompt.OneOf(slugs),
+		},
+		{
+			Key:      "tag",
+			Label:    "Tag",
+			Hint:     "A category it belongs to. It also reads its initiative's.",
+			Choices:  tags,
+			Optional: true,
+			Repeat:   true,
+			Validate: prompt.OneOf(tags),
 		},
 		{
 			Key:       "description",
@@ -200,7 +213,7 @@ func newIssuesCreateCommand() *cobra.Command {
 			"\n" +
 			"Pass every field as a flag to file in one shot. Leave --title out at a\n" +
 			"terminal and the rest are asked for one at a time. Tab lists the choices for\n" +
-			"a field that has them. Label repeats until an empty answer, and Description\n" +
+			"a field that has them. Label and Tag repeat until an empty answer, and Description\n" +
 			"and Acceptance take lines until a blank one. Ctrl-C abandons the issue.\n" +
 			"\n" +
 			"--status triage holds it for a person to accept before an agent may take it.\n" +
@@ -234,7 +247,7 @@ func newIssuesCreateCommand() *cobra.Command {
 					return err
 				}
 			}
-			answers := flagAnswers(cmd, "title", "type", "priority", "repo", "initiative", "label", "description", "acceptance")
+			answers := flagAnswers(cmd, "title", "type", "priority", "repo", "initiative", "label", "tag", "description", "acceptance")
 			missing := missingFlags(answers, "title")
 			if len(missing) > 0 && !interactive(cmd) {
 				return goclikit.UsageError(fmt.Errorf("%s required — pass it, or run from a terminal to be asked", strings.Join(missing, " and ")))
@@ -264,7 +277,9 @@ func newIssuesCreateCommand() *cobra.Command {
 				}
 				answers.Merge(asked)
 			}
-			in := api.IssueCreateInput{Title: answers.Get("title"), Labels: answers.All("label"), DependsOn: dependsOn, Paths: paths}
+			in := api.IssueCreateInput{
+				Title: answers.Get("title"), Labels: answers.All("label"), Tags: answers.All("tag"), DependsOn: dependsOn, Paths: paths,
+			}
 			optional := map[string]**string{
 				"type": &in.Type, "repo": &in.Repo, "initiative": &in.Initiative,
 				"description": &in.Description, "acceptance": &in.Acceptance,
@@ -303,7 +318,10 @@ func newIssuesCreateCommand() *cobra.Command {
 			if issue.DiscoveredFrom != nil {
 				summary += fmt.Sprintf(", found in #%d", issue.DiscoveredFrom.Number)
 			}
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
+			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, summary); err != nil {
+				return err
+			}
+			return honoredTagWrite(&in.Tags, issue.Number, issue.Tags)
 		},
 	}
 	f := cmd.Flags()
@@ -315,6 +333,7 @@ func newIssuesCreateCommand() *cobra.Command {
 	f.String("repo", "", "Repo this is work on, by registry name (omit for work on no repo)")
 	f.String("initiative", "", "Initiative this ships toward, by number, name or id")
 	f.StringArray("label", nil, "Label to carry (repeatable; see: slate labels list)")
+	f.StringArray("tag", nil, tagSetHelp)
 	f.String("description", "", "What an agent could not find in the repo on its own")
 	f.String("acceptance", "", "How to verify it is done")
 	f.StringVar(&issueStatus, "status", "", "Where it starts: "+strings.Join(createStatuses, " or ")+" (default open)")
@@ -347,8 +366,8 @@ func sessionIssue(ctx context.Context, client *api.Client, session string) (*str
 // --- Edit ---
 
 // issueClearableFlags maps each edit flag an empty value clears to the field it
-// empties. --label and --path are left out, because each empties to [] rather
-// than null.
+// empties. --label, --tag and --path are left out, because each empties to []
+// rather than null.
 var issueClearableFlags = map[string]string{
 	"description": "description", "acceptance": "acceptance", "repo": "repo",
 	"initiative": "initiative", "parent": "parent", "discovered-from": "discovered_from",
@@ -371,7 +390,7 @@ type issueEditFlags struct {
 	title, description, descriptionFile, acceptance, repo string
 	issueType, priority                                   string
 	initiative, parent, discoveredFrom, deferredUntil     string
-	labels, paths                                         []string
+	labels, tags, paths                                   []string
 	autofix                                               bool
 }
 
@@ -388,16 +407,17 @@ func newIssuesEditCommand() *cobra.Command {
 			"\n" +
 			"An empty value empties the field: --repo \"\" takes it off every repo and\n" +
 			"--deferred-until \"\" makes it ready today. --label replaces the whole set,\n" +
-			"and --label \"\" removes every label. --path does the same for the paths it\n" +
-			"changes. --title, --type and --priority cannot be emptied. --priority none\n" +
-			"drops the issue's own, so it takes its parent's or its initiative's.\n" +
+			"and --label \"\" removes every label. --tag and --path do the same for its\n" +
+			"tags and the paths it changes. Its initiative's tags stay on it either way.\n" +
+			"--title, --type and --priority cannot be emptied. --priority none drops the\n" +
+			"issue's own, so it takes its parent's or its initiative's.\n" +
 			"--autofix=false keeps it and its children from an unattended fix.\n" +
 			"--description-file reads the description from a file, or from stdin as -.",
 		Example: "  slate issues edit 412 --priority urgent\n" +
 			"  slate issues edit 412 --autofix=false\n" +
 			"  slate issues edit 412 --description-file description.md\n" +
 			"  slate issues edit 412 --acceptance \"$(cat acceptance.md)\"\n" +
-			"  slate issues edit 412 --label area-api --label needs-design\n" +
+			"  slate issues edit 412 --label needs-design --tag security\n" +
 			"  slate issues edit 412 --path cli/internal/cli --path docs/issues.md\n" +
 			"  slate issues edit 412 --initiative \"\" --deferred-until 2026-11-01",
 		SuggestFor:  editMistakenFor,
@@ -432,6 +452,7 @@ func (v *issueEditFlags) register(cmd *cobra.Command) {
 	f.StringVar(&v.discoveredFrom, "discovered-from", "", "Issue whose work turned this up (empty removes it)")
 	f.StringVar(&v.deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD (empty clears)")
 	f.StringArrayVar(&v.labels, "label", nil, "Label (repeatable; replaces the set, empty removes every label)")
+	f.StringArrayVar(&v.tags, "tag", nil, tagReplaceHelp)
 	f.StringArrayVar(&v.paths, "path", nil, issuePathHelp+"; replaces the set, empty removes every path")
 	f.BoolVar(&v.autofix, "autofix", true, autofixSetHelp)
 }
@@ -502,6 +523,11 @@ func (v *issueEditFlags) update(cmd *cobra.Command) (api.IssueUpdateInput, []str
 		in.Paths = &v.paths
 	case flagUntouched, flagMixesEmptyWithValues:
 	}
+	tags, err := tagsEdited(f, v.tags)
+	if err != nil {
+		return api.IssueUpdateInput{}, nil, err
+	}
+	in.Tags = tags
 
 	var clear []string
 	for name, field := range issueClearableFlags {
@@ -545,7 +571,10 @@ func runIssueUpdate(cmd *cobra.Command, ref string, in api.IssueUpdateInput, cle
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	return reportIssueWrite(cmd, asJSON, written, verb)
+	if err := reportIssueWrite(cmd, asJSON, written, verb); err != nil {
+		return err
+	}
+	return honoredTagWrite(in.Tags, written.Issue.Number, written.Issue.Tags)
 }
 
 func reportIssueWrite(cmd *cobra.Command, asJSON bool, written api.IssueWritten, verb string) error {

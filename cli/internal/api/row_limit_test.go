@@ -48,7 +48,7 @@ func TestApplyLimit_RidesEveryListRead(t *testing.T) {
 	ctx := context.Background()
 	calls := map[string]func(*Client) error{
 		"ListInitiatives": func(c *Client) error {
-			_, err := c.ListInitiatives(ctx, "", "", intptr(3))
+			_, err := c.ListInitiatives(ctx, InitiativeFilter{}, intptr(3))
 			return err
 		},
 		"ListComments": func(c *Client) error {

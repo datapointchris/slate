@@ -39,6 +39,9 @@ from slate.database.base import Base
 
 RECORDED = 'record_changes'
 ACTOR = 'record_changes_actor'
+# A table's `info` key naming the column a person knows its rows by, as a tag by its name. A change
+# to a row holding one of its keys reads that name beside the key.
+KNOWN_BY = 'record_changes_known_by'
 
 
 class RecordChange(Base):

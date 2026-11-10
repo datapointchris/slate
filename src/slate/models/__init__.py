@@ -18,9 +18,12 @@ from slate.models.issue import IssueLabel
 from slate.models.issue import IssueLabelAssignment
 from slate.models.issue import IssueStatus
 from slate.models.issue import IssueType
+from slate.models.record import Kind
 from slate.models.record import Record
 from slate.models.record import RecordKind
 from slate.models.record_change import RecordChange
+from slate.models.tag import RecordTag
+from slate.models.tag import Tag
 from slate.models.worklog import Worklog
 from slate.models.worklog import WorklogLink
 from slate.models.worklog import WorklogLinkKind
@@ -28,7 +31,11 @@ from slate.models.worklog import WorklogOutcome
 from slate.models.worklog import WorklogSpan
 from slate.models.worklog import WorklogStep
 
+# The table holding each kind of record, read from the kind each model declares.
+KIND_MODELS: dict[Kind, type[Idea] | type[Initiative] | type[Issue]] = {model.RECORD_KIND: model for model in (Idea, Initiative, Issue)}
+
 __all__ = [
+    'KIND_MODELS',
     'AgentSession',
     'Claim',
     'ClaimEnding',
@@ -52,6 +59,8 @@ __all__ = [
     'Record',
     'RecordChange',
     'RecordKind',
+    'RecordTag',
+    'Tag',
     'Worklog',
     'WorklogLink',
     'WorklogLinkKind',

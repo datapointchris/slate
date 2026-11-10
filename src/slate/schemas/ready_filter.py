@@ -5,6 +5,8 @@ from pydantic import Field
 
 AUTOFIXABLE_FILTER = "True for issues whose own, initiative's and parents' autofix are all on, false for the rest"
 
+TAG_FILTER = "A tag's name: only records carrying it, an issue also through its initiative's"
+
 
 class ReadyFilter(BaseModel):
     """The filters on ready issues: fields of holding the queue's head, and the base of `GET /queue`'s query."""
@@ -16,3 +18,4 @@ class ReadyFilter(BaseModel):
         None, description='An initiative, by any reference GET /initiatives/{id} accepts: its UUID, number or name'
     )
     autofixable: bool | None = Field(None, description=AUTOFIXABLE_FILTER)
+    tag: str | None = Field(None, description=TAG_FILTER)

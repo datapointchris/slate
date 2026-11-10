@@ -31,6 +31,7 @@ type Idea struct {
 	PinnedSession *string        `json:"pinned_session"`
 	CreatedTS     time.Time      `json:"created_ts"`
 	UpdatedTS     time.Time      `json:"updated_ts"`
+	Tags          []string       `json:"tags"`
 	Evidence      []IdeaEvidence `json:"evidence"`
 	Initiative    *Initiative    `json:"initiative"`
 	Claim         *Claim         `json:"claim"`
@@ -50,16 +51,19 @@ type IdeaWritten struct {
 
 // IdeaCreateInput is the body for POST /ideas.
 type IdeaCreateInput struct {
-	Title       string  `json:"title"`
-	Description *string `json:"description,omitempty"`
-	Priority    *int    `json:"priority,omitempty"`
+	Title       string   `json:"title"`
+	Description *string  `json:"description,omitempty"`
+	Priority    *int     `json:"priority,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
 }
 
 // IdeaUpdateInput is a partial update, cleared the way IssueUpdateInput is.
+// Tags replaces the whole set.
 type IdeaUpdateInput struct {
-	Title       *string `json:"title,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Priority    *int    `json:"priority,omitempty"`
+	Title       *string   `json:"title,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	Priority    *int      `json:"priority,omitempty"`
+	Tags        *[]string `json:"tags,omitempty"`
 }
 
 // IdeaEvidenceInput links each of Refs, with one note and linker for all.
@@ -73,21 +77,30 @@ type IdeaEvidenceInput struct {
 // summary, so Summary is required. Each nil field takes the idea's own, and an
 // empty Status takes active.
 type IdeaPromoteInput struct {
-	Summary     string  `json:"summary"`
-	Name        *string `json:"name,omitempty"`
-	Description *string `json:"description,omitempty"`
-	Priority    *int    `json:"priority,omitempty"`
-	Status      string  `json:"status,omitempty"`
-	Autofix     *bool   `json:"autofix,omitempty"`
+	Summary     string    `json:"summary"`
+	Name        *string   `json:"name,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	Priority    *int      `json:"priority,omitempty"`
+	Status      string    `json:"status,omitempty"`
+	Autofix     *bool     `json:"autofix,omitempty"`
+	Tags        *[]string `json:"tags,omitempty"`
 }
 
 func ideaPath(ref string) string {
 	return "/ideas/" + url.PathEscape(ref)
 }
 
+// IdeaFilter narrows a list of ideas. A zero field narrows nothing.
+type IdeaFilter struct {
+	Tag string
+}
+
 // ListIdeas returns every idea, promoted or not, most urgent first.
-func (c *Client) ListIdeas(ctx context.Context, limit *int) ([]Idea, error) {
+func (c *Client) ListIdeas(ctx context.Context, filter IdeaFilter, limit *int) ([]Idea, error) {
 	query := url.Values{}
+	if filter.Tag != "" {
+		query.Set("tag", filter.Tag)
+	}
 	applyLimit(query, limit)
 	var ideas []Idea
 	if err := c.get(ctx, withQuery("/ideas", query), &ideas); err != nil {

@@ -70,7 +70,7 @@ func newDependenciesTreeCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			initiatives, err := client.ListInitiatives(cmd.Context(), "all", "", nil)
+			initiatives, err := client.ListInitiatives(cmd.Context(), api.InitiativeFilter{Status: "all"}, nil)
 			if err != nil {
 				return handleAPIError(err)
 			}

@@ -189,6 +189,7 @@ func NewRootCommand() *cobra.Command {
 	)...)
 	root.AddCommand(inGroup(groupSetup,
 		withAPIFlag(newLabelsCommand()),
+		withAPIFlag(newTagsCommand()),
 		withAPIFlag(newVocabularyCommand()),
 		newAuthCommand(),
 		newConfigCommand(),

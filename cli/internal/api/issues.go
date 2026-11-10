@@ -92,6 +92,10 @@ type Issue struct {
 	DiscoveredFrom *IssueSummary      `json:"discovered_from"`
 	DuplicateOf    *IssueSummary      `json:"duplicate_of"`
 	Labels         []string           `json:"labels"`
+	// Tags are the issue's own, which a write sets. EffectiveTags are its own
+	// plus its initiative's, which a --tag filter matches.
+	Tags          []string `json:"tags"`
+	EffectiveTags []string `json:"effective_tags"`
 	// Paths are the files and directories the issue changes, in its repo. A
 	// directory covers everything under it.
 	Paths     []string       `json:"paths"`
@@ -140,6 +144,7 @@ type IssueCreateInput struct {
 	Parent            *string  `json:"parent,omitempty"`
 	DiscoveredFrom    *string  `json:"discovered_from,omitempty"`
 	Labels            []string `json:"labels,omitempty"`
+	Tags              []string `json:"tags,omitempty"`
 	DependsOn         []string `json:"depends_on,omitempty"`
 	Paths             []string `json:"paths,omitempty"`
 }
@@ -168,6 +173,7 @@ type IssueUpdateInput struct {
 	ClosedBy          *string   `json:"closed_by,omitempty"`
 	Labels            *[]string `json:"labels,omitempty"`
 	Paths             *[]string `json:"paths,omitempty"`
+	Tags              *[]string `json:"tags,omitempty"`
 }
 
 // IssueFilter narrows a list. A zero field narrows nothing. Repo is a pointer
@@ -178,6 +184,7 @@ type IssueFilter struct {
 	Repo        *string
 	Type        string
 	Label       string
+	Tag         string
 	Initiative  string
 	Parent      string
 	Priority    *int
@@ -193,6 +200,7 @@ func (f IssueFilter) query() url.Values {
 		"status":     f.Status,
 		"type":       f.Type,
 		"label":      f.Label,
+		"tag":        f.Tag,
 		"initiative": f.Initiative,
 		"parent":     f.Parent,
 		"closed_by":  f.ClosedBy,
@@ -220,13 +228,14 @@ type ReadyFilter struct {
 	Repo        *string `json:"repo,omitempty"`
 	Type        string  `json:"type,omitempty"`
 	Label       string  `json:"label,omitempty"`
+	Tag         string  `json:"tag,omitempty"`
 	Initiative  string  `json:"initiative,omitempty"`
 	Autofixable *bool   `json:"autofixable,omitempty"`
 }
 
 func (f ReadyFilter) query() url.Values {
 	query := repoQuery(f.Repo)
-	for name, value := range map[string]string{"type": f.Type, "label": f.Label, "initiative": f.Initiative} {
+	for name, value := range map[string]string{"type": f.Type, "label": f.Label, "tag": f.Tag, "initiative": f.Initiative} {
 		if value != "" {
 			query.Set(name, value)
 		}

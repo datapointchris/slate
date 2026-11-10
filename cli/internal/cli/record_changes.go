@@ -107,7 +107,7 @@ func printChanges(out io.Writer, changes *recordChanges, now time.Time) {
 		}
 		slices.Sort(columns)
 		for _, column := range columns {
-			if text, ok := columnChangeText(change.Changes[column]); ok {
+			if text, ok := columnChangeText(change.Changes[column], change.ReferencedNames[column]); ok {
 				_, _ = fmt.Fprintf(out, "      %s: %s\n", column, text)
 			}
 		}
@@ -115,19 +115,27 @@ func printChanges(out io.Writer, changes *recordChanges, now time.Time) {
 }
 
 // columnChangeText is an update's `old → new`, or the one value an insert or a
-// delete wrote. A null that an insert or a delete carries says nothing, so it
-// is left out.
-func columnChangeText(change api.ColumnChange) (string, bool) {
+// delete wrote, each followed by the name of the row it keys where the API
+// gave one. A null that an insert or a delete carries says nothing, so it is
+// left out.
+func columnChangeText(change api.ColumnChange, named api.ReferencedName) (string, bool) {
 	switch {
 	case change.Old != nil && change.New != nil:
-		return changeValue(change.Old) + " → " + changeValue(change.New), true
+		return namedValue(change.Old, named.Old) + " → " + namedValue(change.New, named.New), true
 	case change.New != nil && !isJSONNull(change.New):
-		return changeValue(change.New), true
+		return namedValue(change.New, named.New), true
 	case change.Old != nil && !isJSONNull(change.Old):
-		return changeValue(change.Old), true
+		return namedValue(change.Old, named.Old), true
 	default:
 		return "", false
 	}
+}
+
+func namedValue(raw json.RawMessage, name *string) string {
+	if name == nil {
+		return changeValue(raw)
+	}
+	return changeValue(raw) + " (" + *name + ")"
 }
 
 func isJSONNull(raw json.RawMessage) bool {

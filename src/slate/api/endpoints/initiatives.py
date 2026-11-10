@@ -22,6 +22,8 @@ from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
+from slate.models.record import Kind
+from slate.schemas.ready_filter import TAG_FILTER
 from slate.services.claims import end_with_record
 from slate.services.initiative_board import initiative_board
 from slate.services.initiative_board import initiative_board_text
@@ -47,6 +49,9 @@ from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_summaries import record_summaries
+from slate.services.record_tags import narrowed_to_tag
+from slate.services.record_tags import resolve_tags
+from slate.services.record_tags import set_record_tags
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
@@ -88,6 +93,7 @@ def read_many(
         InitiativeSort,
         Query(description='priority: the order the queue takes them in. open: most unclosed issues first. newest: latest started first.'),
     ] = 'priority',
+    tag: Annotated[str | None, Query(description=TAG_FILTER)] = None,
     limit: RowLimit = None,
 ):
     """Active initiatives, then someday, completed and dropped ones, each status in `sort`'s order.
@@ -108,6 +114,7 @@ def read_many(
         .group_by(models.Initiative.id)
         .order_by(*listing_order(*orders[sort]))
     )
+    query = narrowed_to_tag(query, Kind.INITIATIVE, tag, session)
     rows = session.execute(apply_row_limit(narrowed_to_status(query, initiative_status, session), limit)).all()
     return initiative_views(session, [(row[0], row[1:]) for row in rows])
 
@@ -238,6 +245,8 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
     resulting_name = update_data.get('name', initiative.name)
     if resulting_status == 'active' and (resulting_name != initiative.name or initiative.status != 'active'):
         ensure_active_name_available(session, resulting_name, exclude_id=initiative.id)
+    if 'tags' in update_data:
+        set_record_tags(session, initiative.number, resolve_tags(session, update_data.pop('tags')))
     apply_status_transition(initiative, update_data, session, effects, signed_in=caller_actor(caller))
     for attr, value in update_data.items():
         setattr(initiative, attr, value)

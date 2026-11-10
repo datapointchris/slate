@@ -62,8 +62,9 @@ past `design` with unclosed issues, and for one with unclosed issues and no
 checked step, which was built before steps existed. It is listed only when
 held, in `claimed`, at step `build`, so whoever holds it is seen beside the
 issues it gathers. `repo`, `type`, `label` and `autofixable` read only issues, so
-each leaves the ideas and initiatives out. `initiative` narrows to one
-initiative's rows.
+each leaves the ideas and initiatives out. `tag` keeps the ideas and initiatives
+carrying the tag, and the issues carrying it or in an initiative that does.
+`initiative` narrows to one initiative's rows.
 
 Each row says its `kind`, `number`, `step` and `priority`, and carries the
 kind's own read as `record`. `priority` is the one the row sorts at: an
@@ -435,12 +436,14 @@ A label must exist before an issue can carry it, so a misspelling is refused
 rather than becoming a second label. Labels sharing a `group_slug` exclude each
 other, and an issue carries at most one label from each group.
 
-`/labels` and `slate labels` manage the vocabulary.
+`/labels` and `slate labels` manage the vocabulary. A label marks how an issue
+was filed. A category any kind belongs to is a tag, which
+[records.md](records.md) covers.
 
 ## An initiative is a bounded outcome
 
 An initiative groups issues toward something with a definition of done, and
-lends them its priority. Work with no end is a label instead. An initiative
+lends them its priority. Work with no end is a tag instead. An initiative
 that can never finish would hold its issues together in the queue forever.
 Only an active initiative lends its priority and groups its issues, so
 completing or dropping one leaves each issue still open inside it standing

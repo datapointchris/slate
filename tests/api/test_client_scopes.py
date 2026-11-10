@@ -65,6 +65,8 @@ SCOPED_URLS = {
     f'{API_PREFIX}/initiatives/progress': '/initiatives/progress?initiative={initiative}',
     f'{API_PREFIX}/repos/board': '/repos/board',
     f'{API_PREFIX}/sessions/{{id}}': f'/sessions/{RUN_POD_SESSION}',
+    f'{API_PREFIX}/tags': '/tags',
+    f'{API_PREFIX}/tags/{{name}}': '/tags/security',
     f'{API_PREFIX}/totals': '/totals?record={issue}',
     f'{API_PREFIX}/worklogs': '/worklogs?state=all',
     f'{API_PREFIX}/worklogs/current': '/worklogs/current?session=run-pod-session',
@@ -193,10 +195,12 @@ def scoped(scope: str) -> ScopedClient:
 
 @pytest.fixture
 def as_caller(txn_api):
-    """Seed two issues of one priority, an initiative, an idea, the service's claim on the neighbor, its worklog, a session and a plan.
+    """Seed the rows each scoped route reads.
 
-    `caller(identity)` sets who the token says is calling and returns the client, and `url(template)`
-    fills a template with the seeded rows. The initiative is named, as the CLI names one.
+    They are two issues of one priority, an initiative, an idea, a tag, the service's claim on the
+    neighbor, its worklog, a session and a plan. `caller(identity)` sets who the token says is
+    calling and returns the client, and `url(template)` fills a template with the seeded rows. The
+    initiative is named, as the CLI names one.
     """
     client, session = txn_api
     issue = models.Issue(title='scheduler issue', repo='scheduler-repo', rank=1.0)
@@ -204,7 +208,8 @@ def as_caller(txn_api):
     blocker = models.Issue(title='what the neighbor waits on', rank=3.0)
     initiative = models.Initiative(name='scheduler-initiative', summary='The scheduler can reach it.')
     idea = models.Idea(title='scheduler idea')
-    session.add_all([issue, neighbor, blocker, initiative, idea])
+    tag = models.Tag(name='security', description='What an attacker reaches')
+    session.add_all([issue, neighbor, blocker, initiative, idea, tag])
     session.flush()
     session.add(models.IssueDependency(issue_id=neighbor.id, depends_on_id=blocker.id))
     session.add(models.InitiativeDependency(initiative_id=initiative.id, depends_on_number=blocker.number))

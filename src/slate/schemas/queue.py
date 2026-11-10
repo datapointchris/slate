@@ -21,7 +21,7 @@ QUEUE_STEPS: list[str] = list(get_args(Step))
 
 
 class QueueFilter(ReadyFilter):
-    """`GET /queue`'s filters. Every one but `step` and `initiative` reads only issues, so it leaves the other kinds out."""
+    """`GET /queue`'s filters. A filter `reads_only_issues` in `services/work_queue.py` names leaves the ideas and initiatives out."""
 
     step: Step | None = Field(None, description=f'Only rows at this step: {", ".join(QUEUE_STEPS)}')
     type: str | None = Field(None, description='An issue type. Leaves out every idea and initiative.')

@@ -14,13 +14,14 @@ from slate.models.issue import ISSUE_TYPES
 from slate.models.record import PRIORITIES
 from slate.schemas.queue import QUEUE_STEPS
 from slate.services.issue_views import label_views
+from slate.services.record_tags import tag_views
 
 router = APIRouter()
 
 
 @router.get('', response_model=schemas.Vocabulary, status_code=status.HTTP_200_OK)
 def read(session: DbSession):
-    """Every value the closed fields accept, with the open issue count per label.
+    """Every value the closed fields accept, with the open issue count per label and the open record counts per tag.
 
     Statuses and types come back in their lifecycle order rather than the
     table's, so a client can render them as given.
@@ -39,6 +40,7 @@ def read(session: DbSession):
         worklog_steps=[schemas.WorklogStep.model_validate(step) for step in worklog_steps],
         queue_steps=QUEUE_STEPS,
         labels=label_views(session),
+        tags=tag_views(session),
     )
 
 
