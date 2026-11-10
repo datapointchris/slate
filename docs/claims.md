@@ -1,7 +1,7 @@
 # Claims
 
-A claim is a lease on one record of any kind. It says who is working the
-record and until when. `slate claims` is the CLI, and the API serves it under
+A claim is a lease on one idea, initiative or issue. A direction holds no work,
+so no claim holds one. A claim says who is working the record and until when. `slate claims` is the CLI, and the API serves it under
 `/api/v1/claims`.
 
 ## A claim is a row of its own, kept after it ends

@@ -34,7 +34,8 @@ issue's parent, its dependencies, its labels. The number is the handle a
 person or an agent types.
 
 `records` also holds `rank`, the place each record takes in the queue, so
-every kind is ordered in one space. [issues.md](issues.md) gives the order.
+ideas, initiatives and issues are ordered in one space. A direction holds no
+work, so it never takes a place. [issues.md](issues.md) gives the order.
 
 ## A number reads as its kind's whole record
 
@@ -137,7 +138,7 @@ narrows the list to one kind. `slate search <words>` prints it. `slate issues
 list --search <words>` asks `GET /issues?search=` instead, beside every issue
 filter, and matches a number the same way.
 
-## Tags are a short closed list every kind carries, and an issue reads its initiative's
+## Tags are a short closed list ideas, initiatives and issues carry, and an issue reads its initiative's
 
 A tag is a category with no end, such as `security`. A tag exists before a
 record carries it, created with a one-line description. A write naming a tag
@@ -200,9 +201,8 @@ strategic themes by lasting.
 `directions` is a fourth kind's table, so a direction takes its number from the
 same sequence, and `slate show`, `slate search`, comments and documents reach
 it. It holds a `name`, a one-line `summary` of where it ends, a `description`,
-and a `status` from `direction_statuses`: `active`, `someday`, `completed` or
-`dropped`. A drop needs a `status_reason`, and a move to either closed status
-stamps `closed_ts`. An active direction's name is its own, through a partial
+and a `status` from `direction_statuses`, which `slate vocabulary` prints. A drop
+needs a `status_reason`, and completing or dropping one stamps `closed_ts`. An active direction's name is its own, through a partial
 unique index. A name shaped like a number is refused, because `--direction`
 takes either.
 
@@ -225,6 +225,16 @@ with 422, naming every active one:
 #9999 names no direction. The active directions: #2950 Data Warehouse. `slate directions create` adds a direction.
 ```
 
+A completed or dropped direction takes no new members. A write placing a record
+in one answers 409:
+
+```text
+Direction 'Mobile App' is dropped. Reopen it before placing work in it.
+```
+
+A record already in it stays, so an edit to that record still goes through. A
+promotion carrying the idea's directions meets the same refusal.
+
 `--direction` takes a number or the exact name. The CLI reads a name's number
 with `GET /directions/{ref}` before the write, which is why `slate.records.plan`
 reaches that read. A promotion gives the initiative the idea's directions unless
@@ -237,6 +247,13 @@ with the names near what was typed. The CLI checks every answer to a
 `--direction` it sent, as it does `--tag`, because an API from before directions
 drops the filter and answers 200.
 
+A tag and a direction are the two groupings, the filters that narrow ideas,
+initiatives and issues alike.
+`RecordGroupings` declares them and `narrowed_to_groupings` applies them, at each
+list and at the queue. A queue filter declared outside it reads only issues, so
+a filter added there leaves the ideas and initiatives out until it is made a
+grouping.
+
 A direction holds no work. `slate next` never lists one, a claim on one is
 refused with 422 before anything is taken, and a reorder refuses it. It lends no
 priority, because the tiers stay on initiatives and a pin moves a direction's
@@ -244,7 +261,8 @@ work. `slate totals` on a direction sums each idea and initiative in it, as
 [totals.md](totals.md) gives.
 
 `GET|POST /directions` and `GET|PATCH /directions/{ref}` serve it, with
-`slate directions create|edit|list|show|complete|drop`. The list reads the
+`slate directions create|edit|list|show|complete|drop|shelve|reopen`, the
+initiatives' verbs. The list reads the
 active ones unless `status` asks for another or `all`, and its header counts the
 active ones, so spreading thin shows. Nothing deletes a direction. A drop keeps
 it, with why.
