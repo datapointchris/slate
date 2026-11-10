@@ -13,6 +13,9 @@ worklog held, so that total counts the time sessions spent outside every worklog
 A window narrows each figure to what happened inside it: a message by when it was written, a link
 by when it was linked, and a session or worklog by whether its time overlapped the window. A
 message has one moment, so a window's edge splits a span's tokens exactly.
+
+A total naming a record carries the estimate its latest preflight set, which nothing narrows, so a
+reader sets the spend beside what the record expected.
 """
 
 from __future__ import annotations
@@ -33,7 +36,9 @@ from sqlalchemy.sql.elements import SQLCoreOperations
 
 from slate import models
 from slate import schemas
+from slate.models.worklog import PREFLIGHT
 from slate.models.worklog import WORKLOG_LINK_KINDS
+from slate.models.worklog import estimate_column
 from slate.models.worklog import with_worklog_claim
 from slate.services.record_reach import within_reach
 from slate.services.record_summaries import record_summaries
@@ -42,6 +47,7 @@ from slate.services.session_usage import summed
 from slate.services.session_usage import tokens_of
 from slate.services.time_window import TimeWindow
 from slate.services.time_window import apply_time_window
+from slate.services.worklog_views import worklog_estimate
 
 
 def reached_by_repo(repo: str) -> ColumnElement[bool]:
@@ -153,6 +159,25 @@ def model_tokens(rows: Sequence[Row]) -> list[schemas.ModelTokens]:
     ]
 
 
+def preflight_estimate(session: Session, record: models.Record) -> schemas.PreflightEstimate | None:
+    """The estimate of the latest preflight worklog on the record itself that holds one.
+
+    A preflight estimates its own record's work, so a worklog on a record the record reaches, such
+    as an issue's preflight inside an initiative, estimates other work and is not read.
+    """
+    holds_one = or_(*(getattr(models.Worklog, estimate_column(kind)).is_not(None) for kind in schemas.TokenEstimate.model_fields))
+    worklog = session.scalars(
+        select(models.Worklog)
+        .where(models.Worklog.record_number == record.number, models.Worklog.step == PREFLIGHT, holds_one)
+        .order_by(models.Worklog.sequence.desc())
+        .limit(1)
+    ).first()
+    estimate = worklog_estimate(worklog) if worklog is not None else None
+    if worklog is None or estimate is None:
+        return None
+    return schemas.PreflightEstimate(worklog=worklog.name, tokens=estimate)
+
+
 def work_totals(
     session: Session,
     now: dt.datetime,
@@ -190,4 +215,5 @@ def work_totals(
         tokens=tokens,
         tokens_outside_worklogs=outside,
         tokens_by_model=model_tokens(rows),
+        estimate=preflight_estimate(session, record) if record is not None else None,
     )

@@ -84,6 +84,8 @@ class WriteEffectCode(enum.StrEnum):
     WORKLOG_ALREADY_ENDED = 'worklog_already_ended'
     CLAIM_STILL_HELD = 'claim_still_held'
     OPEN_WORKLOG = 'open_worklog'
+    # A worklog edit that left an estimate on a worklog no total reads it from.
+    ESTIMATE_OFF_PREFLIGHT = 'estimate_off_preflight'
 
     # Warnings on a usage report: it matched what slate holds, it read less of the session than
     # slate holds, or another session reported some of its messages first.

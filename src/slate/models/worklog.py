@@ -33,8 +33,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import Unmapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
+from sqlalchemy.orm import unmapped_column
 
 from slate.database.base import Base
 from slate.models.claim import CLAIM_ENDINGS
@@ -49,6 +51,14 @@ WORKLOG_OUTCOMES = [WORKLOG_FINISHED, *CLAIM_ENDINGS]
 # The step of a record's life a worklog performed, in the order `worklog_steps.position` holds.
 StepName = Literal['shape', 'design', 'preflight', 'build', 'retro']
 WORKLOG_STEPS: list[str] = list(get_args(StepName))
+# The step whose worklog's estimate `slate totals` sets beside its record's spend.
+PREFLIGHT: StepName = 'preflight'
+
+
+def estimate_column(kind: str) -> str:
+    """The `worklogs` column holding the estimate of one kind `TokensByKind` counts."""
+    return f'estimated_{kind}_tokens'
+
 
 # What a worklog produced, and the stage each brings it to, in the order a change reaches main. A
 # plan document written in it is `planned`. A landing is a commit or a pull request reaching the
@@ -69,7 +79,7 @@ class WorklogOutcome(Base):
     name: Mapped[str] = mapped_column(Text, primary_key=True)
 
 
-# Nothing here reads it. It stays until a migration drops `worklogs.workflow`, so an API that still reads it keeps working.
+# Nothing reads it. It stays until the migration that drops `worklogs.workflow` drops it too.
 class WorklogWorkflow(Base):
     __tablename__ = 'worklog_workflows'
     name: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -97,8 +107,16 @@ class Worklog(Base):
     # The claim whose hold opened it. Null on one `worklogs start` opened.
     claim_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('claims.id', ondelete='CASCADE'), nullable=True, unique=True)
     opened_by: Mapped[str] = mapped_column(Text, nullable=False)
-    workflow: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_workflows.name'), nullable=True)
+    # In the table and out of the mapping, so no statement names it, and an API on this model keeps
+    # working once a migration drops it.
+    workflow: Unmapped[str | None] = unmapped_column(Text, ForeignKey('worklog_workflows.name'), nullable=True)
     step: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_steps.name'), nullable=True)
+    # The tokens by kind the work is expected to spend, as a preflight estimates them. Null is no
+    # estimate of that kind, which differs from an estimate of zero.
+    estimated_uncached_input_tokens: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    estimated_cache_write_tokens: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    estimated_cache_read_tokens: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    estimated_output_tokens: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     started_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     ended_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     outcome: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_outcomes.name'), nullable=True)
@@ -115,6 +133,11 @@ class Worklog(Base):
         CheckConstraint('sequence >= 1', name='sequence_counts_from_one'),
         CheckConstraint('(ended_ts IS NULL) = (outcome IS NULL)', name='worklog_outcome_is_whole'),
         CheckConstraint('ended_by IS NULL OR ended_ts IS NOT NULL', name='worklog_ended_by_only_when_ended'),
+        CheckConstraint(
+            'estimated_uncached_input_tokens >= 0 AND estimated_cache_write_tokens >= 0'
+            ' AND estimated_cache_read_tokens >= 0 AND estimated_output_tokens >= 0',
+            name='estimated_tokens_are_not_negative',
+        ),
     )
 
     @property

@@ -24,7 +24,9 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.api.exceptions import NotFoundException
+from slate.models.worklog import PREFLIGHT
 from slate.models.worklog import WORKLOG_FINISHED
+from slate.models.worklog import estimate_column
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -201,6 +203,24 @@ def finish(worklog: models.Worklog, finished_by: str, now: dt.datetime, effects:
             worklog.record_number,
         )
     end_worklog(worklog, WORKLOG_FINISHED, now, finished_by)
+
+
+def edit(worklog: models.Worklog, request: schemas.WorklogUpdate, effects: WriteEffects) -> None:
+    """Set the step, and each estimate kind, the request names. A worklog left with an estimate off a preflight warns."""
+    if 'step' in request.model_fields_set:
+        worklog.step = request.step
+    if 'estimate' in request.model_fields_set:
+        estimate = request.estimate
+        for kind in schemas.TokenEstimate.model_fields if estimate is None else estimate.model_fields_set:
+            setattr(worklog, estimate_column(kind), None if estimate is None else getattr(estimate, kind))
+    estimated = any(getattr(worklog, estimate_column(kind)) is not None for kind in schemas.TokenEstimate.model_fields)
+    if estimated and worklog.step != PREFLIGHT:
+        effects.warn(
+            WriteEffectCode.ESTIMATE_OFF_PREFLIGHT,
+            f'Worklog {worklog.name} performs {worklog.step or "no step"}, and `slate totals` reads an estimate from a {PREFLIGHT} '
+            f'worklog alone. `slate worklogs edit {worklog.name} --step {PREFLIGHT}` makes it one.',
+            worklog.record_number,
+        )
 
 
 def link(session: Session, worklog: models.Worklog, request: schemas.WorklogLinkAdd, now: dt.datetime, effects: WriteEffects) -> None:

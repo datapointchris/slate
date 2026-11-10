@@ -21,6 +21,7 @@ from slate.models.worklog import WORKLOG_PLANNED
 from slate.models.worklog import WORKLOG_STAGES
 from slate.models.worklog import LinkKindName
 from slate.models.worklog import WorklogStage
+from slate.models.worklog import estimate_column
 from slate.schemas.worklog import WorklogState
 from slate.services.claim_views import claim_view
 from slate.services.document_views import worklog_document_versions
@@ -51,6 +52,14 @@ def worklog_stage(worklog: models.Worklog, versions: list[schemas.DocumentVersio
     return max(stages, key=WORKLOG_STAGES.index, default='started')
 
 
+def worklog_estimate(worklog: models.Worklog) -> schemas.TokenEstimate | None:
+    """The tokens by kind the worklog's estimate holds, or None where it estimates no kind."""
+    kinds = {kind: getattr(worklog, estimate_column(kind)) for kind in schemas.TokenEstimate.model_fields}
+    if all(tokens is None for tokens in kinds.values()):
+        return None
+    return schemas.TokenEstimate(**kinds)
+
+
 def worklog_view(
     worklog: models.Worklog,
     record: schemas.RecordSummary,
@@ -76,6 +85,7 @@ def worklog_view(
         record=record,
         opened_by=worklog.opened_by,
         step=worklog.step,
+        estimate=worklog_estimate(worklog),
         started_ts=worklog.started_ts,
         ended_ts=worklog.ended_ts,
         outcome=worklog.outcome,

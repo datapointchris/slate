@@ -176,6 +176,28 @@ checked step, or `idea` before any. [issues.md](issues.md) covers how the
 initiative reads print them. Nothing is read from a document's text, so a retro
 document checks `retro` only through a worklog of that step.
 
+## A preflight worklog holds the token estimate of its record's work
+
+A worklog holds an estimate of the tokens its record's work will spend, by the
+kinds [sessions.md](sessions.md) counts. Each kind is its own nullable column,
+`estimated_<kind>_tokens`, so null is no estimate of that kind, and differs from
+an estimate of zero. A worklog's read carries them as `estimate`, with each kind
+null where it was not estimated, and `estimate` itself null where no kind was.
+
+`slate worklogs edit <worklog> --estimate-output 900000` sets one kind and keeps
+the rest. `--estimate-uncached-input`, `--estimate-cache-write` and
+`--estimate-cache-read` set the other three, and an empty value clears its kind.
+The API's `PATCH` takes `estimate` with the kinds to change, a kind named null
+clears it, and `estimate: null` clears every kind.
+
+[totals.md](totals.md) reads the estimate from a worklog whose step is
+`preflight` alone. So an edit that leaves an estimate on a worklog of any other
+step goes through with an `estimate_off_preflight` warning naming the edit that
+makes it one.
+
+The estimate is a row rather than text in the plan document, because nothing
+in slate reads a document's text.
+
 ## A service writes worklogs under its own client id
 
 `slate.records.read` reaches every worklog read. `slate.worklogs.write`

@@ -205,6 +205,20 @@ func tokensLine(t api.Tokens) string {
 		groupedDigits(t.UncachedInput), groupedDigits(t.CacheWrite), groupedDigits(t.CacheRead), groupedDigits(t.Output))
 }
 
+// estimateLine names each kind's estimate as tokensLine does, with a dash for
+// a kind not estimated.
+func estimateLine(e api.TokenEstimate) string {
+	return fmt.Sprintf("%s uncached input · %s cache write · %s cache read · %s output",
+		countOrDash(e.UncachedInput), countOrDash(e.CacheWrite), countOrDash(e.CacheRead), countOrDash(e.Output))
+}
+
+func countOrDash(n *int) string {
+	if n == nil {
+		return "—"
+	}
+	return groupedDigits(*n)
+}
+
 // groupedDigits writes n with a comma between each group of three digits.
 func groupedDigits(n int) string {
 	digits := strconv.Itoa(n)

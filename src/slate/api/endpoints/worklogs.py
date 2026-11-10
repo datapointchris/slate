@@ -39,6 +39,7 @@ from slate.services.row_limit import apply_row_limit
 from slate.services.worklog_views import WORKLOG_LOAD_OPTIONS
 from slate.services.worklog_views import current_worklog
 from slate.services.worklog_views import worklog_views
+from slate.services.worklogs import edit
 from slate.services.worklogs import finish
 from slate.services.worklogs import join
 from slate.services.worklogs import link
@@ -228,8 +229,12 @@ def link_to_worklog(worklog: WorklogFromPath, request: schemas.WorklogLinkAdd, s
 
 @router.patch('/{name}', response_model=schemas.WorklogWritten, status_code=status.HTTP_200_OK)
 def update(worklog: WorklogFromPath, request: schemas.WorklogUpdate, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Set the step of its record's life the worklog performed. Only the fields the body names change, and `step: null` clears it."""
+    """Set the step of its record's life the worklog performed, and its estimate by kind.
+
+    Only the fields the body names change, and within `estimate` only the kinds it names. `step:
+    null` clears the step, and `estimate: null` every kind. An estimate left on a worklog whose step
+    is not `preflight` warns, because no total reads it there.
+    """
     refuse_anothers_worklog(caller, worklog)
-    if 'step' in request.model_fields_set:
-        worklog.step = request.step
+    edit(worklog, request, effects)
     return written(session, worklog, dt.datetime.now(dt.UTC), effects)

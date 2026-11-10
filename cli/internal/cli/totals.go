@@ -94,6 +94,9 @@ func printTotals(out io.Writer, totals api.WorkTotals, now time.Time) {
 	if scope.Record == nil && scope.Worklog == nil && scope.Repo == nil {
 		_, _ = fmt.Fprintf(out, "  outside:   %s\n", reportedTokens(totals.TokensOutsideWorklogs))
 	}
+	if totals.Estimate != nil {
+		printSpentBesideEstimate(out, totals.Tokens, *totals.Estimate)
+	}
 	if len(totals.TokensByModel) > 0 {
 		_, _ = fmt.Fprintf(out, "\nBy model (%d):\n", len(totals.TokensByModel))
 		tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
@@ -103,6 +106,38 @@ func printTotals(out io.Writer, totals api.WorkTotals, now time.Time) {
 		}
 		_ = tw.Flush()
 	}
+}
+
+// printSpentBesideEstimate sets each kind the scope spent beside what the
+// record's latest preflight estimated, a dash where nothing was reported or
+// the kind was not estimated.
+func printSpentBesideEstimate(out io.Writer, spent *api.Tokens, estimate api.PreflightEstimate) {
+	var s api.Tokens
+	if spent != nil {
+		s = *spent
+	}
+	spentOf := func(n int) *int {
+		if spent == nil {
+			return nil
+		}
+		return &n
+	}
+	rows := []struct {
+		kind             string
+		spent, estimated *int
+	}{
+		{"uncached input", spentOf(s.UncachedInput), estimate.Tokens.UncachedInput},
+		{"cache write", spentOf(s.CacheWrite), estimate.Tokens.CacheWrite},
+		{"cache read", spentOf(s.CacheRead), estimate.Tokens.CacheRead},
+		{"output", spentOf(s.Output), estimate.Tokens.Output},
+	}
+	_, _ = fmt.Fprintf(out, "\nSpent beside the estimate of preflight %s:\n", estimate.Worklog)
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "  KIND\tSPENT\tESTIMATED")
+	for _, row := range rows {
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", row.kind, countOrDash(row.spent), countOrDash(row.estimated))
+	}
+	_ = tw.Flush()
 }
 
 // linkCountsLine names each link kind's count, in the order a change reaches

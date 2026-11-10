@@ -117,3 +117,28 @@ scope was reported, never zero.
 
 `slate totals --json` prints the API's answer, so it carries every figure the
 text prints.
+
+## A record's total sets its spend beside its latest preflight estimate
+
+A total naming a record carries `estimate`: the worklog name and the estimate
+of the latest preflight worklog on that record holding one
+([worklogs.md](worklogs.md)). `slate totals <record>` prints each kind spent
+beside each kind estimated, with a dash for a kind not estimated.
+
+```text
+Spent beside the estimate of preflight 2804.3:
+  KIND            SPENT       ESTIMATED
+  uncached input  1,234       —
+  cache write     56,789      —
+  cache read      12,345,678  —
+  output          300,000     900,000
+```
+
+- **Only the record's own worklogs are read.** A preflight estimates its own
+  record's work. An issue's preflight inside an initiative estimates that issue,
+  so the initiative's total does not read it, though it reaches the issue.
+- **Nothing but the record narrows the estimate.** It is what the whole record
+  expected, so `--repo`, `--since` and `--until` narrow the spend beside it and
+  leave it as it is.
+- **A total naming no record carries none**, as a worklog, repo or window alone
+  names no work an estimate was made for.

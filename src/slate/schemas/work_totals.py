@@ -7,7 +7,15 @@ from pydantic import Field
 
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
+from slate.schemas.tokens import TokenEstimate
 from slate.schemas.tokens import TokensByKind
+
+
+class PreflightEstimate(RecordModel):
+    """The estimate a record's latest preflight worklog holding one set, and that worklog's name."""
+
+    worklog: str
+    tokens: TokenEstimate
 
 
 class TotalsScope(RecordModel):
@@ -36,6 +44,10 @@ class WorkTotals(RecordModel):
     scope was reported, so a scope nobody reported for never reads as having spent nothing.
     `tokens_outside_worklogs` is the part of `tokens` no worklog held. Only a scope naming no
     record, worklog or repo reaches that part, so it is null on every other scope.
+
+    `estimate` is what the scope's record expected to spend, so a reader sets `tokens` beside it
+    kind by kind. It is null where the scope names no record, or no preflight worklog on the record
+    holds one. The worklog, repo and window narrow `tokens` and never the estimate.
     """
 
     scope: TotalsScope
@@ -46,3 +58,4 @@ class WorkTotals(RecordModel):
     tokens: TokensByKind | None = None
     tokens_outside_worklogs: TokensByKind | None = None
     tokens_by_model: list[ModelTokens]
+    estimate: PreflightEstimate | None = None

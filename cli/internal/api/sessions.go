@@ -15,6 +15,18 @@ type Tokens struct {
 	Output        int `json:"output"`
 }
 
+// TokenKinds are the API keys of the kinds Tokens counts, in its order.
+var TokenKinds = []string{"uncached_input", "cache_write", "cache_read", "output"}
+
+// TokenEstimate is the tokens by kind a piece of work is expected to spend. A
+// nil kind was not estimated, which differs from an estimate of zero.
+type TokenEstimate struct {
+	UncachedInput *int `json:"uncached_input"`
+	CacheWrite    *int `json:"cache_write"`
+	CacheRead     *int `json:"cache_read"`
+	Output        *int `json:"output"`
+}
+
 // MessageTokens is one model message a session spent tokens on. Key is the
 // provider's message id, or where the message was read when it carries none,
 // and is unique across sessions.

@@ -18,6 +18,7 @@ from slate.schemas.record import Actor
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordRef
 from slate.schemas.record import RecordSummary
+from slate.schemas.tokens import TokenEstimate
 from slate.schemas.tokens import TokensByKind
 from slate.schemas.write_effects import Written
 
@@ -81,7 +82,8 @@ class Worklog(RecordModel):
     it, and `waits` every stretch that claim's holder spent waiting. `tokens` sums its spans', as
     each session last reported them, and is null while none of its spans holds a reported message.
     `document_versions` is every version a session wrote while in it, oldest first. `step` is the
-    step of its record's life it performed, null where it names none.
+    step of its record's life it performed, null where it names none. `estimate` is the tokens by
+    kind its record's work is expected to spend, null where no kind is estimated.
     """
 
     name: str
@@ -90,6 +92,7 @@ class Worklog(RecordModel):
     record: RecordSummary
     opened_by: str
     step: str | None = None
+    estimate: TokenEstimate | None = None
     started_ts: dt.datetime
     ended_ts: dt.datetime | None = None
     outcome: str | None = None
@@ -139,11 +142,16 @@ class WorklogLinkAdd(RecordModel):
 
 
 class WorklogUpdate(RecordModel):
-    """`step: null` clears it. A field it does not name is refused, as `WorklogStart` refuses one."""
+    """`step: null` clears it. A field it does not name is refused, as `WorklogStart` refuses one.
+
+    `estimate` sets each kind it names and keeps the rest, so one kind is set alone. A kind named
+    null clears that kind, and `estimate: null` clears every kind.
+    """
 
     model_config = ConfigDict(from_attributes=True, extra='forbid')
 
     step: StepName | None = None
+    estimate: TokenEstimate | None = None
 
 
 class WorklogWritten(Written):

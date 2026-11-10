@@ -377,26 +377,41 @@ func newWorklogsEditCommand() *cobra.Command {
 		asJSON bool
 		step   string
 	)
+	estimate := map[string]*int{}
 	cmd := &cobra.Command{
-		Use:         "edit <worklog> --step <step>",
-		Short:       "Set the step of its record's life a worklog performed",
-		Long:        stepHelp + " --step \"\" clears it, so a wrong step is corrected or taken off.",
-		Example:     "  slate worklogs edit 1991.2 --step design",
+		Use:   "edit <worklog> [--step <step>] [--estimate-<kind> <tokens>]...",
+		Short: "Set the step of its record's life a worklog performed, and its token estimate by kind",
+		Long: stepHelp + " --step \"\" clears it, so a wrong step is corrected or taken off.\n" +
+			"\n" +
+			"Each --estimate flag sets one kind of the tokens the work is expected to\n" +
+			"spend, and keeps the kinds it does not name. An empty value clears that kind,\n" +
+			"which differs from an estimate of zero. `slate totals <record>` prints the\n" +
+			"estimate of the record's latest preflight worklog beside what it spent, so\n" +
+			"an estimate on a worklog of any other step warns.",
+		Example: "  slate worklogs edit 1991.2 --step design\n" +
+			"  slate worklogs edit 2804.3 --estimate-output 900000 --estimate-cache-read 40000000",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cmd.Flags().Changed("step") {
-				return goclikit.UsageError(errors.New("nothing to change — pass --step"))
+			var edit api.WorklogEdit
+			if cmd.Flags().Changed("step") {
+				if err := validStep(step); err != nil {
+					return err
+				}
+				edit.Step = &step
 			}
-			if err := validStep(step); err != nil {
-				return err
+			if len(estimate) > 0 {
+				edit.Estimate = estimate
+			}
+			if edit.Step == nil && edit.Estimate == nil {
+				return goclikit.UsageError(errors.New("nothing to change — pass --step or an --estimate flag"))
 			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			written, err := client.SetWorklogStep(cmd.Context(), args[0], nonEmpty(step))
+			written, err := client.EditWorklog(cmd.Context(), args[0], edit)
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
@@ -404,8 +419,46 @@ func newWorklogsEditCommand() *cobra.Command {
 		},
 	}
 	addStepFlag(cmd, &step, "The step it performed (empty clears)")
+	for _, kind := range api.TokenKinds {
+		noun := strings.ReplaceAll(kind, "_", " ")
+		cmd.Flags().Var(estimateValue{kind: kind, estimate: estimate}, estimateFlag(kind), "The "+noun+" tokens it expects to spend (empty clears)")
+	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
+}
+
+func estimateFlag(kind string) string {
+	return "estimate-" + strings.ReplaceAll(kind, "_", "-")
+}
+
+// estimateValue parses one --estimate-<kind> flag into the edit's estimate: a
+// token count, or empty to clear the kind. A kind no flag set stays out of it,
+// so the edit keeps that kind.
+type estimateValue struct {
+	kind     string
+	estimate map[string]*int
+}
+
+func (v estimateValue) String() string {
+	if tokens := v.estimate[v.kind]; tokens != nil {
+		return strconv.Itoa(*tokens)
+	}
+	return ""
+}
+
+func (v estimateValue) Type() string { return "tokens" }
+
+func (v estimateValue) Set(raw string) error {
+	if raw == "" {
+		v.estimate[v.kind] = nil
+		return nil
+	}
+	tokens, err := strconv.Atoi(raw)
+	if err != nil || tokens < 0 {
+		return fmt.Errorf("invalid estimate %q: a token count is a whole number, zero or more, or empty to clear it", raw)
+	}
+	v.estimate[v.kind] = &tokens
+	return nil
 }
 
 func newWorklogsFinishCommand() *cobra.Command {
@@ -525,6 +578,9 @@ func printWorklogDetail(out io.Writer, worklog api.Worklog, now time.Time) {
 	}
 	if worklog.Tokens != nil {
 		_, _ = fmt.Fprintf(out, "  tokens:    %s\n", tokensLine(*worklog.Tokens))
+	}
+	if worklog.Estimate != nil {
+		_, _ = fmt.Fprintf(out, "  estimate:  %s\n", estimateLine(*worklog.Estimate))
 	}
 	if len(worklog.Spans) > 0 {
 		_, _ = fmt.Fprintf(out, "\nSessions (%d):\n", len(worklog.Spans))

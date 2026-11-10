@@ -82,10 +82,12 @@ from slate.schemas.repo_board import BoardRepo
 from slate.schemas.repo_board import ReadyIssue
 from slate.schemas.repo_board import RepoBoard
 from slate.schemas.repo_board import RepoRollup
+from slate.schemas.tokens import TokenEstimate
 from slate.schemas.tokens import TokensByKind
 from slate.schemas.vocabulary import PriorityName
 from slate.schemas.vocabulary import Vocabulary
 from slate.schemas.work_totals import ModelTokens
+from slate.schemas.work_totals import PreflightEstimate
 from slate.schemas.work_totals import TotalsScope
 from slate.schemas.work_totals import WorkTotals
 from slate.schemas.worklog import CheckedStep
@@ -176,6 +178,7 @@ __all__ = [
     'ModelTokens',
     'PathOverlap',
     'PlacedComment',
+    'PreflightEstimate',
     'PriorityName',
     'Queue',
     'QueueFilter',
@@ -194,6 +197,7 @@ __all__ = [
     'SessionSpan',
     'SessionUsageReport',
     'SessionWritten',
+    'TokenEstimate',
     'TokensByKind',
     'TotalsScope',
     'Vocabulary',

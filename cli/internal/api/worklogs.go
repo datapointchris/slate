@@ -77,17 +77,19 @@ type Worklog struct {
 	Record       RecordSummary `json:"record"`
 	OpenedBy     string        `json:"opened_by"`
 	Step         *string       `json:"step"`
-	StartedTS    time.Time     `json:"started_ts"`
-	EndedTS      *time.Time    `json:"ended_ts"`
-	Outcome      *string       `json:"outcome"`
-	EndedBy      *string       `json:"ended_by"`
-	State        string        `json:"state"`
-	Stage        string        `json:"stage"`
-	Claim        *Claim        `json:"claim"`
-	Waits        []ClaimWait   `json:"waits"`
-	Tokens       *Tokens       `json:"tokens"`
-	Spans        []WorklogSpan `json:"spans"`
-	Links        []WorklogLink `json:"links"`
+	// Estimate is nil where it estimates no kind.
+	Estimate  *TokenEstimate `json:"estimate"`
+	StartedTS time.Time      `json:"started_ts"`
+	EndedTS   *time.Time     `json:"ended_ts"`
+	Outcome   *string        `json:"outcome"`
+	EndedBy   *string        `json:"ended_by"`
+	State     string         `json:"state"`
+	Stage     string         `json:"stage"`
+	Claim     *Claim         `json:"claim"`
+	Waits     []ClaimWait    `json:"waits"`
+	Tokens    *Tokens        `json:"tokens"`
+	Spans     []WorklogSpan  `json:"spans"`
+	Links     []WorklogLink  `json:"links"`
 	// DocumentVersions is every document version a session wrote while in it.
 	DocumentVersions []DocumentVersionRef `json:"document_versions"`
 }
@@ -215,12 +217,27 @@ func (c *Client) LinkWorklog(ctx context.Context, name string, in WorklogLinkInp
 	return written, nil
 }
 
-// SetWorklogStep sets the step of its record's life the worklog performed. A
-// nil step clears it.
-func (c *Client) SetWorklogStep(ctx context.Context, name string, step *string) (WorklogWritten, error) {
-	body := struct {
-		Step *string `json:"step"`
-	}{step}
+// WorklogEdit names what a worklog edit changes, and nothing it leaves nil is
+// sent. A Step of "" clears the step. Estimate holds each kind to change by
+// its API key, such as "output", and a nil count clears that kind.
+type WorklogEdit struct {
+	Step     *string
+	Estimate map[string]*int
+}
+
+// EditWorklog sets the step of its record's life the worklog performed, and
+// the kinds of its estimate the edit names.
+func (c *Client) EditWorklog(ctx context.Context, name string, edit WorklogEdit) (WorklogWritten, error) {
+	body := map[string]any{}
+	if edit.Step != nil {
+		body["step"] = edit.Step
+		if *edit.Step == "" {
+			body["step"] = nil
+		}
+	}
+	if len(edit.Estimate) > 0 {
+		body["estimate"] = edit.Estimate
+	}
 	var written WorklogWritten
 	if err := c.send(ctx, http.MethodPatch, worklogPath(name, ""), body, &written); err != nil {
 		return WorklogWritten{}, err

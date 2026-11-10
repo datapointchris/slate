@@ -28,16 +28,26 @@ type ModelTokens struct {
 // every link kind, zero where the scope linked none. Tokens is nil while no
 // message it covers was reported. TokensOutsideWorklogs is the part of Tokens
 // no worklog held, which only a scope naming no record, worklog or repo
-// reaches, so it is nil on every other scope.
+// reaches, so it is nil on every other scope. Estimate is what the scope's
+// record expected to spend, nil where it names no record or no preflight
+// worklog on the record holds one, and nothing but the record narrows it.
 type WorkTotals struct {
-	Scope                 TotalsScope    `json:"scope"`
-	WorklogCount          int            `json:"worklog_count"`
-	SessionCount          int            `json:"session_count"`
-	LinkCounts            map[string]int `json:"link_counts"`
-	MessageCount          int            `json:"message_count"`
-	Tokens                *Tokens        `json:"tokens"`
-	TokensOutsideWorklogs *Tokens        `json:"tokens_outside_worklogs"`
-	TokensByModel         []ModelTokens  `json:"tokens_by_model"`
+	Scope                 TotalsScope        `json:"scope"`
+	WorklogCount          int                `json:"worklog_count"`
+	SessionCount          int                `json:"session_count"`
+	LinkCounts            map[string]int     `json:"link_counts"`
+	MessageCount          int                `json:"message_count"`
+	Tokens                *Tokens            `json:"tokens"`
+	TokensOutsideWorklogs *Tokens            `json:"tokens_outside_worklogs"`
+	TokensByModel         []ModelTokens      `json:"tokens_by_model"`
+	Estimate              *PreflightEstimate `json:"estimate"`
+}
+
+// PreflightEstimate is the estimate a record's latest preflight worklog
+// holding one set, and that worklog's name.
+type PreflightEstimate struct {
+	Worklog string        `json:"worklog"`
+	Tokens  TokenEstimate `json:"tokens"`
 }
 
 // TotalsFilter narrows the worklogs a totals read reaches. Record and Worklog

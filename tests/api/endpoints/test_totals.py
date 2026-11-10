@@ -64,3 +64,26 @@ def test_an_initiative_totals_its_issues_and_their_children_and_a_seven_day_wind
     assert week['tokens'] == {'uncached_input': 13, 'cache_write': 130, 'cache_read': 1_300, 'output': 22}
     assert week['tokens_outside_worklogs'] == {'uncached_input': 8, 'cache_write': 80, 'cache_read': 800, 'output': 9}
     assert [(row['model'], row['message_count']) for row in week['tokens_by_model']] == [('claude-opus-5-5', 3)]
+
+
+def test_a_record_totals_its_latest_preflight_estimate_where_a_kind_never_estimated_reads_null(client):
+    """An issue's preflight estimates the issue, so the initiative reaching it does not read it."""
+    initiative = ok(client.post('/initiatives', json={'summary': 'It is done.', 'name': 'Estimated'}), status.HTTP_201_CREATED)[
+        'initiative'
+    ]['number']
+    issue = ok(client.post('/issues', json={'title': 'In it', 'initiative': initiative}), status.HTTP_201_CREATED)['issue']['number']
+    for record in (initiative, initiative, issue):
+        ok(client.post('/worklogs', json={'record': record, 'opened_by': 'chris', 'step': 'preflight'}), status.HTTP_201_CREATED)
+
+    ok(client.patch(f'/worklogs/{initiative}.1', json={'estimate': {'output': 900000, 'cache_read': 5}}))
+    edited = ok(client.patch(f'/worklogs/{initiative}.1', json={'estimate': {'cache_read': None, 'uncached_input': 0}}))
+    estimate = {'uncached_input': 0, 'cache_write': None, 'cache_read': None, 'output': 900000}
+    assert (edited['worklog']['estimate'], edited['warnings']) == (estimate, [])
+    ok(client.patch(f'/worklogs/{issue}.1', json={'estimate': {'output': 1}}))
+    off_preflight = ok(client.patch(f'/worklogs/{initiative}.2', json={'step': 'build', 'estimate': {'output': 7}}))
+    assert [warning['code'] for warning in off_preflight['warnings']] == ['estimate_off_preflight']
+
+    assert ok(client.get('/totals', params={'record': initiative}))['estimate'] == {'worklog': f'{initiative}.1', 'tokens': estimate}
+    assert ok(client.get('/totals', params={'record': issue}))['estimate']['tokens']['output'] == 1
+    cleared = ok(client.patch(f'/worklogs/{initiative}.1', json={'estimate': None}))
+    assert (cleared['worklog']['estimate'], ok(client.get('/totals', params={'record': initiative}))['estimate']) == (None, None)

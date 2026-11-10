@@ -557,7 +557,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 			wroteWorklog,
 			map[string]string{"/api/v1/worklogs/current": worklog},
 		},
-		{[]string{"worklogs", "edit", "412.1", "--step", "design"}, wroteWorklog, nil},
+		{[]string{"worklogs", "edit", "412.1", "--step", "preflight", "--estimate-output", "900000"}, wroteWorklog, nil},
 		{[]string{"worklogs", "finish", "412.1"}, wroteWorklog, nil},
 		{[]string{"sessions", "show", fixtureSession, "--json"}, agentSession, nil},
 		{[]string{"sessions", "report", "--transcript", "../transcript/testdata/project/" + fixtureSession + ".jsonl"}, reportedSession, nil},
