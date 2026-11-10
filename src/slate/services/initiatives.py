@@ -19,6 +19,8 @@ from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.issue_readiness import PINNED
 from slate.services.issue_readiness import UNPINNED
 from slate.services.record_refs import record_number
+from slate.services.record_tags import resolve_tags
+from slate.services.record_tags import set_record_tags
 
 # The status a list read takes to answer every status.
 ALL_STATUSES = 'all'
@@ -118,6 +120,7 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
     require_reason_when_dropped(initiative.status, initiative.status_reason)
     if initiative.status == 'active':
         ensure_active_name_available(session, initiative.name)
+    tags = resolve_tags(session, initiative.tags)
 
     db_obj = models.Initiative(
         name=initiative.name,
@@ -134,4 +137,5 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
         db_obj.closed_ts = dt.datetime.now(dt.UTC)
     session.add(db_obj)
     session.flush()
+    set_record_tags(session, db_obj.number, tags)
     return db_obj

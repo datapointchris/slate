@@ -82,6 +82,11 @@ from slate.schemas.repo_board import BoardRepo
 from slate.schemas.repo_board import ReadyIssue
 from slate.schemas.repo_board import RepoBoard
 from slate.schemas.repo_board import RepoRollup
+from slate.schemas.tag import Tag
+from slate.schemas.tag import TagCreate
+from slate.schemas.tag import TagDeleted
+from slate.schemas.tag import TagUpdate
+from slate.schemas.tag import TagWritten
 from slate.schemas.tokens import TokenEstimate
 from slate.schemas.tokens import TokensByKind
 from slate.schemas.vocabulary import PriorityName
@@ -197,6 +202,11 @@ __all__ = [
     'SessionSpan',
     'SessionUsageReport',
     'SessionWritten',
+    'Tag',
+    'TagCreate',
+    'TagDeleted',
+    'TagUpdate',
+    'TagWritten',
     'TokenEstimate',
     'TokensByKind',
     'TotalsScope',

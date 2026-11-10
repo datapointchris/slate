@@ -44,6 +44,7 @@ type Initiative struct {
 	Autofix            bool            `json:"autofix"`
 	CreatedTS          time.Time       `json:"created_ts"`
 	ClosedTS           *time.Time      `json:"closed_ts"`
+	Tags               []string        `json:"tags"`
 	IssueCount         int             `json:"issue_count"`
 	OpenCount          int             `json:"open_count"`
 	CompletedCount     int             `json:"completed_count"`
@@ -66,37 +67,46 @@ type InitiativeDetail struct {
 // InitiativeCreateInput is the body for POST /initiatives. The initiative ranks
 // last, and RankInitiative moves it.
 type InitiativeCreateInput struct {
-	Name        string  `json:"name"`
-	Summary     string  `json:"summary"`
-	Description *string `json:"description,omitempty"`
-	Priority    *int    `json:"priority,omitempty"`
-	Autofix     *bool   `json:"autofix,omitempty"`
+	Name        string   `json:"name"`
+	Summary     string   `json:"summary"`
+	Description *string  `json:"description,omitempty"`
+	Priority    *int     `json:"priority,omitempty"`
+	Autofix     *bool    `json:"autofix,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
 }
 
-// InitiativeUpdateInput is a partial update, cleared the way IssueUpdateInput is.
+// InitiativeUpdateInput is a partial update, cleared the way IssueUpdateInput
+// is. Tags replaces the whole set, and every issue in it reads the new set.
 type InitiativeUpdateInput struct {
-	Name         *string `json:"name,omitempty"`
-	Summary      *string `json:"summary,omitempty"`
-	Description  *string `json:"description,omitempty"`
-	Status       *string `json:"status,omitempty"`
-	StatusReason *string `json:"status_reason,omitempty"`
-	Priority     *int    `json:"priority,omitempty"`
-	Autofix      *bool   `json:"autofix,omitempty"`
+	Name         *string   `json:"name,omitempty"`
+	Summary      *string   `json:"summary,omitempty"`
+	Description  *string   `json:"description,omitempty"`
+	Status       *string   `json:"status,omitempty"`
+	StatusReason *string   `json:"status_reason,omitempty"`
+	Priority     *int      `json:"priority,omitempty"`
+	Autofix      *bool     `json:"autofix,omitempty"`
+	Tags         *[]string `json:"tags,omitempty"`
 }
 
 func initiativePath(ref string) string {
 	return "/initiatives/" + url.PathEscape(ref)
 }
 
-// ListInitiatives returns initiatives in the order to work them. An empty
-// status takes the API's default, the active ones.
-func (c *Client) ListInitiatives(ctx context.Context, initiativeStatus, sort string, limit *int) ([]Initiative, error) {
+// InitiativeFilter narrows a list of initiatives. A zero field narrows
+// nothing, and an empty Status takes the API's default, the active ones.
+type InitiativeFilter struct {
+	Status string
+	Sort   string
+	Tag    string
+}
+
+// ListInitiatives returns initiatives in the order to work them.
+func (c *Client) ListInitiatives(ctx context.Context, filter InitiativeFilter, limit *int) ([]Initiative, error) {
 	query := url.Values{}
-	if initiativeStatus != "" {
-		query.Set("status", initiativeStatus)
-	}
-	if sort != "" {
-		query.Set("sort", sort)
+	for name, value := range map[string]string{"status": filter.Status, "sort": filter.Sort, "tag": filter.Tag} {
+		if value != "" {
+			query.Set(name, value)
+		}
 	}
 	applyLimit(query, limit)
 	var initiatives []Initiative

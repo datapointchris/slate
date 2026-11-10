@@ -17,8 +17,8 @@ type WorklogStep struct {
 }
 
 // Vocabulary is every closed value a field takes, in the order a picker lists
-// them. Labels come with it because they are the one vocabulary that grows at
-// runtime.
+// them. Labels and tags come with it because they are the vocabularies that
+// grow at runtime.
 type Vocabulary struct {
 	IssueStatuses      []string       `json:"issue_statuses"`
 	IssueTypes         []string       `json:"issue_types"`
@@ -28,6 +28,7 @@ type Vocabulary struct {
 	WorklogSteps       []WorklogStep  `json:"worklog_steps"`
 	QueueSteps         []string       `json:"queue_steps"`
 	Labels             []IssueLabel   `json:"labels"`
+	Tags               []Tag          `json:"tags"`
 }
 
 // GetVocabulary returns the values each closed field accepts.

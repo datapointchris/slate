@@ -21,6 +21,7 @@ from slate.services.initiative_waits import waiting_initiatives
 from slate.services.record_parts import record_parts
 from slate.services.record_steps import initiative_steps
 from slate.services.record_steps import stage_of
+from slate.services.record_tags import own_tags
 
 
 def issue_count_columns():
@@ -45,6 +46,7 @@ def initiative_view(
     depends_on: list[schemas.RecordSummary],
     waiting: list[schemas.RecordSummary],
     steps: list[schemas.CheckedStep],
+    tags: list[str],
 ) -> schemas.Initiative:
     """`counts` is a row of `issue_count_columns()`."""
     issue_count, open_count, completed_count, canceled_count, repos = counts
@@ -64,6 +66,7 @@ def initiative_view(
         autofix=initiative.autofix,
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,
+        tags=tags,
         issue_count=issue_count,
         open_count=open_count,
         completed_count=completed_count,
@@ -84,6 +87,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
     depends_on = waited_on(session, [initiative.id for initiative, _ in rows])
     waiting = waiting_initiatives(session, [initiative.number for initiative, _ in rows])
     steps = initiative_steps(session, [initiative for initiative, _ in rows])
+    tags = own_tags(session, [initiative.number for initiative, _ in rows])
     idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
     ideas = {
         idea_id: schemas.RecordSummary(number=number, kind=models.Idea.RECORD_KIND, title=title)
@@ -100,6 +104,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
             depends_on.get(initiative.id, []),
             waiting.get(initiative.number, []),
             steps.get(initiative.number, []),
+            tags.get(initiative.number, []),
         )
         for initiative, counts in rows
     ]

@@ -3,7 +3,8 @@
 A work tracker built for coding agents. Ideas hold the work nobody has taken
 on, with their priority and evidence, until promotion makes each an
 initiative. Issues carry their dependencies, labels and the initiative they
-ship toward. Any record keeps versioned documents, such as its design and
+ship toward. Ideas, initiatives and issues carry tags from a short closed list,
+and an issue reads its initiative's tags as its own. Any record keeps versioned documents, such as its design and
 plan, and comments on the record or on one line of a document.
 `slate next` lists every kind of open work in the order to take it, each with
 its step, and the work someone holds apart. A claim is a lease on a record that

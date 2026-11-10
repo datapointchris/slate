@@ -66,13 +66,14 @@ func newIdeasReorderCommand() *cobra.Command {
 func newIdeasListCommand() *cobra.Command {
 	var (
 		asJSON bool
+		tag    string
 		limit  int
 	)
 	cmd := &cobra.Command{
 		Use:         "list",
 		Short:       "List every idea, promoted or not, most urgent first",
 		Long:        "Priority none sorts after every level. INITIATIVE is the one an idea was promoted into.",
-		Example:     "  slate ideas list\n  slate ideas list --json",
+		Example:     "  slate ideas list\n  slate ideas list --tag security\n  slate ideas list --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -80,7 +81,7 @@ func newIdeasListCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			ideas, err := client.ListIdeas(cmd.Context(), limitFlag(cmd))
+			ideas, err := client.ListIdeas(cmd.Context(), api.IdeaFilter{Tag: tag}, limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
@@ -92,6 +93,7 @@ func newIdeasListCommand() *cobra.Command {
 		},
 	}
 	addLimitFlag(cmd, &limit)
+	cmd.Flags().StringVar(&tag, "tag", "", tagFilterHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output ideas as JSON to stdout")
 	return cmd
 }
@@ -147,12 +149,13 @@ func newIdeasCreateCommand() *cobra.Command {
 		title       string
 		description string
 		priority    string
+		tags        []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
 		Use:         "create --title <title> [flags]",
 		Short:       "Record an idea",
-		Example:     "  slate ideas create --title \"Run review rounds on a schedule\" --priority high",
+		Example:     "  slate ideas create --title \"Run review rounds on a schedule\" --priority high --tag agents",
 		Args:        cobra.NoArgs,
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -160,7 +163,7 @@ func newIdeasCreateCommand() *cobra.Command {
 				return goclikit.UsageError(errors.New("--title is required"))
 			}
 			f := cmd.Flags()
-			in := api.IdeaCreateInput{Title: title, Description: valuedStrFlag(f, "description", &description)}
+			in := api.IdeaCreateInput{Title: title, Description: valuedStrFlag(f, "description", &description), Tags: tags}
 			if f.Changed("priority") {
 				value, err := parsePriority(priority)
 				if err != nil {
@@ -182,6 +185,7 @@ func newIdeasCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&title, "title", "", "What the idea is, in a line (required)")
 	cmd.Flags().StringVar(&description, "description", "", "The idea in full")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagSetHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -191,13 +195,15 @@ func newIdeasEditCommand() *cobra.Command {
 		title       string
 		description string
 		priority    string
+		tags        []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
-		Use:         "edit <idea> [flags]",
-		Short:       "Change an idea's title, description or priority",
-		Long:        "Update only the fields whose flags you pass. --description \"\" clears it.",
-		Example:     "  slate ideas edit 1860 --priority urgent",
+		Use:   "edit <idea> [flags]",
+		Short: "Change an idea's title, description, priority or tags",
+		Long: "Update only the fields whose flags you pass. --description \"\" clears it.\n" +
+			"--tag replaces the whole set, and --tag \"\" removes every tag.",
+		Example:     "  slate ideas edit 1860 --priority urgent\n  slate ideas edit 1860 --tag agents --tag security",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
@@ -214,12 +220,17 @@ func newIdeasEditCommand() *cobra.Command {
 				}
 				in.Priority = &value
 			}
+			tagSet, err := tagsEdited(f, tags)
+			if err != nil {
+				return err
+			}
+			in.Tags = tagSet
 			var clear []string
 			if readFlagIntent(f, "description") == flagClears {
 				clear = append(clear, "description")
 			}
 			if in == (api.IdeaUpdateInput{}) && len(clear) == 0 {
-				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --title/--description/--priority"))
+				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --title/--description/--priority/--tag"))
 			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
@@ -235,6 +246,7 @@ func newIdeasEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&title, "title", "", "New title")
 	cmd.Flags().StringVar(&description, "description", "", "New description (empty clears)")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagReplaceHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -295,6 +307,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 		priority    string
 		status      string
 		autofix     bool
+		tags        []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
@@ -303,10 +316,10 @@ func newIdeasPromoteCommand() *cobra.Command {
 		Long: "Creates an initiative that names the idea, and prints it under the line naming\n" +
 			"the promotion. --summary is required, because an idea has none. Each other flag\n" +
 			"left out takes the idea's own: its title as the name, its description, its\n" +
-			"priority. The idea's claim ends as promoted, printed\n" +
-			"under the line too, since its work is the initiative's now. An idea already\n" +
-			"promoted is refused, naming its initiative. --status someday creates it set\n" +
-			"aside.",
+			"priority, its tags. --tag \"\" promotes it with none. The idea's claim ends as\n" +
+			"promoted, printed under the line too, since its work is the initiative's now.\n" +
+			"An idea already promoted is refused, naming its initiative. --status someday\n" +
+			"creates it set aside.",
 		Example: "  slate ideas promote 1860 --summary \"Review rounds run on a schedule\"\n" +
 			"  slate ideas promote 1860 --name \"Scheduled review rounds\" --summary \"Review rounds run on a schedule\" --status someday",
 		Args:        cobra.ExactArgs(1),
@@ -338,6 +351,11 @@ func newIdeasPromoteCommand() *cobra.Command {
 			if f.Changed("autofix") {
 				in.Autofix = &autofix
 			}
+			tagSet, err := tagsEdited(f, tags)
+			if err != nil {
+				return err
+			}
+			in.Tags = tagSet
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
@@ -355,6 +373,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default the idea's)")
 	cmd.Flags().StringVar(&status, "status", "", "One of: "+strings.Join(promoteStatuses, ", ")+" (default active)")
 	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, "Tag the initiative carries (repeatable; default the idea's, empty for none)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -391,6 +410,9 @@ func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 	p := gotermstyle.PaletteFor(out)
 	_, _ = fmt.Fprintf(out, "%s  %s\n", p.Cyan("#"+strconv.Itoa(idea.Number)), p.Bold(idea.Title))
 	_, _ = fmt.Fprintf(out, "  priority:    %s\n", tierColor(p, idea.Priority)(priorityName(idea.Priority)))
+	if len(idea.Tags) > 0 {
+		_, _ = fmt.Fprintf(out, "  tags:        %s\n", strings.Join(idea.Tags, ", "))
+	}
 	if initiative := idea.Initiative; initiative != nil {
 		_, _ = fmt.Fprintf(out, "  initiative:  #%d %s (%s)\n", initiative.Number, initiative.Name, initiativeProgress(*initiative))
 	}

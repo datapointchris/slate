@@ -121,6 +121,7 @@ type issueFilterFlags struct {
 	repo        string
 	issueType   string
 	label       string
+	tag         string
 	initiative  string
 	parent      string
 	priority    string
@@ -138,6 +139,7 @@ func (v *issueFilterFlags) register(cmd *cobra.Command) {
 	f.StringVar(&v.issueType, "type", "", "One of: "+strings.Join(api.IssueTypes, ", "))
 	withFlagValues(cmd, "type", api.IssueTypes...)
 	f.StringVar(&v.label, "label", "", "Only issues carrying this label (see: slate labels list)")
+	f.StringVar(&v.tag, "tag", "", tagFilterHelp)
 	f.StringVar(&v.initiative, "initiative", "", "Only issues in this initiative, by number, name or id")
 	f.StringVar(&v.parent, "parent", "", "Only the children of this issue")
 	f.StringVar(&v.priority, "priority", "", "Only issues whose own priority is this: "+priorityChoices())
@@ -168,6 +170,7 @@ func (v *issueFilterFlags) filter(cmd *cobra.Command) (api.IssueFilter, error) {
 		Repo:       repo,
 		Type:       v.issueType,
 		Label:      v.label,
+		Tag:        v.tag,
 		Initiative: v.initiative,
 		Parent:     v.parent,
 		ClosedBy:   v.closedBy,
@@ -581,6 +584,7 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 		field("found in", summaryLine(*issue.DiscoveredFrom))
 	}
 	field("labels", strings.Join(issue.Labels, ", "))
+	field("tags", issueTagsLine(issue.Issue))
 	field("paths", strings.Join(issue.Paths, ", "))
 	field("deferred", strValue(issue.DeferredUntilDate))
 	field("created", localDay(issue.CreatedTS))

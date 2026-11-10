@@ -59,6 +59,9 @@ class WriteEffectCode(enum.StrEnum):
     # A side effect of deleting a label: each issue it is taken off.
     LABEL_REMOVED = 'label_removed'
 
+    # A side effect of deleting a tag: each record it is taken off.
+    TAG_REMOVED = 'tag_removed'
+
     # A warning on deleting a record another holder's live claim was on.
     DELETED_ANOTHERS_CLAIM = 'deleted_anothers_claim'
 

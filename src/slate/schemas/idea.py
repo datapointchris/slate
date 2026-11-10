@@ -32,12 +32,16 @@ class IdeaCreate(RecordModel):
     title: Title
     description: str | None = None
     priority: Priority = 0
+    tags: list[str] = []
 
 
 class IdeaUpdate(RecordModel):
+    """`tags` replaces the idea's whole set."""
+
     title: NotNull[Title] = None
     description: str | None = None
     priority: NotNull[Priority] = None
+    tags: NotNull[list[str]] = None
 
 
 class IdeaEvidenceLink(RecordModel):
@@ -57,6 +61,7 @@ class IdeaPromote(RecordModel):
     priority: Priority | None = None
     status: Literal['active', 'someday'] = 'active'
     autofix: bool = False
+    tags: list[str] | None = None
 
 
 class IdeaEvidence(RecordModel):
@@ -87,6 +92,7 @@ class Idea(RecordModel):
     pinned_session: str | None = None
     created_ts: dt.datetime
     updated_ts: dt.datetime
+    tags: list[str] = []
     evidence: list[IdeaEvidence] = []
     initiative: Initiative | None = None
     claim: Claim | None = None

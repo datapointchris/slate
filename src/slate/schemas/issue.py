@@ -78,6 +78,7 @@ class IssueCreate(RecordModel):
     parent: IssueRef | None = None
     discovered_from: IssueRef | None = None
     labels: list[Slug] = []
+    tags: list[str] = []
     depends_on: list[IssueRef] = []
 
 
@@ -88,7 +89,7 @@ class IssueUpdate(RecordModel):
     a side effect the answer names. `closed_by` names who is closing it and is accepted only with the
     status that closes an open issue; the server stamps the signed-in user's
     email when it is left out. `duplicate_of` is accepted only alongside
-    `status: canceled`, and `labels` and `paths` each replace the issue's whole set.
+    `status: canceled`, and `labels`, `paths` and `tags` each replace the issue's whole set.
     """
 
     title: NotNull[str] = None
@@ -108,6 +109,7 @@ class IssueUpdate(RecordModel):
     duplicate_of: IssueRef | None = None
     closed_by: Actor | None = None
     labels: NotNull[list[Slug]] = None
+    tags: NotNull[list[str]] = None
 
 
 class Blocker(RecordSummary):
@@ -130,7 +132,9 @@ class Issue(RecordModel):
     unclosed issue waits on through its initiative, open or closed, as
     `depends_on` holds every dependency. `blocked_by` is each open record holding
     it back now, whatever the cause, and is empty exactly when `is_blocked` is
-    false. `waiting_initiatives` is each initiative waiting on this issue.
+    false. `waiting_initiatives` is each initiative waiting on this issue. `tags` is the
+    issue's own, which a write sets, and `effective_tags` its own plus its initiative's, which a
+    `tag` filter matches.
     """
 
     id: UUID
@@ -157,6 +161,8 @@ class Issue(RecordModel):
     discovered_from: IssueSummary | None = None
     duplicate_of: IssueSummary | None = None
     labels: list[str] = []
+    tags: list[str] = []
+    effective_tags: list[str] = []
     depends_on: list[IssueSummary] = []
     blocks: list[IssueSummary] = []
     initiative_waits_on: list[RecordSummary] = []

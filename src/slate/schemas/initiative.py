@@ -56,10 +56,11 @@ class InitiativeCreate(InitiativeWrite):
     status_reason: str | None = None
     priority: Priority = 0
     autofix: bool = False
+    tags: list[str] = []
 
 
 class InitiativeUpdate(InitiativeWrite):
-    """`closed_ts` is stamped on the move into a terminal status and cleared on reopen."""
+    """`closed_ts` is stamped on the move into a terminal status and cleared on reopen. `tags` replaces the whole set."""
 
     name: NotNull[str] = None
     summary: NotNull[SummaryText] = None
@@ -68,6 +69,7 @@ class InitiativeUpdate(InitiativeWrite):
     status_reason: str | None = None
     priority: NotNull[Priority] = None
     autofix: NotNull[bool] = None
+    tags: NotNull[list[str]] = None
 
 
 class Initiative(RecordModel):
@@ -80,7 +82,8 @@ class Initiative(RecordModel):
     records of its priority in the queue. `depends_on` is each initiative or
     issue it waits on, and `waiting_initiatives` each initiative waiting on it,
     open or closed, by number. `steps` is each step checked on it, in position order, and `stage`
-    the furthest of them, or `idea` before any. Both are derived on every read.
+    the furthest of them, or `idea` before any. Both are derived on every read. `tags` is the
+    initiative's own, and each of its issues reads them as its own too.
     """
 
     id: UUID
@@ -98,6 +101,7 @@ class Initiative(RecordModel):
     autofix: bool
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None
+    tags: list[str] = []
     issue_count: int = 0
     open_count: int = 0
     completed_count: int = 0

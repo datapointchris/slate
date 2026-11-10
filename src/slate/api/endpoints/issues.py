@@ -27,7 +27,9 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.models.record import Kind
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
+from slate.schemas.ready_filter import TAG_FILTER
 from slate.services.claims import end_with_record
 from slate.services.issue_filters import apply_label_filter
 from slate.services.issue_filters import apply_repo_filter
@@ -51,6 +53,9 @@ from slate.services.record_refs import resolve_initiative
 from slate.services.record_refs import resolve_issue
 from slate.services.record_refs import resolve_labels
 from slate.services.record_summaries import record_summaries
+from slate.services.record_tags import narrowed_to_tag
+from slate.services.record_tags import resolve_tags
+from slate.services.record_tags import set_record_tags
 from slate.services.row_limit import RowLimit
 from slate.services.time_window import apply_time_window
 from slate.services.vocabulary import validate_lookup
@@ -259,6 +264,7 @@ def read_many(
     repo: str | None = Query(None, description='A repo name, or an empty string for issues on no repo'),
     type: str | None = Query(None, description='An issue type'),
     label: str | None = Query(None, description='A label slug'),
+    tag: str | None = Query(None, description=TAG_FILTER),
     initiative: str | None = Query(None, description='An initiative, by any reference GET /initiatives/{id} accepts'),
     parent: str | None = Query(None, description='A parent issue number or UUID: its children'),
     priority: int | None = Query(None, ge=0, le=4, description="The issue's own priority"),
@@ -307,6 +313,7 @@ def read_many(
         query = query.where(word_matches(word, models.Issue.number, (models.Issue.title, models.Issue.description)))
     query = apply_repo_filter(query, repo)
     query = apply_label_filter(query, label, session)
+    query = narrowed_to_tag(query, Kind.ISSUE, tag, session)
     query = apply_time_window(query, models.Issue.closed_ts, window, zone=None)
 
     today, now = calendar_now(zone)
@@ -339,6 +346,7 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
         )
     validate_lookup(session, models.IssueType, issue.type, 'issue type')
     ensure_paths_have_a_repo(issue.repo, issue.paths)
+    tags = resolve_tags(session, issue.tags)
 
     db_issue = models.Issue(
         title=issue.title,
@@ -367,6 +375,7 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
     set_labels(session, db_issue, issue.labels)
     session.flush()
     name_record(db_issue.number)
+    set_record_tags(session, db_issue.number, tags)
     # Every edge the new issue brings touches it, so any loop they close runs through it.
     graph = read_wait_graph(session)
     for blocker in depends_on:
@@ -396,10 +405,10 @@ def read_one(issue: IssueFromPath, session: DbSession, zone: RequestZone):
 
 
 # What a scoped client's update may carry. slate.issues.close reaches this route to complete an issue
-# whose fix merged, and slate.records.plan to re-tier an issue, move it between initiatives or specify
-# it. A body naming a close field is a close, and any other is an edit.
+# whose fix merged, and slate.records.plan to re-tier an issue, move it between initiatives, tag it or
+# specify it. A body naming a close field is a close, and any other is an edit.
 SCOPED_CLOSE_FIELDS = frozenset({'status', 'closed_by'})
-SCOPED_PLAN_FIELDS = frozenset({'priority', 'initiative', 'acceptance', 'paths'})
+SCOPED_PLAN_FIELDS = frozenset({'priority', 'initiative', 'acceptance', 'paths', 'tags'})
 
 
 def refuse_all_but_a_close(issue: models.Issue, update_data: dict) -> None:
@@ -470,6 +479,8 @@ def update(
         issue.discovered_from_id = None if ref is None else resolve_issue(session, ref).id
     if 'labels' in update_data:
         set_labels(session, issue, update_data.pop('labels'))
+    if 'tags' in update_data:
+        set_record_tags(session, issue.number, resolve_tags(session, update_data.pop('tags')))
     ensure_paths_have_a_repo(update_data.get('repo', issue.repo), update_data.get('paths', issue.paths))
 
     change = apply_status_transition(session, issue, update_data, now, effects, signed_in=signed_in)

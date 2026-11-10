@@ -21,6 +21,8 @@ from slate.models.issue import IssueType
 from slate.models.record import Record
 from slate.models.record import RecordKind
 from slate.models.record_change import RecordChange
+from slate.models.tag import RecordTag
+from slate.models.tag import Tag
 from slate.models.worklog import Worklog
 from slate.models.worklog import WorklogLink
 from slate.models.worklog import WorklogLinkKind
@@ -52,6 +54,8 @@ __all__ = [
     'Record',
     'RecordChange',
     'RecordKind',
+    'RecordTag',
+    'Tag',
     'Worklog',
     'WorklogLink',
     'WorklogLinkKind',

@@ -50,6 +50,8 @@
     "GET /api/v1/records/{number}/changes",
     "GET /api/v1/repos/board",
     "GET /api/v1/sessions/{id}",
+    "GET /api/v1/tags",
+    "GET /api/v1/tags/{name}",
     "GET /api/v1/totals",
     "GET /api/v1/vocabulary",
     "GET /api/v1/worklogs",

@@ -126,6 +126,54 @@ narrows the list to one kind. `slate search <words>` prints it. `slate issues
 list --search <words>` asks `GET /issues?search=` instead, beside every issue
 filter, and matches a number the same way.
 
+## Tags are a short closed list every kind carries, and an issue reads its initiative's
+
+A tag is a category with no end, such as `security`. A tag exists before a
+record carries it, created with a one-line description. A write naming a tag
+nobody made is refused with 422, naming every tag and the ones near what was
+typed:
+
+```text
+Unknown tag 'perf'. A record carries only a tag that exists: performance, security. Near what was typed: performance. `slate tags create` adds a tag.
+```
+
+So `perf` beside `performance` cannot become a second tag that splits the
+records a filter finds.
+
+`tags` holds the list, keyed by an integer `id` with a unique `name`.
+`record_tags` holds one row per record and tag, keyed on `(record_number,
+tag_id)`, with an `ON DELETE CASCADE` key onto `records.number` and another
+onto `tags.id`. It hangs off `records` as claims and documents do, so one
+table serves ideas, initiatives and issues, deleting a record deletes its
+rows, and `slate show` prints each tagging among the record's changes. A rename
+writes the tag's row alone, because a membership names the tag by its id.
+
+An issue reads as carrying its own tags plus its initiative's, derived on every
+read as its effective priority is. Its read holds both: `tags` is its own,
+which its writes set, and `effective_tags` is the union, which a `tag` filter
+matches. So tagging an initiative reaches every issue in it, and moving an
+issue between initiatives changes what it reads with nothing stored on the
+issue. A finished initiative still lends its tags, because a category stays
+true of finished work.
+
+`tag` narrows `GET /ideas`, `GET /initiatives`, `GET /issues` and `GET /queue`.
+`tags` on a create sets the record's own, and `tags` on an update replaces the
+whole set. A promotion gives the initiative the idea's tags unless the request
+names its own. `GET /tags` lists each tag with how many open records of each
+kind carry it themselves, and `GET /vocabulary` carries the same list.
+Deleting a tag takes it off every record, closed ones included, and the answer
+names each with `tag_removed`.
+
+Labels stay apart. They mark how an issue was filed, they reach only issues,
+and their groups exclude each other.
+
+- *Rejected:* free-text tags. Nothing stops `perf`, `performance` and `speed`
+  from meaning one thing, and a filter on any of them misses the rest.
+- *Rejected:* a membership keyed on the tag's name. A rename would rewrite
+  every row carrying it, and change the key each row's history is read by.
+- *Rejected:* copying an initiative's tags onto its issues. The copy goes stale
+  the moment the initiative's tags change or the issue moves.
+
 ## Every write answers what it wrote and what else it did
 
 A write answers an envelope, never the bare record:

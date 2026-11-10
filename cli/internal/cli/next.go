@@ -50,7 +50,9 @@ func newNextCommand() *cobra.Command {
 			"says so, so the collision shows before anyone takes it.\n" +
 			"\n" +
 			"--repo, --type, --label and --autofixable read only issues, so each leaves the\n" +
-			"ideas and initiatives out. `slate claims hold --next` holds the head of\n" +
+			"ideas and initiatives out. --tag keeps the ideas and initiatives carrying the\n" +
+			"tag, and the issues carrying it or in an initiative that does.\n" +
+			"`slate claims hold --next` holds the head of\n" +
 			"`slate next --step build` under the same flags. Reading the queue holds\n" +
 			"nothing, so hold what you take before working it.\n" +
 			"\n" +
@@ -239,6 +241,7 @@ type readyQueueFlags struct {
 	repo        string
 	issueType   string
 	label       string
+	tag         string
 	initiative  string
 	autofixable bool
 }
@@ -258,6 +261,7 @@ func (v *readyQueueFlags) register(cmd *cobra.Command) {
 	f.StringVar(&v.issueType, "type", "", "Only issues of this type: "+strings.Join(api.IssueTypes, ", "))
 	withFlagValues(cmd, "type", api.IssueTypes...)
 	f.StringVar(&v.label, "label", "", "Only issues carrying this label")
+	f.StringVar(&v.tag, "tag", "", tagFilterHelp)
 	f.StringVar(&v.initiative, "initiative", "", "Only work in this initiative, by number, name or id")
 	f.BoolVar(&v.autofixable, "autofixable", false, autofixableFilterHelp)
 }
@@ -274,6 +278,7 @@ func (v *readyQueueFlags) filter(cmd *cobra.Command) (api.ReadyFilter, error) {
 		Repo:       repo,
 		Type:       v.issueType,
 		Label:      v.label,
+		Tag:        v.tag,
 		Initiative: v.initiative,
 	}
 	if cmd.Flags().Changed("autofixable") {
