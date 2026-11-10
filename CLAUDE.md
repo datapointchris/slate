@@ -177,8 +177,8 @@ A `chore:` or `docs:` commit releases nothing.
 - **A tag with no published GitHub release stops the stream.** The next run
   refuses to bump past it and names the run to re-run.
 - **A new setting is an environment variable**, listed in README's table and
-  supplied through `slate-settings`. A value written into `deploy/` would be
-  the same in every cluster that applies it.
+  supplied through ConfigMap `slate-settings`. A value written into `deploy/`
+  would be the same in every cluster that applies it.
 - **`deploy-manifests` in `validate.yml`** renders each path under `deploy/`
   through `release/pin-manifests`, as the release does, and runs kubeconform
   and kube-linter on it, as the release's gate.

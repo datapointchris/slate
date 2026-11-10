@@ -1,6 +1,8 @@
 # `alembic upgrade head` from the API's own image, against the Postgres the
-# API uses. It reads the same slate-settings ConfigMap and Secret as app/,
-# since the migration loads the API's settings. Each migration keeps the
+# API uses. It reads ConfigMap slate-settings as app/ does, since the
+# migration loads the API's settings. It logs in from Secret postgres, the
+# same keys as app/'s postgres-app, as the role that owns the schema, so
+# only this Job can change it. Each migration keeps the
 # release before it working, so the old pods serve on the new schema while
 # the new ones start. For the same reason, a database a later release already
 # migrated is left as it is and the Job succeeds, so rolling back to an
@@ -64,8 +66,33 @@ spec:
           envFrom:
             - configMapRef:
                 name: slate-settings
-            - secretRef:
-                name: slate-settings
+          env:
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_PORT
+                  optional: true
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_DB
           # Sized from the migrate service's peak under `docker compose up`, against
           # an empty database. A data migration moving rows can take more, so the
           # limit sits above the request.

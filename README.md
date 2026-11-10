@@ -98,8 +98,15 @@ replaces it. Applied without Flux, delete the finished Job first.
 
 The cluster supplies what the base leaves out:
 
-- A ConfigMap and a Secret, both named `slate-settings`, holding the settings
-  above. `POSTGRES_PASSWORD` goes in the Secret.
+- A ConfigMap named `slate-settings`, holding the settings above, all but the
+  Postgres login.
+- Two Secrets holding the Postgres login as `POSTGRES_HOST`, `POSTGRES_PORT`,
+  `POSTGRES_USERNAME`, `POSTGRES_PASSWORD` and `POSTGRES_DB`. The migration
+  Job reads `postgres`, whose role owns the schema. The API reads
+  `postgres-app`, whose role needs `SELECT`, `INSERT`, `UPDATE` and `DELETE`
+  on every table and `USAGE` on every sequence, and no right to change the
+  schema. Default privileges from the owner give it the same on what a later
+  migration creates.
 - A route to `slate-api` reaching `/.well-known/oauth-protected-resource` as
   well as `/api/v1`, at the address `PUBLIC_URL` names.
 - Each NetworkPolicy the pods need to reach Postgres and the issuer.
