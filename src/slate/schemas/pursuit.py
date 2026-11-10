@@ -2,9 +2,7 @@ import datetime as dt
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import AliasChoices
 from pydantic import StringConstraints
-from pydantic import computed_field
 
 from slate.schemas.not_null import NotNull
 from slate.schemas.record import RecordModel
@@ -15,10 +13,6 @@ from slate.schemas.write_effects import Written
 
 OneLine = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, pattern=r'^[^\r\n]+$')]
 
-# A write's `pursuits` also arrives as `directions`, the name the release before pursuits sent, so
-# a client from then places the record rather than having the field dropped. `pursuits` wins where both are sent.
-PURSUITS_OR_DIRECTIONS = AliasChoices('pursuits', 'directions')
-
 
 class PursuitSummary(RecordModel):
     """A pursuit as a record in it reads it: the number a write sets, and the name a person knows."""
@@ -28,18 +22,9 @@ class PursuitSummary(RecordModel):
 
 
 class InPursuits(RecordModel):
-    """A record read carrying the pursuits it is in, in number order.
-
-    `directions` is the same list under the name the release before pursuits served, so a reader
-    from then keeps reading it until a later release drops it.
-    """
+    """A record read carrying the pursuits it is in, in number order."""
 
     pursuits: list[PursuitSummary] = []
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def directions(self) -> list[PursuitSummary]:
-        return self.pursuits
 
 
 class PursuitCreate(RecordModel):

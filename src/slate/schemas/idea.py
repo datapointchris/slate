@@ -9,7 +9,6 @@ from pydantic import StringConstraints
 from slate.schemas.claim import Claim
 from slate.schemas.initiative import Initiative
 from slate.schemas.not_null import NotNull
-from slate.schemas.pursuit import PURSUITS_OR_DIRECTIONS
 from slate.schemas.pursuit import InPursuits
 from slate.schemas.record import Actor
 from slate.schemas.record import Priority
@@ -35,7 +34,7 @@ class IdeaCreate(RecordModel):
     description: str | None = None
     priority: Priority = 0
     tags: list[str] = []
-    pursuits: list[int] = Field(default=[], validation_alias=PURSUITS_OR_DIRECTIONS)
+    pursuits: list[int] = []
 
 
 class IdeaUpdate(RecordModel):
@@ -45,7 +44,7 @@ class IdeaUpdate(RecordModel):
     description: str | None = None
     priority: NotNull[Priority] = None
     tags: NotNull[list[str]] = None
-    pursuits: NotNull[list[int]] = Field(default=None, validation_alias=PURSUITS_OR_DIRECTIONS)
+    pursuits: NotNull[list[int]] = None
 
 
 class IdeaEvidenceLink(RecordModel):
@@ -66,7 +65,7 @@ class IdeaPromote(RecordModel):
     status: Literal['active', 'someday'] = 'active'
     autofix: bool = False
     tags: list[str] | None = None
-    pursuits: list[int] | None = Field(default=None, validation_alias=PURSUITS_OR_DIRECTIONS)
+    pursuits: list[int] | None = None
 
 
 class IdeaEvidence(RecordModel):

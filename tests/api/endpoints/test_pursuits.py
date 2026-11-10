@@ -40,7 +40,6 @@ def test_an_initiative_placed_in_a_pursuit_lends_it_to_its_issues_and_every_list
     for ref in (pursuit['number'], 'Data Warehouse'):
         assert numbers(ok(client.get('/issues', params={'pursuit': ref}))) == [inside['number']]
     assert numbers(ok(client.get('/initiatives', params={'pursuit': pursuit['number']}))) == [initiative['number']]
-    assert [row['directions'] for row in ok(client.get('/initiatives', params={'direction': pursuit['number']}))] == [[named]]
     assert numbers(ok(client.get('/ideas', params={'pursuit': pursuit['number']}))) == [idea['number']]
     queued = ok(client.get('/queue', params={'pursuit': pursuit['number']}))
     assert sorted(numbers(queued['queue'])) == sorted([inside['number'], idea['number']])

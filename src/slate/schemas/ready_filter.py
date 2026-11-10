@@ -1,17 +1,13 @@
-from typing import Self
 from uuid import UUID
 
 from pydantic import BaseModel
 from pydantic import Field
-from pydantic import model_validator
 
 AUTOFIXABLE_FILTER = "True for issues whose own, initiative's and parents' autofix are all on, false for the rest"
 
 TAG_FILTER = "A tag's name: only records carrying it, an issue also through its initiative's"
 
 PURSUIT_FILTER = "A pursuit's number or exact name: only ideas and initiatives in it, and the issues of those initiatives"
-
-DIRECTION_FILTER = '`pursuit` under the name the release before pursuits took. `pursuit` wins where both are set.'
 
 
 class RecordGroupings(BaseModel):
@@ -23,13 +19,6 @@ class RecordGroupings(BaseModel):
 
     tag: str | None = Field(None, description=TAG_FILTER)
     pursuit: int | str | None = Field(None, description=PURSUIT_FILTER)
-    direction: int | str | None = Field(None, description=DIRECTION_FILTER, json_schema_extra={'deprecated': True})
-
-    @model_validator(mode='after')
-    def direction_narrows_as_pursuit(self) -> Self:
-        if self.pursuit is None:
-            self.pursuit = self.direction
-        return self
 
 
 class ReadyFilter(RecordGroupings):

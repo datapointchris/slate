@@ -9,8 +9,8 @@ The audit trigger stores only the columns an update changed, so the update endin
 record. An insert or a delete holds the whole row. So a row hanging off a record is found by the
 parent its insert or its delete names, and every write to that row is then read by its own key.
 Audit rows imported with another tracker's rows are found the same way, under the table names they
-were written with. A table a kind's rows lived in before, and the placements kept beside it, are
-linked here by hand, so the history read outlives the migration that drops them.
+were written with. A dropped table a kind's rows lived in, and the placements kept beside it, are
+linked here by hand, because no foreign key leads to them.
 """
 
 from __future__ import annotations

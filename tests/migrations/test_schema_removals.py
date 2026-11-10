@@ -11,6 +11,7 @@ CHECKED_AFTER = 'e2eebda09b7b'
 # revision. One goes here only after a `git grep` on the release before that migration finds no reader.
 REMOVED_ONCE_UNREAD: dict[str, set[str]] = {
     '525e28c1482c': {'worklogs.workflow', 'worklog_workflows'},
+    '9e8d02b5c6d5': {'directions', 'direction_statuses', 'record_directions'},
 }
 
 

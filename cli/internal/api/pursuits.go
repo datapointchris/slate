@@ -18,12 +18,8 @@ type PursuitSummary struct {
 }
 
 // InPursuits is the pursuits a record read carries, in number order.
-// Directions is the same list under the name the release before pursuits
-// served, so a reader of that name keeps reading it until a later release
-// drops it.
 type InPursuits struct {
-	Pursuits   []PursuitSummary `json:"pursuits"`
-	Directions []PursuitSummary `json:"directions"`
+	Pursuits []PursuitSummary `json:"pursuits"`
 }
 
 // Pursuit is a condition the work should bring about and hold. Measure is the
