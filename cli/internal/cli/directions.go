@@ -98,9 +98,13 @@ func honoredDirectionFilter[T any](ref string, rows []T, carried func(T) (int, [
 	if ref == "" {
 		return nil
 	}
+	named := strconv.Quote(ref)
+	if digits := strings.TrimPrefix(ref, "#"); isItemNumber(digits) {
+		named = "#" + digits
+	}
 	for _, row := range rows {
 		if number, directions := carried(row); !inDirection(ref, directions) {
-			return fmt.Errorf("the API ignored --direction: #%d came back outside %s, so it predates directions", number, ref)
+			return fmt.Errorf("the API ignored --direction: #%d came back outside direction %s, so it predates directions", number, named)
 		}
 	}
 	return nil
