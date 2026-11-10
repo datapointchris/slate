@@ -32,9 +32,9 @@ func tuiTabs() []string { return []string{tabInitiatives, tabRepos} }
 
 func newTUICommand() *cobra.Command {
 	var (
-		view, initiativeStatus string
-		once, asJSON           bool
-		perTier, firstInList   int
+		view, initiativeStatus, grouping string
+		once, asJSON                     bool
+		perTier, firstInList             int
 	)
 	cmd := &cobra.Command{
 		Use:   "tui",
@@ -53,7 +53,10 @@ func newTUICommand() *cobra.Command {
 			"pull request opens `prs tui` on it, and o opens it in the browser. d opens an\n" +
 			"initiative's or an issue's description, full screen where it runs past the\n" +
 			"screen. f adds summaries, s cycles the sort within a tier, and v cycles the\n" +
-			"grouping between tier, repo and initiative. ? lists every key and every read.\n" +
+			"grouping between " + strings.Join(initiativeGroupings, ", ") + ". A direction's or a\n" +
+			"tag's line counts the closes of every initiative in it, including one completed\n" +
+			"inside the window, and names its active initiative touched longest ago. An\n" +
+			"initiative in two draws under both. ? lists every key and every read.\n" +
 			"From 160 columns a side panel follows the cursor, and p hides it. On an\n" +
 			"initiative it draws its issues and its completed ones over its life, so scope\n" +
 			"added under it shows.\n\n" +
@@ -72,20 +75,25 @@ func newTUICommand() *cobra.Command {
 			"closes per week as columns and its ready issues by how long each has waited, and\n" +
 			"on the total every repo's. s cycles the order.\n\n" +
 			"--once prints one frame at COLUMNS by LINES, and --json the snapshot it is drawn\n" +
-			"from, so an agent reads what a person reads. With no terminal and neither flag it\n" +
-			"refuses.",
+			"from, so an agent reads what a person reads. --grouping opens the initiatives tab\n" +
+			"at a grouping, as v leaves it. With no terminal and neither flag it refuses.",
 		Example: "  slate tui\n" +
 			"  slate tui --view repos\n" +
 			"  slate tui --per-tier 3\n" +
 			"  slate tui --status someday\n" +
 			"  COLUMNS=188 LINES=88 slate tui --once > frame.txt\n" +
+			"  slate tui --grouping direction --once\n" +
 			"  slate tui --view repos --json | jq '.board.repos[] | {repo, ready: (.ready | length)}'\n" +
-			"  slate tui --json | jq '.board.totals.states'",
+			"  slate tui --json | jq '.board.totals.states'\n" +
+			"  slate tui --json | jq '.board.directions[] | {name: .direction.name, closes_30d: .closes.last_30d, untouched: .untouched_longest.name}'",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if view != "" && !slices.Contains(tuiTabs(), view) {
 				return goclikit.UsageError(fmt.Errorf("--view takes one of %s, not %q", strings.Join(tuiTabs(), ", "), view))
+			}
+			if grouping != "" && !slices.Contains(initiativeGroupings, grouping) {
+				return goclikit.UsageError(fmt.Errorf("--grouping takes one of %s, not %q", strings.Join(initiativeGroupings, ", "), grouping))
 			}
 			if cmd.Flags().Changed("status") && !slices.Contains(api.InitiativeStatuses, initiativeStatus) {
 				return goclikit.UsageError(fmt.Errorf("unknown status %q — one of: %s", initiativeStatus, strings.Join(api.InitiativeStatuses, ", ")))
@@ -110,11 +118,11 @@ func newTUICommand() *cobra.Command {
 			}
 			if printing {
 				return printOpeningTab(cmd, view, asJSON, func() *initiativesBoard {
-					return newInitiativesBoard(client, initiativeStatus, scope)
+					return newInitiativesBoard(client, initiativeStatus, scope, grouping)
 				}, func() *reposBoard { return newReposBoard(client) })
 			}
 			tabs, err := gotermboard.NewTabs([]gotermboard.Tab{
-				{Name: tabInitiatives, Board: newInitiativesBoard(client, initiativeStatus, scope)},
+				{Name: tabInitiatives, Board: newInitiativesBoard(client, initiativeStatus, scope, grouping)},
 				{Name: tabRepos, Board: newReposBoard(client)},
 			}, gotermstyle.PaletteFor(os.Stdout), view)
 			if err != nil {
@@ -126,6 +134,8 @@ func newTUICommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&view, "view", "", "Open on this tab: "+strings.Join(tuiTabs(), ", "))
 	withFlagValues(cmd, "view", tuiTabs()...)
+	cmd.Flags().StringVar(&grouping, "grouping", "", "Open the initiatives tab grouped by: "+strings.Join(initiativeGroupings, ", ")+" (default tier)")
+	withFlagValues(cmd, "grouping", initiativeGroupings...)
 	cmd.Flags().BoolVar(&once, "once", false, "Print one frame of the tab at COLUMNS by LINES, then exit")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the tab's snapshot as JSON to stdout")
 	perTier = defaultBoardPerTier

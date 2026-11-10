@@ -1,9 +1,11 @@
 """Every initiative's counts, closes and slim issue rows in one read, for a board that polls it.
 
-The read costs the same number of queries however many initiatives it answers. One readiness pass,
-one read of the live claims, one read of the issues and the read of the checked steps serve them all,
-and everything else folds those rows. So it builds no `issue_views` row, which joins what a board does
-not draw.
+The read costs the same number of queries however many initiatives it answers: every read is one
+query over all of them, and everything else folds those rows. So it builds no `issue_views` row,
+which joins what a board does not draw. The closes a direction or a tag counts from initiatives off
+the board are read once, bounded by `OLDEST_CLOSE_COUNTED`, and grow with recent closes rather than
+with the initiatives. `test_the_board_asks_the_same_queries_however_many_initiatives_it_answers`
+pins it.
 
 Long text is a second read, so a poll of the counts never carries a description.
 """
@@ -14,13 +16,17 @@ import datetime as dt
 import re
 from collections import Counter
 from collections import defaultdict
+from collections.abc import Callable
 from collections.abc import Iterable
 from collections.abc import Sequence
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import func
 from sqlalchemy import select
+from sqlalchemy import union_all
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import defer
 from sqlalchemy.orm import load_only
@@ -43,6 +49,12 @@ from slate.services.record_steps import stage_of
 from slate.services.record_tags import own_tags
 
 CLOSES_BY_DAY = 14
+
+# The windows `BoardCloses` counts closes in, ending at the read, by the field each fills.
+CLOSE_WINDOWS = {'last_24h': dt.timedelta(hours=24), 'last_7d': dt.timedelta(days=7), 'last_30d': dt.timedelta(days=30)}
+
+# How far back any count of closes reaches, which bounds the closes read from initiatives off the board.
+OLDEST_CLOSE_COUNTED = max(*CLOSE_WINDOWS.values(), dt.timedelta(days=CLOSES_BY_DAY))
 
 EXCERPT_CHARS = 300
 
@@ -94,18 +106,21 @@ def close_moments(issues: Iterable[schemas.BoardIssue]) -> list[dt.datetime]:
 
 
 def closes_of(issues: Iterable[schemas.BoardIssue], calendar: CloseCalendar) -> schemas.BoardCloses:
-    moments = close_moments(issues)
+    return closes_at(close_moments(issues), calendar)
+
+
+def closes_at(moments: Sequence[dt.datetime], calendar: CloseCalendar) -> schemas.BoardCloses:
     on_day = Counter(moment.astimezone(calendar.zone).date() for moment in moments)
 
     def within(window: dt.timedelta) -> int:
         return sum(moment > calendar.now - window for moment in moments)
 
-    return schemas.BoardCloses(
-        last_24h=within(dt.timedelta(hours=24)),
-        last_7d=within(dt.timedelta(days=7)),
-        last_30d=within(dt.timedelta(days=30)),
-        last_closed_ts=max(moments, default=None),
-        by_day=[on_day[day] for day in calendar.days],
+    return schemas.BoardCloses.model_validate(
+        {
+            **{field: within(window) for field, window in CLOSE_WINDOWS.items()},
+            'last_closed_ts': max(moments, default=None),
+            'by_day': [on_day[day] for day in calendar.days],
+        }
     )
 
 
@@ -201,6 +216,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
     steps = initiative_steps(session, initiatives)
     numbers = [initiative.number for initiative in initiatives]
     tags, directions = own_tags(session, numbers), directions_of(session, numbers)
+    claimed = last_claimed(session, initiatives)
     rows = [
         board_initiative(
             initiative,
@@ -209,10 +225,12 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
             steps.get(initiative.number, []),
             tags.get(initiative.number, []),
             directions.get(initiative.number, []),
+            claimed.get(initiative.number),
             calendar,
         )
         for initiative in initiatives
     ]
+    elsewhere = closes_off_the_board(session, initiatives, calendar)
     return schemas.InitiativeBoard(
         read_ts=now,
         zone=zone,
@@ -223,8 +241,150 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
             for priority in sorted(PRIORITIES, key=urgency)
         ],
         repos=repo_rollups(rows, calendar),
+        directions=direction_rollups(session, rows, elsewhere, calendar),
+        tags=tag_rollups(session, rows, elsewhere, calendar),
         initiatives=rows,
     )
+
+
+def last_claimed(session: Session, initiatives: Sequence[models.Initiative]) -> dict[int, dt.datetime]:
+    """When a claim last started on each initiative or on one of its issues, by the initiative's number. Ended claims count."""
+    ids = [initiative.id for initiative in initiatives]
+    on_issues = (
+        select(models.Initiative.number.label('initiative'), models.Claim.started_ts)
+        .join(models.Issue, models.Issue.initiative_id == models.Initiative.id)
+        .join(models.Claim, models.Claim.record_number == models.Issue.number)
+        .where(models.Initiative.id.in_(ids))
+    )
+    on_initiatives = (
+        select(models.Initiative.number.label('initiative'), models.Claim.started_ts)
+        .join(models.Claim, models.Claim.record_number == models.Initiative.number)
+        .where(models.Initiative.id.in_(ids))
+    )
+    claims = union_all(on_issues, on_initiatives).subquery()
+    rows = session.execute(select(claims.c.initiative, func.max(claims.c.started_ts)).group_by(claims.c.initiative))
+    return {number: started for number, started in rows}
+
+
+def touched_at(initiative: models.Initiative, issues: Iterable[schemas.BoardIssue], claimed: dt.datetime | None) -> dt.datetime:
+    """The latest of when it was created, when a claim on it or an issue started, and when an issue closed."""
+    moments = [initiative.created_ts, *(issue.closed_ts for issue in issues if issue.closed_ts is not None)]
+    return max(moments if claimed is None else [*moments, claimed])
+
+
+@dataclass(frozen=True)
+class ClosesElsewhere:
+    """The issues completed inside `OLDEST_CLOSE_COUNTED` in each initiative off the board, with its directions and tags."""
+
+    moments: dict[int, list[dt.datetime]]
+    directions: dict[int, list[schemas.DirectionSummary]]
+    tags: dict[int, list[str]]
+
+
+def closes_off_the_board(session: Session, initiatives: Sequence[models.Initiative], calendar: CloseCalendar) -> ClosesElsewhere:
+    """Each issue completed inside `OLDEST_CLOSE_COUNTED` in an initiative the board does not hold, such as one completed this month.
+
+    The board holds the initiatives at one status, so a direction or a tag counts the rest's closes from here.
+    """
+    rows = session.execute(
+        select(models.Initiative.number, models.Issue.closed_ts)
+        .join(models.Issue, models.Issue.initiative_id == models.Initiative.id)
+        .where(
+            models.Issue.status == 'completed',
+            models.Issue.closed_ts > calendar.now - OLDEST_CLOSE_COUNTED,
+            models.Initiative.id.not_in([initiative.id for initiative in initiatives]),
+        )
+    )
+    moments: dict[int, list[dt.datetime]] = defaultdict(list)
+    for number, closed in rows:
+        if closed is not None:
+            moments[number].append(closed)
+    return ClosesElsewhere(dict(moments), directions_of(session, moments), own_tags(session, moments))
+
+
+@dataclass
+class GroupTally:
+    """The board's initiatives in one group, and the closes of the group's initiatives off the board."""
+
+    rows: list[schemas.BoardInitiative] = field(default_factory=list)
+    elsewhere: list[dt.datetime] = field(default_factory=list)
+
+
+def tally_groups[Key](
+    rows: Sequence[schemas.BoardInitiative],
+    groups_of: Callable[[schemas.BoardInitiative], list[Key]],
+    elsewhere: dict[int, list[dt.datetime]],
+    elsewhere_in: dict[int, list[Key]],
+    listed: Iterable[Key],
+) -> dict[Key | None, GroupTally]:
+    """Each group's tally: every group `listed`, each other group an initiative is in, and None for those in none, where any is.
+
+    An initiative in two groups counts in both.
+    """
+    tallies: dict[Key | None, GroupTally] = {key: GroupTally() for key in listed}
+    for row in rows:
+        for key in in_none_where_empty(groups_of(row)):
+            tallies.setdefault(key, GroupTally()).rows.append(row)
+    for number, moments in elsewhere.items():
+        for key in in_none_where_empty(elsewhere_in.get(number, [])):
+            tallies.setdefault(key, GroupTally()).elsewhere.extend(moments)
+    return tallies
+
+
+def in_none_where_empty[Key](keys: list[Key]) -> list[Key | None]:
+    return [*keys] if keys else [None]
+
+
+def grouping_rollup(tally: GroupTally, calendar: CloseCalendar) -> dict[str, Any]:
+    """The fields of a `BoardGroupingRollup` over `tally`."""
+    on_the_board = close_moments(issue for row in tally.rows for issue in row.issues)
+    active = [row for row in tally.rows if row.status == 'active']
+    untouched = min(active, key=lambda row: row.touched_ts, default=None)
+    return {
+        **rollup_of(tally.rows, calendar),
+        'members': [row.number for row in tally.rows],
+        'closes': closes_at([*on_the_board, *tally.elsewhere], calendar),
+        'untouched_longest': None
+        if untouched is None
+        else schemas.BoardUntouched(number=untouched.number, name=untouched.name, touched_ts=untouched.touched_ts),
+    }
+
+
+def fewest_closes_first(rollup: schemas.BoardGroupingRollup, name: str | None) -> tuple:
+    return (name is None, rollup.closes.last_30d, name or '')
+
+
+def direction_rollups(
+    session: Session, rows: Sequence[schemas.BoardInitiative], elsewhere: ClosesElsewhere, calendar: CloseCalendar
+) -> list[schemas.BoardDirectionRollup]:
+    """Every active direction, each other one an initiative counted is in, and the initiatives in none, the fewest closes first."""
+    named = dict(session.execute(select(models.Direction.number, models.Direction.name).where(models.Direction.status == 'active')).all())
+    for direction in (*(d for row in rows for d in row.directions), *(d for held in elsewhere.directions.values() for d in held)):
+        named[direction.number] = direction.name
+    tallies = tally_groups(
+        rows,
+        lambda row: [direction.number for direction in row.directions],
+        elsewhere.moments,
+        {number: [direction.number for direction in held] for number, held in elsewhere.directions.items()},
+        named,
+    )
+    rollups = [
+        schemas.BoardDirectionRollup(
+            direction=None if number is None else schemas.DirectionSummary(number=number, name=named[number]),
+            **grouping_rollup(tally, calendar),
+        )
+        for number, tally in tallies.items()
+    ]
+    return sorted(rollups, key=lambda rollup: fewest_closes_first(rollup, rollup.direction.name if rollup.direction else None))
+
+
+def tag_rollups(
+    session: Session, rows: Sequence[schemas.BoardInitiative], elsewhere: ClosesElsewhere, calendar: CloseCalendar
+) -> list[schemas.BoardTagRollup]:
+    """Every tag, and the initiatives carrying none of their own, the fewest closes first."""
+    tallies = tally_groups(rows, lambda row: row.tags, elsewhere.moments, elsewhere.tags, session.scalars(select(models.Tag.name)).all())
+    rollups = [schemas.BoardTagRollup(tag=tag, **grouping_rollup(tally, calendar)) for tag, tally in tallies.items()]
+    return sorted(rollups, key=lambda rollup: fewest_closes_first(rollup, rollup.tag))
 
 
 def board_initiative(
@@ -234,6 +394,7 @@ def board_initiative(
     steps: list[schemas.CheckedStep],
     tags: list[str],
     directions: list[schemas.DirectionSummary],
+    claimed: dt.datetime | None,
     calendar: CloseCalendar,
 ) -> schemas.BoardInitiative:
     claim = claims.get(initiative.number)
@@ -250,6 +411,7 @@ def board_initiative(
         claim=claim_view(claim, calendar.now) if claim is not None else None,
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,
+        touched_ts=touched_at(initiative, issues, claimed),
         issues=issues,
         by_repo=sorted(
             (schemas.BoardRepoCounts(repo=repo, **counts_of(cut, calendar)) for repo, cut in issues_by_repo(issues).items()),

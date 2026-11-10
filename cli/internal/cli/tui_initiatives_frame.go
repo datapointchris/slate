@@ -84,8 +84,14 @@ func (b *initiativesBoard) Frame(now time.Time, grouping string) gotermboard.Fra
 			frame.StartAt = repos[0].Key
 		}
 		frame.Groups = append(frame.Groups, repos...)
+	case groupingDirection, groupingTag:
+		groups := b.memberGroups(memberships(drawn.read, grouping), grouping, ordered, drawn)
+		if len(groups) > 0 {
+			frame.StartAt = groups[0].Key
+		}
+		frame.Groups = append(frame.Groups, groups...)
 	case groupingInitiative:
-		frame.Groups = append(frame.Groups, b.initiativeGroups(ordered, nil, ordered, drawn)...)
+		frame.Groups = append(frame.Groups, b.initiativeGroups(ordered, "", nil, ordered, drawn)...)
 	default:
 		for _, tier := range read.Tiers {
 			if tier.InitiativeCount == 0 {
@@ -167,7 +173,7 @@ func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInit
 		Gap:        true,
 		Overline:   gotermboard.RuleDouble,
 		Tone:       tierTone,
-		Groups:     b.initiativeGroups(inTier, nil, ordered, drawn),
+		Groups:     b.initiativeGroups(inTier, "", nil, ordered, drawn),
 		Panel: func(int) []gotermboard.Line {
 			return rollupPanel(gotermboard.Line{gotermboard.C(label, tierCode(tier.Priority)+gotermboard.Bold)}, counts, drawn.now)
 		},
@@ -176,18 +182,20 @@ func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInit
 
 // initiativeGroups draws initiatives in order and places each among the others for the
 // reorder keys, within queue, every initiative in the order the board read lists them.
-// Under a repo, cut is that repo's share of each, and nil draws each whole.
-func (b *initiativesBoard) initiativeGroups(initiatives []api.BoardInitiative, cut *repoCut, queue []api.BoardInitiative, drawn boardDraw) []gotermboard.Group {
+// placement ends every key under them, where the grouping draws an initiative more than
+// once. Under a repo, cut is that repo's share of each, and nil draws each whole.
+func (b *initiativesBoard) initiativeGroups(initiatives []api.BoardInitiative, placement string, cut *repoCut, queue []api.BoardInitiative, drawn boardDraw) []gotermboard.Group {
 	groups := make([]gotermboard.Group, 0, len(initiatives))
 	keys := make([]string, 0, len(initiatives))
 	places := make([]queuePlace, 0, len(initiatives))
 	for _, initiative := range initiatives {
-		key, issues, counts := initiativeKey(initiative.Number), initiative.Issues, initiative.BoardCounts
+		issues, counts := initiative.Issues, initiative.BoardCounts
 		if cut != nil {
-			key, issues, counts = initiativeUnderRepo(initiative.Number, cut.name()), cut.issuesOf(initiative), cut.counts[initiative.Number]
+			issues, counts = cut.issuesOf(initiative), cut.counts[initiative.Number]
 		}
-		groups = append(groups, b.initiativeGroup(initiative, key, issues, counts, !drawn.shown[initiative.Number], drawn))
-		keys = append(keys, key)
+		group := b.initiativeGroup(initiative, placement, issues, counts, !drawn.shown[initiative.Number], drawn)
+		groups = append(groups, group)
+		keys = append(keys, group.Key)
 		places = append(places, queuePlace{kind: "initiative", number: initiative.Number, priority: initiative.Priority})
 	}
 	b.placeInOrder(keys, places, initiativeNeighbors(initiatives, drawn), initiativeNeighbors(queue, drawn))
@@ -202,11 +210,11 @@ func initiativeNeighbors(initiatives []api.BoardInitiative, drawn boardDraw) []q
 	return neighbors
 }
 
-func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, key string, issues []api.BoardIssue, counts api.BoardCounts, beyondScope bool, drawn boardDraw) gotermboard.Group {
+func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, placement string, issues []api.BoardIssue, counts api.BoardCounts, beyondScope bool, drawn boardDraw) gotermboard.Group {
 	long := drawn.text.initiatives[initiative.Number]
 	description := strValue(long.Description)
 	return gotermboard.Group{
-		Key:            key,
+		Key:            initiativeKey(initiative.Number) + placement,
 		Title:          gotermboard.Line{gotermboard.C(strconv.Itoa(initiative.Number), gotermboard.Cyan)},
 		Span:           gotermboard.Line{gotermboard.C(initiative.Name, gotermboard.Bold)},
 		Beside:         gotermboard.Items(dimCode, initiative.Repos...),
@@ -219,7 +227,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, key s
 		Rule:           true,
 		BlankAboveRule: true,
 		FilterOnly:     beyondScope,
-		Groups:         b.issueGroups(strings.TrimPrefix(key, initiativeKeyPrefix), issues, initiative.Issues, drawn),
+		Groups:         b.issueGroups(initiative.Number, placement, issues, initiative.Issues, drawn),
 		Text:           filterNumber(initiative.Number) + description + " " + strValue(long.StatusReason),
 		Panel: func(width int) []gotermboard.Line {
 			return b.initiativePanel(initiative, long, drawn.rows, drawn.read, drawn.now, width)
@@ -297,13 +305,135 @@ func (b *initiativesBoard) repoGroups(ordered []api.BoardInitiative, drawn board
 			Gap:        true,
 			Overline:   gotermboard.RuleDouble,
 			Tone:       tierTone,
-			Groups:     b.initiativeGroups(initiatives, cut, ordered, drawn),
+			Groups:     b.initiativeGroups(initiatives, placedUnder(cut.name()), cut, ordered, drawn),
 			Panel: func(int) []gotermboard.Line {
 				return rollupPanel(heading(label), counts, drawn.now)
 			},
 		})
 	}
 	return groups
+}
+
+// The groups holding the initiatives in no direction, and those carrying no tag of their own.
+const (
+	noDirection = "no direction"
+	noTag       = "no tag"
+)
+
+// membership is one direction's or one tag's group: its number where it is a record, its
+// name, what the keys under it end in, and its rollup, which names its members.
+type membership struct {
+	number    int
+	name      string
+	placement string
+	rollup    api.BoardGroupingRollup
+}
+
+// memberships is a group for each direction or each tag the board read rolls up, in its
+// order, or nil from an API older than the rollup.
+func memberships(read api.InitiativeBoard, grouping string) []membership {
+	if grouping == groupingTag {
+		if read.Tags == nil {
+			return nil
+		}
+		groups := make([]membership, 0, len(read.Tags))
+		for _, rollup := range read.Tags {
+			group := membership{name: noTag, placement: placedUnder("no-tag"), rollup: rollup.BoardGroupingRollup}
+			if rollup.Tag != nil {
+				group.name, group.placement = *rollup.Tag, placedUnder("tag-"+*rollup.Tag)
+			}
+			groups = append(groups, group)
+		}
+		return groups
+	}
+	if read.Directions == nil {
+		return nil
+	}
+	groups := make([]membership, 0, len(read.Directions))
+	for _, rollup := range read.Directions {
+		group := membership{name: noDirection, placement: placedUnder("no-direction"), rollup: rollup.BoardGroupingRollup}
+		if direction := rollup.Direction; direction != nil {
+			group.number, group.name = direction.Number, direction.Name
+			group.placement = placedUnder("direction-" + strconv.Itoa(direction.Number))
+		}
+		groups = append(groups, group)
+	}
+	return groups
+}
+
+// memberGroups is a group for each direction or tag, holding every initiative its rollup
+// names, each drawn whole. An initiative in two draws under both, and one in none under
+// the group of none. A group's line is its rollup, whose closes count the initiatives off
+// the board too, and the line under it names its active initiative untouched longest.
+// A group draws with every member past the scope, since its line still says it is there.
+func (b *initiativesBoard) memberGroups(members []membership, grouping string, ordered []api.BoardInitiative, drawn boardDraw) []gotermboard.Group {
+	if members == nil {
+		return []gotermboard.Group{{
+			Key:   grouping + ":unanswered",
+			Title: gotermboard.Line{gotermboard.C("this API answers no counts by "+grouping+", so v moves on", dimCode)},
+		}}
+	}
+	groups := make([]gotermboard.Group, 0, len(members))
+	for _, member := range members {
+		var initiatives []api.BoardInitiative
+		showing := 0
+		for _, initiative := range ordered {
+			if !slices.Contains(member.rollup.Members, initiative.Number) {
+				continue
+			}
+			initiatives = append(initiatives, initiative)
+			if drawn.shown[initiative.Number] {
+				showing++
+			}
+		}
+		rollup := member.rollup
+		label := member.name + " · " + strconv.Itoa(rollup.InitiativeCount)
+		if showing != rollup.InitiativeCount {
+			label = fmt.Sprintf("%s · %d of %d", member.name, showing, rollup.InitiativeCount)
+		}
+		title := gotermboard.Line{gotermboard.C(label, tierTone)}
+		if member.number != 0 {
+			title = append(gotermboard.Line{gotermboard.C(strconv.Itoa(member.number)+"  ", gotermboard.Cyan)}, title...)
+		}
+		counts := rollup.BoardCounts
+		untouched := untouchedLines(rollup.UntouchedLongest, drawn.now)
+		groups = append(groups, gotermboard.Group{
+			Key:      grouping + ":" + strings.TrimPrefix(member.placement, "@"),
+			Title:    title,
+			Cells:    toned(boardCells(counts, drawn.now), tierTone),
+			WrapLast: append(scaledBar(counts), gotermboard.C("  ", ""), gotermboard.C(sparkLine(counts.Closes.ByDay), gotermboard.Green)),
+			Below:    untouched,
+			Heading:  true,
+			Gap:      true,
+			Overline: gotermboard.RuleDouble,
+			Tone:     tierTone,
+			Groups:   b.initiativeGroups(initiatives, member.placement, nil, ordered, drawn),
+			Panel: func(int) []gotermboard.Line {
+				lines := rollupPanel(slices.Concat(gotermboard.Line{}, title), counts, drawn.now)
+				lines = append(lines, dimLine("Its closes count its initiatives off the board too, such as one completed this month."))
+				if len(untouched) > 0 {
+					lines = append(lines, gotermboard.Line{})
+					lines = append(lines, untouched...)
+				}
+				return lines
+			},
+		})
+	}
+	return groups
+}
+
+// untouchedLines name a group's active initiative untouched longest, and how long ago it
+// was touched: created, claimed, or an issue closed.
+func untouchedLines(untouched *api.BoardUntouched, now time.Time) []gotermboard.Line {
+	if untouched == nil {
+		return nil
+	}
+	return []gotermboard.Line{{
+		gotermboard.C("untouched longest  ", dimCode),
+		gotermboard.C(strconv.Itoa(untouched.Number), gotermboard.Cyan),
+		gotermboard.C("  "+untouched.Name, ""),
+		gotermboard.C("  touched "+ageOf(&untouched.TouchedTS, now)+" ago", dimCode),
+	}}
 }
 
 // openDescription is the description under the row while d holds it open.
@@ -408,9 +538,10 @@ func insideALargerValue(text string, from, to int) bool {
 // issueGroups is an initiative's issues unfolded: the open first, running at the top and
 // then in queue order, with the done and the canceled folded beneath.
 // The open issues are placed for the reorder keys in the order they draw, within the open
-// ones of every, all the initiative's issues in queue order. under is the initiative's
-// number, with its repo where the repo grouping draws it.
-func (b *initiativesBoard) issueGroups(under string, issues, every []api.BoardIssue, drawn boardDraw) []gotermboard.Group {
+// ones of every, all the initiative's issues in queue order. placement ends each key, as
+// it ends the initiative's.
+func (b *initiativesBoard) issueGroups(initiative int, placement string, issues, every []api.BoardIssue, drawn boardDraw) []gotermboard.Group {
+	under := strconv.Itoa(initiative) + placement
 	var running, waiting, queued, done, canceled []api.BoardIssue
 	for _, issue := range issues {
 		switch issue.State {
@@ -431,7 +562,7 @@ func (b *initiativesBoard) issueGroups(under string, issues, every []api.BoardIs
 		keys := make([]string, len(open))
 		places := make([]queuePlace, len(open))
 		for at, issue := range open {
-			keys[at] = issueKey(issue.Number)
+			keys[at] = issueKey(issue.Number) + placement
 			places[at] = queuePlace{kind: "issue", number: issue.Number, priority: issue.EffectivePriority}
 		}
 		queue := slices.DeleteFunc(slices.Clone(every), func(issue api.BoardIssue) bool {
@@ -444,7 +575,7 @@ func (b *initiativesBoard) issueGroups(under string, issues, every []api.BoardIs
 			Summary: gotermboard.Line{gotermboard.C("running first, then in queue order", dimCode)},
 			Still:   true,
 			Heading: true,
-			Groups:  b.issueGroupsOf(open, drawn),
+			Groups:  b.issueGroupsOf(open, placement, drawn),
 		})
 	}
 	if len(done) > 0 {
@@ -454,7 +585,7 @@ func (b *initiativesBoard) issueGroups(under string, issues, every []api.BoardIs
 			Summary: gotermboard.Line{gotermboard.C("newest first", dimCode)},
 			Heading: true,
 			Folded:  true,
-			Groups:  b.issueGroupsOf(done, drawn),
+			Groups:  b.issueGroupsOf(done, placement, drawn),
 		})
 	}
 	if len(canceled) > 0 {
@@ -463,7 +594,7 @@ func (b *initiativesBoard) issueGroups(under string, issues, every []api.BoardIs
 			Title:   gotermboard.Line{gotermboard.C("canceled · "+strconv.Itoa(len(canceled)), "")},
 			Heading: true,
 			Folded:  true,
-			Groups:  b.issueGroupsOf(canceled, drawn),
+			Groups:  b.issueGroupsOf(canceled, placement, drawn),
 		})
 	}
 	return groups
@@ -477,17 +608,17 @@ func issueNeighbors(issues []api.BoardIssue) []queueNeighbor {
 	return neighbors
 }
 
-func (b *initiativesBoard) issueGroupsOf(issues []api.BoardIssue, drawn boardDraw) []gotermboard.Group {
+func (b *initiativesBoard) issueGroupsOf(issues []api.BoardIssue, placement string, drawn boardDraw) []gotermboard.Group {
 	groups := make([]gotermboard.Group, len(issues))
 	for at, issue := range issues {
-		groups[at] = b.issueGroup(issue, drawn)
+		groups[at] = b.issueGroup(issue, placement, drawn)
 	}
 	return groups
 }
 
 // issueGroup is an issue that unfolds into the sessions and pull requests its worklogs hold,
 // which are read once the cursor lands on it. d opens its description.
-func (b *initiativesBoard) issueGroup(issue api.BoardIssue, drawn boardDraw) gotermboard.Group {
+func (b *initiativesBoard) issueGroup(issue api.BoardIssue, placement string, drawn boardDraw) gotermboard.Group {
 	excerpt := drawn.text.issues[issue.Number]
 	read, isRead := drawn.rows.issues[issue.Number]
 	worklogs, worked := drawn.rows.worklogs[issue.Number]
@@ -497,12 +628,12 @@ func (b *initiativesBoard) issueGroup(issue api.BoardIssue, drawn boardDraw) got
 		lead = gotermboard.Ticking(padLeft(ageOf(issue.ClosedTS, drawn.now), issueStateWidth)+" ", dimCode)
 	}
 	group := gotermboard.Group{
-		Key:      issueKey(issue.Number),
+		Key:      issueKey(issue.Number) + placement,
 		Title:    gotermboard.Line{lead, gotermboard.C(strconv.Itoa(issue.Number), gotermboard.Cyan), gotermboard.C("  "+issue.Title, "")},
 		Under:    gotermboard.C(excerpt, ""),
 		Document: b.openDescription(issue.Number, description, isRead),
 		Folded:   true,
-		Rows:     workRows(issue.Number, worklogs, worked, drawn.now),
+		Rows:     workRows(issue.Number, placement, worklogs, worked, drawn.now),
 		Text:     filterNumber(issue.Number) + description,
 		Panel: func(width int) []gotermboard.Line {
 			return b.issuePanel(issue, excerpt, read, isRead, worklogs, worked, drawn.now, width)
@@ -519,9 +650,9 @@ func filterNumber(number int) string { return "#" + strconv.Itoa(number) + " " }
 
 // workRows is a pull request row for each one an issue's worklogs link, then a row for each
 // session in each, newest worklog first.
-func workRows(issue int, worklogs []api.Worklog, worked bool, now time.Time) []gotermboard.Row {
+func workRows(issue int, placement string, worklogs []api.Worklog, worked bool, now time.Time) []gotermboard.Row {
 	placeholder := func(text string) []gotermboard.Row {
-		return []gotermboard.Row{{Key: "work:" + strconv.Itoa(issue), Span: gotermboard.Line{gotermboard.C(text, dimCode)}}}
+		return []gotermboard.Row{{Key: "work:" + strconv.Itoa(issue) + placement, Span: gotermboard.Line{gotermboard.C(text, dimCode)}}}
 	}
 	if !worked {
 		return placeholder("reading…")
@@ -530,13 +661,13 @@ func workRows(issue int, worklogs []api.Worklog, worked bool, now time.Time) []g
 	for _, worklog := range worklogs {
 		for _, link := range worklog.Links {
 			if link.Kind == api.WorklogLinkPullRequest {
-				rows = append(rows, pullRequestRow(issue, worklog, link, now))
+				rows = append(rows, pullRequestRow(issue, placement, worklog, link, now))
 			}
 		}
 	}
 	for _, worklog := range worklogs {
 		for _, session := range sessionsIn(worklog) {
-			rows = append(rows, sessionRow(issue, worklog, session, now))
+			rows = append(rows, sessionRow(issue, placement, worklog, session, now))
 		}
 	}
 	if len(rows) == 0 {
@@ -545,10 +676,10 @@ func workRows(issue int, worklogs []api.Worklog, worked bool, now time.Time) []g
 	return rows
 }
 
-func pullRequestRow(issue int, worklog api.Worklog, link api.WorklogLink, now time.Time) gotermboard.Row {
+func pullRequestRow(issue int, placement string, worklog api.Worklog, link api.WorklogLink, now time.Time) gotermboard.Row {
 	name := pullRequestName(link.Ref)
 	return gotermboard.Row{
-		Key: pullRequestKey(issue, link.Ref),
+		Key: pullRequestKey(issue, placement, link.Ref),
 		Span: gotermboard.Line{
 			gotermboard.C(padRight("PR", issueStateWidth)+" ", gotermboard.Magenta),
 			gotermboard.C(name, gotermboard.Cyan),
@@ -609,7 +740,7 @@ func sessionsIn(worklog api.Worklog) []workedSession {
 	return sessions
 }
 
-func sessionRow(issue int, worklog api.Worklog, session workedSession, now time.Time) gotermboard.Row {
+func sessionRow(issue int, placement string, worklog api.Worklog, session workedSession, now time.Time) gotermboard.Row {
 	when := "since " + ageOf(&session.started, now) + " ago"
 	if session.ended != nil {
 		when = fmt.Sprintf("%s ago for %s", ageOf(session.ended, now), gotermboard.Ago(session.ended.Sub(session.started)))
@@ -627,7 +758,7 @@ func sessionRow(issue int, worklog api.Worklog, session workedSession, now time.
 			groupedDigits(session.tokens.CacheRead), groupedDigits(session.tokens.Output))))
 	}
 	return gotermboard.Row{
-		Key: fmt.Sprintf("session:%d:%s:%s", issue, worklog.Name, session.id),
+		Key: fmt.Sprintf("session:%d%s:%s:%s", issue, placement, worklog.Name, session.id),
 		Span: gotermboard.Line{
 			gotermboard.C(padRight("session", issueStateWidth)+" ", ""),
 			gotermboard.C(shortSession(session.id), ""),

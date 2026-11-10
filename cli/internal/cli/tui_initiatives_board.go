@@ -109,12 +109,17 @@ type cursorRowReads struct {
 	worklogs map[int][]api.Worklog
 }
 
-// The groupings v cycles, the first the one the board opens on.
+// The groupings v cycles, in the order it cycles them. The board opens on tier
+// unless it is told another.
 const (
 	groupingTier       = "tier"
 	groupingRepo       = "repo"
+	groupingDirection  = "direction"
+	groupingTag        = "tag"
 	groupingInitiative = "initiative"
 )
+
+var initiativeGroupings = []string{groupingTier, groupingRepo, groupingDirection, groupingTag, groupingInitiative}
 
 // initiativesBoard is the initiatives tab. Its reads run off the program's goroutine and
 // touch only their sources, the cursor and readFailure. The keys and Frame run on it.
@@ -122,6 +127,7 @@ type initiativesBoard struct {
 	client      *api.Client
 	status      string
 	scope       boardScope
+	opensAt     string
 	sort        int
 	described   map[int]bool
 	initiatives *gotermboard.Source[api.InitiativeBoard]
@@ -142,9 +148,10 @@ type initiativesBoard struct {
 	readFailure error
 }
 
-func newInitiativesBoard(client *api.Client, status string, scope boardScope) *initiativesBoard {
+// newInitiativesBoard opens at the grouping it is given, or by tier where it is empty.
+func newInitiativesBoard(client *api.Client, status string, scope boardScope, grouping string) *initiativesBoard {
 	zone := issueZone()
-	b := &initiativesBoard{client: client, status: status, scope: scope, described: map[int]bool{}}
+	b := &initiativesBoard{client: client, status: status, scope: scope, opensAt: cmp.Or(grouping, groupingTier), described: map[int]bool{}}
 	b.markdown = markdown.New(b.colorRecordNumbers)
 	b.initiatives = gotermboard.NewSource("initiatives", boardReadEvery, func(ctx context.Context) (api.InitiativeBoard, string, error) {
 		read, err := client.ReadInitiativeBoard(ctx, status, zone)
@@ -167,9 +174,11 @@ func (b *initiativesBoard) Sources() []gotermboard.Refresher {
 	return []gotermboard.Refresher{b.initiatives, b.text, b.cursorRow}
 }
 
-// Groupings is gotermboard.Board's.
+// Groupings is gotermboard.Board's. They start at the one the board opens on, so the
+// model's first is that one, and v cycles on from it.
 func (b *initiativesBoard) Groupings() []string {
-	return []string{groupingTier, groupingRepo, groupingInitiative}
+	at := max(slices.Index(initiativeGroupings, b.opensAt), 0)
+	return slices.Concat(initiativeGroupings[at:], initiativeGroupings[:at])
 }
 
 // CursorOn is gotermboard.CursorBoard's. The read waits for the next tick, so holding a
@@ -354,6 +363,7 @@ type initiativesSnapshot struct {
 	Status    string                  `json:"status"`
 	Scope     string                  `json:"scope"`
 	Sort      string                  `json:"sort"`
+	Grouping  string                  `json:"grouping"`
 	Shown     []int                   `json:"shown"`
 	Reads     []gotermboard.Status    `json:"reads"`
 	Board     api.InitiativeBoard     `json:"board"`
@@ -373,7 +383,7 @@ func (b *initiativesBoard) Snapshot(time.Time) initiativesSnapshot {
 	}
 	snapshot := initiativesSnapshot{
 		Tab: tabInitiatives, Status: cmp.Or(b.status, "active"), Scope: b.scope.label(), Sort: boardSorts[b.sort].label,
-		Shown: numbers, Board: read, Text: b.text.Value(),
+		Grouping: b.opensAt, Shown: numbers, Board: read, Text: b.text.Value(),
 		Reads: []gotermboard.Status{b.initiatives.Status(), b.text.Status(), b.cursorRow.Status()},
 	}
 	if number, ok := numberFromKey(b.openingKey(read), initiativeKeyPrefix); ok {
@@ -394,13 +404,12 @@ func initiativeKey(number int) string { return initiativeKeyPrefix + strconv.Ito
 
 func issueKey(number int) string { return issueKeyPrefix + strconv.Itoa(number) }
 
-// initiativeUnderRepo is an initiative's key under one repo's group, since the repo
-// grouping draws an initiative once for each repo its issues name.
-func initiativeUnderRepo(number int, repo string) string {
-	return initiativeKey(number) + "@" + repo
-}
+// placedUnder is what every key under one drawing of an initiative ends in, where a
+// grouping draws it more than once: once for each repo its issues name, direction it
+// is in or tag it carries. It holds no colon, which a pull request's key reads past.
+func placedUnder(group string) string { return "@" + group }
 
-// numberFromKey is the record a key names, whatever repo it sits under.
+// numberFromKey is the record a key names, whatever group it sits under.
 func numberFromKey(key, prefix string) (int, bool) {
 	text, found := strings.CutPrefix(key, prefix)
 	if !found {

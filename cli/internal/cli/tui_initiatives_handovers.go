@@ -168,8 +168,10 @@ func (b *initiativesBoard) openInBrowser(m *gotermboard.Model) tea.Cmd {
 // pullRequestKeyPrefix leads a pull request row's key, which ends in the link as recorded.
 const pullRequestKeyPrefix = "pr:"
 
-func pullRequestKey(issue int, link string) string {
-	return pullRequestKeyPrefix + strconv.Itoa(issue) + ":" + link
+// pullRequestKey is a pull request row's key under an issue, which placement places
+// where the grouping draws its initiative more than once.
+func pullRequestKey(issue int, placement, link string) string {
+	return pullRequestKeyPrefix + strconv.Itoa(issue) + placement + ":" + link
 }
 
 // pullRequestAt is the link a pull request row's key holds.

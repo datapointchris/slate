@@ -213,10 +213,40 @@ func newDirectionsListCommand() *cobra.Command {
 	return cmd
 }
 
-// directionShown is a direction and the changes its show read.
+// directionShown is a direction, the initiatives list's row for each initiative in it,
+// with its counts and checked steps, and the changes its show read. InitiativeRows is
+// nil where its read failed, and InitiativeRowsError says why.
 type directionShown struct {
 	api.DirectionDetail
-	Changes *recordChanges `json:"changes,omitempty"`
+	InitiativeRows      []api.Initiative `json:"initiative_rows"`
+	InitiativeRowsError string           `json:"initiative_rows_error,omitempty"`
+	Changes             *recordChanges   `json:"changes,omitempty"`
+}
+
+// readDirectionShown reads the row of each initiative in the direction, whatever its
+// status. The rows are one section of the show, so a failed read leaves the direction
+// shown, each initiative by its number and name, and says why.
+func readDirectionShown(cmd *cobra.Command, client *api.Client, direction api.DirectionDetail) directionShown {
+	shown := directionShown{DirectionDetail: direction, InitiativeRows: []api.Initiative{}}
+	if len(direction.Initiatives) == 0 {
+		return shown
+	}
+	filter := api.InitiativeFilter{Status: "all", Direction: strconv.Itoa(direction.Number)}
+	initiatives, err := client.ListInitiatives(cmd.Context(), filter, nil)
+	if err != nil {
+		shown.InitiativeRows = nil
+		shown.InitiativeRowsError = fmt.Sprintf("each initiative's counts and steps were not read: %v", handleAPIError(err))
+		return shown
+	}
+	shown.InitiativeRows = initiatives
+	return shown
+}
+
+// noteInitiativeRows says on stderr why a show prints no counts or steps.
+func noteInitiativeRows(cmd *cobra.Command, shown directionShown) {
+	if shown.InitiativeRowsError != "" {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", shown.InitiativeRowsError)
+	}
 }
 
 func newDirectionsShowCommand() *cobra.Command {
@@ -225,9 +255,11 @@ func newDirectionsShowCommand() *cobra.Command {
 		changeCount int
 	)
 	cmd := &cobra.Command{
-		Use:         "show <direction>",
-		Short:       "Show a direction, each idea and initiative in it, and its changes",
-		Long:        "A direction is named by its number or its exact name. Each record in it is printed by number and name.",
+		Use:   "show <direction>",
+		Short: "Show a direction, each idea and initiative in it, and its changes",
+		Long: "A direction is named by its number or its exact name. Each initiative in it, whatever\n" +
+			"its status, prints with its open, done and canceled issues and the steps checked on it.\n" +
+			"Each idea prints by number and name.",
 		Example:     "  slate directions show \"Data Warehouse\"\n  slate directions show 2950 --json",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -240,7 +272,8 @@ func newDirectionsShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			shown := directionShown{DirectionDetail: direction}
+			shown := readDirectionShown(cmd, client, direction)
+			defer noteInitiativeRows(cmd, shown)
 			if shown.Changes, err = readChanges(cmd, client, direction.Number, changeCount, asJSON); err != nil {
 				return err
 			}
@@ -465,12 +498,12 @@ func printDirections(out io.Writer, directions []api.Direction) {
 
 // printDirectionShown is what every show of a direction prints.
 func printDirectionShown(out io.Writer, shown directionShown, now time.Time) {
-	printDirectionDetail(out, shown.Direction)
+	printDirectionDetail(out, shown.Direction, shown.InitiativeRows)
 	printRecordParts(out, shown.RecordParts, now)
 	printChanges(out, shown.Changes, now)
 }
 
-func printDirectionDetail(out io.Writer, direction api.Direction) {
+func printDirectionDetail(out io.Writer, direction api.Direction, counted []api.Initiative) {
 	p := gotermstyle.PaletteFor(out)
 	_, _ = fmt.Fprintf(out, "%s  %s\n", p.Cyan("#"+strconv.Itoa(direction.Number)), p.Bold(direction.Name))
 	_, _ = fmt.Fprintf(out, "  summary:      %s\n", direction.Summary)
@@ -482,8 +515,8 @@ func printDirectionDetail(out io.Writer, direction api.Direction) {
 	if reason := strValue(direction.StatusReason); reason != "" {
 		_, _ = fmt.Fprintf(out, "  reason:       %s\n", reason)
 	}
-	printMembers(out, "initiatives:", direction.Initiatives)
-	printMembers(out, "ideas:", direction.Ideas)
+	printMembers(out, "initiatives:", direction.Initiatives, initiativeCountsLines(p, counted))
+	printMembers(out, "ideas:", direction.Ideas, nil)
 	if description := strValue(direction.Description); description != "" {
 		_, _ = fmt.Fprintf(out, "\nDescription:\n%s\n", indent(description, "  "))
 	}
@@ -491,7 +524,8 @@ func printDirectionDetail(out io.Writer, direction api.Direction) {
 
 // printMembers prints each record in a direction a line under the label, with
 // its status where it has one, or none under the label where it holds none.
-func printMembers(out io.Writer, label string, members []api.RecordSummary) {
+// Where lines holds a record's number, its line prints in their place.
+func printMembers(out io.Writer, label string, members []api.RecordSummary, lines map[int]string) {
 	if len(members) == 0 {
 		_, _ = fmt.Fprintf(out, "  %-13s none\n", label)
 		return
@@ -502,10 +536,28 @@ func printMembers(out io.Writer, label string, members []api.RecordSummary) {
 		} else {
 			_, _ = fmt.Fprintf(out, "  %-13s ", "")
 		}
-		line := fmt.Sprintf("#%d %s", member.Number, member.Title)
-		if status := strValue(member.Status); status != "" {
-			line += " (" + status + ")"
+		line, held := lines[member.Number]
+		if !held {
+			line = fmt.Sprintf("#%d %s", member.Number, member.Title)
+			if status := strValue(member.Status); status != "" {
+				line += " (" + status + ")"
+			}
 		}
 		_, _ = fmt.Fprintln(out, line)
 	}
+}
+
+// initiativeCountsLines is each initiative's line by its number: its name and
+// status, its open, done and canceled issues, and each step checked on it.
+func initiativeCountsLines(p gotermstyle.Palette, initiatives []api.Initiative) map[int]string {
+	lines := make(map[int]string, len(initiatives))
+	for _, initiative := range initiatives {
+		line := fmt.Sprintf("#%d %s (%s) · %d open, %d done, %d canceled",
+			initiative.Number, initiative.Name, initiative.Status, initiative.OpenCount, initiative.CompletedCount, initiative.CanceledCount)
+		if checked := paintedCheckedSteps(p, initiative.Steps); checked != "" {
+			line += " · " + checked
+		}
+		lines[initiative.Number] = line
+	}
+	return lines
 }

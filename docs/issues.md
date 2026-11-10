@@ -575,9 +575,29 @@ initiatives with a cut there. The cuts are counted by the same `counts_of` as th
 tiers, so a client grouping by repo draws numbers it is handed rather than
 counting issues itself.
 
-Its queries do not grow with the initiatives. One readiness pass, one read of the
-live claims, one read of the issues and one of the checked steps serve them all,
-and everything else folds those rows in memory. It builds no `issue_views` row, because that loads labels,
+**`directions` and `tags` roll up the initiatives in each direction and carrying
+each tag of their own.** An initiative in two counts in both, and those in none
+make a last rollup whose `direction` or `tag` is null, where any exist. Every
+active direction and every tag has a rollup, an empty one included, because a
+direction nothing moves in is the answer the grouping exists to give. Each comes
+with the fewest closes in 30 days first, then by name.
+
+A rollup's `members` are the numbers of the initiatives the board holds in it,
+and its counts cover those. Every count in its `closes` also takes the issues
+completed in the group's other initiatives, whatever their status. The board
+holds one status, so an initiative completed last week is off it, and its closes
+are still effort spent in its direction. Those closes are read once, back as far
+as any count of closes reaches, so the read grows with recent closes and not
+with the initiatives.
+
+`untouched_longest` names the active initiative in the group touched longest ago.
+Each initiative's `touched_ts` is the latest of when it was created, when a claim
+on it or one of its issues started, and when one of its issues closed. A claim is
+kept after it ends, so a session that held one and closed nothing still counts as
+a touch.
+
+Its queries do not grow with the initiatives: every read is one query over all
+of them, and everything else folds those rows in memory. It builds no `issue_views` row, because that loads labels,
 dependencies and comments a board does not draw. A poll pays this many times a
 minute, for as long as a board stays open, so a test pins the query count.
 

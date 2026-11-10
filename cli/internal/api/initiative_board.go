@@ -59,6 +59,37 @@ type BoardRepoRollup struct {
 	Repo *string `json:"repo"`
 }
 
+// BoardUntouched is the active initiative in a group touched longest ago, and when.
+type BoardUntouched struct {
+	Number    int       `json:"number"`
+	Name      string    `json:"name"`
+	TouchedTS time.Time `json:"touched_ts"`
+}
+
+// BoardGroupingRollup is the board's initiatives in one direction, or carrying one
+// tag. Members is the number of each one the board holds in the group, and
+// InitiativeCount and the issue counts cover those. Every count in Closes adds the
+// issues completed in the group's other initiatives, whatever their status, so one
+// completed inside the window still counts. UntouchedLongest is nil where none of the
+// members is active.
+type BoardGroupingRollup struct {
+	BoardRollup
+	Members          []int           `json:"members"`
+	UntouchedLongest *BoardUntouched `json:"untouched_longest"`
+}
+
+// BoardDirectionRollup is the initiatives in one direction, or in none where Direction is nil.
+type BoardDirectionRollup struct {
+	BoardGroupingRollup
+	Direction *DirectionSummary `json:"direction"`
+}
+
+// BoardTagRollup is the initiatives carrying one tag of their own, or none where Tag is nil.
+type BoardTagRollup struct {
+	BoardGroupingRollup
+	Tag *string `json:"tag"`
+}
+
 // BoardIssue is one issue on the board.
 type BoardIssue struct {
 	Number            int        `json:"number"`
@@ -76,7 +107,9 @@ type BoardIssue struct {
 // it: the unclosed in queue order, then the closed, latest first. ByRepo cuts
 // them by repo, most open first and no repo last, and an initiative with no
 // issues has one empty cut on no repo. An API older than the cut answers nil.
-// Steps and Stage are the initiative read's.
+// Steps and Stage are the initiative read's. TouchedTS is the latest of when it was
+// created, when a claim on it or one of its issues started, and when one of its issues
+// closed, and nil from an API older than it.
 type BoardInitiative struct {
 	BoardCounts
 	Number   int    `json:"number"`
@@ -93,6 +126,7 @@ type BoardInitiative struct {
 	Claim      *Claim             `json:"claim"`
 	CreatedTS  time.Time          `json:"created_ts"`
 	ClosedTS   *time.Time         `json:"closed_ts"`
+	TouchedTS  *time.Time         `json:"touched_ts"`
 	Issues     []BoardIssue       `json:"issues"`
 	ByRepo     []BoardRepoCounts  `json:"by_repo"`
 	Steps      []CheckedStep      `json:"steps"`
@@ -103,15 +137,20 @@ type BoardInitiative struct {
 // ByDay counts, oldest first, in Zone. Tiers holds every priority, whether or
 // not an initiative is at it. Repos rolls up each repo the initiatives' cuts
 // name, most open first and no repo last, and is nil from an API older than
-// it. Initiatives comes in list order.
+// it. Directions holds every active direction and each other one a counted
+// initiative is in, and Tags every tag, each the fewest closes in 30 days first
+// and the initiatives in none last. Both are nil from an API older than them.
+// Initiatives comes in list order.
 type InitiativeBoard struct {
-	ReadTS      time.Time         `json:"read_ts"`
-	Zone        string            `json:"zone"`
-	Days        []string          `json:"days"`
-	Totals      BoardRollup       `json:"totals"`
-	Tiers       []BoardTier       `json:"tiers"`
-	Repos       []BoardRepoRollup `json:"repos"`
-	Initiatives []BoardInitiative `json:"initiatives"`
+	ReadTS      time.Time              `json:"read_ts"`
+	Zone        string                 `json:"zone"`
+	Days        []string               `json:"days"`
+	Totals      BoardRollup            `json:"totals"`
+	Tiers       []BoardTier            `json:"tiers"`
+	Repos       []BoardRepoRollup      `json:"repos"`
+	Directions  []BoardDirectionRollup `json:"directions"`
+	Tags        []BoardTagRollup       `json:"tags"`
+	Initiatives []BoardInitiative      `json:"initiatives"`
 }
 
 // BoardIssueText is an issue's first paragraph of prose, nil where it has none.

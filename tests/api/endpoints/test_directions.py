@@ -1,5 +1,9 @@
-from fastapi import status
+import datetime as dt
 
+from fastapi import status
+from sqlalchemy import update
+
+from slate import models
 from tests.util import show_status_and_response
 
 
@@ -115,3 +119,57 @@ def test_a_finished_direction_hides_and_takes_no_new_work(txn_api_logged_in):
     assert placed.status_code == status.HTTP_409_CONFLICT, show_status_and_response(placed)
     kept = {'directions': [direction['number']], 'priority': 1}
     assert ok(client.patch(f'/initiatives/{inside["initiative"]["number"]}', json=kept))['initiative']['directions'] != []
+
+
+def test_the_board_rolls_up_each_direction_and_tag_with_closes_from_initiatives_off_it_and_its_initiative_untouched_longest(
+    txn_api_logged_in,
+):
+    """An initiative in two directions counts in both, and one completed inside the window still counts its closes in its direction."""
+    client, session = txn_api_logged_in
+    warehouse, security, empty = (a_direction(client, name) for name in ('Data Warehouse', 'Fleet Security', 'Empty'))
+    created(client, '/tags', {'name': 'security', 'description': 'Credentials, roles and what an attacker reaches'})
+
+    def initiative(name: str, directions: list[dict], **fields) -> int:
+        body = {'name': name, 'summary': 'It is done.', 'directions': [d['number'] for d in directions], **fields}
+        return created(client, '/initiatives', body)['initiative']['number']
+
+    def issue(initiative: int, title: str) -> int:
+        return created(client, '/issues', {'title': title, 'initiative': initiative})['issue']['number']
+
+    both = initiative('Both', [warehouse, security], tags=['security'])
+    stale = initiative('Stale', [warehouse])
+    finished = initiative('Finished', [security])
+    unplaced = initiative('Unplaced', [])
+    ok(client.patch(f'/issues/{issue(both, "Closed now")}', json={'status': 'completed'}))
+    issue(stale, 'Waiting')
+    ok(client.patch(f'/issues/{issue(finished, "Closed last week")}', json={'status': 'completed'}))
+    ok(client.patch(f'/initiatives/{finished}', json={'status': 'completed'}))
+    long_ago = dt.datetime.now(dt.UTC) - dt.timedelta(days=40)
+    session.execute(update(models.Initiative).where(models.Initiative.number == stale).values(created_ts=long_ago))
+    session.flush()
+
+    board = ok(client.get('/initiatives/board'))
+    touched = {row['number']: dt.datetime.fromisoformat(row['touched_ts']) for row in board['initiatives']}
+    assert touched[stale] == long_ago
+
+    def rolled(rollup: dict) -> tuple:
+        untouched = rollup['untouched_longest']
+        return (rollup['initiative_count'], rollup['closes']['last_30d'], untouched and untouched['number'])
+
+    directions = {(rollup['direction'] or {}).get('number'): rollup for rollup in board['directions']}
+    assert [rollup['direction'] and rollup['direction']['name'] for rollup in board['directions']] == [
+        'Empty',
+        'Data Warehouse',
+        'Fleet Security',
+        None,
+    ]
+    assert rolled(directions[empty['number']]) == (0, 0, None)
+    assert rolled(directions[warehouse['number']]) == (2, 1, stale)
+    assert sorted(directions[warehouse['number']]['members']) == sorted([both, stale])
+    assert rolled(directions[security['number']]) == (1, 2, both)
+    assert rolled(directions[None]) == (1, 0, unplaced)
+
+    tags = {rollup['tag']: rollup for rollup in board['tags']}
+    assert list(tags) == ['security', None]
+    assert rolled(tags['security']) == (1, 1, both)
+    assert rolled(tags[None]) == (2, 1, stale)

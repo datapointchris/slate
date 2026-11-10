@@ -105,7 +105,9 @@ func newShowCommand() *cobra.Command {
 					printChanges(out, changes, now)
 				}
 			case api.RecordKindDirection:
-				direction := directionShown{DirectionDetail: *record.Direction, Changes: changes}
+				direction := readDirectionShown(cmd, client, *record.Direction)
+				defer noteInitiativeRows(cmd, direction)
+				direction.Changes = changes
 				shown.Record = direction
 				print = func() { printDirectionShown(out, direction, now) }
 			default:

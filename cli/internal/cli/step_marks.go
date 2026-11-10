@@ -61,6 +61,18 @@ func paintedStepMarks(p gotermstyle.Palette, steps []api.CheckedStep) string {
 	return strings.Join(cells, "  ")
 }
 
+// paintedCheckedSteps is only the checked marks, green on one line, and empty
+// where no step is checked.
+func paintedCheckedSteps(p gotermstyle.Palette, steps []api.CheckedStep) string {
+	var cells []string
+	for _, mark := range stepMarks(steps) {
+		if mark.day != "" {
+			cells = append(cells, p.Paint(gotermstyle.CodeGreen, mark.text()))
+		}
+	}
+	return strings.Join(cells, "  ")
+}
+
 // stepMarksLine is the marks as a board line, colored as paintedStepMarks colors them.
 func stepMarksLine(steps []api.CheckedStep) gotermboard.Line {
 	var line gotermboard.Line
