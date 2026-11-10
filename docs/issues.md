@@ -161,6 +161,20 @@ something urgent needs it first. Closing the dependent shelves it again.
 `someday` is neither active nor terminal. It lends no priority, and like a
 closed initiative it gives up its name, so an active one may take it.
 
+## Work set aside keeps its repo and takes `low`, and a defer date is a day someone named
+
+An issue set aside for now keeps its repo and takes `--priority low`. It leaves
+the head of the queue and comes back up when someone works in that repo. Where
+it is all that is left of its initiative, the initiative goes to `low` too,
+because an issue sorts at its initiative's priority when that is higher. A
+`--deferred-until` date nobody chose is a false fact in the queue, so it is set
+only to a day a person named.
+
+An initiative placed behind another stays active. `slate initiatives reorder
+<initiative> --after <other>` puts it next, and `slate dependencies add
+<initiative> --depends-on <other>` blocks its issues until the other closes.
+Shelving it to `someday` instead takes it out of the queue entirely.
+
 ## An issue reaches an unattended fix only where it and every record above it say `autofix: true`
 
 An unattended fix is a commit nobody reads before it lands. Two kinds of work
