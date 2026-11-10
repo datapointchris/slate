@@ -44,14 +44,11 @@ DirectionFromPath = Annotated[models.Direction, Depends(path_direction)]
 def read_many(
     session: DbSession,
     direction_status: Annotated[
-        str, Query(alias='status', description="A direction status, or 'all'. Finished directions are hidden by default.")
+        str, Query(alias='status', description="A direction status, or 'all'. The default reads the active ones.")
     ] = 'active',
     limit: RowLimit = None,
 ):
-    """Active directions, then someday, completed and dropped ones, each with the ideas and initiatives in it.
-
-    Each status lists oldest first, and finished ones latest first.
-    """
+    """The directions at `status`, in `listing_order`, each with the ideas and initiatives in it."""
     query = select(models.Direction).order_by(*listing_order())
     if direction_status != ALL_STATUSES:
         validate_status(direction_status, session)
