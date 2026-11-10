@@ -20,7 +20,7 @@ import (
 
 var directionHints = []string{
 	anyRecordHint,
-	"Someday, completed and dropped directions are hidden: slate directions list --status all",
+	"Directions that are not active are hidden: slate directions list --status all",
 }
 
 // The help each kind's --direction carries, on a create, an edit and a list.
@@ -30,8 +30,8 @@ const (
 	directionFilterHelp  = "Only records in this direction, by number or exact name, an issue through its initiative (see: slate directions list)"
 )
 
-// directionStatusesSet are the statuses a direction is created or edited into.
-var directionStatusesSet = api.DirectionStatuses[:len(api.DirectionStatuses)-1]
+// directionCreateStatuses are where a new direction may start.
+var directionCreateStatuses = []string{"active", "someday"}
 
 // directionNumbers resolves each --direction to its number. A number passes as
 // it is, so the API refuses one naming no direction. A name is read by the API,
@@ -91,23 +91,13 @@ func inDirection(ref string, directions []api.DirectionSummary) bool {
 	})
 }
 
-// honoredDirectionFilter refuses a reply in which a row is not in the
-// direction a --direction filter asked for. carried reads a row's number and
-// its directions.
-func honoredDirectionFilter[T any](ref string, rows []T, carried func(T) (int, []api.DirectionSummary)) error {
-	if ref == "" {
-		return nil
-	}
-	named := strconv.Quote(ref)
+// directionNamed is a --direction as an error names it: #N for a number, and
+// the quoted name otherwise.
+func directionNamed(ref string) string {
 	if digits := strings.TrimPrefix(ref, "#"); isItemNumber(digits) {
-		named = "#" + digits
+		return "#" + digits
 	}
-	for _, row := range rows {
-		if number, directions := carried(row); !inDirection(ref, directions) {
-			return fmt.Errorf("the API ignored --direction: #%d came back outside direction %s, so it predates directions", number, named)
-		}
-	}
-	return nil
+	return strconv.Quote(ref)
 }
 
 // honoredDirectionWrite refuses a write whose answer is in other directions
@@ -129,6 +119,15 @@ func honoredDirectionWrite(want *[]int, number int, carried []api.DirectionSumma
 		number, directionNumbersOrNone(got), directionNumbersOrNone(wanted))
 }
 
+// directionList is each direction by number and name, as a detail line reads it.
+func directionList(directions []api.DirectionSummary) string {
+	shown := make([]string, 0, len(directions))
+	for _, direction := range directions {
+		shown = append(shown, fmt.Sprintf("#%d %s", direction.Number, direction.Name))
+	}
+	return strings.Join(shown, ", ")
+}
+
 func directionNumbersOrNone(numbers []int) string {
 	if len(numbers) == 0 {
 		return "no direction"
@@ -138,30 +137,6 @@ func directionNumbersOrNone(numbers []int) string {
 		shown = append(shown, "#"+strconv.Itoa(number))
 	}
 	return strings.Join(shown, ", ")
-}
-
-func issueDirections(issue api.Issue) (int, []api.DirectionSummary) {
-	return issue.Number, issue.Directions
-}
-
-func ideaDirections(idea api.Idea) (int, []api.DirectionSummary) { return idea.Number, idea.Directions }
-
-func initiativeDirections(initiative api.Initiative) (int, []api.DirectionSummary) {
-	return initiative.Number, initiative.Directions
-}
-
-// queueRowDirections is what a queue row carries for --direction: an issue its
-// initiative's, and another kind its own.
-func queueRowDirections(row api.QueueRow) (int, []api.DirectionSummary) {
-	switch {
-	case row.Issue != nil:
-		return issueDirections(*row.Issue)
-	case row.Initiative != nil:
-		return initiativeDirections(*row.Initiative)
-	case row.Idea != nil:
-		return ideaDirections(*row.Idea)
-	}
-	return row.Number, nil
 }
 
 func newDirectionsCommand() *cobra.Command {
@@ -189,6 +164,8 @@ func newDirectionsCommand() *cobra.Command {
 		newDirectionsEditCommand(),
 		newDirectionsCompleteCommand(),
 		newDirectionsDropCommand(),
+		newDirectionsShelveCommand(),
+		newDirectionsReopenCommand(),
 	)...)
 	return cmd
 }
@@ -223,7 +200,7 @@ func newDirectionsListCommand() *cobra.Command {
 				return encodeJSON(cmd.OutOrStdout(), directions)
 			}
 			if !cmd.Flags().Changed("status") {
-				defer noteHiddenByStatus(cmd, "Someday, completed and dropped directions")
+				defer noteHiddenByStatus(cmd, "Directions that are not active")
 			}
 			printDirections(cmd.OutOrStdout(), directions)
 			return nil
@@ -290,7 +267,8 @@ func newDirectionsCreateCommand() *cobra.Command {
 		Short: "Name a direction the work moves in",
 		Long: "--summary says where the direction ends, on one line, and is required. An\n" +
 			"active direction's name is its own, so a second active one by that name is\n" +
-			"refused. --status someday names it without taking it up.",
+			"refused. --status someday names it without taking it up, and `slate directions\n" +
+			"reopen` takes it up later.",
 		Example:     "  slate directions create --name \"Data Warehouse\" --summary \"All data flows through the warehouse, and every tool queries its tables\"",
 		Args:        cobra.NoArgs,
 		Annotations: personOnly(),
@@ -302,6 +280,9 @@ func newDirectionsCreateCommand() *cobra.Command {
 				return goclikit.UsageError(errors.New("--summary is required — say where the direction ends, on one line"))
 			}
 			f := cmd.Flags()
+			if f.Changed("status") && !slices.Contains(directionCreateStatuses, directionStatus) {
+				return goclikit.UsageError(fmt.Errorf("unknown status %q — one of: %s", directionStatus, strings.Join(directionCreateStatuses, ", ")))
+			}
 			in := api.DirectionCreateInput{
 				Name: name, Summary: summary, Description: valuedStrFlag(f, "description", &description), Status: nonEmpty(directionStatus),
 			}
@@ -319,43 +300,40 @@ func newDirectionsCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "Direction name, unique among active ones (required)")
 	cmd.Flags().StringVar(&summary, "summary", "", "Where the direction ends, on one line (required)")
 	cmd.Flags().StringVar(&description, "description", "", "The direction in full")
-	cmd.Flags().StringVar(&directionStatus, "status", "", "One of: "+strings.Join(directionStatusesSet, ", ")+" (default active)")
-	withFlagValues(cmd, "status", directionStatusesSet...)
+	cmd.Flags().StringVar(&directionStatus, "status", "", "One of: "+strings.Join(directionCreateStatuses, ", ")+" (default active)")
+	withFlagValues(cmd, "status", directionCreateStatuses...)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 
 func newDirectionsEditCommand() *cobra.Command {
 	var (
-		name, summary, description, directionStatus, reason string
-		asJSON                                              bool
+		name, summary, description string
+		asJSON                     bool
 	)
 	cmd := &cobra.Command{
 		Use:   "edit <direction> [flags]",
-		Short: "Rename a direction, or change its summary, description or status",
+		Short: "Rename a direction, or change its summary or description",
 		Long: "Update only the fields whose flags you pass. --description \"\" clears it.\n" +
-			"--status someday sets it aside and --status active takes it up again. Every\n" +
-			"idea and initiative in it stays in it.",
+			"Status moves through complete, drop, shelve and reopen.",
 		Example: "  slate directions edit \"Data Warehouse\" --name \"Warehouse\"\n" +
-			"  slate directions edit 2950 --status someday",
+			"  slate directions edit 2950 --summary \"Every tool reads the warehouse\"",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			in := api.DirectionUpdateInput{
-				Name:         valuedStrFlag(f, "name", &name),
-				Summary:      valuedStrFlag(f, "summary", &summary),
-				Description:  valuedStrFlag(f, "description", &description),
-				Status:       valuedStrFlag(f, "status", &directionStatus),
-				StatusReason: valuedStrFlag(f, "reason", &reason),
+				Name:        valuedStrFlag(f, "name", &name),
+				Summary:     valuedStrFlag(f, "summary", &summary),
+				Description: valuedStrFlag(f, "description", &description),
 			}
 			var clear []string
 			if readFlagIntent(f, "description") == flagClears {
 				clear = append(clear, "description")
 			}
 			if in == (api.DirectionUpdateInput{}) && len(clear) == 0 {
-				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --name/--summary/--description/--status"))
+				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --name/--summary/--description"))
 			}
 			return runDirectionUpdate(cmd, args[0], in, clear, asJSON, "Updated")
 		},
@@ -363,9 +341,44 @@ func newDirectionsEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "New name")
 	cmd.Flags().StringVar(&summary, "summary", "", "Where the direction ends, on one line")
 	cmd.Flags().StringVar(&description, "description", "", "New description (empty clears)")
-	cmd.Flags().StringVar(&directionStatus, "status", "", "One of: "+strings.Join(directionStatusesSet, ", "))
-	withFlagValues(cmd, "status", directionStatusesSet...)
-	cmd.Flags().StringVar(&reason, "reason", "", "Why it is dropped, with --status dropped")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
+	return cmd
+}
+
+func newDirectionsShelveCommand() *cobra.Command {
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:   "shelve <direction>",
+		Short: "Set a direction aside for someday, out of the active count",
+		Long: "For a way to go that is named but not taken up. Every idea and initiative in\n" +
+			"it stays in it, and it gives up its name, so a new direction may take it.\n" +
+			"`slate directions reopen` takes it up again.",
+		Example:     "  slate directions shelve \"Mobile App\"",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			someday := "someday"
+			return runDirectionUpdate(cmd, args[0], api.DirectionUpdateInput{Status: &someday}, nil, asJSON, "Shelved")
+		},
+	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
+	return cmd
+}
+
+func newDirectionsReopenCommand() *cobra.Command {
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:         "reopen <direction>",
+		Short:       "Return a shelved or finished direction to the active list",
+		Long:        "Refused if an active direction has taken the name in the meantime.",
+		Example:     "  slate directions reopen \"Mobile App\"",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			active := "active"
+			return runDirectionUpdate(cmd, args[0], api.DirectionUpdateInput{Status: &active}, nil, asJSON, "Reopened")
+		},
+	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }

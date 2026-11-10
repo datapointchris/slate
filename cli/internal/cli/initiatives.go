@@ -108,10 +108,7 @@ func newInitiativesListCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredTagFilter(tag, initiatives, initiativeTags); err != nil {
-				return err
-			}
-			if err := honoredDirectionFilter(direction, initiatives, initiativeDirections); err != nil {
+			if err := honoredGroupings(tag, direction, initiatives, initiativeGrouped); err != nil {
 				return err
 			}
 			if !cmd.Flags().Changed("status") {
@@ -713,31 +710,34 @@ func printInitiativesTable(out io.Writer, initiatives []api.Initiative, sort str
 func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	p := gotermstyle.PaletteFor(out)
 	_, _ = fmt.Fprintf(out, "%s  %s\n", p.Cyan("#"+strconv.Itoa(initiative.Number)), p.Bold(initiative.Name))
-	_, _ = fmt.Fprintf(out, "  summary:   %s\n", initiative.Summary)
+	_, _ = fmt.Fprintf(out, "  summary:    %s\n", initiative.Summary)
 	status := initiative.Status
 	if initiative.ClosedTS != nil {
 		status += " (" + localDay(*initiative.ClosedTS) + ")"
 	}
-	_, _ = fmt.Fprintf(out, "  status:    %s\n", status)
+	_, _ = fmt.Fprintf(out, "  status:     %s\n", status)
 	if reason := strValue(initiative.StatusReason); reason != "" {
-		_, _ = fmt.Fprintf(out, "  reason:    %s\n", reason)
+		_, _ = fmt.Fprintf(out, "  reason:     %s\n", reason)
 	}
-	_, _ = fmt.Fprintf(out, "  priority:  %s\n", tierColor(p, initiative.Priority)(priorityName(initiative.Priority)))
+	_, _ = fmt.Fprintf(out, "  priority:   %s\n", tierColor(p, initiative.Priority)(priorityName(initiative.Priority)))
 	if !initiative.Autofix {
-		_, _ = fmt.Fprintf(out, "  autofix:   off\n")
+		_, _ = fmt.Fprintf(out, "  autofix:    off\n")
 	}
-	_, _ = fmt.Fprintf(out, "  issues:    %d (%d open, %d done, %d canceled)\n",
+	_, _ = fmt.Fprintf(out, "  issues:     %d (%d open, %d done, %d canceled)\n",
 		initiative.IssueCount, initiative.OpenCount, initiative.CompletedCount, initiative.CanceledCount)
-	_, _ = fmt.Fprintf(out, "  repos:     %s\n", repoList(initiative.Repos))
-	_, _ = fmt.Fprintf(out, "  steps:     %s\n", paintedStepMarks(p, initiative.Steps))
+	_, _ = fmt.Fprintf(out, "  repos:      %s\n", repoList(initiative.Repos))
+	_, _ = fmt.Fprintf(out, "  steps:      %s\n", paintedStepMarks(p, initiative.Steps))
 	if len(initiative.Tags) > 0 {
-		_, _ = fmt.Fprintf(out, "  tags:      %s\n", strings.Join(initiative.Tags, ", "))
+		_, _ = fmt.Fprintf(out, "  tags:       %s\n", strings.Join(initiative.Tags, ", "))
+	}
+	if len(initiative.Directions) > 0 {
+		_, _ = fmt.Fprintf(out, "  directions: %s\n", directionList(initiative.Directions))
 	}
 	if initiative.Claim != nil {
-		_, _ = fmt.Fprintf(out, "  claim:     %s\n", claimNote(*initiative.Claim, time.Now()))
+		_, _ = fmt.Fprintf(out, "  claim:      %s\n", claimNote(*initiative.Claim, time.Now()))
 	}
 	if initiative.Idea != nil {
-		_, _ = fmt.Fprintf(out, "  idea:      #%d %s\n", initiative.Idea.Number, initiative.Idea.Title)
+		_, _ = fmt.Fprintf(out, "  idea:       #%d %s\n", initiative.Idea.Number, initiative.Idea.Title)
 	}
 	printRecordField(out, "waits on:", initiative.DependsOn)
 	printRecordField(out, "waited on:", initiative.WaitingInitiatives)
@@ -753,6 +753,6 @@ func printRecordField(out io.Writer, label string, summaries []api.RecordSummary
 		if i > 0 {
 			label = ""
 		}
-		_, _ = fmt.Fprintf(out, "  %-10s %s\n", label, recordSummaryLine(summary))
+		_, _ = fmt.Fprintf(out, "  %-11s %s\n", label, recordSummaryLine(summary))
 	}
 }

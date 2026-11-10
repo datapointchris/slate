@@ -303,10 +303,7 @@ func newIssuesListCommand() *cobra.Command {
 			if err := honoredAutofixable(filter.Autofixable, issues); err != nil {
 				return err
 			}
-			if err := honoredTagFilter(filter.Tag, issues, issueTags); err != nil {
-				return err
-			}
-			if err := honoredDirectionFilter(filter.Direction, issues, issueDirections); err != nil {
+			if err := honoredGroupings(filter.Tag, filter.Direction, issues, issueGrouped); err != nil {
 				return err
 			}
 			if !cmd.Flags().Changed("status") {
@@ -594,6 +591,9 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 	}
 	field("labels", strings.Join(issue.Labels, ", "))
 	field("tags", issueTagsLine(issue.Issue))
+	if issue.Initiative != nil && len(issue.Directions) > 0 {
+		field("directions", fmt.Sprintf("%s (from %d)", directionList(issue.Directions), issue.Initiative.Number))
+	}
 	field("paths", strings.Join(issue.Paths, ", "))
 	field("deferred", strValue(issue.DeferredUntilDate))
 	field("created", localDay(issue.CreatedTS))

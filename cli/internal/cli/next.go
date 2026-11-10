@@ -92,10 +92,7 @@ func newNextCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredTagFilter(filter.Tag, slices.Concat(read.Queue, read.Claimed), queueRowTags); err != nil {
-				return err
-			}
-			if err := honoredDirectionFilter(filter.Direction, slices.Concat(read.Queue, read.Claimed), queueRowDirections); err != nil {
+			if err := honoredGroupings(filter.Tag, filter.Direction, slices.Concat(read.Queue, read.Claimed), queueRowGrouped); err != nil {
 				return err
 			}
 			if cmd.Flags().Changed("for") && !cmd.Flags().Changed("limit") {

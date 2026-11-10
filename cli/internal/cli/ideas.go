@@ -86,10 +86,7 @@ func newIdeasListCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredTagFilter(tag, ideas, ideaTags); err != nil {
-				return err
-			}
-			if err := honoredDirectionFilter(direction, ideas, ideaDirections); err != nil {
+			if err := honoredGroupings(tag, direction, ideas, ideaGrouped); err != nil {
 				return err
 			}
 			if asJSON {
@@ -458,6 +455,9 @@ func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 	_, _ = fmt.Fprintf(out, "  priority:    %s\n", tierColor(p, idea.Priority)(priorityName(idea.Priority)))
 	if len(idea.Tags) > 0 {
 		_, _ = fmt.Fprintf(out, "  tags:        %s\n", strings.Join(idea.Tags, ", "))
+	}
+	if len(idea.Directions) > 0 {
+		_, _ = fmt.Fprintf(out, "  directions:  %s\n", directionList(idea.Directions))
 	}
 	if initiative := idea.Initiative; initiative != nil {
 		_, _ = fmt.Fprintf(out, "  initiative:  #%d %s (%s)\n", initiative.Number, initiative.Name, initiativeProgress(*initiative))

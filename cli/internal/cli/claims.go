@@ -185,10 +185,7 @@ func heldHonorsFilter(cmd *cobra.Command, client *api.Client, filter api.ReadyFi
 	if err != nil {
 		return fmt.Errorf("#%s is held, but reading back whether it honors --tag and --direction failed: %w", number, handleAPIError(err))
 	}
-	refused := honoredTagFilter(filter.Tag, []api.Issue{held.Issue}, issueTags)
-	if refused == nil {
-		refused = honoredDirectionFilter(filter.Direction, []api.Issue{held.Issue}, issueDirections)
-	}
+	refused := honoredGroupings(filter.Tag, filter.Direction, []api.Issue{held.Issue}, issueGrouped)
 	if refused == nil {
 		return nil
 	}
