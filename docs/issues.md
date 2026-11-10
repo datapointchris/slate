@@ -146,11 +146,12 @@ end may be either kind. The API refuses an idea there.
   behind reads the old table during a rollout, and it would admit an issue or an
   idea waiting on an initiative, which nothing needs.
 
-## A someday initiative holds ideas until active work needs one
+## A someday initiative holds planned work until active work needs it
 
-An initiative is `someday` when it is an idea not yet taken on. Its issues are
-captured in full, but the ready queue leaves them out, so no agent takes work
-nobody chose. Reopening the initiative makes them ready. Moving one issue into
+An initiative is `someday` when its work is planned and nobody has taken it
+on. A thought not yet worked out is an [idea](ideas.md) instead. A someday
+initiative's issues are captured in full, but the ready queue leaves them out,
+so no agent takes work nobody chose. Reopening the initiative makes them ready. Moving one issue into
 an active initiative takes that one alone.
 
 An issue outside someday that depends on a someday issue, directly or through a

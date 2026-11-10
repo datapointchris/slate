@@ -386,7 +386,7 @@ func newInitiativesShelveCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "shelve <initiative>",
 		Short: "Set an initiative aside for someday, so none of its issues is ready",
-		Long: "For an idea captured in full but not taken on. It moves to --status someday,\n" +
+		Long: "For work planned in full but not taken on. It moves to --status someday,\n" +
 			"out of the active list, and no close is recorded. Its issues keep their\n" +
 			"state, but `slate next` leaves them out, so no agent takes them. One\n" +
 			"that work outside someday depends on stays in, at that work's priority.\n" +
