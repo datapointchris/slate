@@ -278,8 +278,10 @@ and each step checked on it:
 
 So a low-priority initiative is found and counted from the effort it serves. The
 CLI reads the lines from `GET /initiatives?direction=<n>&status=all`, and `--json`
-carries those reads as `initiative_counts`. An idea in it prints by number and
-name.
+carries those rows as `initiative_rows`. The rows are one section of the show, so
+a failed read prints each initiative by number and name, warns why, and `--json`
+carries `initiative_rows` as null beside `initiative_rows_error`. An idea in it
+prints by number and name.
 
 - *Rejected:* a direction as a tag. A tag is a category that never ends. A
   direction closes, says where it ends, and carries its own discussion.

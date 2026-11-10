@@ -213,28 +213,40 @@ func newDirectionsListCommand() *cobra.Command {
 	return cmd
 }
 
-// directionShown is a direction, each initiative in it as the initiatives list reads
-// it, with its counts and checked steps, and the changes its show read.
+// directionShown is a direction, the initiatives list's row for each initiative in it,
+// with its counts and checked steps, and the changes its show read. InitiativeRows is
+// nil where its read failed, and InitiativeRowsError says why.
 type directionShown struct {
 	api.DirectionDetail
-	InitiativeCounts []api.Initiative `json:"initiative_counts"`
-	Changes          *recordChanges   `json:"changes,omitempty"`
+	InitiativeRows      []api.Initiative `json:"initiative_rows"`
+	InitiativeRowsError string           `json:"initiative_rows_error,omitempty"`
+	Changes             *recordChanges   `json:"changes,omitempty"`
 }
 
-// readDirectionShown reads each initiative in the direction, whatever its status, for
-// its counts and its checked steps.
-func readDirectionShown(cmd *cobra.Command, client *api.Client, direction api.DirectionDetail) (directionShown, error) {
-	shown := directionShown{DirectionDetail: direction, InitiativeCounts: []api.Initiative{}}
+// readDirectionShown reads the row of each initiative in the direction, whatever its
+// status. The rows are one section of the show, so a failed read leaves the direction
+// shown, each initiative by its number and name, and says why.
+func readDirectionShown(cmd *cobra.Command, client *api.Client, direction api.DirectionDetail) directionShown {
+	shown := directionShown{DirectionDetail: direction, InitiativeRows: []api.Initiative{}}
 	if len(direction.Initiatives) == 0 {
-		return shown, nil
+		return shown
 	}
 	filter := api.InitiativeFilter{Status: "all", Direction: strconv.Itoa(direction.Number)}
 	initiatives, err := client.ListInitiatives(cmd.Context(), filter, nil)
 	if err != nil {
-		return directionShown{}, handleAPIError(err)
+		shown.InitiativeRows = nil
+		shown.InitiativeRowsError = fmt.Sprintf("each initiative's counts and steps were not read: %v", handleAPIError(err))
+		return shown
 	}
-	shown.InitiativeCounts = initiatives
-	return shown, nil
+	shown.InitiativeRows = initiatives
+	return shown
+}
+
+// noteInitiativeRows says on stderr why a show prints no counts or steps.
+func noteInitiativeRows(cmd *cobra.Command, shown directionShown) {
+	if shown.InitiativeRowsError != "" {
+		_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", shown.InitiativeRowsError)
+	}
 }
 
 func newDirectionsShowCommand() *cobra.Command {
@@ -260,10 +272,8 @@ func newDirectionsShowCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			shown, err := readDirectionShown(cmd, client, direction)
-			if err != nil {
-				return err
-			}
+			shown := readDirectionShown(cmd, client, direction)
+			defer noteInitiativeRows(cmd, shown)
 			if shown.Changes, err = readChanges(cmd, client, direction.Number, changeCount, asJSON); err != nil {
 				return err
 			}
@@ -488,7 +498,7 @@ func printDirections(out io.Writer, directions []api.Direction) {
 
 // printDirectionShown is what every show of a direction prints.
 func printDirectionShown(out io.Writer, shown directionShown, now time.Time) {
-	printDirectionDetail(out, shown.Direction, shown.InitiativeCounts)
+	printDirectionDetail(out, shown.Direction, shown.InitiativeRows)
 	printRecordParts(out, shown.RecordParts, now)
 	printChanges(out, shown.Changes, now)
 }
