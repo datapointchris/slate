@@ -7,7 +7,6 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
-from fastapi import Query
 from fastapi import status
 from sqlalchemy import case
 from sqlalchemy import select
@@ -19,8 +18,6 @@ from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
-from slate.schemas.ready_filter import DIRECTION_FILTER
-from slate.schemas.ready_filter import TAG_FILTER
 from slate.services.claims import end_with_record
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
@@ -31,14 +28,14 @@ from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_directions import directions_of
-from slate.services.record_directions import narrowed_to_direction
 from slate.services.record_directions import resolve_directions
 from slate.services.record_directions import set_record_directions
+from slate.services.record_groupings import GroupingsQuery
+from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_pins import carry_pin
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_refs import resolve_idea
-from slate.services.record_tags import narrowed_to_tag
 from slate.services.record_tags import own_tags
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
@@ -62,16 +59,11 @@ IdeaFromPath = Annotated[models.Idea, Depends(path_idea)]
 
 
 @router.get('', response_model=list[schemas.Idea], status_code=status.HTTP_200_OK)
-def read_many(
-    session: DbSession,
-    tag: str | None = Query(None, description=TAG_FILTER),
-    direction: int | str | None = Query(None, description=DIRECTION_FILTER),
-    limit: RowLimit = None,
-):
+def read_many(session: DbSession, groupings: GroupingsQuery, limit: RowLimit = None):
     """Every idea, promoted or not, most urgent first. Priority 0 is no priority and sorts last."""
     urgency = case((models.Idea.priority == 0, NO_PRIORITY_URGENCY), else_=models.Idea.priority)
     query = select(models.Idea).options(*IDEA_LOAD_OPTIONS).order_by(urgency.asc(), models.Idea.number.asc())
-    query = narrowed_to_direction(narrowed_to_tag(query, Kind.IDEA, tag, session), Kind.IDEA, direction, session)
+    query = narrowed_to_groupings(query, Kind.IDEA, groupings, session)
     return idea_views(session, session.scalars(apply_row_limit(query, limit)).all())
 
 

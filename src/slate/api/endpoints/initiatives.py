@@ -23,8 +23,6 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.record import Kind
-from slate.schemas.ready_filter import DIRECTION_FILTER
-from slate.schemas.ready_filter import TAG_FILTER
 from slate.services.claims import end_with_record
 from slate.services.initiative_board import initiative_board
 from slate.services.initiative_board import initiative_board_text
@@ -45,15 +43,15 @@ from slate.services.initiatives import work_order
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_initiative_delete
-from slate.services.record_directions import narrowed_to_direction
 from slate.services.record_directions import resolve_directions
 from slate.services.record_directions import set_record_directions
+from slate.services.record_groupings import GroupingsQuery
+from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_refs import resolve_initiative
 from slate.services.record_summaries import record_summaries
-from slate.services.record_tags import narrowed_to_tag
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
 from slate.services.row_limit import RowLimit
@@ -92,13 +90,12 @@ InitiativeFromPath = Annotated[models.Initiative, Depends(path_initiative)]
 @router.get('', response_model=list[schemas.Initiative], status_code=status.HTTP_200_OK)
 def read_many(
     session: DbSession,
+    groupings: GroupingsQuery,
     initiative_status: InitiativeStatusQuery = 'active',
     sort: Annotated[
         InitiativeSort,
         Query(description='priority: the order the queue takes them in. open: most unclosed issues first. newest: latest started first.'),
     ] = 'priority',
-    tag: Annotated[str | None, Query(description=TAG_FILTER)] = None,
-    direction: Annotated[int | str | None, Query(description=DIRECTION_FILTER)] = None,
     limit: RowLimit = None,
 ):
     """Active initiatives, then someday, completed and dropped ones, each status in `sort`'s order.
@@ -119,7 +116,7 @@ def read_many(
         .group_by(models.Initiative.id)
         .order_by(*listing_order(*orders[sort]))
     )
-    query = narrowed_to_direction(narrowed_to_tag(query, Kind.INITIATIVE, tag, session), Kind.INITIATIVE, direction, session)
+    query = narrowed_to_groupings(query, Kind.INITIATIVE, groupings, session)
     rows = session.execute(apply_row_limit(narrowed_to_status(query, initiative_status, session), limit)).all()
     return initiative_views(session, [(row[0], row[1:]) for row in rows])
 
