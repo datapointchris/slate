@@ -59,6 +59,39 @@ class BoardRepoRollup(BoardRollup):
     repo: str | None
 
 
+class BoardUntouched(RecordModel):
+    """The active initiative in a group touched longest ago, and when that was."""
+
+    number: int
+    name: str
+    touched_ts: dt.datetime
+
+
+class BoardGroupingRollup(BoardRollup):
+    """The board's initiatives in one direction, or carrying one tag, with the group's closes over every initiative in it.
+
+    `initiative_count` and the issue counts cover the initiatives the board holds in the group.
+    `closes` adds every issue completed inside its 30-day window in any other initiative in the
+    group, whatever that initiative's status, so one completed inside the window still counts.
+    `untouched_longest` is the active initiative among those on the board touched longest ago,
+    null where none is active.
+    """
+
+    untouched_longest: BoardUntouched | None
+
+
+class BoardDirectionRollup(BoardGroupingRollup):
+    """The initiatives in one direction, or in none where `direction` is null."""
+
+    direction: DirectionSummary | None
+
+
+class BoardTagRollup(BoardGroupingRollup):
+    """The initiatives carrying one tag of their own, or none where `tag` is null."""
+
+    tag: str | None
+
+
 class BoardIssue(RecordModel):
     """One issue on the board. `priority` is its own, `effective_priority` the one it sorts at, and `holder` who holds its live claim."""
 
@@ -78,7 +111,9 @@ class BoardInitiative(BoardCounts):
 
     `by_repo` cuts those issues by the repo each names, most open first and no repo last. An
     initiative with no issues has one empty cut on no repo, so every initiative sits under some repo.
-    `steps`, `stage`, `tags` and `directions` are the initiative read's.
+    `steps`, `stage`, `tags` and `directions` are the initiative read's. `touched_ts` is the latest
+    of when it was created, when a claim on it or one of its issues started, and when one of its
+    issues closed.
     """
 
     number: int
@@ -93,6 +128,7 @@ class BoardInitiative(BoardCounts):
     claim: Claim | None
     created_ts: dt.datetime
     closed_ts: dt.datetime | None
+    touched_ts: dt.datetime
     issues: list[BoardIssue]
     by_repo: list[BoardRepoCounts]
     steps: list[CheckedStep]
@@ -104,7 +140,10 @@ class InitiativeBoard(RecordModel):
 
     `tiers` holds every priority, most urgent first and `none` last, whether or not any initiative
     is at it. `repos` rolls up each repo the initiatives' cuts name, most open first and no repo
-    last. `initiatives` comes in the order `GET /initiatives` answers.
+    last. `directions` holds every active direction and each other one an initiative it counts is
+    in, and `tags` every tag. Each puts the fewest closes in 30 days first, then the rest by name,
+    and the initiatives in none last, where any are. `initiatives` comes in the order
+    `GET /initiatives` answers.
     """
 
     read_ts: dt.datetime
@@ -113,6 +152,8 @@ class InitiativeBoard(RecordModel):
     totals: BoardRollup
     tiers: list[BoardTier]
     repos: list[BoardRepoRollup]
+    directions: list[BoardDirectionRollup]
+    tags: list[BoardTagRollup]
     initiatives: list[BoardInitiative]
 
 

@@ -48,6 +48,8 @@ from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.initiative import InitiativeUpdate
 from slate.schemas.initiative import InitiativeWritten
 from slate.schemas.initiative_board import BoardCloses
+from slate.schemas.initiative_board import BoardDirectionRollup
+from slate.schemas.initiative_board import BoardGroupingRollup
 from slate.schemas.initiative_board import BoardInitiative
 from slate.schemas.initiative_board import BoardInitiativeText
 from slate.schemas.initiative_board import BoardIssue
@@ -55,7 +57,9 @@ from slate.schemas.initiative_board import BoardIssueText
 from slate.schemas.initiative_board import BoardRepoCounts
 from slate.schemas.initiative_board import BoardRepoRollup
 from slate.schemas.initiative_board import BoardRollup
+from slate.schemas.initiative_board import BoardTagRollup
 from slate.schemas.initiative_board import BoardTier
+from slate.schemas.initiative_board import BoardUntouched
 from slate.schemas.initiative_board import InitiativeBoard
 from slate.schemas.initiative_board import InitiativeBoardText
 from slate.schemas.initiative_progress import BurnupStep
@@ -121,6 +125,8 @@ __all__ = [
     'AgentSession',
     'Blocker',
     'BoardCloses',
+    'BoardDirectionRollup',
+    'BoardGroupingRollup',
     'BoardInitiative',
     'BoardInitiativeText',
     'BoardIssue',
@@ -129,7 +135,9 @@ __all__ = [
     'BoardRepoCounts',
     'BoardRepoRollup',
     'BoardRollup',
+    'BoardTagRollup',
     'BoardTier',
+    'BoardUntouched',
     'BurnupStep',
     'CheckedStep',
     'Claim',
