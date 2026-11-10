@@ -46,9 +46,9 @@ from slate.models.record import Record
 WORKLOG_FINISHED = 'finished'
 WORKLOG_OUTCOMES = [WORKLOG_FINISHED, *CLAIM_ENDINGS]
 
-# How the work was approached, kept so later work can compare the approaches.
-WorkflowName = Literal['oneshot', 'plan-first', 'design-first']
-WORKLOG_WORKFLOWS: list[str] = list(get_args(WorkflowName))
+# The step of a record's life a worklog performed, in the order `worklog_steps.position` holds.
+StepName = Literal['shape', 'design', 'preflight', 'build', 'retro']
+WORKLOG_STEPS: list[str] = list(get_args(StepName))
 
 # What a worklog produced, and the stage each brings it to, in the order a change reaches main. A
 # plan document written in it is `planned`. A landing is a commit or a pull request reaching the
@@ -69,9 +69,18 @@ class WorklogOutcome(Base):
     name: Mapped[str] = mapped_column(Text, primary_key=True)
 
 
+# Nothing here reads it. It stays until a migration drops `worklogs.workflow`, so an API that still reads it keeps working.
 class WorklogWorkflow(Base):
     __tablename__ = 'worklog_workflows'
     name: Mapped[str] = mapped_column(Text, primary_key=True)
+
+
+class WorklogStep(Base):
+    __tablename__ = 'worklog_steps'
+    name: Mapped[str] = mapped_column(Text, primary_key=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    # The order a record goes through the steps, and a lane draws them in.
+    position: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
 
 
 class WorklogLinkKind(Base):
@@ -89,6 +98,7 @@ class Worklog(Base):
     claim_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('claims.id', ondelete='CASCADE'), nullable=True, unique=True)
     opened_by: Mapped[str] = mapped_column(Text, nullable=False)
     workflow: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_workflows.name'), nullable=True)
+    step: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_steps.name'), nullable=True)
     started_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     ended_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     outcome: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_outcomes.name'), nullable=True)

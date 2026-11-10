@@ -212,6 +212,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, key s
 		Beside:         gotermboard.Items(dimCode, initiative.Repos...),
 		Cells:          boardCells(counts, drawn.now),
 		WrapLast:       issueBar(counts),
+		Below:          stepsBelow(initiative.Steps),
 		Under:          gotermboard.C(long.Summary, ""),
 		Document:       b.openDescription(initiative.Number, description, len(drawn.text.initiatives) > 0),
 		Folded:         true,
@@ -224,6 +225,15 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, key s
 			return b.initiativePanel(initiative, long, drawn.rows, drawn.read, drawn.now, width)
 		},
 	}
+}
+
+// stepsBelow is the marks of an initiative's steps once any is checked, so a
+// row whose life no worklog has stepped through stays two lines.
+func stepsBelow(steps []api.CheckedStep) []gotermboard.Line {
+	if len(steps) == 0 {
+		return nil
+	}
+	return []gotermboard.Line{stepMarksLine(steps)}
 }
 
 // noRepo is the group holding the issues that name no repo, and the initiatives with none.

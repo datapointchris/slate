@@ -76,6 +76,7 @@ type BoardIssue struct {
 // it: the unclosed in queue order, then the closed, latest first. ByRepo cuts
 // them by repo, most open first and no repo last, and an initiative with no
 // issues has one empty cut on no repo. An API older than the cut answers nil.
+// Steps and Stage are the initiative read's.
 type BoardInitiative struct {
 	BoardCounts
 	Number    int               `json:"number"`
@@ -90,6 +91,8 @@ type BoardInitiative struct {
 	ClosedTS  *time.Time        `json:"closed_ts"`
 	Issues    []BoardIssue      `json:"issues"`
 	ByRepo    []BoardRepoCounts `json:"by_repo"`
+	Steps     []CheckedStep     `json:"steps"`
+	Stage     string            `json:"stage"`
 }
 
 // InitiativeBoard is the board as of ReadTS. Days are the calendar days each

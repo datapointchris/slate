@@ -83,7 +83,9 @@ func newInitiativesListCommand() *cobra.Command {
 			"Someday, completed and dropped ones are hidden until --status asks for them,\n" +
 			"and come after the active ones, finished ones latest first.\n\n" +
 			"Each row leads with the initiative's number, which every initiative command\n" +
-			"and --initiative flag accepts. The bar is its issues done over done and open.\n\n" +
+			"and --initiative flag accepts. The bar is its issues done over done and open.\n" +
+			"Once a step of its life is checked, a second line marks each step, a checked\n" +
+			"one with the day its worklog ended.\n\n" +
 			"`slate tui` opens the same initiatives as a board that keeps itself current.",
 		Example:     "  slate initiatives list\n  slate initiatives list --sort open\n  slate initiatives list --status all --json",
 		Args:        cobra.NoArgs,
@@ -575,6 +577,15 @@ func (r initiativeRows) row(initiative api.Initiative) string {
 	return strings.Join(cells, "  ")
 }
 
+// lines is the initiative's row, and under it, starting where the row's cells
+// after the number do, the marks of its steps once any is checked.
+func (r initiativeRows) lines(initiative api.Initiative) string {
+	if len(initiative.Steps) == 0 {
+		return r.row(initiative)
+	}
+	return r.row(initiative) + "\n" + strings.Repeat(" ", 4+r.number) + paintedStepMarks(r.palette, initiative.Steps)
+}
+
 // repoFloor is the least of a clipped repo list kept beside the name, and
 // nameFloor the least of the name kept before the repos are dropped for it.
 const (
@@ -616,7 +627,7 @@ func printInitiativesTable(out io.Writer, initiatives []api.Initiative, sort str
 	rows := newInitiativeRows(out, initiatives, sort)
 	if !rows.byTier {
 		for _, initiative := range initiatives {
-			_, _ = fmt.Fprintln(out, rows.row(initiative))
+			_, _ = fmt.Fprintln(out, rows.lines(initiative))
 		}
 		return
 	}
@@ -638,7 +649,7 @@ func printInitiativesTable(out io.Writer, initiatives []api.Initiative, sort str
 		}
 		_, _ = fmt.Fprintf(out, "%s · %d\n", p.Paint(code+gotermstyle.CodeBold, label), end-i)
 		for _, initiative := range initiatives[i:end] {
-			_, _ = fmt.Fprintln(out, rows.row(initiative))
+			_, _ = fmt.Fprintln(out, rows.lines(initiative))
 		}
 		i = end
 	}
@@ -663,6 +674,7 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	_, _ = fmt.Fprintf(out, "  issues:    %d (%d open, %d done, %d canceled)\n",
 		initiative.IssueCount, initiative.OpenCount, initiative.CompletedCount, initiative.CanceledCount)
 	_, _ = fmt.Fprintf(out, "  repos:     %s\n", repoList(initiative.Repos))
+	_, _ = fmt.Fprintf(out, "  steps:     %s\n", paintedStepMarks(p, initiative.Steps))
 	if initiative.Claim != nil {
 		_, _ = fmt.Fprintf(out, "  claim:     %s\n", claimNote(*initiative.Claim, time.Now()))
 	}

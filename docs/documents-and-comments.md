@@ -1,14 +1,14 @@
 # Documents and comments
 
-A record of any kind keeps research, design and plan documents, and comments
-on the record or on one line of a document. `slate documents` and `slate
-comments` are the CLI, and the API serves them under `/api/v1/documents` and
-`/api/v1/comments`.
+A record of any kind keeps versioned documents, of the kinds `slate
+vocabulary` lists, and comments on the record or on one line of a document.
+`slate documents` and `slate comments` are the CLI, and the API serves them under
+`/api/v1/documents` and `/api/v1/comments`.
 
 ## A document is named on its record, and every write adds a version
 
-`412/plan` is record 412's document named `plan`. Its kind is `research`,
-`design` or `plan`, a closed vocabulary that `slate vocabulary` lists. A name
+`412/plan` is record 412's document named `plan`. Its kind, such as `plan`,
+is one of a closed vocabulary that `slate vocabulary` lists. A name
 is unique on its record, so a record holds two documents of one kind under two
 names. A name that is a kind holds only that kind, so `412/design` is always
 a design. Creating it as another kind answers 422. The CLI takes such a name

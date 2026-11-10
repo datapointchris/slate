@@ -11,10 +11,12 @@
     "ended",
     "all"
   ],
-  "worklog_workflows": [
-    "oneshot",
-    "plan-first",
-    "design-first"
+  "worklog_steps": [
+    "shape",
+    "design",
+    "preflight",
+    "build",
+    "retro"
   ],
   "worklog_link_kinds": [
     "commit",
@@ -66,7 +68,8 @@
   "document_kinds": [
     "research",
     "design",
-    "plan"
+    "plan",
+    "retro"
   ],
   "queue_steps": [
     "discuss",

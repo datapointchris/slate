@@ -7,6 +7,8 @@ from slate.schemas.initiative_progress import IssueState
 from slate.schemas.initiative_progress import IssueStateCounts
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
+from slate.schemas.worklog import CheckedStep
+from slate.schemas.worklog import RecordStage
 
 
 class BoardCloses(RecordModel):
@@ -75,6 +77,7 @@ class BoardInitiative(BoardCounts):
 
     `by_repo` cuts those issues by the repo each names, most open first and no repo last. An
     initiative with no issues has one empty cut on no repo, so every initiative sits under some repo.
+    `steps` and `stage` are the initiative read's.
     """
 
     number: int
@@ -89,6 +92,8 @@ class BoardInitiative(BoardCounts):
     closed_ts: dt.datetime | None
     issues: list[BoardIssue]
     by_repo: list[BoardRepoCounts]
+    steps: list[CheckedStep]
+    stage: RecordStage
 
 
 class InitiativeBoard(RecordModel):

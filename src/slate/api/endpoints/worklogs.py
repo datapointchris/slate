@@ -176,7 +176,7 @@ def start(request: schemas.WorklogStart, session: DbSession, caller: CurrentCall
             f'Joining it keeps one go at #{record.number} in one worklog.',
             record.number,
         )
-    worklog = open_worklog(session, record.number, request.opened_by, now, workflow=request.workflow)
+    worklog = open_worklog(session, record.number, request.opened_by, now, step=request.step)
     name_worklog(worklog)
     if request.session is not None:
         join(session, worklog, request.session, request.host, request.directory, now, effects)
@@ -228,8 +228,8 @@ def link_to_worklog(worklog: WorklogFromPath, request: schemas.WorklogLinkAdd, s
 
 @router.patch('/{name}', response_model=schemas.WorklogWritten, status_code=status.HTTP_200_OK)
 def update(worklog: WorklogFromPath, request: schemas.WorklogUpdate, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Set how the work was approached. Only the fields the body names change, and `workflow: null` clears it."""
+    """Set the step of its record's life the worklog performed. Only the fields the body names change, and `step: null` clears it."""
     refuse_anothers_worklog(caller, worklog)
-    if 'workflow' in request.model_fields_set:
-        worklog.workflow = request.workflow
+    if 'step' in request.model_fields_set:
+        worklog.step = request.step
     return written(session, worklog, dt.datetime.now(dt.UTC), effects)

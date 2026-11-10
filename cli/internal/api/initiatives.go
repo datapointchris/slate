@@ -26,7 +26,8 @@ const InitiativeStatusDropped = "dropped"
 // cover every issue in it. Repos names the repos its issues touch, leaving out
 // canceled issues and keeping completed ones. DependsOn is each initiative or
 // issue it waits on, and WaitingInitiatives each initiative waiting on it,
-// open or closed.
+// open or closed. Steps is each step checked on it in order, and Stage the
+// furthest of them, or idea before any.
 type Initiative struct {
 	ID                 string          `json:"id"`
 	Number             int             `json:"number"`
@@ -52,6 +53,8 @@ type Initiative struct {
 	Idea               *RecordSummary  `json:"idea"`
 	DependsOn          []RecordSummary `json:"depends_on"`
 	WaitingInitiatives []RecordSummary `json:"waiting_initiatives"`
+	Steps              []CheckedStep   `json:"steps"`
+	Stage              string          `json:"stage"`
 }
 
 // InitiativeDetail is an initiative with its claims, comments and documents.

@@ -18,7 +18,7 @@ from slate.models.issue import ISSUE_TYPES
 from slate.models.record import PRIORITIES
 from slate.models.record import Kind
 from slate.models.worklog import WORKLOG_LINK_KINDS
-from slate.models.worklog import WORKLOG_WORKFLOWS
+from slate.models.worklog import WORKLOG_STEPS
 from slate.schemas.queue import Step
 from slate.services import initiatives
 
@@ -33,7 +33,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
     table = {
         'claim_states': list(get_args(ClaimStateFilter)),
         'worklog_states': list(get_args(WorklogStateFilter)),
-        'worklog_workflows': WORKLOG_WORKFLOWS,
+        'worklog_steps': WORKLOG_STEPS,
         'worklog_link_kinds': WORKLOG_LINK_KINDS,
         'issue_statuses': [*ISSUE_STATUSES, issues.ALL_STATUSES],
         'issue_types': ISSUE_TYPES,

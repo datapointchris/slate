@@ -26,6 +26,7 @@ from slate.models.worklog import WorklogLink
 from slate.models.worklog import WorklogLinkKind
 from slate.models.worklog import WorklogOutcome
 from slate.models.worklog import WorklogSpan
+from slate.models.worklog import WorklogStep
 from slate.models.worklog import WorklogWorkflow
 
 __all__ = [
@@ -57,5 +58,6 @@ __all__ = [
     'WorklogLinkKind',
     'WorklogOutcome',
     'WorklogSpan',
+    'WorklogStep',
     'WorklogWorkflow',
 ]

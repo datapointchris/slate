@@ -20,8 +20,19 @@ const (
 // WorklogStates is what `worklogs list --state` accepts.
 var WorklogStates = []string{WorklogStateLive, WorklogStateExpired, WorklogStateEnded, WorklogStateAll}
 
-// WorklogWorkflows are the ways a worklog's work was approached.
-var WorklogWorkflows = []string{"oneshot", "plan-first", "design-first"}
+// WorklogSteps are the steps of a record's life a worklog performs, in the
+// order a record goes through them.
+var WorklogSteps = []string{"shape", "design", "preflight", "build", "retro"}
+
+// CheckedStep is a step checked on a record, read from the latest worklog of
+// that step that ended by any outcome but expired. Session is the first agent
+// session that worked in it, nil where none did.
+type CheckedStep struct {
+	Step    string    `json:"step"`
+	Worklog string    `json:"worklog"`
+	EndedTS time.Time `json:"ended_ts"`
+	Session *string   `json:"session"`
+}
 
 // The kinds of thing a worklog links, in the order a change reaches main.
 const (
@@ -65,7 +76,7 @@ type Worklog struct {
 	Sequence     int           `json:"sequence"`
 	Record       RecordSummary `json:"record"`
 	OpenedBy     string        `json:"opened_by"`
-	Workflow     *string       `json:"workflow"`
+	Step         *string       `json:"step"`
 	StartedTS    time.Time     `json:"started_ts"`
 	EndedTS      *time.Time    `json:"ended_ts"`
 	Outcome      *string       `json:"outcome"`
@@ -99,7 +110,7 @@ type AgentPlace struct {
 type WorklogStartInput struct {
 	Record   string  `json:"record"`
 	OpenedBy string  `json:"opened_by"`
-	Workflow *string `json:"workflow,omitempty"`
+	Step     *string `json:"step,omitempty"`
 	AgentPlace
 }
 
@@ -204,12 +215,12 @@ func (c *Client) LinkWorklog(ctx context.Context, name string, in WorklogLinkInp
 	return written, nil
 }
 
-// SetWorklogWorkflow sets how the worklog's work was approached. A nil
-// workflow clears it.
-func (c *Client) SetWorklogWorkflow(ctx context.Context, name string, workflow *string) (WorklogWritten, error) {
+// SetWorklogStep sets the step of its record's life the worklog performed. A
+// nil step clears it.
+func (c *Client) SetWorklogStep(ctx context.Context, name string, step *string) (WorklogWritten, error) {
 	body := struct {
-		Workflow *string `json:"workflow"`
-	}{workflow}
+		Step *string `json:"step"`
+	}{step}
 	var written WorklogWritten
 	if err := c.send(ctx, http.MethodPatch, worklogPath(name, ""), body, &written); err != nil {
 		return WorklogWritten{}, err

@@ -440,6 +440,21 @@ but never clear it. It is a field rather than the description's first paragraph,
 so a program reads it and the schema holds its shape, where a parse would have to
 guess which words were meant as the summary.
 
+**An initiative reads which steps of its life it went through.** Every read of
+one answers `steps`, each step a worklog of it or of its idea checked, in
+position order, with that worklog's name, when it ended and the first session
+in it. `stage` is the
+furthest, or `idea` before any. `services/record_steps.py` derives both on every
+read from the worklogs, so no stage is set by hand and none goes stale.
+[worklogs.md](worklogs.md) says when a step is checked. `slate show` prints a
+`steps:` line, and `slate initiatives list` prints the same marks under each
+initiative with a checked step:
+
+```text
+  2804  ▰▱▱▱▱▱▱▱▱▱  1/10  Initiatives record the steps they went through  slate
+        ✓shape 11-09  ✓design 11-10  · preflight  · build  · retro
+```
+
 ## An initiative's progress counts each of its issues in one state
 
 `GET /initiatives/progress` answers how far each initiative has come, and
@@ -529,7 +544,7 @@ one entry per initiative, carrying every figure the text shows.
 `GET /initiatives/board` is what a live board polls. For each initiative at the
 `status` asked for, active by default and in the order `GET /initiatives` lists
 them, it answers the counts by state above, the repos, the pin, the live claim,
-the closes, and a slim row per issue: the unclosed in queue order, then the
+the closes, the checked steps and stage, and a slim row per issue: the unclosed in queue order, then the
 closed, latest first. `totals` and `tiers` roll the same counts and closes up over
 every initiative and per priority. Every priority is in `tiers`, whether or not
 an initiative is at it.
@@ -543,8 +558,8 @@ tiers, so a client grouping by repo draws numbers it is handed rather than
 counting issues itself.
 
 Its queries do not grow with the initiatives. One readiness pass, one read of the
-live claims and one read of the issues serve them all, and everything else folds
-those rows in memory. It builds no `issue_views` row, because that loads labels,
+live claims, one read of the issues and one of the checked steps serve them all,
+and everything else folds those rows in memory. It builds no `issue_views` row, because that loads labels,
 dependencies and comments a board does not draw. A poll pays this many times a
 minute, for as long as a board stays open, so a test pins the query count.
 

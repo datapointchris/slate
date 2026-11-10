@@ -78,14 +78,15 @@ type ClaimWritten struct {
 	WriteEffects
 }
 
-// ClaimLease says who holds a claim, for how long, and where they work. A zero
-// Minutes takes the API's default.
+// ClaimLease says who holds a claim, for how long, where they work, and the
+// step the worklog it opens performs. A zero Minutes takes the API's default.
 type ClaimLease struct {
 	Holder    string  `json:"holder"`
 	Minutes   int     `json:"minutes,omitempty"`
 	Session   *string `json:"session,omitempty"`
 	Host      *string `json:"host,omitempty"`
 	Directory *string `json:"directory,omitempty"`
+	Step      *string `json:"step,omitempty"`
 }
 
 type claimHoldInput struct {

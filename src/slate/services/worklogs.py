@@ -65,7 +65,7 @@ def open_worklog(
     now: dt.datetime,
     *,
     claim: models.Claim | None = None,
-    workflow: str | None = None,
+    step: str | None = None,
 ) -> models.Worklog:
     """Open the record's next worklog.
 
@@ -76,11 +76,11 @@ def open_worklog(
     session.execute(select(models.Record.number).where(models.Record.number == record_number).with_for_update(key_share=True))
     latest = session.scalar(select(func.max(models.Worklog.sequence)).where(models.Worklog.record_number == record_number))
     worklog = models.Worklog(
-        record_number=record_number, sequence=(latest or 0) + 1, claim=claim, opened_by=opened_by, workflow=workflow, started_ts=now
+        record_number=record_number, sequence=(latest or 0) + 1, claim=claim, opened_by=opened_by, step=step, started_ts=now
     )
     session.add(worklog)
     session.flush()
-    logger.info('worklog_opened', worklog=worklog.name, opened_by=opened_by, claim=claim.id if claim is not None else None)
+    logger.info('worklog_opened', worklog=worklog.name, opened_by=opened_by, claim=claim.id if claim is not None else None, step=step)
     return worklog
 
 

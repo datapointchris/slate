@@ -6,6 +6,7 @@ from pydantic import Field
 from pydantic import StringConstraints
 from pydantic import model_validator
 
+from slate.models.worklog import StepName
 from slate.schemas.ready_filter import ReadyFilter
 from slate.schemas.record import Actor
 from slate.schemas.record import RecordModel
@@ -23,13 +24,14 @@ CLAIM_STATES: tuple[ClaimState, ...] = ('live', 'expired', 'ended')
 
 
 class ClaimLease(RecordModel):
-    """Who takes a claim, for how long, and where they work while they hold it."""
+    """Who takes a claim, for how long, where they work while they hold it, and the step its worklog performs."""
 
     holder: Actor
     minutes: ClaimMinutes = DEFAULT_CLAIM_MINUTES
     session: str | None = None
     host: str | None = None
     directory: str | None = None
+    step: StepName | None = None
 
 
 class ClaimHold(ClaimLease):

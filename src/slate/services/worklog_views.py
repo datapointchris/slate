@@ -75,7 +75,7 @@ def worklog_view(
         sequence=worklog.sequence,
         record=record,
         opened_by=worklog.opened_by,
-        workflow=worklog.workflow,
+        step=worklog.step,
         started_ts=worklog.started_ts,
         ended_ts=worklog.ended_ts,
         outcome=worklog.outcome,

@@ -182,7 +182,7 @@ func newWorklogsStartCommand() *cobra.Command {
 		asJSON   bool
 		session  string
 		openedBy string
-		workflow string
+		step     string
 	)
 	cmd := &cobra.Command{
 		Use:   "start <record>",
@@ -193,13 +193,15 @@ func newWorklogsStartCommand() *cobra.Command {
 			"through with a warning, since joining it may be what you meant. Completing,\n" +
 			"canceling, dropping or promoting the record ends it, as does `finish`.\n" +
 			"\n" +
+			stepHelp + "\n" +
+			"\n" +
 			"--opened-by " + narrowedActorHelp,
 		Example: "  slate worklogs start 1860\n" +
-			"  slate worklogs start 2072 --workflow design-first",
+			"  slate worklogs start 2072 --step build",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := validWorkflow(workflow); err != nil {
+			if err := validStep(step); err != nil {
 				return err
 			}
 			openedBy, err := narrowedActor(cmd, "opened-by", openedBy)
@@ -207,9 +209,7 @@ func newWorklogsStartCommand() *cobra.Command {
 				return err
 			}
 			in := api.WorklogStartInput{Record: args[0], OpenedBy: openedBy, AgentPlace: agentPlace(session)}
-			if workflow != "" {
-				in.Workflow = &workflow
-			}
+			in.Step = nonEmpty(step)
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
@@ -222,7 +222,7 @@ func newWorklogsStartCommand() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVar(&workflow, "workflow", "", "How the work is approached, one of: "+strings.Join(api.WorklogWorkflows, ", "))
+	addStepFlag(cmd, &step, "The step of the record's life this worklog performs")
 	f.StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp+"; empty puts no session in it")
 	f.StringVar(&openedBy, "opened-by", actorIdentity(), "Who opened it")
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
@@ -374,36 +374,36 @@ func sessionWorklog(cmd *cobra.Command, client *api.Client, session string) (*ap
 
 func newWorklogsEditCommand() *cobra.Command {
 	var (
-		asJSON   bool
-		workflow string
+		asJSON bool
+		step   string
 	)
 	cmd := &cobra.Command{
-		Use:         "edit <worklog> --workflow <workflow>",
-		Short:       "Set how a worklog's work was approached",
-		Long:        "--workflow \"\" clears it. The workflow is kept so later work can compare the approaches.",
-		Example:     "  slate worklogs edit 1991.2 --workflow plan-first",
+		Use:         "edit <worklog> --step <step>",
+		Short:       "Set the step of its record's life a worklog performed",
+		Long:        stepHelp + " --step \"\" clears it, so a wrong step is corrected or taken off.",
+		Example:     "  slate worklogs edit 1991.2 --step design",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeWorklogsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cmd.Flags().Changed("workflow") {
-				return goclikit.UsageError(errors.New("nothing to change — pass --workflow"))
+			if !cmd.Flags().Changed("step") {
+				return goclikit.UsageError(errors.New("nothing to change — pass --step"))
 			}
-			if err := validWorkflow(workflow); err != nil {
+			if err := validStep(step); err != nil {
 				return err
 			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			written, err := client.SetWorklogWorkflow(cmd.Context(), args[0], nonEmpty(workflow))
+			written, err := client.SetWorklogStep(cmd.Context(), args[0], nonEmpty(step))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
 			return reportWrite(cmd, asJSON, written, written.WriteEffects, worklogLine("Updated", written.Worklog))
 		},
 	}
-	cmd.Flags().StringVar(&workflow, "workflow", "", "One of: "+strings.Join(api.WorklogWorkflows, ", ")+" (empty clears)")
+	addStepFlag(cmd, &step, "The step it performed (empty clears)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -445,11 +445,22 @@ func newWorklogsFinishCommand() *cobra.Command {
 	return cmd
 }
 
-func validWorkflow(workflow string) error {
-	if workflow == "" || slices.Contains(api.WorklogWorkflows, workflow) {
+// stepHelp says what a step is, for each command whose --step names one.
+const stepHelp = "--step names the step of the record's life the worklog performs, which\n" +
+	"`slate vocabulary` lists in order. A step is checked on the record once that\n" +
+	"worklog ends, unless its claim ran out or the record was dropped or canceled.\n" +
+	"`slate show` of an initiative prints its steps with its idea's."
+
+func addStepFlag(cmd *cobra.Command, step *string, usage string) {
+	cmd.Flags().StringVar(step, "step", "", usage+", one of: "+strings.Join(api.WorklogSteps, ", "))
+	withFlagValues(cmd, "step", api.WorklogSteps...)
+}
+
+func validStep(step string) error {
+	if step == "" || slices.Contains(api.WorklogSteps, step) {
 		return nil
 	}
-	return goclikit.UsageError(fmt.Errorf("unknown workflow %q — one of: %s", workflow, strings.Join(api.WorklogWorkflows, ", ")))
+	return goclikit.UsageError(fmt.Errorf("unknown step %q — one of: %s", step, strings.Join(api.WorklogSteps, ", ")))
 }
 
 func worklogLine(verb string, worklog api.Worklog) string {
@@ -486,9 +497,9 @@ func printWorklogsTable(out io.Writer, worklogs []api.Worklog, now time.Time) {
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "WORKLOG\tSTATE\tSTAGE\tSTARTED\tSESSIONS\tTITLE")
+	_, _ = fmt.Fprintln(tw, "WORKLOG\tSTATE\tSTEP\tSTAGE\tSTARTED\tSESSIONS\tTITLE")
 	for _, worklog := range worklogs {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d\t%s\n", worklog.Name, worklogState(worklog), worklog.Stage,
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\t%s\n", worklog.Name, worklogState(worklog), orDash(strValue(worklog.Step)), worklog.Stage,
 			localClock(worklog.StartedTS, now), distinctSessions(worklog.Spans), worklog.Record.Title)
 	}
 	_ = tw.Flush()
@@ -502,8 +513,8 @@ func printWorklogDetail(out io.Writer, worklog api.Worklog, now time.Time) {
 	if worklog.Claim != nil {
 		_, _ = fmt.Fprintf(out, "  claim:     %s\n", claimSpan(*worklog.Claim, now))
 	}
-	if workflow := strValue(worklog.Workflow); workflow != "" {
-		_, _ = fmt.Fprintf(out, "  workflow:  %s\n", workflow)
+	if step := strValue(worklog.Step); step != "" {
+		_, _ = fmt.Fprintf(out, "  step:      %s\n", step)
 	}
 	if worklog.EndedTS != nil {
 		ended := localClock(*worklog.EndedTS, now)
