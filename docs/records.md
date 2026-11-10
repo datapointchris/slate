@@ -267,6 +267,20 @@ active ones unless `status` asks for another or `all`, and its header counts the
 active ones, so spreading thin shows. Nothing deletes a direction. A drop keeps
 it, with why.
 
+`slate show` of a direction and `slate directions show` print a line per
+initiative in it, whatever its status, with its open, done and canceled issues
+and each step checked on it:
+
+```text
+  initiatives:  #4 Load the events into the warehouse (active) · 2 open, 2 done, 0 canceled · ✓shape 11-10  ✓design 11-10
+                #21 Audit the cluster roles (completed) · 0 open, 2 done, 0 canceled
+```
+
+So a low-priority initiative is found and counted from the effort it serves. The
+CLI reads the lines from `GET /initiatives?direction=<n>&status=all`, and `--json`
+carries those reads as `initiative_counts`. An idea in it prints by number and
+name.
+
 - *Rejected:* a direction as a tag. A tag is a category that never ends. A
   direction closes, says where it ends, and carries its own discussion.
 - *Rejected:* a membership keyed on the direction's number. `records.number`
