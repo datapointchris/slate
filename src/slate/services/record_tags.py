@@ -44,16 +44,27 @@ def unknown_tags(session: Session, unknown: list[str]) -> HTTPException:
 
 
 def resolve_tags(session: Session, names: Iterable[str]) -> list[models.Tag]:
-    """Every named tag, refusing the whole set when any does not exist."""
+    """Every named tag a write sets, refusing the whole set when any does not exist.
+
+    Each is locked `FOR KEY SHARE` until the write commits, so a delete racing it waits rather than
+    failing the membership's key.
+    """
     wanted = list(dict.fromkeys(names))
-    found = {tag.name: tag for tag in session.scalars(select(models.Tag).where(models.Tag.name.in_(wanted)))}
+    if not wanted:
+        return []
+    query = select(models.Tag).where(models.Tag.name.in_(wanted)).with_for_update(key_share=True)
+    found = {tag.name: tag for tag in session.scalars(query)}
     if unknown := [name for name in wanted if name not in found]:
         raise unknown_tags(session, unknown)
     return [found[name] for name in wanted]
 
 
 def resolve_tag(session: Session, name: str) -> models.Tag:
-    return resolve_tags(session, [name])[0]
+    """The tag a filter names, refused as a write's would be."""
+    tag = session.scalar(select(models.Tag).where(models.Tag.name == name))
+    if tag is None:
+        raise unknown_tags(session, [name])
+    return tag
 
 
 def set_record_tags(session: Session, number: int, tags: Iterable[models.Tag]) -> None:
