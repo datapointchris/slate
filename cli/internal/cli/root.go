@@ -126,7 +126,7 @@ func NewRootCommand() *cobra.Command {
 			"  slate show 42\n" +
 			"  slate claims hold 42\n" +
 			"  slate search retry upload\n" +
-			"  slate issues create --title \"Retry the upload on a 503\" --type bug",
+			"  slate issues create --title \"Upload gives up on a 503 with no retry\" --type bug",
 		Version:       version,
 		SilenceUsage:  true, // usage is shown deliberately, not on every runtime error
 		SilenceErrors: true, // Execute prints errors itself, to stderr

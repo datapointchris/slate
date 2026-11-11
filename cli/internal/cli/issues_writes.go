@@ -226,7 +226,10 @@ func newIssuesCreateCommand() *cobra.Command {
 			"root, and a directory covers everything under it. Holding a claim on it warns\n" +
 			"about each held issue on the same repo whose paths meet its own.\n" +
 			"\n" +
-			"A title reading like an open record's files anyway, with a warning naming it.\n" +
+			"A bug's title states the fault as it shows, because its fix is not known yet.\n" +
+			"Any other type's title names the change to make. A decision's names what it\n" +
+			"settles. A title reading like an open record's files anyway, with a warning\n" +
+			"naming it.\n" +
 			"\n" +
 			"--parent, --discovered-from, --depends-on, --path, --deferred-until and\n" +
 			"--autofix are never asked for. A new issue that depends on its own parent is\n" +
@@ -234,7 +237,7 @@ func newIssuesCreateCommand() *cobra.Command {
 		Example: "  slate issues create\n" +
 			"  slate issues create --title \"Routing drops /issues\" --type bug --repo webapp --priority high\n" +
 			"  slate issues create --title \"Pick a rank scheme\" --type decision --label needs-design\n" +
-			"  slate issues create --title \"Flaky test\" --status triage --discovered-from 412 --description \"$(cat log.md)\"",
+			"  slate issues create --title \"TestSync fails one CI run in five\" --type bug --status triage --discovered-from 412 --description \"$(cat log.md)\"",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead, scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
