@@ -85,12 +85,15 @@ def overlapping(
     return conditions
 
 
+def in_worklog_spans(query: Select) -> Select:
+    """Join a query on `message_tokens` to the worklog span each message was spent in, leaving out messages no worklog held."""
+    return query.join(models.WorklogSpan, models.MessageTokens.span_id == models.WorklogSpan.id)
+
+
 def counted_messages(query: Select, worklog_ids: Sequence[int] | None, window: TimeWindow) -> Select:
     """Narrow a query on `message_tokens` to the messages a total counts: in its worklogs' spans, and written in its window."""
     if worklog_ids is not None:
-        query = query.join(models.WorklogSpan, models.MessageTokens.span_id == models.WorklogSpan.id).where(
-            models.WorklogSpan.worklog_id.in_(worklog_ids)
-        )
+        query = in_worklog_spans(query).where(models.WorklogSpan.worklog_id.in_(worklog_ids))
     return apply_time_window(query, models.MessageTokens.written_ts, window, zone=None)
 
 

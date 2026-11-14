@@ -163,10 +163,11 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives, ideas and pursuits, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, a session's tokens, and the work's totals |
+| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives, ideas and pursuits, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, a session's tokens, the work's totals, and the focus with each pursuit's standing against it |
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready issues, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.comments.write` | commenting on any record, or on one line of its document, under the service's own client id |
 | `slate.documents.write` | writing the next version of a document on any record, under the service's own client id, which keeps every earlier version |
+| `slate.focus.write` | setting a focus, which ends the one in force, and ending one with a reason |
 | `slate.issues.close` | closing an open issue |
 | `slate.records.plan` | filing into triage, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue or an initiative waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives, reading a pursuit to place one in it |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |

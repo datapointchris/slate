@@ -266,9 +266,9 @@ def last_claimed(session: Session, initiatives: Sequence[models.Initiative]) -> 
     return {number: started for number, started in rows}
 
 
-def touched_at(initiative: models.Initiative, issues: Iterable[schemas.BoardIssue], claimed: dt.datetime | None) -> dt.datetime:
+def touched_at(initiative: models.Initiative, closes: Iterable[dt.datetime], claimed: dt.datetime | None) -> dt.datetime:
     """The latest of when it was created, when a claim on it or an issue started, and when an issue closed."""
-    moments = [initiative.created_ts, *(issue.closed_ts for issue in issues if issue.closed_ts is not None)]
+    moments = [initiative.created_ts, *closes]
     return max(moments if claimed is None else [*moments, claimed])
 
 
@@ -411,7 +411,7 @@ def board_initiative(
         claim=claim_view(claim, calendar.now) if claim is not None else None,
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,
-        touched_ts=touched_at(initiative, issues, claimed),
+        touched_ts=touched_at(initiative, (issue.closed_ts for issue in issues if issue.closed_ts is not None), claimed),
         issues=issues,
         by_repo=sorted(
             (schemas.BoardRepoCounts(repo=repo, **counts_of(cut, calendar)) for repo, cut in issues_by_repo(issues).items()),

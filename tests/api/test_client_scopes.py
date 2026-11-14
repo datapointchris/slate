@@ -31,6 +31,7 @@ CLAIM = 'slate.claims.hold'
 CLOSE = 'slate.issues.close'
 COMMENTS = 'slate.comments.write'
 DOCUMENTS = 'slate.documents.write'
+FOCUS = 'slate.focus.write'
 PLAN = 'slate.records.plan'
 WORKLOGS = 'slate.worklogs.write'
 SESSIONS = 'slate.sessions.write'
@@ -54,6 +55,8 @@ SCOPED_URLS = {
     f'{API_PREFIX}/pursuits/{{ref:path}}': '/pursuits/{pursuit}',
     f'{API_PREFIX}/documents': '/documents?record={issue}',
     f'{API_PREFIX}/documents/{{record}}/{{name}}': '/documents/{issue}/plan',
+    f'{API_PREFIX}/focus': '/focus',
+    f'{API_PREFIX}/focus/history': '/focus/history',
     f'{API_PREFIX}/ideas': '/ideas',
     f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
     f'{API_PREFIX}/issues': '/issues?status=all',
@@ -131,6 +134,8 @@ SCOPED_WRITES = {
         {'body': 'What earlier work found', 'kind': 'research'},
         status.HTTP_201_CREATED,
     ),
+    (FOCUS, 'PUT', f'{API_PREFIX}/focus'): ('/focus', {'statement': 'The scheduler first', 'until_date': '2099-12-31'}, status.HTTP_200_OK),
+    (FOCUS, 'POST', f'{API_PREFIX}/focus/end'): ('/focus/end', {'reason': 'The scheduler runs'}, status.HTTP_200_OK),
     (CLOSE, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): ('/issues/{issue}', {'status': 'completed', 'closed_by': CLOSER}, status.HTTP_200_OK),
     (PLAN, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): (
         '/issues/{issue}',
@@ -200,7 +205,7 @@ def as_caller(txn_api):
     """Seed the rows each scoped route reads.
 
     They are two issues of one priority, an initiative, an idea, a tag, a pursuit, the service's
-    claim on the neighbor, its worklog, a session and a plan. `caller(identity)` sets who the token says is
+    claim on the neighbor, its worklog, a session, a plan and a focus in force. `caller(identity)` sets who the token says is
     calling and returns the client, and `url(template)` fills a template with the seeded rows. The
     initiative is named, as the CLI names one.
     """
@@ -222,6 +227,7 @@ def as_caller(txn_api):
     session.add(models.AgentSession(id=RUN_POD_SESSION, host='run-pod'))
     plan = models.Document(record_number=issue.number, name='plan', kind='plan')
     session.add(models.DocumentVersion(document=plan, version=1, body='1. Fix it', written_by=PERSON.subject))
+    session.add(models.Focus(statement='The scheduler first', until_date=dt.date(2099, 12, 31), set_by=PERSON.subject))
     session.flush()
 
     def caller(identity):
@@ -262,6 +268,8 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (READ, 'POST', '/claims'),
         (READ, 'POST', '/comments'),
         (READ, 'PUT', '/documents/{issue}/plan'),
+        (READ, 'PUT', '/focus'),
+        (READ, 'POST', '/focus/end'),
         (READ, 'GET', '/labels'),
         (READ, 'POST', '/initiatives'),
         (READ, 'PATCH', '/initiatives/{initiative}'),
@@ -276,6 +284,8 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (CLOSE, 'POST', '/comments'),
         (COMMENTS, 'DELETE', '/comments/1'),
         (COMMENTS, 'PUT', '/documents/{issue}/plan'),
+        (FOCUS, 'GET', '/focus'),
+        (FOCUS, 'PUT', '/documents/{issue}/plan'),
         (CLAIM, 'GET', '/claims'),
         (CLAIM, 'PATCH', '/issues/{issue}'),
         (CLAIM, 'POST', '/worklogs/{worklog}/links'),
@@ -296,6 +306,8 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         'read-hold',
         'read-comment',
         'read-document-write',
+        'read-focus-set',
+        'read-focus-end',
         'read-labels-router',
         'read-initiatives-create',
         'read-initiatives-update',
@@ -310,6 +322,8 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         'close-comment',
         'comments-delete',
         'comments-document-write',
+        'focus-read',
+        'focus-document-write',
         'hold-list',
         'hold-update',
         'hold-link',

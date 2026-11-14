@@ -13,6 +13,10 @@
   "slate.documents.write": [
     "PUT /api/v1/documents/{record}/{name}"
   ],
+  "slate.focus.write": [
+    "POST /api/v1/focus/end",
+    "PUT /api/v1/focus"
+  ],
   "slate.issues.close": [
     "PATCH /api/v1/issues/{id}"
   ],
@@ -36,6 +40,8 @@
     "GET /api/v1/comments",
     "GET /api/v1/documents",
     "GET /api/v1/documents/{record}/{name}",
+    "GET /api/v1/focus",
+    "GET /api/v1/focus/history",
     "GET /api/v1/ideas",
     "GET /api/v1/ideas/{id}",
     "GET /api/v1/initiatives",
