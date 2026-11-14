@@ -56,6 +56,7 @@ from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
+from slate.services.steps_not_planned import set_steps_not_planned
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffects
 from slate.tracing.named_work import name_record
@@ -251,6 +252,8 @@ def update(initiative: InitiativeFromPath, update: schemas.InitiativeUpdate, ses
         set_record_tags(session, initiative.number, resolve_tags(session, update_data.pop('tags')))
     if 'pursuits' in update_data:
         set_record_pursuits(session, initiative.number, resolve_pursuits(session, update_data.pop('pursuits')))
+    if 'not_planned_steps' in update_data:
+        set_steps_not_planned(session, initiative.id, update_data.pop('not_planned_steps'))
     apply_status_transition(initiative, update_data, session, effects, signed_in=caller_actor(caller))
     for attr, value in update_data.items():
         setattr(initiative, attr, value)

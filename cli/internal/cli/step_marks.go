@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -15,29 +16,34 @@ import (
 const stepDayLayout = "01-02"
 
 // stepMark is one step of a record's life as a row draws it. Day is the local
-// day its latest worklog ended, empty while it is unchecked.
+// day its latest worklog ended, empty while it is unchecked. NotPlanned is a
+// step the initiative will not run, and a checked one keeps its check.
 type stepMark struct {
-	step string
-	day  string
+	step       string
+	day        string
+	notPlanned bool
 }
 
 func (m stepMark) text() string {
-	if m.day == "" {
-		return "· " + m.step
+	switch {
+	case m.day != "":
+		return "✓" + m.step + " " + m.day
+	case m.notPlanned:
+		return "–" + m.step
 	}
-	return "✓" + m.step + " " + m.day
+	return "· " + m.step
 }
 
 // stepMarks is every step in the order a record goes through them, each
 // checked one with the day its latest worklog ended.
-func stepMarks(steps []api.CheckedStep) []stepMark {
+func stepMarks(steps []api.CheckedStep, notPlanned []string) []stepMark {
 	ended := make(map[string]time.Time, len(steps))
 	for _, step := range steps {
 		ended[step.Step] = step.EndedTS
 	}
 	marks := make([]stepMark, 0, len(api.WorklogSteps))
 	for _, name := range api.WorklogSteps {
-		mark := stepMark{step: name}
+		mark := stepMark{step: name, notPlanned: slices.Contains(notPlanned, name)}
 		if at, ok := ended[name]; ok {
 			mark.day = at.Local().Format(stepDayLayout)
 		}
@@ -46,10 +52,10 @@ func stepMarks(steps []api.CheckedStep) []stepMark {
 	return marks
 }
 
-// paintedStepMarks is the marks on one line, a checked step green and an
-// unchecked one dim.
-func paintedStepMarks(p gotermstyle.Palette, steps []api.CheckedStep) string {
-	marks := stepMarks(steps)
+// paintedStepMarks is the marks on one line, a checked step green and any
+// other dim.
+func paintedStepMarks(p gotermstyle.Palette, steps []api.CheckedStep, notPlanned []string) string {
+	marks := stepMarks(steps, notPlanned)
 	cells := make([]string, 0, len(marks))
 	for _, mark := range marks {
 		code := dimCode
@@ -65,7 +71,7 @@ func paintedStepMarks(p gotermstyle.Palette, steps []api.CheckedStep) string {
 // where no step is checked.
 func paintedCheckedSteps(p gotermstyle.Palette, steps []api.CheckedStep) string {
 	var cells []string
-	for _, mark := range stepMarks(steps) {
+	for _, mark := range stepMarks(steps, nil) {
 		if mark.day != "" {
 			cells = append(cells, p.Paint(gotermstyle.CodeGreen, mark.text()))
 		}
@@ -74,9 +80,9 @@ func paintedCheckedSteps(p gotermstyle.Palette, steps []api.CheckedStep) string 
 }
 
 // stepMarksLine is the marks as a board line, colored as paintedStepMarks colors them.
-func stepMarksLine(steps []api.CheckedStep) gotermboard.Line {
+func stepMarksLine(steps []api.CheckedStep, notPlanned []string) gotermboard.Line {
 	var line gotermboard.Line
-	for at, mark := range stepMarks(steps) {
+	for at, mark := range stepMarks(steps, notPlanned) {
 		if at > 0 {
 			line = append(line, gotermboard.C("  ", ""))
 		}

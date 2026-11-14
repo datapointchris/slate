@@ -14,6 +14,7 @@ from slate.models.idea import IdeaEvidence
 from slate.models.initiative import Initiative
 from slate.models.initiative import InitiativeDependency
 from slate.models.initiative import InitiativeStatus
+from slate.models.initiative import InitiativeStepNotPlanned
 from slate.models.issue import Issue
 from slate.models.issue import IssueDependency
 from slate.models.issue import IssueLabel
@@ -58,6 +59,7 @@ __all__ = [
     'Initiative',
     'InitiativeDependency',
     'InitiativeStatus',
+    'InitiativeStepNotPlanned',
     'Issue',
     'IssueDependency',
     'IssueLabel',

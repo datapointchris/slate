@@ -23,6 +23,7 @@ from slate.services.record_pursuits import set_record_pursuits
 from slate.services.record_refs import record_number
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
+from slate.services.steps_not_planned import set_steps_not_planned
 
 # The status a list read takes to answer every status.
 ALL_STATUSES = 'all'
@@ -142,4 +143,5 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
     session.flush()
     set_record_tags(session, db_obj.number, tags)
     set_record_pursuits(session, db_obj.number, pursuits)
+    set_steps_not_planned(session, db_obj.id, initiative.not_planned_steps)
     return db_obj

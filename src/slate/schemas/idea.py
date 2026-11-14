@@ -3,11 +3,13 @@ from typing import Annotated
 from typing import Literal
 from uuid import UUID
 
+from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import StringConstraints
 
 from slate.schemas.claim import Claim
 from slate.schemas.initiative import Initiative
+from slate.schemas.initiative import NotPlannedStep
 from slate.schemas.not_null import NotNull
 from slate.schemas.pursuit import InPursuits
 from slate.schemas.record import Actor
@@ -56,7 +58,13 @@ class IdeaEvidenceLink(RecordModel):
 
 
 class IdeaPromote(RecordModel):
-    """The initiative a promotion creates. An idea has no summary, so one is required. Each other field left out takes the idea's own."""
+    """The initiative a promotion creates. An idea has no summary, so one is required. Each other field left out takes the idea's own.
+
+    An idea marks no step it will not run, so `not_planned_steps` left out plans every step. A field
+    it does not name is refused rather than dropped, so a client sending one learns it was not applied.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
 
     summary: SummaryText
     name: Title | None = None
@@ -66,6 +74,7 @@ class IdeaPromote(RecordModel):
     autofix: bool = False
     tags: list[str] | None = None
     pursuits: list[int] | None = None
+    not_planned_steps: list[NotPlannedStep] = []
 
 
 class IdeaEvidence(RecordModel):

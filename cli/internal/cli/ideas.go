@@ -337,6 +337,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 		autofix     bool
 		tags        []string
 		pursuits    []string
+		notPlanned  []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
@@ -348,9 +349,12 @@ func newIdeasPromoteCommand() *cobra.Command {
 			"priority, its tags, its pursuits. --tag \"\" or --pursuit \"\" promotes it\n" +
 			"with none. The idea's claim ends as promoted, printed under the line too, since\n" +
 			"its work is the initiative's now. An idea already promoted is refused, naming\n" +
-			"its initiative. --status someday creates it set aside.",
+			"its initiative. --status someday creates it set aside. --not-planned names\n" +
+			"each step the initiative will not run, so `slate next` never offers it; an\n" +
+			"idea marks none, so left out the initiative plans every step.",
 		Example: "  slate ideas promote 1860 --summary \"Review rounds run on a schedule\"\n" +
-			"  slate ideas promote 1860 --name \"Scheduled review rounds\" --summary \"Review rounds run on a schedule\" --status someday",
+			"  slate ideas promote 1860 --name \"Scheduled review rounds\" --summary \"Review rounds run on a schedule\" --status someday\n" +
+			"  slate ideas promote 1860 --summary \"Review rounds run on a schedule\" --not-planned shape",
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -385,6 +389,13 @@ func newIdeasPromoteCommand() *cobra.Command {
 				return err
 			}
 			in.Tags = tagSet
+			steps, err := notPlannedEdited(f, notPlanned)
+			if err != nil {
+				return err
+			}
+			if steps != nil {
+				in.NotPlannedSteps = *steps
+			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
@@ -406,6 +417,9 @@ func newIdeasPromoteCommand() *cobra.Command {
 			if err := honoredTagWrite(in.Tags, promoted.Number, promoted.Tags); err != nil {
 				return err
 			}
+			if err := honoredNotPlannedWrite(steps, promoted.Number, promoted.NotPlannedSteps); err != nil {
+				return err
+			}
 			return honoredPursuitWrite(in.Pursuits, promoted.Number, promoted.Pursuits)
 		},
 	}
@@ -417,6 +431,8 @@ func newIdeasPromoteCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "Tag the initiative carries (repeatable; default the idea's, empty for none)")
 	cmd.Flags().StringArrayVar(&pursuits, "pursuit", nil, "Pursuit the initiative is in, by number or exact name (repeatable; default the idea's, empty for none)")
+	cmd.Flags().StringArrayVar(&notPlanned, "not-planned", nil, notPlannedSetHelp)
+	withFlagValues(cmd, "not-planned", api.InitiativeOptionalSteps...)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }

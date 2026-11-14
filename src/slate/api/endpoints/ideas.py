@@ -158,8 +158,9 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
     """Create the initiative the idea becomes, naming the idea. A promoted idea is refused with 409.
 
     The summary is required, because an idea has none. Each other field the request leaves out
-    takes the idea's own: its title as the name, its description, its priority, its tags, its pursuits. The
-    answer is the idea, which then shows the initiative. The idea's claim ends as `promoted`,
+    takes the idea's own: its title as the name, its description, its priority, its tags, its pursuits.
+    An idea marks no step it will not run, so the initiative plans every step but those the request
+    names. The answer is the idea, which then shows the initiative. The idea's claim ends as `promoted`,
     because its work is the initiative's now.
     """
     if idea.initiative is not None:
@@ -180,6 +181,7 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
             pursuits=request.pursuits
             if request.pursuits is not None
             else [pursuit.number for pursuit in pursuits_of(session, [idea.number]).get(idea.number, [])],
+            not_planned_steps=request.not_planned_steps,
         ),
         idea=idea,
     )

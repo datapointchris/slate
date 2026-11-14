@@ -3,14 +3,13 @@
 import datetime as dt
 
 from slate.schemas.claim import Claim
+from slate.schemas.initiative import InitiativeSteps
 from slate.schemas.initiative_progress import IssueState
 from slate.schemas.initiative_progress import IssueStateCounts
 from slate.schemas.pursuit import InPursuits
 from slate.schemas.pursuit import PursuitSummary
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
-from slate.schemas.worklog import CheckedStep
-from slate.schemas.worklog import RecordStage
 
 
 class BoardCloses(RecordModel):
@@ -108,14 +107,14 @@ class BoardIssue(RecordModel):
     closed_ts: dt.datetime | None
 
 
-class BoardInitiative(BoardCounts, InPursuits):
+class BoardInitiative(BoardCounts, InPursuits, InitiativeSteps):
     """One initiative on the board. `issues` holds every issue in it: the unclosed in queue order, then the closed, latest first.
 
     `by_repo` cuts those issues by the repo each names, most open first and no repo last. An
     initiative with no issues has one empty cut on no repo, so every initiative sits under some repo.
-    `steps`, `stage`, `tags` and `pursuits` are the initiative read's. `touched_ts` is the latest
-    of when it was created, when a claim on it or one of its issues started, and when one of its
-    issues closed.
+    Its steps, `tags` and `pursuits` are the initiative read's.
+    `touched_ts` is the latest of when it was created, when a claim on it or one of its issues
+    started, and when one of its issues closed.
     """
 
     number: int
@@ -132,8 +131,6 @@ class BoardInitiative(BoardCounts, InPursuits):
     touched_ts: dt.datetime
     issues: list[BoardIssue]
     by_repo: list[BoardRepoCounts]
-    steps: list[CheckedStep]
-    stage: RecordStage
 
 
 class InitiativeBoard(RecordModel):

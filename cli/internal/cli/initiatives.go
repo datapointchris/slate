@@ -214,15 +214,19 @@ func newInitiativesCreateCommand() *cobra.Command {
 		autofix     bool
 		tags        []string
 		pursuits    []string
+		notPlanned  []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "create --name <name> --summary <summary> [flags]",
 		Short: "Start an initiative",
 		Long: "The initiative ranks last among the records of its priority, and\n" +
-			"`slate initiatives reorder` moves it.",
+			"`slate initiatives reorder` moves it. --not-planned names each step of its\n" +
+			"life it will not run, so `slate next` never offers that step; left out, it\n" +
+			"plans every step.",
 		Example: "  slate initiatives create --name \"Ship the tracker\" --summary \"Every project's work lives in it\" --priority high\n" +
-			"  slate initiatives create --name \"Build day\" --summary \"A day runs from one ordered stack\" --autofix=false",
+			"  slate initiatives create --name \"Build day\" --summary \"A day runs from one ordered stack\" --autofix=false\n" +
+			"  slate initiatives create --name \"Rename the flag\" --summary \"Every caller reads the new name\" --not-planned design --not-planned preflight",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -244,6 +248,13 @@ func newInitiativesCreateCommand() *cobra.Command {
 			if f.Changed("autofix") {
 				in.Autofix = &autofix
 			}
+			steps, err := notPlannedEdited(f, notPlanned)
+			if err != nil {
+				return err
+			}
+			if steps != nil {
+				in.NotPlannedSteps = *steps
+			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
@@ -262,6 +273,9 @@ func newInitiativesCreateCommand() *cobra.Command {
 			if err := honoredTagWrite(&in.Tags, initiative.Number, initiative.Tags); err != nil {
 				return err
 			}
+			if err := honoredNotPlannedWrite(steps, initiative.Number, initiative.NotPlannedSteps); err != nil {
+				return err
+			}
 			return honoredPursuitWrite(&in.Pursuits, initiative.Number, initiative.Pursuits)
 		},
 	}
@@ -273,6 +287,8 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagSetHelp+"; its issues read it too")
 	cmd.Flags().StringArrayVar(&pursuits, "pursuit", nil, pursuitSetHelp+"; its issues read it too")
+	cmd.Flags().StringArrayVar(&notPlanned, "not-planned", nil, notPlannedSetHelp)
+	withFlagValues(cmd, "not-planned", api.InitiativeOptionalSteps...)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -286,19 +302,22 @@ func newInitiativesEditCommand() *cobra.Command {
 		autofix     bool
 		tags        []string
 		pursuits    []string
+		notPlanned  []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "edit <initiative> [flags]",
 		Short: "Change an initiative's fields",
 		Long: "Update only the fields whose flags you pass. --description \"\" clears it.\n" +
-			"--tag and --pursuit each replace the whole set, and --tag \"\" or\n" +
-			"--pursuit \"\" removes every one; each of its issues reads the new set as its\n" +
-			"own too. Status moves through complete, drop, shelve and reopen, and its place\n" +
-			"in the queue through reorder.",
+			"--tag, --pursuit and --not-planned each replace the whole set, and --tag \"\",\n" +
+			"--pursuit \"\" or --not-planned \"\" empties it; each of its issues reads the new\n" +
+			"tags and pursuits as its own too. A step checked before it was marked not\n" +
+			"planned stays checked. Status moves through complete, drop, shelve and reopen,\n" +
+			"and its place in the queue through reorder.",
 		Example: "  slate initiatives edit \"Ship the tracker\" --priority urgent\n" +
 			"  slate initiatives edit 1491 --autofix=false\n" +
-			"  slate initiatives edit 1491 --tag security --pursuit \"Data Warehouse\"",
+			"  slate initiatives edit 1491 --tag security --pursuit \"Data Warehouse\"\n" +
+			"  slate initiatives edit 1491 --not-planned preflight --not-planned retro",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),
@@ -330,12 +349,15 @@ func newInitiativesEditCommand() *cobra.Command {
 				return err
 			}
 			in.Tags = tagSet
+			if in.NotPlannedSteps, err = notPlannedEdited(f, notPlanned); err != nil {
+				return err
+			}
 			var clear []string
 			if readFlagIntent(f, "description") == flagClears {
 				clear = append(clear, "description")
 			}
 			if in == (api.InitiativeUpdateInput{}) && len(clear) == 0 && !f.Changed("pursuit") {
-				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --name/--summary/--description/--priority/--autofix/--tag/--pursuit"))
+				return goclikit.UsageError(errors.New("nothing to change — pass at least one of --name/--summary/--description/--priority/--autofix/--tag/--pursuit/--not-planned"))
 			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
@@ -355,6 +377,8 @@ func newInitiativesEditCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagReplaceHelp)
 	cmd.Flags().StringArrayVar(&pursuits, "pursuit", nil, pursuitReplaceHelp)
+	cmd.Flags().StringArrayVar(&notPlanned, "not-planned", nil, notPlannedReplaceHelp)
+	withFlagValues(cmd, "not-planned", api.InitiativeOptionalSteps...)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -384,6 +408,9 @@ func writeInitiativeUpdate(
 		return err
 	}
 	if err := honoredTagWrite(in.Tags, initiative.Number, initiative.Tags); err != nil {
+		return err
+	}
+	if err := honoredNotPlannedWrite(in.NotPlannedSteps, initiative.Number, initiative.NotPlannedSteps); err != nil {
 		return err
 	}
 	return honoredPursuitWrite(in.Pursuits, initiative.Number, initiative.Pursuits)
@@ -630,12 +657,12 @@ func (r initiativeRows) row(initiative api.Initiative) string {
 }
 
 // lines is the initiative's row, and under it, starting where the row's cells
-// after the number do, the marks of its steps once any is checked.
+// after the number do, the marks of its steps once any is checked or not planned.
 func (r initiativeRows) lines(initiative api.Initiative) string {
-	if len(initiative.Steps) == 0 {
+	if len(initiative.Steps) == 0 && len(initiative.NotPlannedSteps) == 0 {
 		return r.row(initiative)
 	}
-	return r.row(initiative) + "\n" + strings.Repeat(" ", 4+r.number) + paintedStepMarks(r.palette, initiative.Steps)
+	return r.row(initiative) + "\n" + strings.Repeat(" ", 4+r.number) + paintedStepMarks(r.palette, initiative.Steps, initiative.NotPlannedSteps)
 }
 
 // repoFloor is the least of a clipped repo list kept beside the name, and
@@ -726,7 +753,7 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	_, _ = fmt.Fprintf(out, "  issues:     %d (%d open, %d done, %d canceled)\n",
 		initiative.IssueCount, initiative.OpenCount, initiative.CompletedCount, initiative.CanceledCount)
 	_, _ = fmt.Fprintf(out, "  repos:      %s\n", repoList(initiative.Repos))
-	_, _ = fmt.Fprintf(out, "  steps:      %s\n", paintedStepMarks(p, initiative.Steps))
+	_, _ = fmt.Fprintf(out, "  steps:      %s\n", paintedStepMarks(p, initiative.Steps, initiative.NotPlannedSteps))
 	if len(initiative.Tags) > 0 {
 		_, _ = fmt.Fprintf(out, "  tags:       %s\n", strings.Join(initiative.Tags, ", "))
 	}

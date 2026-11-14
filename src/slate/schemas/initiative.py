@@ -1,9 +1,14 @@
 import datetime as dt
+from typing import Annotated
 from typing import Any
 from uuid import UUID
 
+from pydantic import AfterValidator
+from pydantic import ConfigDict
 from pydantic import model_validator
 
+from slate.models.worklog import OPTIONAL_STEPS
+from slate.models.worklog import StepName
 from slate.schemas.claim import Claim
 from slate.schemas.not_null import NotNull
 from slate.schemas.pursuit import InPursuits
@@ -20,6 +25,15 @@ from slate.schemas.write_effects import Written
 InitiativeRef = UUID | int | str
 
 
+def refuse_build(step: StepName) -> StepName:
+    if step not in OPTIONAL_STEPS:
+        raise ValueError(f"{step} is always planned, because an initiative's issues are its build")
+    return step
+
+
+NotPlannedStep = Annotated[StepName, AfterValidator(refuse_build)]
+
+
 class InitiativeSummary(RecordModel):
     id: UUID
     number: int
@@ -30,7 +44,12 @@ class InitiativeSummary(RecordModel):
 
 
 class InitiativeWrite(RecordModel):
-    """A create or an edit. `position` is refused by name, so a client sending it learns what places an initiative now."""
+    """A create or an edit. A field it does not name is refused rather than dropped, so a client sending one learns it was not applied.
+
+    `position` is refused by name, so a client sending it learns what places an initiative now.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
 
     @model_validator(mode='before')
     @classmethod
@@ -53,12 +72,13 @@ class InitiativeCreate(InitiativeWrite):
     autofix: bool = False
     tags: list[str] = []
     pursuits: list[int] = []
+    not_planned_steps: list[NotPlannedStep] = []
 
 
 class InitiativeUpdate(InitiativeWrite):
     """`closed_ts` is stamped on the move into a terminal status and cleared on reopen.
 
-    `tags` and `pursuits` each replace the whole set.
+    `tags`, `pursuits` and `not_planned_steps` each replace the whole set.
     """
 
     name: NotNull[str] = None
@@ -70,9 +90,23 @@ class InitiativeUpdate(InitiativeWrite):
     autofix: NotNull[bool] = None
     tags: NotNull[list[str]] = None
     pursuits: NotNull[list[int]] = None
+    not_planned_steps: NotNull[list[NotPlannedStep]] = None
 
 
-class Initiative(InPursuits):
+class InitiativeSteps(RecordModel):
+    """The steps of an initiative's life, which its read and its board row both carry, derived on every read.
+
+    `steps` is each step checked on it, in position order, and `stage` the furthest of them, or
+    `idea` before any. `not_planned_steps` is each step it will not run, in position order, which
+    the queue never offers.
+    """
+
+    steps: list[CheckedStep] = []
+    stage: RecordStage = 'idea'
+    not_planned_steps: list[StepName] = []
+
+
+class Initiative(InPursuits, InitiativeSteps):
     """An initiative and the counts that say whether work is left in it.
 
     The three counts partition `issue_count`. `repos` is derived from every issue
@@ -81,8 +115,7 @@ class Initiative(InPursuits):
     idea promoted into it. `rank` places it, with its issues, among the
     records of its priority in the queue. `depends_on` is each initiative or
     issue it waits on, and `waiting_initiatives` each initiative waiting on it,
-    open or closed, by number. `steps` is each step checked on it, in position order, and `stage`
-    the furthest of them, or `idea` before any. Both are derived on every read. `tags` is the
+    open or closed, by number. `tags` is the
     initiative's own, and each of its issues reads them as its own too. `pursuits` is each
     pursuit it is in, in number order, and each of its issues reads them as its own.
     """
@@ -112,8 +145,6 @@ class Initiative(InPursuits):
     idea: RecordSummary | None = None
     depends_on: list[RecordSummary] = []
     waiting_initiatives: list[RecordSummary] = []
-    steps: list[CheckedStep] = []
-    stage: RecordStage = 'idea'
 
 
 class InitiativeDetail(Initiative, RecordParts):

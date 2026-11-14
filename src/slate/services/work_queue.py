@@ -3,15 +3,17 @@
 Each row carries the step taking it means:
 
 - `discuss` for an idea nobody has promoted
-- `shape` for an active initiative with no checked step and no unclosed issue
-- `design` for an active initiative whose furthest checked step is `shape`, and `preflight` for one at `design`
+- `shape`, `design` or `preflight` for an active initiative, the first of them it plans past its furthest
+  checked step, unless it checked none and holds open issues
 - `decide` for a ready decision issue
-- `build` for any other ready issue, and for a held initiative whose issues are being built
-- `retro` for an active initiative past `preflight` with no unclosed issue
+- `build` for any other ready issue, and for a held initiative whose issues are being built or that has
+  no step left to offer
+- `retro` for an active initiative that plans one, past its steps before building with no unclosed issue
 
-An initiative's step reads its stage from `services/record_steps.py`. An initiative at `build` is not
-a row of its own, because its issues are. One at `design` or `preflight` is, beside its open issues,
-so a step never holds work back. A someday
+An initiative's step reads its stage from `services/record_steps.py` and skips each step it marks as
+not planned, so a step it will not run is never offered. An initiative at `build` is not a row of
+its own, because its issues are, and neither is one with no step left to offer unless it is held.
+One offered `design` or `preflight` is a row beside its open issues, so a step never holds work back. A someday
 initiative is set aside, so neither it nor its shelved issues are rows. The order is the slots
 `services/issue_readiness.py` derives, so an initiative's work runs together.
 
@@ -38,6 +40,10 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.models.record import Kind
+from slate.models.worklog import BUILD
+from slate.models.worklog import STEPS_AFTER_BUILD
+from slate.models.worklog import STEPS_BEFORE_BUILD
+from slate.models.worklog import WORKLOG_STEPS
 from slate.schemas.queue import IdeaRow
 from slate.schemas.queue import InitiativeRow
 from slate.schemas.queue import IssueRow
@@ -74,20 +80,24 @@ def issue_step(issue_type: str) -> Step:
     return 'decide' if issue_type == 'decision' else 'build'
 
 
-# The step a checked stage leaves next, where it comes before building whatever issues are open.
-STEP_AFTER_STAGE: dict[str, Step] = {'shape': 'design', 'design': 'preflight'}
-
-
-def initiative_step(initiative: schemas.Initiative) -> Step:
-    """`build` while its issues are the work, else the step its stage leaves next.
+def initiative_step(initiative: schemas.Initiative) -> Step | None:
+    """The first planned step before building past its stage, else `build` while its issues are the work, else the first planned after.
 
     One that checked no step and holds open issues was built before steps existed, so its issues carry it.
+    None is no step to offer. That is one planning no step after building once its issues close, and one
+    at `idea` planning no step before building and holding no issue yet, whose issues carry its build once filed.
     """
-    if (after := STEP_AFTER_STAGE.get(initiative.stage)) is not None:
-        return after
+    if initiative.stage == 'idea' and initiative.open_count:
+        return BUILD
+    passed = 0 if initiative.stage == 'idea' else WORKLOG_STEPS.index(initiative.stage) + 1
+    for step in STEPS_BEFORE_BUILD[passed:]:
+        if step not in initiative.not_planned_steps:
+            return step
     if initiative.open_count:
-        return 'build'
-    return 'shape' if initiative.stage == 'idea' else 'retro'
+        return BUILD
+    if initiative.stage == 'idea' and not initiative.issue_count:
+        return None
+    return next((step for step in STEPS_AFTER_BUILD if step not in initiative.not_planned_steps), None)
 
 
 # A queue filter narrows ideas and initiatives too when it is a grouping, or the initiative whose own row
@@ -221,8 +231,10 @@ def queue_as_measured(
 
     if reads_other_kinds and filters.step not in ('discuss', 'decide') and (work is None or work.kind == Kind.INITIATIVE):
         for initiative_view in open_initiatives(session, initiative, filters):
-            step = initiative_step(initiative_view)
-            queued_alone = step != 'build' and initiative_view.number in readiness.slot_key_by_number
+            offered = initiative_step(initiative_view)
+            # One with no step left is still its holder's while held, so it lists at the build its issues carry.
+            step = BUILD if offered is None else offered
+            queued_alone = step != BUILD and initiative_view.number in readiness.slot_key_by_number
             if not wanted(filters, step) or not (queued_alone or initiative_view.number in held):
                 continue
             initiative_row = InitiativeRow(
