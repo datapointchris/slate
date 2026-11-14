@@ -1,6 +1,6 @@
 """A focus: the direction the work is stated to take for a while, holding the share of it each pursuit should get.
 
-One focus is in force at a time. Setting another ends it as `replaced`, and ending one stamps when
+One focus is in force at a time. Setting another ends the unended one, and ending one stamps when
 and why. A focus whose `until_date` has passed reads as ended though nothing wrote its end, so no
 job sweeps it. Every focus stays, so the history of the direction is a read.
 
@@ -36,8 +36,10 @@ from slate.models.pursuit import Pursuit
 ONE_UNENDED_FOCUS = 'uq_focuses_one_unended'
 
 # The reason a set writes on the focus it replaces, and on one whose `until_date` had already passed.
+# An end refuses either as its reason, so `ended_reason` holding one says a set ended the focus.
 REPLACED = 'replaced'
 LAPSED = 'lapsed'
+SET_ENDINGS = (REPLACED, LAPSED)
 
 
 class Focus(Base):

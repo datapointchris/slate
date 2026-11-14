@@ -23,6 +23,7 @@ from slate import models
 from slate import schemas
 from slate.models.focus import LAPSED
 from slate.models.focus import REPLACED
+from slate.models.focus import SET_ENDINGS
 from slate.services.record_pursuits import resolve_pursuits
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import WriteEffectCode
@@ -31,6 +32,10 @@ from slate.services.write_effects import WriteEffects
 logger = structlog.get_logger()
 
 FOCUS_LOCK = 'slate.focus'
+
+# Shares a client divided in floating point, such as three of 1/3, miss 1 by about 1e-16, so a sum
+# this near 1 reads as 1.
+SHARE_SUM_TOLERANCE = Decimal('1e-9')
 
 
 def in_force(focus: models.Focus, today: dt.date) -> bool:
@@ -87,8 +92,8 @@ def named_shares(session: Session, shares: Sequence[schemas.FocusShareSet]) -> l
         listed = ', '.join(f'#{pursuit.number} {pursuit.name} is {pursuit.status}' for pursuit in inactive)
         raise refused(f'{listed}. A share names an active pursuit.')
     total = sum((share.share for share in shares), Decimal(0))
-    if total > 1:
-        raise refused(f'The shares sum to {total}, past 1.')
+    if total > 1 + SHARE_SUM_TOLERANCE:
+        raise refused(f'The shares sum to {total:f}, past 1.')
     return list(zip(pursuits, (share.share for share in shares), strict=True))
 
 
@@ -101,22 +106,35 @@ def lapsed_since(focus: models.Focus) -> str:
     return f'Focus {focus.id} had read as ended since its until_date {focus.until_date} passed.'
 
 
+def holds_the_same(focus: models.Focus, body: schemas.FocusSet, shares: Sequence[tuple[models.Pursuit, Decimal]]) -> bool:
+    """Whether the focus already holds the statement, until_date and shares a set names."""
+    held = {share.pursuit_id: share.share for share in focus.shares}
+    return focus.statement == body.statement and focus.until_date == body.until_date and held == {p.id: share for p, share in shares}
+
+
 def set_focus(
     session: Session, body: schemas.FocusSet, set_by: str, now: dt.datetime, today: dt.date, effects: WriteEffects
 ) -> models.Focus:
-    """Start a focus from `now`, ending the unended one as replaced, or as lapsed where its until_date had passed."""
+    """Start a focus from `now`, ending the unended one as replaced, or as lapsed where its until_date had passed.
+
+    A set naming what the focus in force already holds changes nothing and answers that focus, so a
+    caller retrying its PUT neither ends the focus it set nor restarts its usage window.
+    """
     if body.until_date < today:
         raise refused(f'until_date {body.until_date} is before today, {today}. A focus holds until a day not yet past.')
     shares = named_shares(session, body.shares)
     session.execute(select(func.pg_advisory_xact_lock(func.hashtext(FOCUS_LOCK))))
     current = unended_focus(session)
+    if current is not None and in_force(current, today) and holds_the_same(current, body, shares):
+        effects.warn(WriteEffectCode.FOCUS_UNCHANGED, f'Focus {current.id} already holds this statement, until_date and shares.')
+        return current
     if current is not None:
         if in_force(current, today):
             end(current, REPLACED, now)
-            effects.did(WriteEffectCode.FOCUS_ENDED, f'Ended focus {current.id}, set {effects.moment(current.started_ts)}, as replaced.')
+            effects.did(WriteEffectCode.FOCUS_REPLACED, f'Ended focus {current.id}, set {effects.moment(current.started_ts)}, as replaced.')
         else:
             end(current, LAPSED, now)
-            effects.did(WriteEffectCode.FOCUS_ENDED, f'{lapsed_since(current)} It ends now as lapsed.')
+            effects.did(WriteEffectCode.LAPSED_FOCUS_ENDED, f'{lapsed_since(current)} It ends now as lapsed.')
         session.flush()
     focus = models.Focus(statement=body.statement, until_date=body.until_date, set_by=set_by, started_ts=now)
     session.add(focus)
@@ -131,15 +149,20 @@ def warn_of_shares_left_over(session: Session, shares: Sequence[tuple[models.Pur
     """Warn where the shares name every active pursuit and sum under 1, so no pursuit takes the rest."""
     active = set(session.scalars(select(models.Pursuit.id).where(models.Pursuit.status == 'active')))
     total = sum((share for _, share in shares), Decimal(0))
-    if total < 1 and active and active <= {pursuit.id for pursuit, _ in shares}:
+    if total < 1 - SHARE_SUM_TOLERANCE and active and active <= {pursuit.id for pursuit, _ in shares}:
         effects.warn(
             WriteEffectCode.SHARES_UNDER_ONE,
-            f"The shares name every active pursuit and sum to {total}, so {1 - total} of the work is no pursuit's share.",
+            f"The shares name every active pursuit and sum to {total:f}, so {1 - total:f} of the work is no pursuit's share.",
         )
 
 
 def end_focus(session: Session, reason: str, now: dt.datetime, today: dt.date, effects: WriteEffects) -> models.Focus | None:
-    """End the unended focus with `reason`, or warn that there is none."""
+    """End the unended focus with `reason`, or warn that there is none.
+
+    A reason may not be one a set writes, so `ended_reason` tells a set's end from a person's.
+    """
+    if reason in SET_ENDINGS:
+        raise refused(f'{reason!r} is the reason a set writes on the focus it ends. Say why this one ends.')
     session.execute(select(func.pg_advisory_xact_lock(func.hashtext(FOCUS_LOCK))))
     current = unended_focus(session)
     if current is None:

@@ -56,20 +56,30 @@ def test_a_focus_fills_the_shares_it_left_unnamed_and_reads_each_pursuits_factor
 
     standing = ok(client.get('/focus'))
     assert standing['window']['since'] == focus['focus']['started_ts']
-    rows = [(row['number'], row['share'], row['share_named'], row['output_tokens'], row['worklog_count']) for row in standing['pursuits']]
+    rows = [
+        (row['number'], row['share'], row['share_named'], row['split_output_tokens'], row['worklog_count']) for row in standing['pursuits']
+    ]
     assert rows == [(c, 0.25, False, 0, 0), (b, 0.25, False, 10, 1), (a, 0.5, True, 40, 2)]
     assert [row['usage'] for row in standing['pursuits']] == pytest.approx([0, 0.2, 0.8])
     assert [row['factor'] for row in standing['pursuits']] == pytest.approx([1, 2**-0.8, 2**-1.6])
-    assert [row['last_worked_ts'] is None for row in standing['pursuits']] == [True, False, False]
+    assert [row['touched_ts'] is None for row in standing['pursuits']] == [True, False, False]
     assert standing['unattributed'] == {'output_tokens': 7, 'worklog_count': 1, 'outside_worklogs_output_tokens': 5}
 
 
 def test_a_set_replaces_the_focus_in_force_and_one_past_its_until_date_reads_as_ended(txn_api_logged_in):
+    """A Job that starts twice sends its PUT twice, and the second answers the focus the first set."""
     client, session = txn_api_logged_in
     pursuit = a_pursuit(client, 'Warehouse')
     first = ok(client.put('/focus', json={'statement': 'Warehouse first', 'until_date': in_a_week()}))['focus']
-    second = ok(client.put('/focus', json={'statement': 'Then security', 'until_date': in_a_week()}))
-    assert [effect['code'] for effect in second['side_effects']] == ['focus_ended']
+    body = {'statement': 'Then security', 'until_date': in_a_week(), 'shares': [{'pursuit': pursuit, 'share': 0.5}]}
+    second = ok(client.put('/focus', json=body))
+    assert [effect['code'] for effect in second['side_effects']] == ['focus_replaced']
+    retried = ok(client.put('/focus', json=body))
+    assert (retried['focus']['id'], retried['side_effects'], [warning['code'] for warning in retried['warnings']]) == (
+        second['focus']['id'],
+        [],
+        ['focus_unchanged'],
+    )
 
     yesterday = dt.datetime.now(dt.UTC).date() - dt.timedelta(days=1)
     session.execute(update(models.Focus).where(models.Focus.id == second['focus']['id']).values(until_date=yesterday))
@@ -92,10 +102,10 @@ def test_a_set_replaces_the_focus_in_force_and_one_past_its_until_date_reads_as_
 def test_a_set_is_refused_a_pursuit_not_active_shares_past_one_and_an_until_date_already_past(txn_api_logged_in):
     client, _ = txn_api_logged_in
     active, other = a_pursuit(client, 'Warehouse'), a_pursuit(client, 'Security')
-    shelved = created(client, '/pursuits', {'name': 'Home', 'summary': 'Home holds', 'status': 'someday'})['pursuit']['number']
+    someday = created(client, '/pursuits', {'name': 'Home', 'summary': 'Home holds', 'status': 'someday'})['pursuit']['number']
     yesterday = (dt.datetime.now(dt.UTC).date() - dt.timedelta(days=1)).isoformat()
     for shares, until, refusal in (
-        ([{'pursuit': shelved, 'share': 0.2}], in_a_week(), f'#{shelved} Home is someday'),
+        ([{'pursuit': someday, 'share': 0.2}], in_a_week(), f'#{someday} Home is someday'),
         ([{'pursuit': active, 'share': 0.6}, {'pursuit': other, 'share': 0.5}], in_a_week(), 'The shares sum to 1.1, past 1'),
         ([], yesterday, 'is before today'),
     ):

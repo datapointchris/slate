@@ -216,7 +216,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
     steps = initiative_steps(session, initiatives)
     numbers = [initiative.number for initiative in initiatives]
     tags, pursuits = own_tags(session, numbers), pursuits_of(session, numbers)
-    claimed = last_claimed(session, initiatives)
+    touched = last_touched(session, initiatives)
     rows = [
         board_initiative(
             initiative,
@@ -225,7 +225,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
             steps.get(initiative.number, []),
             tags.get(initiative.number, []),
             pursuits.get(initiative.number, []),
-            claimed.get(initiative.number),
+            touched[initiative.number],
             calendar,
         )
         for initiative in initiatives
@@ -266,10 +266,26 @@ def last_claimed(session: Session, initiatives: Sequence[models.Initiative]) -> 
     return {number: started for number, started in rows}
 
 
-def touched_at(initiative: models.Initiative, closes: Iterable[dt.datetime], claimed: dt.datetime | None) -> dt.datetime:
-    """The latest of when it was created, when a claim on it or an issue started, and when an issue closed."""
-    moments = [initiative.created_ts, *closes]
-    return max(moments if claimed is None else [*moments, claimed])
+def last_touched(session: Session, initiatives: Sequence[models.Initiative]) -> dict[int, dt.datetime]:
+    """When each initiative was last touched, by its number.
+
+    A touch is its creation, a claim starting on it or one of its issues, or one of its issues
+    closing. Every read of a touch asks this, so the board and the focus agree on one.
+    """
+    claimed = last_claimed(session, initiatives)
+    closed = dict(
+        session.execute(
+            select(models.Initiative.number, func.max(models.Issue.closed_ts))
+            .join(models.Issue, models.Issue.initiative_id == models.Initiative.id)
+            .where(models.Initiative.id.in_([initiative.id for initiative in initiatives]))
+            .group_by(models.Initiative.number)
+        ).all()
+    )
+    touched = {}
+    for initiative in initiatives:
+        moments = (initiative.created_ts, closed.get(initiative.number), claimed.get(initiative.number))
+        touched[initiative.number] = max(moment for moment in moments if moment is not None)
+    return touched
 
 
 @dataclass(frozen=True)
@@ -394,7 +410,7 @@ def board_initiative(
     steps: list[schemas.CheckedStep],
     tags: list[str],
     pursuits: list[schemas.PursuitSummary],
-    claimed: dt.datetime | None,
+    touched: dt.datetime,
     calendar: CloseCalendar,
 ) -> schemas.BoardInitiative:
     claim = claims.get(initiative.number)
@@ -411,7 +427,7 @@ def board_initiative(
         claim=claim_view(claim, calendar.now) if claim is not None else None,
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,
-        touched_ts=touched_at(initiative, (issue.closed_ts for issue in issues if issue.closed_ts is not None), claimed),
+        touched_ts=touched,
         issues=issues,
         by_repo=sorted(
             (schemas.BoardRepoCounts(repo=repo, **counts_of(cut, calendar)) for repo, cut in issues_by_repo(issues).items()),

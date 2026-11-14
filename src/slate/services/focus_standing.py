@@ -4,16 +4,16 @@ Nothing here is stored. Each read derives every figure from the focus, the pursu
 and their messages, so a reader takes slate's numbers rather than working them out again.
 
 - **Shares fill to 1.** A share the focus named for an active pursuit is taken as given. The active
-  pursuits it left unnamed split the rest of 1 evenly. A named pursuit that has since completed or
-  dropped leaves, and its part goes to the unnamed ones.
+  pursuits it left unnamed split the rest of 1 evenly. A named pursuit that is no longer active
+  leaves, and its part goes to the unnamed ones.
 - **Usage is output tokens.** The window opens at the later of the focus's start and `USAGE_WINDOW`
   before the read. Each worklog's output in it splits evenly across the pursuits its record
   reaches: an idea's or an initiative's own, an issue's initiative's. A pursuit's `usage` is its
   part of the output every pursuit drew.
 - **The factor is `2 ** (-usage / share)`.** It reads 0.5 at the share, toward 1 under it and
   toward 0 over it. A share of 0 reads 0, because any work at all is over it.
-- **The last touch** is the latest on any initiative in the pursuit, as `touched_at` reads one for
-  the live board.
+- **The last touch** is the latest on any initiative in the pursuit, as `last_touched` reads one
+  for the live board.
 """
 
 from __future__ import annotations
@@ -39,8 +39,7 @@ from slate import models
 from slate import schemas
 from slate.services.focuses import focus_in_force
 from slate.services.focuses import focus_view
-from slate.services.initiative_board import last_claimed
-from slate.services.initiative_board import touched_at
+from slate.services.initiative_board import last_touched
 from slate.services.record_pursuits import issue_pursuits
 from slate.services.record_pursuits import pursuits_of
 from slate.services.time_window import TimeWindow
@@ -113,7 +112,7 @@ def factor(usage: float, share: Decimal) -> float:
     return 0.0 if share == 0 else 2 ** (-usage / float(share))
 
 
-def last_worked(session: Session, pursuit_ids: Collection[UUID]) -> dict[UUID, dt.datetime]:
+def pursuits_touched(session: Session, pursuit_ids: Collection[UUID]) -> dict[UUID, dt.datetime]:
     """The latest touch on any initiative in each pursuit, by the pursuit's id. A pursuit holding none is left out."""
     placed = session.execute(
         select(models.RecordPursuit.pursuit_id, models.Initiative)
@@ -121,27 +120,16 @@ def last_worked(session: Session, pursuit_ids: Collection[UUID]) -> dict[UUID, d
         .options(defer(models.Initiative.description))
         .where(models.RecordPursuit.pursuit_id.in_(list(pursuit_ids)))
     ).all()
-    initiatives = {initiative.id: initiative for _, initiative in placed}
-    claimed = last_claimed(session, list(initiatives.values()))
-    closes: dict[UUID, list[dt.datetime]] = defaultdict(list)
-    for initiative_id, closed in session.execute(
-        select(models.Issue.initiative_id, func.max(models.Issue.closed_ts))
-        .where(models.Issue.initiative_id.in_(list(initiatives)), models.Issue.closed_ts.is_not(None))
-        .group_by(models.Issue.initiative_id)
-    ):
-        if initiative_id is not None and closed is not None:
-            closes[initiative_id].append(closed)
-    touched = {
-        initiative.id: touched_at(initiative, closes[initiative.id], claimed.get(initiative.number)) for initiative in initiatives.values()
-    }
+    touched = last_touched(session, list({initiative.id: initiative for _, initiative in placed}.values()))
     latest: dict[UUID, dt.datetime] = {}
     for pursuit_id, initiative in placed:
-        latest[pursuit_id] = max(latest.get(pursuit_id, touched[initiative.id]), touched[initiative.id])
+        moment = touched[initiative.number]
+        latest[pursuit_id] = max(latest.get(pursuit_id, moment), moment)
     return latest
 
 
 def furthest_under_first(row: schemas.PursuitStanding) -> tuple:
-    return (row.factor is None, -(row.factor or 0), row.output_tokens, row.number)
+    return (row.factor is None, -(row.factor or 0), row.split_output_tokens, row.number)
 
 
 def focus_standing(session: Session, now: dt.datetime, today: dt.date) -> schemas.FocusStanding:
@@ -156,7 +144,7 @@ def focus_standing(session: Session, now: dt.datetime, today: dt.date) -> schema
         .order_by(models.Pursuit.number)
     ).all()
     shares = filled_shares(focus, [pursuit for pursuit in pursuits if pursuit.status == 'active'])
-    touched = last_worked(session, [pursuit.id for pursuit in pursuits])
+    touched = pursuits_touched(session, [pursuit.id for pursuit in pursuits])
     attributed = sum(drawn.output.values())
     rows = []
     for pursuit in pursuits:
@@ -169,11 +157,11 @@ def focus_standing(session: Session, now: dt.datetime, today: dt.date) -> schema
                 status=pursuit.status,
                 share=None if share is None else float(share),
                 share_named=named,
-                output_tokens=drawn.output[pursuit.number],
+                split_output_tokens=drawn.output[pursuit.number],
                 worklog_count=drawn.worklogs[pursuit.number],
                 usage=usage,
                 factor=None if share is None else factor(usage, share),
-                last_worked_ts=touched.get(pursuit.id),
+                touched_ts=touched.get(pursuit.id),
             )
         )
     outside = sum(row.output for row in message_rows(session, None, window) if row.outside)

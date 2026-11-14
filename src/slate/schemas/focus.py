@@ -89,17 +89,18 @@ class FocusWindow(BaseModel):
 class PursuitStanding(BaseModel):
     """Where one pursuit stands against its share of the work.
 
-    `output_tokens` is the output of every worklog in the window whose record reaches the pursuit,
-    each worklog's split evenly across the pursuits it reaches. `usage` is that over the output
-    every pursuit drew, so the pursuits' usages sum to 1 where any drew some.
+    `split_output_tokens` is the pursuit's part of the output of every worklog in the window whose
+    record reaches it, each worklog's split evenly across the pursuits it reaches, so it may hold a
+    fraction. `usage` is that over the output every pursuit drew, so the pursuits' usages sum to 1
+    where any drew some.
 
     `share` is null where no focus is in force, or the pursuit is not active. `share_named` says
     the focus named it, rather than the pursuit taking its part of what the named shares left.
     `factor` is `2 ** (-usage / share)`: 0.5 at its share, toward 1 under it and toward 0 over it,
     and 0 where its share is 0. It is null where `share` is.
 
-    `last_worked_ts` is the latest touch on any initiative in the pursuit, as the live board reads
-    one. Null where the pursuit holds no initiative.
+    `touched_ts` is the latest `touched_ts` of any initiative in the pursuit, as the live board reads
+    it. Null where the pursuit holds no initiative.
     """
 
     number: int
@@ -107,11 +108,11 @@ class PursuitStanding(BaseModel):
     status: str
     share: float | None
     share_named: bool
-    output_tokens: float
+    split_output_tokens: float
     worklog_count: int
     usage: float
     factor: float | None
-    last_worked_ts: dt.datetime | None
+    touched_ts: dt.datetime | None
 
 
 class UnattributedUsage(BaseModel):
