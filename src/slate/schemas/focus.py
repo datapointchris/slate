@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Annotated
 
 from pydantic import BaseModel
+from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import StringConstraints
 
@@ -16,6 +17,8 @@ Statement = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 class FocusShareSet(BaseModel):
     """The share of the work a focus names for one pursuit, by the pursuit's number."""
 
+    model_config = ConfigDict(extra='forbid')
+
     pursuit: int
     share: Fraction
 
@@ -28,12 +31,16 @@ class FocusSet(BaseModel):
     the rest of 1 evenly on read.
     """
 
+    model_config = ConfigDict(extra='forbid')
+
     statement: Statement
     until_date: dt.date
     shares: list[FocusShareSet] = []
 
 
 class FocusEnd(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
     reason: Statement
 
 
