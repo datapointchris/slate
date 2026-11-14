@@ -502,8 +502,7 @@ def test_a_step_not_planned_is_set_whole_by_each_write_never_build_and_a_checked
     assert (
         wrote(client.patch(f'{INITIATIVES}/{created["number"]}', json={'not_planned_steps': []}), 'initiative')['not_planned_steps'] == []
     )
-    refused = ok(client.patch(f'{INITIATIVES}/{created["number"]}', json={'not_planned_steps': ['build']}), 422)
-    assert "build is always planned, because an initiative's issues are its build" in str(refused)
+    ok(client.patch(f'{INITIATIVES}/{created["number"]}', json={'not_planned_steps': ['build']}), 422)
 
     idea = wrote(client.post('/ideas', json={'title': 'Skip the shaping'}), 'idea', status.HTTP_201_CREATED)
     promoted = wrote(

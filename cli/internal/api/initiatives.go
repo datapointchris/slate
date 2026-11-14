@@ -26,13 +26,22 @@ const InitiativeStatusDropped = "dropped"
 // build, because an initiative's issues are its build.
 var InitiativeOptionalSteps = []string{"shape", "design", "preflight", "retro"}
 
+// InitiativeSteps is the steps of an initiative's life, which its read and its
+// board row both carry. Steps is each step checked on it in order, and Stage
+// the furthest of them, or idea before any. NotPlannedSteps is each step it
+// will not run, in order, which the queue never offers, and nil from an API
+// older than it.
+type InitiativeSteps struct {
+	Steps           []CheckedStep `json:"steps"`
+	Stage           string        `json:"stage"`
+	NotPlannedSteps []string      `json:"not_planned_steps"`
+}
+
 // Initiative is a bounded outcome a set of issues ships together. The counts
 // cover every issue in it. Repos names the repos its issues touch, leaving out
 // canceled issues and keeping completed ones. DependsOn is each initiative or
 // issue it waits on, and WaitingInitiatives each initiative waiting on it,
-// open or closed. Steps is each step checked on it in order, and Stage the
-// furthest of them, or idea before any. NotPlannedSteps is each step it will
-// not run, in order, which the queue never offers.
+// open or closed.
 type Initiative struct {
 	ID            string     `json:"id"`
 	Number        int        `json:"number"`
@@ -62,9 +71,7 @@ type Initiative struct {
 	Idea               *RecordSummary  `json:"idea"`
 	DependsOn          []RecordSummary `json:"depends_on"`
 	WaitingInitiatives []RecordSummary `json:"waiting_initiatives"`
-	Steps              []CheckedStep   `json:"steps"`
-	Stage              string          `json:"stage"`
-	NotPlannedSteps    []string        `json:"not_planned_steps"`
+	InitiativeSteps
 }
 
 // InitiativeDetail is an initiative with its claims, comments and documents.

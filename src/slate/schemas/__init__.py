@@ -48,6 +48,7 @@ from slate.schemas.idea import IdeaWritten
 from slate.schemas.initiative import Initiative
 from slate.schemas.initiative import InitiativeCreate
 from slate.schemas.initiative import InitiativeDetail
+from slate.schemas.initiative import InitiativeSteps
 from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.initiative import InitiativeUpdate
 from slate.schemas.initiative import InitiativeWritten
@@ -201,6 +202,7 @@ __all__ = [
     'InitiativeBoardText',
     'InitiativeCreate',
     'InitiativeDetail',
+    'InitiativeSteps',
     'InitiativeProgress',
     'InitiativeSummary',
     'InitiativeUpdate',

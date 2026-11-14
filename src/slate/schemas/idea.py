@@ -3,6 +3,7 @@ from typing import Annotated
 from typing import Literal
 from uuid import UUID
 
+from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import StringConstraints
 
@@ -59,8 +60,11 @@ class IdeaEvidenceLink(RecordModel):
 class IdeaPromote(RecordModel):
     """The initiative a promotion creates. An idea has no summary, so one is required. Each other field left out takes the idea's own.
 
-    An idea marks no step it will not run, so `not_planned_steps` left out plans every step.
+    An idea marks no step it will not run, so `not_planned_steps` left out plans every step. A field
+    it does not name is refused rather than dropped, so a client sending one learns it was not applied.
     """
+
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
 
     summary: SummaryText
     name: Title | None = None

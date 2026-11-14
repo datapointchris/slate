@@ -45,13 +45,13 @@ func notPlannedEdited(f *pflag.FlagSet, steps []string) (*[]string, error) {
 }
 
 // honoredNotPlannedWrite refuses a write whose answer marks other steps than
-// the --not-planned it was sent, as an API from before them drops the field and
+// the --not-planned it was sent, as an API without the field drops it and
 // answers as though it held it. A nil want sent none.
 func honoredNotPlannedWrite(want *[]string, number int, carried []string) error {
 	if want == nil || sameSet(*want, carried) {
 		return nil
 	}
-	return fmt.Errorf("the API ignored --not-planned: #%d was written not planning %s rather than %s, so it predates planned steps",
+	return fmt.Errorf("the API ignored --not-planned: #%d was written not planning %s rather than %s",
 		number, stepsOrNone(carried), stepsOrNone(*want))
 }
 

@@ -15,16 +15,13 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.models.worklog import StepName
 from slate.services.claim_views import unended_claim_views
 from slate.services.initiative_waits import waited_on
 from slate.services.initiative_waits import waiting_initiatives
 from slate.services.record_parts import record_parts
 from slate.services.record_pursuits import pursuits_of
-from slate.services.record_steps import initiative_steps
-from slate.services.record_steps import stage_of
+from slate.services.record_steps import initiative_step_views
 from slate.services.record_tags import own_tags
-from slate.services.steps_not_planned import steps_not_planned
 
 
 def issue_count_columns():
@@ -48,8 +45,7 @@ def initiative_view(
     idea: schemas.RecordSummary | None,
     depends_on: list[schemas.RecordSummary],
     waiting: list[schemas.RecordSummary],
-    steps: list[schemas.CheckedStep],
-    not_planned: list[StepName],
+    steps: schemas.InitiativeSteps,
     tags: list[str],
     pursuits: list[schemas.PursuitSummary],
 ) -> schemas.Initiative:
@@ -82,9 +78,7 @@ def initiative_view(
         idea=idea,
         depends_on=depends_on,
         waiting_initiatives=waiting,
-        steps=steps,
-        stage=stage_of(steps),
-        not_planned_steps=not_planned,
+        **dict(steps),
     )
 
 
@@ -93,8 +87,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
     claims = unended_claim_views(session, [initiative.number for initiative, _ in rows], dt.datetime.now(dt.UTC))
     depends_on = waited_on(session, [initiative.id for initiative, _ in rows])
     waiting = waiting_initiatives(session, [initiative.number for initiative, _ in rows])
-    steps = initiative_steps(session, [initiative for initiative, _ in rows])
-    not_planned = steps_not_planned(session, [initiative.id for initiative, _ in rows])
+    steps = initiative_step_views(session, [initiative for initiative, _ in rows])
     tags = own_tags(session, [initiative.number for initiative, _ in rows])
     pursuits = pursuits_of(session, [initiative.number for initiative, _ in rows])
     idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
@@ -112,8 +105,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
             ideas.get(initiative.idea_id) if initiative.idea_id else None,
             depends_on.get(initiative.id, []),
             waiting.get(initiative.number, []),
-            steps.get(initiative.number, []),
-            not_planned.get(initiative.id, []),
+            steps[initiative.number],
             tags.get(initiative.number, []),
             pursuits.get(initiative.number, []),
         )

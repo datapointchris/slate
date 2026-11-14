@@ -5,7 +5,7 @@ released, or ended by its record completing or its idea being promoted. A claim 
 nobody's go, and a record dropped or canceled abandoned it, so neither checks a step. An initiative
 also reads the steps checked on the idea promoted into it, because an idea is shaped before it has
 an initiative's number. Steps come in `WORKLOG_STEPS` order, which `worklog_steps.position` mirrors,
-and the stage is the furthest of them.
+and the stage is the furthest of them. A step it marks as not planned stays checked.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from slate import models
 from slate import schemas
 from slate.models.worklog import WORKLOG_STEPS
 from slate.models.worklog import StepName
+from slate.services.steps_not_planned import steps_not_planned
 
 # The endings that stopped a go without its step being done.
 UNPERFORMED_OUTCOMES = ('expired', 'dropped', 'canceled')
@@ -84,3 +85,16 @@ def initiative_steps(session: Session, initiatives: Sequence[models.Initiative])
 def stage_of(steps: list[schemas.CheckedStep]) -> schemas.RecordStage:
     """The furthest of `steps`, which `initiative_steps` answers in order, or `idea` before any."""
     return steps[-1].step if steps else 'idea'
+
+
+def initiative_step_views(session: Session, initiatives: Sequence[models.Initiative]) -> dict[int, schemas.InitiativeSteps]:
+    """Each initiative's steps by its number, as its read and its board row carry them: checked, its stage, and not planned."""
+    checked = initiative_steps(session, initiatives)
+    not_planned = steps_not_planned(session, [initiative.id for initiative in initiatives])
+    views: dict[int, schemas.InitiativeSteps] = {}
+    for initiative in initiatives:
+        steps = checked.get(initiative.number, [])
+        views[initiative.number] = schemas.InitiativeSteps(
+            steps=steps, stage=stage_of(steps), not_planned_steps=not_planned.get(initiative.id, [])
+        )
+    return views

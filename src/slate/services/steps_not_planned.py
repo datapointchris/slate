@@ -1,8 +1,7 @@
 """The steps of its life each initiative will not run, and the write replacing the set.
 
 A step with no row is planned, so an initiative nobody marked plans every step. `build` is never
-one, because an initiative's issues are its build. The request schema refuses it by name, and a
-check constraint holds it.
+one, because an initiative's issues are its build.
 """
 
 from __future__ import annotations

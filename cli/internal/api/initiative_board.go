@@ -107,9 +107,9 @@ type BoardIssue struct {
 // it: the unclosed in queue order, then the closed, latest first. ByRepo cuts
 // them by repo, most open first and no repo last, and an initiative with no
 // issues has one empty cut on no repo. An API older than the cut answers nil.
-// Steps, Stage and NotPlannedSteps are the initiative read's. TouchedTS is the
-// latest of when it was created, when a claim on it or one of its issues
-// started, and when one of its issues closed, and nil from an API older than it.
+// Its steps are the initiative read's. TouchedTS is the latest of when it was
+// created, when a claim on it or one of its issues started, and when one of its
+// issues closed, and nil from an API older than it.
 type BoardInitiative struct {
 	BoardCounts
 	Number   int    `json:"number"`
@@ -129,10 +129,7 @@ type BoardInitiative struct {
 	TouchedTS *time.Time        `json:"touched_ts"`
 	Issues    []BoardIssue      `json:"issues"`
 	ByRepo    []BoardRepoCounts `json:"by_repo"`
-	Steps     []CheckedStep     `json:"steps"`
-	Stage     string            `json:"stage"`
-	// NotPlannedSteps is nil from an API older than it.
-	NotPlannedSteps []string `json:"not_planned_steps"`
+	InitiativeSteps
 }
 
 // InitiativeBoard is the board as of ReadTS. Days are the calendar days each
