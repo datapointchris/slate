@@ -23,8 +23,8 @@ var InitiativeStatusesClosed = []string{"completed", InitiativeStatusDropped}
 const InitiativeStatusDropped = "dropped"
 
 // InitiativeOptionalSteps is what --not-planned accepts: every worklog step but
-// build, because an initiative's issues are its build.
-var InitiativeOptionalSteps = []string{"shape", "design", "preflight", "retro"}
+// preflight and build, which every initiative runs.
+var InitiativeOptionalSteps = []string{"shape", "design", "retro"}
 
 // InitiativeSteps is the steps of an initiative's life, which its read and its
 // board row both carry. Steps is each step checked on it in order, and Stage

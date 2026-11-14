@@ -20,9 +20,15 @@ var (
 		strings.Join(api.InitiativeOptionalSteps, ", ") + " (repeatable; replaces the set, empty plans every step)"
 )
 
+// alwaysPlannedSteps is each step every initiative runs, with why --not-planned
+// refuses it.
+var alwaysPlannedSteps = map[string]string{
+	"preflight": "work large enough to be an initiative needs one",
+	"build":     "an initiative's issues are its build",
+}
+
 // notPlannedEdited reads --not-planned: nil where it was not passed, an empty
-// set where it was passed empty, and the steps otherwise. build is refused,
-// because an initiative's issues are its build.
+// set where it was passed empty, and the steps otherwise.
 func notPlannedEdited(f *pflag.FlagSet, steps []string) (*[]string, error) {
 	switch readFlagIntent(f, "not-planned") {
 	case flagClears:
@@ -31,8 +37,8 @@ func notPlannedEdited(f *pflag.FlagSet, steps []string) (*[]string, error) {
 		return nil, goclikit.UsageError(errors.New("--not-planned given both a step and an empty one — an empty value plans every step, so pass one or the other"))
 	case flagCarriesValues:
 		for _, step := range steps {
-			if step == "build" {
-				return nil, goclikit.UsageError(errors.New("--not-planned build: build is always planned, because an initiative's issues are its build"))
+			if reason, always := alwaysPlannedSteps[step]; always {
+				return nil, goclikit.UsageError(fmt.Errorf("--not-planned %s: %s is always planned, because %s", step, step, reason))
 			}
 			if !slices.Contains(api.InitiativeOptionalSteps, step) {
 				return nil, goclikit.UsageError(fmt.Errorf("--not-planned: unknown step %q — one of: %s", step, strings.Join(api.InitiativeOptionalSteps, ", ")))

@@ -487,7 +487,7 @@ def test_a_summary_is_one_short_required_line_an_edit_can_change_and_never_clear
     ok(client.patch(f'{INITIATIVES}/{number}', json={'summary': None}), status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 
-def test_a_step_not_planned_is_set_whole_by_each_write_never_build_and_a_checked_one_stays_checked(client):
+def test_a_step_not_planned_is_set_whole_by_each_write_never_preflight_or_build_and_a_checked_one_stays_checked(client):
     created = wrote(
         client.post(INITIATIVES, json={'name': 'Lean', 'summary': 'It is done.', 'not_planned_steps': ['retro', 'design', 'design']}),
         'initiative',
@@ -497,12 +497,13 @@ def test_a_step_not_planned_is_set_whole_by_each_write_never_build_and_a_checked
     worklog = wrote(client.post('/worklogs', json={'record': created['number'], 'opened_by': 'chris', 'step': 'design'}), 'worklog', 201)
     ok(client.post(f'/worklogs/{worklog["name"]}/finish', json={'finished_by': 'chris'}))
 
-    edited = wrote(client.patch(f'{INITIATIVES}/{created["number"]}', json={'not_planned_steps': ['preflight', 'design']}), 'initiative')
-    assert (edited['not_planned_steps'], [step['step'] for step in edited['steps']]) == (['design', 'preflight'], ['design'])
+    edited = wrote(client.patch(f'{INITIATIVES}/{created["number"]}', json={'not_planned_steps': ['design', 'shape']}), 'initiative')
+    assert (edited['not_planned_steps'], [step['step'] for step in edited['steps']]) == (['shape', 'design'], ['design'])
     assert (
         wrote(client.patch(f'{INITIATIVES}/{created["number"]}', json={'not_planned_steps': []}), 'initiative')['not_planned_steps'] == []
     )
-    ok(client.patch(f'{INITIATIVES}/{created["number"]}', json={'not_planned_steps': ['build']}), 422)
+    for always_planned in ('preflight', 'build'):
+        ok(client.patch(f'{INITIATIVES}/{created["number"]}', json={'not_planned_steps': [always_planned]}), 422)
 
     idea = wrote(client.post('/ideas', json={'title': 'Skip the shaping'}), 'idea', status.HTTP_201_CREATED)
     promoted = wrote(

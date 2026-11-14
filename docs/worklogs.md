@@ -177,8 +177,9 @@ initiative reads print them. Nothing is read from a document's text, so a retro
 document checks `retro` only through a worklog of that step.
 
 A step the initiative marks as not planned is a fact apart from its checks.
-Marking one never unchecks it, and a worklog of a marked step still checks it.
-[issues.md](issues.md) covers the marks and how `next` skips them.
+`shape`, `design` and `retro` can be marked, and `preflight` and `build` never
+can. Marking one never unchecks it, and a worklog of a marked step still checks
+it. [issues.md](issues.md) covers the marks and how `next` skips them.
 
 ## A preflight worklog holds the token estimate of its record's work
 

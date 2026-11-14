@@ -7,7 +7,7 @@ from pydantic import AfterValidator
 from pydantic import ConfigDict
 from pydantic import model_validator
 
-from slate.models.worklog import OPTIONAL_STEPS
+from slate.models.worklog import ALWAYS_PLANNED_STEPS
 from slate.models.worklog import StepName
 from slate.schemas.claim import Claim
 from slate.schemas.not_null import NotNull
@@ -25,13 +25,13 @@ from slate.schemas.write_effects import Written
 InitiativeRef = UUID | int | str
 
 
-def refuse_build(step: StepName) -> StepName:
-    if step not in OPTIONAL_STEPS:
-        raise ValueError(f"{step} is always planned, because an initiative's issues are its build")
+def refuse_always_planned(step: StepName) -> StepName:
+    if step in ALWAYS_PLANNED_STEPS:
+        raise ValueError(f'{step} is always planned, because {ALWAYS_PLANNED_STEPS[step]}')
     return step
 
 
-NotPlannedStep = Annotated[StepName, AfterValidator(refuse_build)]
+NotPlannedStep = Annotated[StepName, AfterValidator(refuse_always_planned)]
 
 
 class InitiativeSummary(RecordModel):

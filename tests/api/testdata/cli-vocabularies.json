@@ -63,7 +63,6 @@
   "initiative_optional_steps": [
     "shape",
     "design",
-    "preflight",
     "retro"
   ],
   "pursuit_statuses": [

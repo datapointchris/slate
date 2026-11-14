@@ -87,7 +87,7 @@ class Initiative(NumberedRecord, Base):
 class InitiativeStepNotPlanned(Base):
     """A step of its life the initiative will not run, so the queue never offers it. A step with no row is planned.
 
-    `build` is never one, because an initiative's issues are its build.
+    `build` and `preflight` are never one, for the reasons `ALWAYS_PLANNED_STEPS` gives.
     """
 
     __tablename__ = 'initiative_steps_not_planned'
@@ -95,7 +95,7 @@ class InitiativeStepNotPlanned(Base):
     step: Mapped[str] = mapped_column(Text, ForeignKey('worklog_steps.name'), primary_key=True)
     created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
 
-    __table_args__ = (CheckConstraint("step <> 'build'", name='build_always_planned'),)
+    __table_args__ = (CheckConstraint("step NOT IN ('build', 'preflight')", name='never_build_or_preflight'),)
 
     def __repr__(self) -> str:
         return f'InitiativeStepNotPlanned(initiative_id={self.initiative_id!r}, step={self.step!r})'

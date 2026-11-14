@@ -256,9 +256,8 @@ def test_a_move_across_the_pin_and_a_pin_on_what_the_queue_cannot_hold_are_refus
 def test_an_initiative_skips_each_step_it_does_not_plan_and_once_none_is_left_lists_only_under_its_holder(client):
     """A coordinator holding an initiative that plans no retro still sees it in `claimed` once its last issue closes."""
     initiative(client, 'Ship the importer', priority=1, not_planned_steps=['shape'])
-    lean = initiative(client, 'Ship the exporter', priority=2, not_planned_steps=['design', 'preflight'])
+    lean = initiative(client, 'Ship the exporter', priority=2, not_planned_steps=['design'])
     finished = initiative(client, 'Ship the syncer', priority=3, not_planned_steps=['retro'])
-    initiative(client, 'Ship the parser', priority=4, not_planned_steps=['shape', 'design', 'preflight'])
     check_step(client, lean, 'shape')
     check_step(client, finished, 'preflight')
     issue(client, 'Write the exporter', initiative=lean)
@@ -266,6 +265,6 @@ def test_an_initiative_skips_each_step_it_does_not_plan_and_once_none_is_left_li
     hold(client, finished, 'coordinator')
     ok(client.patch(f'/issues/{last}', json={'status': 'completed'}))
 
-    assert rows(client) == [('Ship the importer', 'design', 1), ('Write the exporter', 'build', 2)]
+    assert rows(client) == [('Ship the importer', 'design', 1), ('Ship the exporter', 'preflight', 2), ('Write the exporter', 'build', 2)]
     claimed = ok(client.get(QUEUE))['claimed']
     assert [(row['title'], row['step'], row['holder']) for row in claimed] == [('Ship the syncer', 'build', 'coordinator')]

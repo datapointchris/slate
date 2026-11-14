@@ -84,8 +84,7 @@ def initiative_step(initiative: schemas.Initiative) -> Step | None:
     """The first planned step before building past its stage, else `build` while its issues are the work, else the first planned after.
 
     One that checked no step and holds open issues was built before steps existed, so its issues carry it.
-    None is no step to offer. That is one planning no step after building once its issues close, and one
-    at `idea` planning no step before building and holding no issue yet, whose issues carry its build once filed.
+    None is no step to offer, which is one planning no step after building once its issues close.
     """
     if initiative.stage == 'idea' and initiative.open_count:
         return BUILD
@@ -95,8 +94,6 @@ def initiative_step(initiative: schemas.Initiative) -> Step | None:
             return step
     if initiative.open_count:
         return BUILD
-    if initiative.stage == 'idea' and not initiative.issue_count:
-        return None
     return next((step for step in STEPS_AFTER_BUILD if step not in initiative.not_planned_steps), None)
 
 

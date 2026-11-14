@@ -226,7 +226,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 			"plans every step.",
 		Example: "  slate initiatives create --name \"Ship the tracker\" --summary \"Every project's work lives in it\" --priority high\n" +
 			"  slate initiatives create --name \"Build day\" --summary \"A day runs from one ordered stack\" --autofix=false\n" +
-			"  slate initiatives create --name \"Rename the flag\" --summary \"Every caller reads the new name\" --not-planned design --not-planned preflight",
+			"  slate initiatives create --name \"Rename the flag\" --summary \"Every caller reads the new name\" --not-planned design --not-planned retro",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -317,7 +317,7 @@ func newInitiativesEditCommand() *cobra.Command {
 		Example: "  slate initiatives edit \"Ship the tracker\" --priority urgent\n" +
 			"  slate initiatives edit 1491 --autofix=false\n" +
 			"  slate initiatives edit 1491 --tag security --pursuit \"Data Warehouse\"\n" +
-			"  slate initiatives edit 1491 --not-planned preflight --not-planned retro",
+			"  slate initiatives edit 1491 --not-planned design --not-planned retro",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),

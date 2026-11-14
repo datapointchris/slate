@@ -52,13 +52,11 @@ the worklog's own step names. So `slate next --step shape` is the work still to
 think through, and `--step preflight` the work to check before agents build it
 unattended.
 
-`next` never offers a step the initiative marks as not planned, so `shape` and
-`retro` appear only where planned. One marking `design` and `preflight` goes
-from `shape` straight to its issues. An initiative with no planned step left and
-no unclosed issue is no row of its own. Neither is one at `idea` that plans no
-step before building and holds no issue yet, because its issues carry its build
-once they are filed. Held, either is listed in `claimed` at `build`, so its
-holder still sees it.
+`next` never offers a step the initiative marks as not planned, so `shape`,
+`design` and `retro` appear only where planned. One marking `shape` and `design`
+goes from `idea` straight to `preflight`. An initiative with no planned step
+left and no unclosed issue is no row of its own. Held, it is listed in
+`claimed` at `build`, so its holder still sees it.
 
 `step` keeps one step's rows, so `slate next --step build` is the work an agent
 takes. A step never holds work back. An initiative offered `design` or
@@ -476,18 +474,21 @@ under each initiative with a step checked or not planned:
 
 ```text
   2804  ▰▱▱▱▱▱▱▱▱▱  1/10  Initiatives record the steps they went through  slate
-        ✓shape 11-09  ✓design 11-10  –preflight  · build  · retro
+        ✓shape 11-09  –design  ✓preflight 11-10  · build  · retro
 ```
 
-**An initiative marks the steps it will not run.** None but `build` is required,
-so `--not-planned <step>` on `slate initiatives create`, `slate initiatives edit`
-and `slate ideas promote` names any worklog step but `build`, and the flag's
-help lists them. It repeats, replaces the whole set, and `--not-planned ""`
-plans every step again, as `--tag` and `--pursuit` do. `build` is refused,
-because an initiative's issues are its build. These writes refuse a field they
-do not name with a 422. An API without the field drops it instead, so the CLI
-checks each answer marks the steps it sent. Each mark is a row of
-`initiative_steps_not_planned`, and a step with no row is planned, so an
+**An initiative marks the steps it will not run.** `shape`, `design` and
+`retro` can be marked, so `--not-planned <step>` on `slate initiatives create`,
+`slate initiatives edit` and `slate ideas promote` names one of them, and the
+flag's help lists them. It repeats, replaces the whole set, and
+`--not-planned ""` plans every step again, as `--tag` and `--pursuit` do.
+`preflight` and `build` are refused. Work large enough to be an initiative
+needs a preflight, the check that one coordinator can run the plan and the stop
+where the work plan is read before anything is dispatched. An initiative's
+issues are its build. The database refuses a row for either too. These writes
+refuse a field they do not name with a 422. An API without the field drops it
+instead, so the CLI checks each answer marks the steps it sent. Each mark is a
+row of `initiative_steps_not_planned`, and a step with no row is planned, so an
 initiative nobody marked plans every step. Every read answers
 `not_planned_steps` in position order, and the steps line draws a dash before
 each. A step checked before it was marked stays checked, and draws its check.

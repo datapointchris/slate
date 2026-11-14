@@ -53,10 +53,15 @@ WORKLOG_STEPS: list[str] = list(get_args(StepName))
 BUILD: StepName = 'build'
 STEPS_BEFORE_BUILD: tuple[StepName, ...] = get_args(StepName)[: WORKLOG_STEPS.index(BUILD)]
 STEPS_AFTER_BUILD: tuple[StepName, ...] = get_args(StepName)[WORKLOG_STEPS.index(BUILD) + 1 :]
-# The steps an initiative may mark as ones it will not run: all but `build`, because its issues are its build.
-OPTIONAL_STEPS: list[str] = [step for step in WORKLOG_STEPS if step != BUILD]
 # The step whose worklog's estimate `slate totals` sets beside its record's spend.
 PREFLIGHT: StepName = 'preflight'
+# The steps every initiative runs, each with why it cannot be marked as one it will not run.
+ALWAYS_PLANNED_STEPS: dict[StepName, str] = {
+    PREFLIGHT: 'work large enough to be an initiative needs one',
+    BUILD: "an initiative's issues are its build",
+}
+# The steps an initiative may mark as ones it will not run.
+OPTIONAL_STEPS: list[str] = [step for step in WORKLOG_STEPS if step not in ALWAYS_PLANNED_STEPS]
 
 
 def estimate_column(kind: str) -> str:
