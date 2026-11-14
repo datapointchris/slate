@@ -34,6 +34,7 @@ from sqlalchemy.orm import load_only
 from slate import models
 from slate import schemas
 from slate.models.record import PRIORITIES
+from slate.models.worklog import StepName
 from slate.services.claim_views import claim_view
 from slate.services.claim_views import live_claims_on_every_record
 from slate.services.initiative_progress import issue_state
@@ -47,6 +48,7 @@ from slate.services.record_pursuits import pursuits_of
 from slate.services.record_steps import initiative_steps
 from slate.services.record_steps import stage_of
 from slate.services.record_tags import own_tags
+from slate.services.steps_not_planned import steps_not_planned
 
 CLOSES_BY_DAY = 14
 
@@ -214,6 +216,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
         issues_in[issue.initiative_id].append(board_issue(issue, claims.get(issue.number), readiness))
 
     steps = initiative_steps(session, initiatives)
+    not_planned = steps_not_planned(session, [initiative.id for initiative in initiatives])
     numbers = [initiative.number for initiative in initiatives]
     tags, pursuits = own_tags(session, numbers), pursuits_of(session, numbers)
     touched = last_touched(session, initiatives)
@@ -223,6 +226,7 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
             issues_in[initiative.id],
             claims,
             steps.get(initiative.number, []),
+            not_planned.get(initiative.id, []),
             tags.get(initiative.number, []),
             pursuits.get(initiative.number, []),
             touched[initiative.number],
@@ -408,6 +412,7 @@ def board_initiative(
     issues: list[schemas.BoardIssue],
     claims: dict[int, models.Claim],
     steps: list[schemas.CheckedStep],
+    not_planned: list[StepName],
     tags: list[str],
     pursuits: list[schemas.PursuitSummary],
     touched: dt.datetime,
@@ -435,6 +440,7 @@ def board_initiative(
         ),
         steps=steps,
         stage=stage_of(steps),
+        not_planned_steps=not_planned,
         **counts_of(issues, calendar),
     )
 

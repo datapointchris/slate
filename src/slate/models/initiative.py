@@ -84,6 +84,23 @@ class Initiative(NumberedRecord, Base):
         return f'Initiative(id={self.id!r}, name={self.name!r}, status={self.status!r})'
 
 
+class InitiativeStepNotPlanned(Base):
+    """A step of its life the initiative will not run, so the queue never offers it. A step with no row is planned.
+
+    `build` is never one, because an initiative's issues are its build.
+    """
+
+    __tablename__ = 'initiative_steps_not_planned'
+    initiative_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey('initiatives.id', ondelete='CASCADE'), primary_key=True)
+    step: Mapped[str] = mapped_column(Text, ForeignKey('worklog_steps.name'), primary_key=True)
+    created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
+
+    __table_args__ = (CheckConstraint("step <> 'build'", name='build_always_planned'),)
+
+    def __repr__(self) -> str:
+        return f'InitiativeStepNotPlanned(initiative_id={self.initiative_id!r}, step={self.step!r})'
+
+
 class InitiativeDependency(Base):
     """`initiative_id`'s open issues are blocked while the record `depends_on_number` names is open.
 

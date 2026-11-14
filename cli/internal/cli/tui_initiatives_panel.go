@@ -99,7 +99,7 @@ func (b *initiativesBoard) initiativePanel(initiative api.BoardInitiative, long 
 	if len(initiative.Repos) > 0 {
 		lines = append(lines, dimLine(strings.Join(initiative.Repos, ", ")))
 	}
-	lines = append(lines, gotermboard.Line{}, heading("Steps"), stepMarksLine(initiative.Steps))
+	lines = append(lines, gotermboard.Line{}, heading("Steps"), stepMarksLine(initiative.Steps, initiative.NotPlannedSteps))
 	for _, step := range initiative.Steps {
 		line := gotermboard.Line{
 			gotermboard.C("✓ "+step.Step, gotermboard.Green),

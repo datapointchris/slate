@@ -30,6 +30,7 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		"initiative_statuses":        InitiativeStatuses,
 		"initiative_sorts":           InitiativeSorts,
 		"initiative_statuses_closed": InitiativeStatusesClosed,
+		"initiative_optional_steps":  InitiativeOptionalSteps,
 		"pursuit_statuses":           PursuitStatuses,
 		"record_kinds":               RecordKinds,
 		"document_kinds":             DocumentKinds,

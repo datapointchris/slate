@@ -60,6 +60,12 @@
     "completed",
     "dropped"
   ],
+  "initiative_optional_steps": [
+    "shape",
+    "design",
+    "preflight",
+    "retro"
+  ],
   "pursuit_statuses": [
     "active",
     "someday",

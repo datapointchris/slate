@@ -54,6 +54,13 @@ worklog's own step names. So `slate next --step shape` is the work still to
 think through, and `--step preflight` the work to check before agents build it
 unattended.
 
+`next` never offers a step the initiative marks as not planned. It offers the
+next planned step past its stage instead, and `shape` and `retro` only where
+planned. So one marking `design` and `preflight` goes from `shape` straight to
+its issues. An initiative with no planned step left and no unclosed issue is no
+row. Neither is one at `idea` that plans no step before building and holds no
+issue yet, because its issues carry its build once they are filed.
+
 `step` keeps one step's rows, so `slate next --step build` is the work an agent
 takes. A step never holds work back. An initiative at `design` or `preflight`
 is a row beside its open issues, which still list at `build`. An initiative at
@@ -465,13 +472,28 @@ in it. `stage` is the
 furthest, or `idea` before any. `services/record_steps.py` derives both on every
 read from the worklogs, so no stage is set by hand and none goes stale.
 [worklogs.md](worklogs.md) says when a step is checked. `slate show` prints a
-`steps:` line, and `slate initiatives list` prints the same marks under each
-initiative with a checked step:
+`steps:` line, and `slate initiatives list` and `slate tui` print the same marks
+under each initiative with a step checked or not planned:
 
 ```text
   2804  ▰▱▱▱▱▱▱▱▱▱  1/10  Initiatives record the steps they went through  slate
-        ✓shape 11-09  ✓design 11-10  · preflight  · build  · retro
+        ✓shape 11-09  ✓design 11-10  –preflight  · build  · retro
 ```
+
+**An initiative marks the steps it will not run.** None but `build` is required,
+so `--not-planned <step>` on `slate initiatives create`, `slate initiatives edit`
+and `slate ideas promote` names one of `shape`, `design`, `preflight` and
+`retro`. It repeats, replaces the whole set, and `--not-planned ""` plans every
+step again, as `--tag` and `--pursuit` do. `build` is refused, because an
+initiative's issues are its build. The CLI checks each answer marks the steps
+it sent, because an API from before the marks drops the field and answers as
+though it held it. Each mark is a row of
+`initiative_steps_not_planned`, and a step with no row is planned, so an
+initiative nobody marked plans every step. Every read answers
+`not_planned_steps` in position order, and the steps line draws a dash before
+each. A step checked before it was marked stays checked, and draws its check.
+The choice is recorded before the work, so initiatives that skipped a step can
+be compared with those that ran it.
 
 ## An initiative's progress counts each of its issues in one state
 

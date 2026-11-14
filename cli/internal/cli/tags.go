@@ -43,14 +43,15 @@ func tagsEdited(f *pflag.FlagSet, values []string) (*[]string, error) {
 // --tag it was sent, as an API from before tags drops it and answers as though
 // it held it. A nil want sent none, so there is nothing to check.
 func honoredTagWrite(want *[]string, number int, carried []string) error {
-	if want == nil || sameTags(*want, carried) {
+	if want == nil || sameSet(*want, carried) {
 		return nil
 	}
 	return fmt.Errorf("the API ignored --tag: #%d was written carrying %s rather than %s, so it predates tags",
 		number, tagsOrNone(carried), tagsOrNone(*want))
 }
 
-func sameTags(a, b []string) bool {
+// sameSet is whether a and b hold the same strings, whatever their order or repeats.
+func sameSet(a, b []string) bool {
 	x, y := slices.Clone(a), slices.Clone(b)
 	slices.Sort(x)
 	slices.Sort(y)

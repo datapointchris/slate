@@ -49,6 +49,8 @@ WORKLOG_OUTCOMES = [WORKLOG_FINISHED, *CLAIM_ENDINGS]
 # The step of a record's life a worklog performed, in the order `worklog_steps.position` holds.
 StepName = Literal['shape', 'design', 'preflight', 'build', 'retro']
 WORKLOG_STEPS: list[str] = list(get_args(StepName))
+# The steps an initiative may mark as ones it will not run: all but `build`, because its issues are its build.
+OPTIONAL_STEPS: list[str] = [step for step in WORKLOG_STEPS if step != 'build']
 # The step whose worklog's estimate `slate totals` sets beside its record's spend.
 PREFLIGHT: StepName = 'preflight'
 

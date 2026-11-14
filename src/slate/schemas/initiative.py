@@ -1,9 +1,13 @@
 import datetime as dt
+from typing import Annotated
 from typing import Any
 from uuid import UUID
 
+from pydantic import AfterValidator
 from pydantic import model_validator
 
+from slate.models.worklog import OPTIONAL_STEPS
+from slate.models.worklog import StepName
 from slate.schemas.claim import Claim
 from slate.schemas.not_null import NotNull
 from slate.schemas.pursuit import InPursuits
@@ -18,6 +22,15 @@ from slate.schemas.write_effects import Written
 
 # An initiative answers to its UUID, its number or its name, and the API resolves each.
 InitiativeRef = UUID | int | str
+
+
+def refuse_build(step: StepName) -> StepName:
+    if step not in OPTIONAL_STEPS:
+        raise ValueError(f"{step} is always planned, because an initiative's issues are its build")
+    return step
+
+
+NotPlannedStep = Annotated[StepName, AfterValidator(refuse_build)]
 
 
 class InitiativeSummary(RecordModel):
@@ -53,12 +66,13 @@ class InitiativeCreate(InitiativeWrite):
     autofix: bool = False
     tags: list[str] = []
     pursuits: list[int] = []
+    not_planned_steps: list[NotPlannedStep] = []
 
 
 class InitiativeUpdate(InitiativeWrite):
     """`closed_ts` is stamped on the move into a terminal status and cleared on reopen.
 
-    `tags` and `pursuits` each replace the whole set.
+    `tags`, `pursuits` and `not_planned_steps` each replace the whole set.
     """
 
     name: NotNull[str] = None
@@ -70,6 +84,7 @@ class InitiativeUpdate(InitiativeWrite):
     autofix: NotNull[bool] = None
     tags: NotNull[list[str]] = None
     pursuits: NotNull[list[int]] = None
+    not_planned_steps: NotNull[list[NotPlannedStep]] = None
 
 
 class Initiative(InPursuits):
@@ -82,7 +97,8 @@ class Initiative(InPursuits):
     records of its priority in the queue. `depends_on` is each initiative or
     issue it waits on, and `waiting_initiatives` each initiative waiting on it,
     open or closed, by number. `steps` is each step checked on it, in position order, and `stage`
-    the furthest of them, or `idea` before any. Both are derived on every read. `tags` is the
+    the furthest of them, or `idea` before any. Both are derived on every read. `not_planned_steps`
+    is each step it will not run, in position order, which the queue never offers. `tags` is the
     initiative's own, and each of its issues reads them as its own too. `pursuits` is each
     pursuit it is in, in number order, and each of its issues reads them as its own.
     """
@@ -114,6 +130,7 @@ class Initiative(InPursuits):
     waiting_initiatives: list[RecordSummary] = []
     steps: list[CheckedStep] = []
     stage: RecordStage = 'idea'
+    not_planned_steps: list[StepName] = []
 
 
 class InitiativeDetail(Initiative, RecordParts):

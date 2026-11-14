@@ -2,6 +2,7 @@
 
 import datetime as dt
 
+from slate.models.worklog import StepName
 from slate.schemas.claim import Claim
 from slate.schemas.initiative_progress import IssueState
 from slate.schemas.initiative_progress import IssueStateCounts
@@ -113,9 +114,9 @@ class BoardInitiative(BoardCounts, InPursuits):
 
     `by_repo` cuts those issues by the repo each names, most open first and no repo last. An
     initiative with no issues has one empty cut on no repo, so every initiative sits under some repo.
-    `steps`, `stage`, `tags` and `pursuits` are the initiative read's. `touched_ts` is the latest
-    of when it was created, when a claim on it or one of its issues started, and when one of its
-    issues closed.
+    `steps`, `stage`, `not_planned_steps`, `tags` and `pursuits` are the initiative read's.
+    `touched_ts` is the latest of when it was created, when a claim on it or one of its issues
+    started, and when one of its issues closed.
     """
 
     number: int
@@ -134,6 +135,7 @@ class BoardInitiative(BoardCounts, InPursuits):
     by_repo: list[BoardRepoCounts]
     steps: list[CheckedStep]
     stage: RecordStage
+    not_planned_steps: list[StepName]
 
 
 class InitiativeBoard(RecordModel):

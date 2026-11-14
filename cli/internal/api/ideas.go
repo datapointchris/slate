@@ -89,6 +89,8 @@ type IdeaPromoteInput struct {
 	Autofix     *bool     `json:"autofix,omitempty"`
 	Tags        *[]string `json:"tags,omitempty"`
 	Pursuits    *[]int    `json:"pursuits,omitempty"`
+	// NotPlannedSteps left empty plans every step, because an idea marks none.
+	NotPlannedSteps []string `json:"not_planned_steps,omitempty"`
 }
 
 func ideaPath(ref string) string {
