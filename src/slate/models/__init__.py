@@ -7,6 +7,8 @@ from slate.models.comment import Comment
 from slate.models.document import Document
 from slate.models.document import DocumentKind
 from slate.models.document import DocumentVersion
+from slate.models.focus import Focus
+from slate.models.focus import FocusShare
 from slate.models.idea import Idea
 from slate.models.idea import IdeaEvidence
 from slate.models.initiative import Initiative
@@ -49,6 +51,8 @@ __all__ = [
     'Document',
     'DocumentKind',
     'DocumentVersion',
+    'Focus',
+    'FocusShare',
     'Idea',
     'IdeaEvidence',
     'Initiative',

@@ -27,6 +27,16 @@ from slate.schemas.document import DocumentVersionRef
 from slate.schemas.document import DocumentVersionSummary
 from slate.schemas.document import DocumentWrite
 from slate.schemas.document import DocumentWritten
+from slate.schemas.focus import Focus
+from slate.schemas.focus import FocusEnd
+from slate.schemas.focus import FocusSet
+from slate.schemas.focus import FocusShare
+from slate.schemas.focus import FocusShareSet
+from slate.schemas.focus import FocusStanding
+from slate.schemas.focus import FocusWindow
+from slate.schemas.focus import FocusWritten
+from slate.schemas.focus import PursuitStanding
+from slate.schemas.focus import UnattributedUsage
 from slate.schemas.idea import Idea
 from slate.schemas.idea import IdeaCreate
 from slate.schemas.idea import IdeaDetail
@@ -159,6 +169,7 @@ __all__ = [
     'Pursuit',
     'PursuitCreate',
     'PursuitDetail',
+    'PursuitStanding',
     'PursuitSummary',
     'PursuitUpdate',
     'PursuitWritten',
@@ -169,6 +180,14 @@ __all__ = [
     'DocumentVersionSummary',
     'DocumentWrite',
     'DocumentWritten',
+    'Focus',
+    'FocusEnd',
+    'FocusSet',
+    'FocusShare',
+    'FocusShareSet',
+    'FocusStanding',
+    'FocusWindow',
+    'FocusWritten',
     'Idea',
     'IdeaCreate',
     'IdeaDetail',
@@ -230,6 +249,7 @@ __all__ = [
     'TokenEstimate',
     'TokensByKind',
     'TotalsScope',
+    'UnattributedUsage',
     'Vocabulary',
     'WorkTotals',
     'Worklog',

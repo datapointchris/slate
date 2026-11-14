@@ -17,8 +17,9 @@ WORKLOGS_OBSERVE = 'slate.worklogs.observe'
 
 SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # Every read of a record of any kind, of who holds which, of the documents and comments on it,
-    # of the work's totals, and of the values each flag accepts. An issue in a series often has no
-    # description of its own, so a reader judging it needs its initiative's.
+    # of the work's totals, of the focus and each pursuit's standing against it, and of the values
+    # each flag accepts. An issue in a series often has no description of its own, so a reader
+    # judging it needs its initiative's.
     'slate.records.read': frozenset(
         {
             ('GET', f'{API_PREFIX}/records'),
@@ -30,6 +31,8 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/pursuits/{{ref:path}}'),
             ('GET', f'{API_PREFIX}/documents'),
             ('GET', f'{API_PREFIX}/documents/{{record}}/{{name}}'),
+            ('GET', f'{API_PREFIX}/focus'),
+            ('GET', f'{API_PREFIX}/focus/history'),
             ('GET', f'{API_PREFIX}/ideas'),
             ('GET', f'{API_PREFIX}/ideas/{{id}}'),
             ('GET', f'{API_PREFIX}/initiatives'),
@@ -92,6 +95,9 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # serves. Each write adds a version, so nothing a service writes overwrites what a person wrote,
     # and the version is written as its own client id.
     'slate.documents.write': frozenset({('PUT', f'{API_PREFIX}/documents/{{record}}/{{name}}')}),
+    # Setting and ending the focus, for a job applying a change of direction a person asked for.
+    # A set ends the focus in force and writes the client id as who set the new one.
+    'slate.focus.write': frozenset({('PUT', f'{API_PREFIX}/focus'), ('POST', f'{API_PREFIX}/focus/end')}),
     # Closing an issue, for a job closing an issue whose fix merged. The update handler narrows a
     # body naming `status` or `closed_by` to the close of an open issue.
     ISSUES_CLOSE: frozenset({('PATCH', f'{API_PREFIX}/issues/{{id}}')}),

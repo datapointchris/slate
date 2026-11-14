@@ -29,6 +29,7 @@ from slate.api.callers import get_current_caller
 from slate.api.endpoints import claims
 from slate.api.endpoints import comments
 from slate.api.endpoints import documents
+from slate.api.endpoints import focus
 from slate.api.endpoints import ideas
 from slate.api.endpoints import initiatives
 from slate.api.endpoints import issues
@@ -63,6 +64,7 @@ RESOURCE_ROUTERS: tuple[tuple[str, APIRouter], ...] = (
     ('/comments', comments.router),
     ('/pursuits', pursuits.router),
     ('/documents', documents.router),
+    ('/focus', focus.router),
     ('/ideas', ideas.router),
     ('/initiatives', initiatives.router),
     ('/issues', issues.router),

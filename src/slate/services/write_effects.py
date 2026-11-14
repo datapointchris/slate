@@ -65,6 +65,17 @@ class WriteEffectCode(enum.StrEnum):
     # A warning on deleting a record another holder's live claim was on.
     DELETED_ANOTHERS_CLAIM = 'deleted_anothers_claim'
 
+    # Side effects of setting a focus: it ended the focus in force, or one already past its
+    # `until_date`. Warnings on a focus write: an end found the focus already past its
+    # `until_date`, or none to end, a set named what the focus in force holds, and named shares
+    # leave part of the work to no pursuit.
+    FOCUS_REPLACED = 'focus_replaced'
+    LAPSED_FOCUS_ENDED = 'lapsed_focus_ended'
+    FOCUS_LAPSED = 'focus_lapsed'
+    NO_FOCUS_TO_END = 'no_focus_to_end'
+    FOCUS_UNCHANGED = 'focus_unchanged'
+    SHARES_UNDER_ONE = 'shares_under_one'
+
     # A warning on linking evidence an idea already links.
     EVIDENCE_ALREADY_LINKED = 'evidence_already_linked'
 
