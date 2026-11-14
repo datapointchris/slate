@@ -176,6 +176,7 @@ func NewRootCommand() *cobra.Command {
 	)...)
 	root.AddCommand(inGroup(groupPlanning,
 		withAPIFlag(newPursuitsCommand()),
+		withAPIFlag(newFocusCommand()),
 		withAPIFlag(newIdeasCommand()),
 		withAPIFlag(newInitiativesCommand()),
 		withAPIFlag(newIssuesCommand()),
