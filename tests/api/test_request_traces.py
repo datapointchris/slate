@@ -41,11 +41,14 @@ def test_a_hold_continues_the_callers_trace_and_names_its_record_worklog_and_bag
     hold = next(span for span in exporter.get_finished_spans() if span.kind == SpanKind.SERVER and span.name == 'POST /api/v1/claims')
     assert format_trace_id(hold.context.trace_id) == CALLER_TRACE_ID
     assert hold.parent is not None and format_span_id(hold.parent.span_id) == CALLER_SPAN_ID
-    assert hold.attributes['slate.record.number'] == number
-    assert hold.attributes['slate.worklog'] == f'{number}.1'
-    assert hold.attributes['flow.id'] == 'flow-7'
+    attributes = hold.attributes
+    assert attributes is not None
+    assert attributes['slate.record.number'] == number
+    assert attributes['slate.worklog'] == f'{number}.1'
+    assert attributes['flow.id'] == 'flow-7'
+    effects = [(event.name, event.attributes or {}) for event in hold.events]
     assert ('slate.write_side_effect', 'worklog_opened', number) in [
-        (event.name, event.attributes['slate.write_effect.code'], event.attributes.get('slate.record.number')) for event in hold.events
+        (name, effect.get('slate.write_effect.code'), effect.get('slate.record.number')) for name, effect in effects
     ]
     assert audited == f'00-{CALLER_TRACE_ID}-{format_span_id(hold.context.span_id)}-01'
 

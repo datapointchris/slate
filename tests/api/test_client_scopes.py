@@ -9,6 +9,7 @@ import json
 from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from fastapi import status
@@ -82,7 +83,7 @@ SCOPED_URLS = {
 # hold of the queue's head, the extend, wait, resume and release of the claim the fixture seeds, each
 # write on the worklog the fixture seeds, the comment saying what landed, the update that completes
 # the issue and names the job closing it, and each edit a planning job makes to the queue.
-SCOPED_WRITES = {
+SCOPED_WRITES: dict[tuple[str, str, str], tuple[str, dict[str, Any] | None, int]] = {
     (CLAIM, 'POST', f'{API_PREFIX}/claims'): ('/claims', {'record': '{issue}', 'holder': SERVICE, 'minutes': 60}, status.HTTP_200_OK),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/next'): ('/claims/next', {'holder': SERVICE}, status.HTTP_200_OK),
     (CLAIM, 'POST', f'{API_PREFIX}/claims/{{record}}/extend'): ('/claims/{neighbor}/extend', {'holder': SERVICE}, status.HTTP_200_OK),

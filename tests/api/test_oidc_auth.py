@@ -11,6 +11,7 @@ from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 from types import SimpleNamespace
+from typing import Any
 
 import jwt
 import pytest
@@ -149,7 +150,7 @@ def make_request(authorization: str | None = None) -> Request:
     return Request(scope)
 
 
-def oidc_settings(idp: IdentityProviderStub) -> SimpleNamespace:
+def oidc_settings(idp: IdentityProviderStub) -> Any:
     return SimpleNamespace(
         oidc=SimpleNamespace(issuer=idp.url, cli_client_id_prefix=CLI_CLIENT_ID_PREFIX, service_client_id_prefix=SERVICE_CLIENT_ID_PREFIX)
     )
@@ -350,7 +351,7 @@ class TestUserAgent:
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):  # noqa: N802
                 seen.append(self.headers.get('User-Agent', ''))
-                body = json.dumps({'issuer': self.server.issuer, 'jwks_uri': f'{self.server.issuer}/jwks.json'}).encode()
+                body = json.dumps({'issuer': issuer, 'jwks_uri': f'{issuer}/jwks.json'}).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('Content-Length', str(len(body)))
@@ -361,11 +362,11 @@ class TestUserAgent:
                 pass
 
         server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-        server.issuer = f'http://127.0.0.1:{server.server_port}'
+        issuer = f'http://127.0.0.1:{server.server_port}'
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            discover_jwks_uri(server.issuer)
+            discover_jwks_uri(issuer)
         finally:
             server.shutdown()
             server.server_close()

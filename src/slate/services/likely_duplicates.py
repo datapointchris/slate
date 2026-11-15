@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from sqlalchemy import ColumnElement
+from sqlalchemy import ColumnExpressionArgument
 from sqlalchemy import Text
 from sqlalchemy import func
 from sqlalchemy import literal
@@ -34,7 +35,7 @@ MOST_NAMED = 3
 ENGLISH = literal_column("'english'", REGCONFIG)
 
 
-def stems(column: ColumnElement[str]) -> ColumnElement[list[str]]:
+def stems(column: ColumnExpressionArgument[str]) -> ColumnElement[list[str]]:
     return func.tsvector_to_array(func.to_tsvector(ENGLISH, column), type_=ARRAY(Text))
 
 
