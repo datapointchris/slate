@@ -17,6 +17,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/datapointchris/slate/cli/internal/api"
+	"github.com/datapointchris/slate/cli/internal/config"
 )
 
 // The size --once draws at where neither the environment nor a terminal gives one.
@@ -74,6 +75,9 @@ func newTUICommand() *cobra.Command {
 			"open and no close in those weeks fold under quiet. The panel draws a repo's\n" +
 			"closes per week as columns and its ready issues by how long each has waited, and\n" +
 			"on the total every repo's. s cycles the order.\n\n" +
+			"The next run opens on the tab last moved to, unless --view names one. Each tab\n" +
+			"keeps its p panel, f summaries, v grouping, and the groups and rows folded and\n" +
+			"opened, in $XDG_STATE_HOME/slate/tui-display.json. A run --grouping names keeps none.\n\n" +
 			"--once prints one frame at COLUMNS by LINES, and --json the snapshot it is drawn\n" +
 			"from, so an agent reads what a person reads. --grouping opens the initiatives tab\n" +
 			"at a grouping, as v leaves it. With no terminal and neither flag it refuses.",
@@ -127,6 +131,10 @@ func newTUICommand() *cobra.Command {
 			}, gotermstyle.PaletteFor(os.Stdout), view)
 			if err != nil {
 				return err
+			}
+			// A remembered grouping would override the one --grouping names, so that run keeps none.
+			if path := config.StatePath("tui-display.json"); path != "" && grouping == "" {
+				tabs.RemembersDisplayIn(path)
 			}
 			_, err = tea.NewProgram(tabs).Run()
 			return err
