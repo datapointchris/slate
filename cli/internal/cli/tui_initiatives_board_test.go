@@ -82,6 +82,24 @@ func TestAScopeCutsTheBoardInTheClient(t *testing.T) {
 	}
 }
 
+func TestAPinnedInitiativeDrawsInItsOwnTierAheadOfEveryPriority(t *testing.T) {
+	read := sevenHighAndTwoLow()
+	pinnedTS := time.Now()
+	read.Initiatives = append([]api.BoardInitiative{read.Initiatives[8]}, read.Initiatives[:8]...)
+	read.Initiatives[0].PinnedTS = &pinnedTS
+	read.Pinned = &api.BoardRollup{InitiativeCount: 1}
+	read.Tiers[1].InitiativeCount = 1
+	board := boardFromServer(t, read, boardScope{kind: scopePerTier, perTier: 5})
+	screen := gotermboard.Once(board, gotermstyle.NewPalette(false), 120, 40)
+	order := []int{
+		strings.Index(screen, "pinned · 1"), strings.Index(screen, "initiative 9"),
+		strings.Index(screen, "high · 5 of 7"), strings.Index(screen, "low · 1"), strings.Index(screen, "initiative 8"),
+	}
+	if slices.Contains(order, -1) || !slices.IsSorted(order) {
+		t.Errorf("the pinned low initiative should draw under pinned, ahead of high, and leave low with the other:\n%s", screen)
+	}
+}
+
 func TestANumberInProseColorsOnlyWhereItNamesARecord(t *testing.T) {
 	board := &initiativesBoard{records: map[int]bool{1888: true, 2026: true}}
 	for text, want := range map[string]string{

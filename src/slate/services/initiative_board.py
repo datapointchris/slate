@@ -230,13 +230,15 @@ def initiative_board(session: Session, initiative_status: str, zone: str) -> sch
         for initiative in initiatives
     ]
     elsewhere = closes_off_the_board(session, initiatives, calendar)
+    unpinned = [row for row in rows if row.pinned_ts is None]
     return schemas.InitiativeBoard(
         read_ts=now,
         zone=zone,
         days=days,
         totals=schemas.BoardRollup(**rollup_of(rows, calendar)),
+        pinned=schemas.BoardRollup(**rollup_of([row for row in rows if row.pinned_ts is not None], calendar)),
         tiers=[
-            schemas.BoardTier(priority=priority, **rollup_of([row for row in rows if row.priority == priority], calendar))
+            schemas.BoardTier(priority=priority, **rollup_of([row for row in unpinned if row.priority == priority], calendar))
             for priority in sorted(PRIORITIES, key=urgency)
         ],
         repos=repo_rollups(rows, calendar),

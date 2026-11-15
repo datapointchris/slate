@@ -468,7 +468,8 @@ func printIdeasTable(out io.Writer, ideas []api.Idea) {
 func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 	p := gotermstyle.PaletteFor(out)
 	_, _ = fmt.Fprintf(out, "%s  %s\n", p.Cyan("#"+strconv.Itoa(idea.Number)), p.Bold(idea.Title))
-	_, _ = fmt.Fprintf(out, "  priority:    %s\n", tierColor(p, idea.Priority)(priorityName(idea.Priority)))
+	priority := tierColor(p, idea.Priority)(priorityName(idea.Priority))
+	_, _ = fmt.Fprintf(out, "  priority:    %s\n", withPin(priority, idea.PinnedTS, idea.PinnedBy))
 	if len(idea.Tags) > 0 {
 		_, _ = fmt.Fprintf(out, "  tags:        %s\n", strings.Join(idea.Tags, ", "))
 	}

@@ -136,8 +136,9 @@ class BoardInitiative(BoardCounts, InPursuits, InitiativeSteps):
 class InitiativeBoard(RecordModel):
     """The board as of `read_ts`. `days` are the calendar days each `by_day` counts, oldest first, in `zone`.
 
-    `tiers` holds every priority, most urgent first and `none` last, whether or not any initiative
-    is at it. `repos` rolls up each repo the initiatives' cuts name, most open first and no repo
+    `pinned` rolls up the initiatives a person pinned, which sort ahead of every priority. `tiers`
+    holds every priority, most urgent first and `none` last, whether or not any initiative is at
+    it, and each counts only its unpinned initiatives. `repos` rolls up each repo the initiatives' cuts name, most open first and no repo
     last. `pursuits` holds every active pursuit and each other one an initiative it counts is
     in, and `tags` every tag. Each puts the fewest closes in 30 days first, then the rest by name,
     and the initiatives in none last, where any are. `initiatives` comes in the order
@@ -148,6 +149,7 @@ class InitiativeBoard(RecordModel):
     zone: str
     days: list[dt.date]
     totals: BoardRollup
+    pinned: BoardRollup
     tiers: list[BoardTier]
     repos: list[BoardRepoRollup]
     pursuits: list[BoardPursuitRollup]

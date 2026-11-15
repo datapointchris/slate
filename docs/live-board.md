@@ -137,7 +137,10 @@ read, and the burn-up says the API answers none.
 
 ## `v` groups the same initiatives by tier, repo, pursuit, tag or alone
 
-Tier is the default, because priority is the order the queue takes them in. Repo draws a group
+Tier is the default, because priority is the order the queue takes them in. A pin outranks
+every priority, so pinned initiatives draw as a `pinned` tier ahead of `urgent`, and each
+priority's tier counts only its unpinned ones. The board read rolls the pinned up apart, so
+`pinned · 1` sums no count in the client. Repo draws a group
 per repo the issues name, the most open first and `no repo` last. Under it sits each initiative
 with an issue there, cut to its issues there, so its bar and counts are that repo's share. An
 initiative spanning three repos draws three times, and one with no issues sits under `no repo`.

@@ -93,7 +93,7 @@ func (b *initiativesBoard) Frame(now time.Time, grouping string) gotermboard.Fra
 	case groupingInitiative:
 		frame.Groups = append(frame.Groups, b.initiativeGroups(ordered, "", nil, ordered, drawn)...)
 	default:
-		for _, tier := range read.Tiers {
+		for _, tier := range boardTiers(read) {
 			if tier.InitiativeCount == 0 {
 				continue
 			}
@@ -146,11 +146,11 @@ func totalGroup(read api.InitiativeBoard, now time.Time) gotermboard.Group {
 	}
 }
 
-func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInitiative, drawn boardDraw) gotermboard.Group {
+func (b *initiativesBoard) tierGroup(tier boardTier, ordered []api.BoardInitiative, drawn boardDraw) gotermboard.Group {
 	var inTier []api.BoardInitiative
 	showing := 0
 	for _, initiative := range ordered {
-		if initiative.Priority != tier.Priority {
+		if !tier.holds(initiative) {
 			continue
 		}
 		inTier = append(inTier, initiative)
@@ -158,13 +158,13 @@ func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInit
 			showing++
 		}
 	}
-	label := priorityName(tier.Priority) + " · " + strconv.Itoa(tier.InitiativeCount)
+	label := tier.name() + " · " + strconv.Itoa(tier.InitiativeCount)
 	if showing != tier.InitiativeCount {
-		label = fmt.Sprintf("%s · %d of %d", priorityName(tier.Priority), showing, tier.InitiativeCount)
+		label = fmt.Sprintf("%s · %d of %d", tier.name(), showing, tier.InitiativeCount)
 	}
 	counts := tier.BoardCounts
 	return gotermboard.Group{
-		Key:        "tier:" + strconv.Itoa(tier.Priority),
+		Key:        tier.key(),
 		Title:      gotermboard.Line{gotermboard.C(label, tierTone)},
 		Cells:      toned(boardCells(counts, drawn.now), tierTone),
 		WrapLast:   append(scaledBar(counts), gotermboard.C("  ", ""), gotermboard.C(sparkLine(counts.Closes.ByDay), gotermboard.Green)),
@@ -175,7 +175,7 @@ func (b *initiativesBoard) tierGroup(tier api.BoardTier, ordered []api.BoardInit
 		Tone:       tierTone,
 		Groups:     b.initiativeGroups(inTier, "", nil, ordered, drawn),
 		Panel: func(int) []gotermboard.Line {
-			return rollupPanel(gotermboard.Line{gotermboard.C(label, tierCode(tier.Priority)+gotermboard.Bold)}, counts, drawn.now)
+			return rollupPanel(gotermboard.Line{gotermboard.C(label, tier.code()+gotermboard.Bold)}, counts, drawn.now)
 		},
 	}
 }

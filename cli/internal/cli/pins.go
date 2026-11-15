@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -91,4 +92,12 @@ func newIdeasPinCommand() *cobra.Command {
 
 func newIdeasUnpinCommand() *cobra.Command {
 	return newUnpinCommand("idea", "  slate ideas unpin 1530")
+}
+
+// withPin is a detail view's priority, followed by the pin that holds the record ahead of it.
+func withPin(priority string, pinnedTS *time.Time, pinnedBy *string) string {
+	if pinnedTS == nil {
+		return priority
+	}
+	return fmt.Sprintf("%s — pinned ahead of every priority by %s on %s", priority, orDash(strValue(pinnedBy)), localDay(*pinnedTS))
 }

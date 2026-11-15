@@ -575,7 +575,7 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 	if issue.EffectivePriority != issue.Priority {
 		priority += " (inherited; its own is " + priorityName(issue.Priority) + ")"
 	}
-	field("priority", priority)
+	field("priority", withPin(priority, issue.PinnedTS, issue.PinnedBy))
 	field("repo", orDash(strValue(issue.Repo)))
 	if issue.Initiative != nil {
 		field("initiative", fmt.Sprintf("%d %s", issue.Initiative.Number, issue.Initiative.Name))

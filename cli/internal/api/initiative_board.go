@@ -133,8 +133,10 @@ type BoardInitiative struct {
 }
 
 // InitiativeBoard is the board as of ReadTS. Days are the calendar days each
-// ByDay counts, oldest first, in Zone. Tiers holds every priority, whether or
-// not an initiative is at it. Repos rolls up each repo the initiatives' cuts
+// ByDay counts, oldest first, in Zone. Pinned rolls up the initiatives a person
+// pinned, and is nil from an API older than it. Tiers holds every priority,
+// whether or not an initiative is at it, each without the pinned ones where
+// Pinned is set. Repos rolls up each repo the initiatives' cuts
 // name, most open first and no repo last, and is nil from an API older than
 // it. Pursuits holds every active pursuit and each other one a counted
 // initiative is in, and Tags every tag, each the fewest closes in 30 days first
@@ -145,6 +147,7 @@ type InitiativeBoard struct {
 	Zone        string               `json:"zone"`
 	Days        []string             `json:"days"`
 	Totals      BoardRollup          `json:"totals"`
+	Pinned      *BoardRollup         `json:"pinned"`
 	Tiers       []BoardTier          `json:"tiers"`
 	Repos       []BoardRepoRollup    `json:"repos"`
 	Pursuits    []BoardPursuitRollup `json:"pursuits"`

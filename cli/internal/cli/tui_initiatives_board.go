@@ -252,16 +252,67 @@ func (b *initiativesBoard) readOnce(ctx context.Context) error {
 	return nil
 }
 
+// boardTier is one tier the board draws: the pinned initiatives, or one priority's others.
+type boardTier struct {
+	api.BoardRollup
+	pinned      bool
+	priority    int
+	pinnedApart bool
+}
+
+// boardTiers is the tiers in the order the queue takes them, the pinned first. An API
+// older than the pinned rollup leaves each pinned initiative in its priority's tier.
+func boardTiers(read api.InitiativeBoard) []boardTier {
+	apart := read.Pinned != nil
+	tiers := make([]boardTier, 0, len(read.Tiers)+1)
+	if apart {
+		tiers = append(tiers, boardTier{BoardRollup: *read.Pinned, pinned: true, pinnedApart: true})
+	}
+	for _, tier := range read.Tiers {
+		tiers = append(tiers, boardTier{BoardRollup: tier.BoardRollup, priority: tier.Priority, pinnedApart: apart})
+	}
+	return tiers
+}
+
+func (t boardTier) holds(initiative api.BoardInitiative) bool {
+	pinned := t.pinnedApart && initiative.PinnedTS != nil
+	return pinned == t.pinned && (t.pinned || initiative.Priority == t.priority)
+}
+
+func (t boardTier) name() string {
+	if t.pinned {
+		return "pinned"
+	}
+	return priorityName(t.priority)
+}
+
+func (t boardTier) key() string {
+	if t.pinned {
+		return "tier:pinned"
+	}
+	return "tier:" + strconv.Itoa(t.priority)
+}
+
+func (t boardTier) code() string {
+	if t.pinned {
+		return gotermboard.MarkCode
+	}
+	return tierCode(t.priority)
+}
+
+// tierAt is the place in tiers of the one an initiative draws in.
+func tierAt(tiers []boardTier, initiative api.BoardInitiative) int {
+	return slices.IndexFunc(tiers, func(tier boardTier) bool { return tier.holds(initiative) })
+}
+
 // orderedAndShown is the initiatives in the order the sort leaves them, and the numbers
 // the scope shows.
 func (b *initiativesBoard) orderedAndShown(read api.InitiativeBoard) ([]api.BoardInitiative, map[int]bool) {
 	ordered := slices.Clone(read.Initiatives)
+	tiers := boardTiers(read)
 	if compare := boardSorts[b.sort].compare; compare != nil {
-		tierAt := func(priority int) int {
-			return slices.IndexFunc(read.Tiers, func(tier api.BoardTier) bool { return tier.Priority == priority })
-		}
 		slices.SortStableFunc(ordered, func(x, y api.BoardInitiative) int {
-			return cmp.Or(cmp.Compare(tierAt(x.Priority), tierAt(y.Priority)), compare(&x, &y))
+			return cmp.Or(cmp.Compare(tierAt(tiers, x), tierAt(tiers, y)), compare(&x, &y))
 		})
 	}
 	shown := make(map[int]bool, len(ordered))
@@ -269,8 +320,9 @@ func (b *initiativesBoard) orderedAndShown(read api.InitiativeBoard) ([]api.Boar
 	for at, initiative := range ordered {
 		switch b.scope.kind {
 		case scopePerTier:
-			shown[initiative.Number] = seen[initiative.Priority] < b.scope.perTier
-			seen[initiative.Priority]++
+			tier := tierAt(tiers, initiative)
+			shown[initiative.Number] = seen[tier] < b.scope.perTier
+			seen[tier]++
 		case scopeFirstInList:
 			shown[initiative.Number] = at < b.scope.first
 		case scopeEveryInitiative:
@@ -283,9 +335,9 @@ func (b *initiativesBoard) orderedAndShown(read api.InitiativeBoard) ([]api.Boar
 // openingKey is the first initiative showing, in the tiers' order.
 func (b *initiativesBoard) openingKey(read api.InitiativeBoard) string {
 	ordered, shown := b.orderedAndShown(read)
-	for _, tier := range read.Tiers {
+	for _, tier := range boardTiers(read) {
 		for _, initiative := range ordered {
-			if initiative.Priority == tier.Priority && shown[initiative.Number] {
+			if tier.holds(initiative) && shown[initiative.Number] {
 				return initiativeKey(initiative.Number)
 			}
 		}

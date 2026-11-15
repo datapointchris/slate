@@ -353,6 +353,7 @@ def test_the_board_counts_each_issue_in_one_state_rolls_them_up_and_counts_only_
     )
     canceled = filed(urgent, 'Canceled', repo='left-out')
     filed(low, 'Low')
+    ok(client.post(f'{INITIATIVES}/{low}/pin', json={}))
     filed(someday, 'Shelved')
     ok(client.post('/claims', json={'record': running, 'holder': 'claude-code/s1'}))
     ok(client.post('/claims', json={'record': urgent, 'holder': 'claude-code/s2'}))
@@ -392,8 +393,10 @@ def test_the_board_counts_each_issue_in_one_state_rolls_them_up_and_counts_only_
     tiers = {tier['priority']: tier for tier in board['tiers']}
     assert [tier['priority'] for tier in board['tiers']] == [1, 2, 3, 4, 0]
     assert (tiers[1]['initiative_count'], tiers[1]['issue_count'], tiers[1]['closes']['last_30d']) == (1, 7, 2)
-    assert sum(tier['initiative_count'] for tier in board['tiers']) == board['totals']['initiative_count'] == len(listed)
-    assert sum(tier['issue_count'] for tier in board['tiers']) == board['totals']['issue_count']
+    assert (board['pinned']['initiative_count'], board['pinned']['issue_count'], tiers[4]['initiative_count']) == (1, 1, 0)
+    groups = [board['pinned'], *board['tiers']]
+    assert sum(group['initiative_count'] for group in groups) == board['totals']['initiative_count'] == len(listed)
+    assert sum(group['issue_count'] for group in groups) == board['totals']['issue_count']
 
     cuts = {cut['repo']: cut for cut in row['by_repo']}
     assert list(cuts) == ['zeta', 'alpha', 'left-out']

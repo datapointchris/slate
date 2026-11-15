@@ -111,7 +111,7 @@ func (v progressView) fit(text string, used int) string {
 
 func (v progressView) print(progress api.InitiativeProgress) {
 	p, initiative, states := v.p, progress.Initiative, progress.States
-	number, label, color := "#"+strconv.Itoa(initiative.Number), initiativeGroupLabel(initiative), tierColor(p, initiative.Priority)
+	number, label, color := "#"+strconv.Itoa(initiative.Number), initiativeStanding(initiative), tierColor(p, initiative.Priority)
 	if initiative.Status != "active" {
 		color = p.Magenta
 	}

@@ -576,9 +576,15 @@ func openKinds(s api.IssueStateCounts, open int) (underWay, blocked, rest int) {
 	return underWay, s.Blocked, max(open-underWay-s.Blocked, 0)
 }
 
-// initiativeGroupLabel is the header a row sits under in work order: its tier
-// while it is active, and its status once it is not.
+// initiativeGroupLabel is the header a row sits under in work order, where a pin outranks every tier.
 func initiativeGroupLabel(initiative api.Initiative) string {
+	if initiative.Status == "active" && initiative.PinnedTS != nil {
+		return "pinned"
+	}
+	return initiativeStanding(initiative)
+}
+
+func initiativeStanding(initiative api.Initiative) string {
 	if initiative.Status == "active" {
 		return priorityName(initiative.Priority)
 	}
@@ -603,7 +609,7 @@ func newInitiativeRows(out io.Writer, initiatives []api.Initiative, sort string)
 		numbers = append(numbers, strconv.Itoa(initiative.Number))
 		done = append(done, strconv.Itoa(initiative.CompletedCount))
 		totals = append(totals, strconv.Itoa(initiative.CompletedCount+initiative.OpenCount))
-		labels = append(labels, initiativeGroupLabel(initiative))
+		labels = append(labels, initiativeStanding(initiative))
 	}
 	return initiativeRows{
 		palette:   gotermstyle.PaletteFor(out),
@@ -628,7 +634,7 @@ func (r initiativeRows) row(initiative api.Initiative) string {
 	cells := []string{"", paint(p.Cyan, strconv.Itoa(initiative.Number), r.number)}
 	used := 2 + r.number
 	if !r.byTier {
-		label := initiativeGroupLabel(initiative)
+		label := initiativeStanding(initiative)
 		color := tierColor(p, initiative.Priority)
 		if initiative.Status != "active" {
 			color = p.Magenta
@@ -723,7 +729,7 @@ func printInitiativesTable(out io.Writer, initiatives []api.Initiative, sort str
 		// The color code leads because each one opens with a reset, which would
 		// undo a bold set before it.
 		code := tierCode(initiatives[i].Priority)
-		if initiatives[i].Status != "active" {
+		if initiatives[i].Status != "active" || label == "pinned" {
 			code = gotermstyle.CodeMagenta
 		}
 		_, _ = fmt.Fprintf(out, "%s · %d\n", p.Paint(code+gotermstyle.CodeBold, label), end-i)
@@ -746,7 +752,8 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	if reason := strValue(initiative.StatusReason); reason != "" {
 		_, _ = fmt.Fprintf(out, "  reason:     %s\n", reason)
 	}
-	_, _ = fmt.Fprintf(out, "  priority:   %s\n", tierColor(p, initiative.Priority)(priorityName(initiative.Priority)))
+	priority := tierColor(p, initiative.Priority)(priorityName(initiative.Priority))
+	_, _ = fmt.Fprintf(out, "  priority:   %s\n", withPin(priority, initiative.PinnedTS, initiative.PinnedBy))
 	if !initiative.Autofix {
 		_, _ = fmt.Fprintf(out, "  autofix:    off\n")
 	}
