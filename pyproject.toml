@@ -29,11 +29,18 @@ dependencies = [
   "structlog>=24.0.0",
   # The zone names the IANA database publishes, which `IanaZone` checks a name against.
   "tzdata>=2025.3",
+  # The server the image's CMD runs, which calls the `create_app` factory.
   "uvicorn[standard]>=0.29.0",
 ]
 
 [project.urls]
 Repository = "https://github.com/datapointchris/slate"
+
+[tool.deptry.per_rule_ignores]
+# Loaded by name rather than imported, so an import scan reports them unused.
+# tzdata: `iana_zone.py` reads its zone list with importlib.resources.files('tzdata').
+# uvicorn: the Dockerfile's CMD runs it as the server process.
+DEP002 = ["tzdata", "uvicorn"]
 
 [dependency-groups]
 dev = [
