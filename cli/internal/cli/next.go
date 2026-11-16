@@ -26,7 +26,7 @@ func newNextCommand() *cobra.Command {
 		queue     readyQueueFlags
 		step      string
 		limit     int
-		forRecord int
+		forRecord string
 	)
 	cmd := &cobra.Command{
 		Use:   "next",
@@ -84,11 +84,18 @@ func newNextCommand() *cobra.Command {
 			if cmd.Flags().Changed("step") && !slices.Contains(api.QueueSteps, step) {
 				return goclikit.UsageError(fmt.Errorf("unknown step %q — one of: %s", step, strings.Join(api.QueueSteps, ", ")))
 			}
+			var forNumber int
+			if cmd.Flags().Changed("for") {
+				forNumber, err = strconv.Atoi(strings.TrimPrefix(forRecord, "#"))
+				if err != nil || forNumber < 1 {
+					return goclikit.UsageError(fmt.Errorf("--for %q: a record number, such as 1544 or #1544", forRecord))
+				}
+			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			read, err := client.GetQueue(cmd.Context(), api.QueueFilter{ReadyFilter: filter, Step: step, For: forRecord}, issueZone())
+			read, err := client.GetQueue(cmd.Context(), api.QueueFilter{ReadyFilter: filter, Step: step, For: forNumber}, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
@@ -120,7 +127,7 @@ func newNextCommand() *cobra.Command {
 	queue.register(cmd)
 	cmd.Flags().StringVar(&step, "step", "", "Only rows at this step: "+strings.Join(api.QueueSteps, ", "))
 	withFlagValues(cmd, "step", api.QueueSteps...)
-	cmd.Flags().IntVar(&forRecord, "for", 0, "Only this record's open work and every open issue it transitively waits on")
+	cmd.Flags().StringVar(&forRecord, "for", "", "Only this record's open work and every open issue it transitively waits on")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the queue and the claimed work as JSON to stdout")
 	addCapFlag(cmd, &limit, defaultNextLimit, "Maximum number of queued records to show; claimed work is always shown")
 	return cmd

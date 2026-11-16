@@ -26,9 +26,9 @@ func TestNextForAPlanShowsEveryRowAndWhatEachUnblocks(t *testing.T) {
 	t.Cleanup(server.Close)
 	asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
 
-	out, err := runService(t, "next", "--for", "1544")
+	out, err := runService(t, "next", "--for", "#1544")
 	if err != nil {
-		t.Fatalf("slate next --for 1544: %v", err)
+		t.Fatalf("slate next --for '#1544': %v", err)
 	}
 	if !strings.Contains(out, fmt.Sprintf("Stage %d", len(rows)-1)) || !strings.Contains(out, "unblocks #2242") {
 		t.Errorf("the plan printed:\n%s", out)
