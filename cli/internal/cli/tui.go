@@ -31,6 +31,11 @@ const tabInitiatives = "initiatives"
 
 func tuiTabs() []string { return []string{tabInitiatives, tabRepos} }
 
+// onTerminal is whether a person holds the keyboard and sees the screen.
+func onTerminal() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+}
+
 func newTUICommand() *cobra.Command {
 	var (
 		view, initiativeStatus, grouping string
@@ -109,7 +114,7 @@ func newTUICommand() *cobra.Command {
 				return goclikit.UsageError(errors.New("--per-tier and --limit each set the scope, so give one of them"))
 			}
 			printing := once || asJSON
-			if !printing && (!term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stdout.Fd()))) {
+			if !printing && !onTerminal() {
 				return goclikit.UsageError(errors.New("slate tui needs a terminal; --once prints one frame and --json the snapshot"))
 			}
 			client, err := newAPIClient(cmd)

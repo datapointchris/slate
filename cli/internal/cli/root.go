@@ -83,26 +83,49 @@ const (
 	statusCredentialRefused = 5
 )
 
-// runRoot answers `slate` bare with its help, and refuses a word naming no
-// command the way every namespace does. `slate version` is refused too, with
-// the flag that prints the version named under it, because the version is a
-// flag rather than a command.
-func runRoot(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return cmd.Help()
+// runRoot answers `slate` bare with the board on a terminal and its help
+// anywhere else, and refuses a word naming no command the way every namespace
+// does. `slate version` is refused too, with the flag that prints the version
+// named under it, because the version is a flag rather than a command.
+func runRoot(tui *cobra.Command) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			if !onTerminal() {
+				return cmd.Help()
+			}
+			return runBare(cmd, tui)
+		}
+		refused := goclikit.UnknownCommand(cmd, args[0])
+		if args[0] == "version" {
+			return fmt.Errorf("%w\n\nThe version is a flag: %s --version", refused, cmd.CommandPath())
+		}
+		return refused
 	}
-	refused := goclikit.UnknownCommand(cmd, args[0])
-	if args[0] == "version" {
-		return fmt.Errorf("%w\n\nThe version is a flag: %s --version", refused, cmd.CommandPath())
+}
+
+// runsBare makes a namespace's bare form an alias for def, one of its own
+// commands run with no arguments, and keeps refusing a word naming no command.
+func runsBare(def *cobra.Command) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) > 0 {
+			return goclikit.UnknownCommand(cmd, args[0])
+		}
+		return runBare(cmd, def)
 	}
-	return refused
+}
+
+func runBare(cmd, def *cobra.Command) error {
+	def.SetContext(cmd.Context())
+	return def.RunE(def, nil)
 }
 
 func NewRootCommand() *cobra.Command {
+	tui := withAPIFlag(newTUICommand())
 	root := goclikit.AsNamespace(&cobra.Command{
 		Use:   "slate",
 		Short: "Work tracker built for coding agents",
-		Long: "slate tracks software work for the agents and people doing it.\n" +
+		Long: "slate tracks software work for the agents and people doing it. Bare\n" +
+			"slate opens `slate tui`, and prints this help with no terminal.\n" +
 			"\n" +
 			"The noun comes first and the verb last, so `slate issues list` becomes\n" +
 			"`slate issues edit` by changing the last word. These take no noun:\n" +
@@ -121,7 +144,8 @@ func NewRootCommand() *cobra.Command {
 			"and write takes --json.\n" +
 			"\n" +
 			"Authenticate once with `slate auth login <url>`. `slate auth status` shows\n" +
-			"where slate is pointed. Run any partial command bare to see what comes next.",
+			"where slate is pointed. Run any partial command with --help to see what\n" +
+			"comes next.",
 		Example: "  slate next --limit 1\n" +
 			"  slate show 42\n" +
 			"  slate claims hold 42\n" +
@@ -136,7 +160,7 @@ func NewRootCommand() *cobra.Command {
 		// "unknown command" error (exit 1). Subcommands, having a parent, are
 		// exempt from that validator.
 		Args: cobra.ArbitraryArgs,
-		RunE: runRoot,
+		RunE: runRoot(tui),
 	})
 	// Flag mistakes are marked goclikit.ErrUsage, so they exit 2. Inherited by subcommands.
 	// goclikit.Execute composes with this rather than replacing it, and keeping
@@ -172,7 +196,7 @@ func NewRootCommand() *cobra.Command {
 		withAPIFlag(newShowCommand()),
 		withAPIFlag(newSearchCommand()),
 		withAPIFlag(newTotalsCommand()),
-		withAPIFlag(newTUICommand()),
+		tui,
 	)...)
 	root.AddCommand(inGroup(groupPlanning,
 		withAPIFlag(newPursuitsCommand()),

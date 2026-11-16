@@ -24,10 +24,14 @@ var initiativeHints = []string{
 }
 
 func newInitiativesCommand() *cobra.Command {
+	list := newInitiativesListCommand()
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "initiatives",
 		Short: "Group the issues that ship one outcome",
-		Long: "An initiative is an outcome that finishes. Most issues belong to none. An\n" +
+		RunE:  runsBare(list),
+		Long: "Bare slate initiatives lists them, as slate initiatives list does.\n" +
+			"\n" +
+			"An initiative is an outcome that finishes. Most issues belong to none. An\n" +
 			"issue sorts no lower than its active initiative's priority. A finished\n" +
 			"initiative takes no new issues and leaves the ones it holds as they are. A\n" +
 			"someday initiative is held back until it is reopened, and so are its issues,\n" +
@@ -43,7 +47,7 @@ func newInitiativesCommand() *cobra.Command {
 	goclikit.WithRecoveryHints(cmd, initiativeHints...)
 	splitReadingFromChanging(cmd)
 	cmd.AddCommand(inGroup(groupReading,
-		newInitiativesListCommand(),
+		list,
 		newInitiativesShowCommand(),
 		newInitiativesProgressCommand(),
 		newInitiativesBoardCommand(),
