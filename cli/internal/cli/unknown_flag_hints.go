@@ -22,10 +22,12 @@ func withFlagValues(cmd *cobra.Command, flag string, values ...string) {
 // jobsOfAnotherCommand names, by command path and then flag name, the command
 // that does what a flag the command does not take would have done. An
 // initiative's place in the queue is moved relative to another, so no flag on
-// create or edit sets it.
+// create or edit sets it. An issue's status moves only through its lifecycle
+// verbs, so edit takes no --status.
 var jobsOfAnotherCommand = map[string]map[string]string{
 	"slate initiatives create": {"position": "slate initiatives reorder <initiative> --before <initiative> (or --after)"},
 	"slate initiatives edit":   {"position": "slate initiatives reorder <initiative> --before <initiative> (or --after)"},
+	"slate issues edit":        {"status": "slate issues accept|complete|cancel|reopen <issue>"},
 }
 
 // flagsSpelledOtherwise names, by command path and then flag name, the flag a
