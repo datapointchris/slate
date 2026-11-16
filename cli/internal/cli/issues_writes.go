@@ -206,15 +206,17 @@ func newIssuesCreateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create --title <title> [flags]",
 		Short: "File an issue",
-		Long: "--title is required. --type is one of " + strings.Join(api.IssueTypes, ", ") + " (default task).\n" +
+		Long: "--title is required. --type is one of\n" +
+			strings.Join(api.IssueTypes, ", ") + " (default task).\n" +
 			"--priority is one of " + priorityChoices() + " (default none).\n" +
 			"--status is " + strings.Join(createStatuses, " or ") + " (default open). --repo takes a registry name, and\n" +
 			"--initiative a number, name or id.\n" +
 			"\n" +
 			"Pass every field as a flag to file in one shot. Leave --title out at a\n" +
 			"terminal and the rest are asked for one at a time. Tab lists the choices for\n" +
-			"a field that has them. Label and Tag repeat until an empty answer, and Description\n" +
-			"and Acceptance take lines until a blank one. Ctrl-C abandons the issue.\n" +
+			"a field that has them. Label and Tag repeat until an empty answer, and\n" +
+			"Description and Acceptance take lines until a blank one. Ctrl-C abandons the\n" +
+			"issue.\n" +
 			"\n" +
 			"--status triage holds it for a person to accept before an agent may take it.\n" +
 			"Anything a hook or a script files belongs there.\n" +
@@ -803,7 +805,7 @@ func newReorderCommand(kind, rule, example string) *cobra.Command {
 			"records of its priority: ideas, initiatives with their issues, and issues in\n" +
 			"no initiative. Named beside an issue inside an initiative, it goes beside\n" +
 			"that whole initiative. A pinned record moves only among pinned ones, and\n" +
-			"`pin` and `unpin` cross that line. " + rule,
+			"`pin` and `unpin` cross that line.\n" + rule,
 		Example:     example,
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsPlan),

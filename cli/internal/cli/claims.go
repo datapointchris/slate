@@ -94,8 +94,8 @@ func newClaimsHoldCommand() *cobra.Command {
 			"so under the line naming the hold.\n" +
 			"\n" +
 			"The hold opens a worklog on the record and prints its name under the line.\n" +
-			"--json gives it as claim.worklog. The Claude Code session joins it, leaving any\n" +
-			"other worklog it was in, which is printed too. `slate worklogs` reads it.\n" +
+			"--json gives it as claim.worklog. The Claude Code session joins it, leaving\n" +
+			"any other worklog it was in, which is printed too. `slate worklogs` reads it.\n" +
 			"\n" +
 			stepHelp + "\n" +
 			"Holding a record you already hold keeps its worklog's step, and the warning\n" +
@@ -108,8 +108,9 @@ func newClaimsHoldCommand() *cobra.Command {
 			"lists them, and a hold naming one takes it. Finding nothing to hold warns and\n" +
 			"exits 0, and the warning names any initiative whose plan it passed over.\n" +
 			"\n" +
-			"--holder " + narrowedActorHelp + " The claim also records the Claude Code session\n" +
-			"from $CLAUDE_CODE_SESSION_ID, this host, and the working directory.",
+			"--holder " + narrowedActorHelp + "\n" +
+			"The claim also records the Claude Code session from $CLAUDE_CODE_SESSION_ID,\n" +
+			"this host, and the working directory.",
 		Example: "  slate claims hold 412\n" +
 			"  slate claims hold 412 --minutes 60\n" +
 			"  slate claims hold 2804 --step design\n" +

@@ -20,10 +20,11 @@ func newPinCommand(kind, closes, example string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pin <" + kind + ">",
 		Short: "Hold an " + kind + " at the top of `slate next`, above every priority",
-		Long: "A pin is the one way work crosses a priority. It stands until `unpin`, or until\n" +
-			"the " + kind + " " + closes + ", and whatever the pinned work waits on sorts just ahead\n" +
-			"of it. Pinned records sort among themselves by priority, then rank. Only a\n" +
-			"person reaches this, so an automated order never pins its own favorite.",
+		Long: "A pin is the one way work crosses a priority. It stands until `unpin`, or\n" +
+			"until the " + kind + " " + closes + ".\n" +
+			"Whatever the pinned work waits on sorts just ahead of it. Pinned records sort\n" +
+			"among themselves by priority, then rank. Only a person reaches this, so an\n" +
+			"automated order never pins its own favorite.",
 		Example:     example,
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
