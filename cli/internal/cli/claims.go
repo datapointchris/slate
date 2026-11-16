@@ -120,7 +120,10 @@ func newClaimsHoldCommand() *cobra.Command {
 		Annotations: scopesForService(scopeClaimsHold, scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
-			if next == (len(args) == 1) {
+			if !next && len(args) == 0 {
+				return goclikit.UsageError(errors.New("name a record to hold, or pass --next to hold the first issue slate next offers: slate claims hold <record> | slate claims hold --next"))
+			}
+			if next && len(args) == 1 {
 				return goclikit.UsageError(errors.New("name a record or pass --next, not both"))
 			}
 			if !next {
