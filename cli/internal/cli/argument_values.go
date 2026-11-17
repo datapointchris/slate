@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"io"
+	"reflect"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -12,6 +13,63 @@ func encodeJSON(out io.Writer, v any) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
+}
+
+// fetchedType is the struct a fetch function's first result holds, through any slice or pointer.
+// Help naming what --json prints reads it off the call that fetches the value, so the keys it
+// lists follow whatever that call returns.
+func fetchedType(fetch any) reflect.Type {
+	return elementType(reflect.TypeOf(fetch).Out(0))
+}
+
+// jsonKeys is the keys encodeJSON writes for a struct of type t, in its order.
+func jsonKeys(t reflect.Type) string {
+	fields := jsonFields(t)
+	keys := make([]string, 0, len(fields))
+	for _, field := range fields {
+		keys = append(keys, field.key)
+	}
+	return strings.Join(keys, ", ")
+}
+
+// jsonFieldType is the struct t holds under the JSON key key, through any slice or pointer.
+func jsonFieldType(t reflect.Type, key string) reflect.Type {
+	for _, field := range jsonFields(t) {
+		if field.key == key {
+			return elementType(field.typ)
+		}
+	}
+	panic(t.String() + " encodes no key " + key)
+}
+
+type jsonField struct {
+	key string
+	typ reflect.Type
+}
+
+func jsonFields(t reflect.Type) []jsonField {
+	var fields []jsonField
+	for i := range t.NumField() {
+		field := t.Field(i)
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+		switch {
+		case name == "" && field.Anonymous && field.Type.Kind() == reflect.Struct:
+			fields = append(fields, jsonFields(field.Type)...)
+		case name == "-" || !field.IsExported():
+		case name == "":
+			fields = append(fields, jsonField{key: field.Name, typ: field.Type})
+		default:
+			fields = append(fields, jsonField{key: name, typ: field.Type})
+		}
+	}
+	return fields
+}
+
+func elementType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Slice || t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t
 }
 
 func strValue(s *string) string {

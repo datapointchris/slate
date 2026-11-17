@@ -153,12 +153,15 @@ func newDocumentsWriteCommand() *cobra.Command {
 			"--kind is one of " + strings.Join(api.DocumentKinds, ", ") + ", and the write that creates a\n" +
 			"document needs it. A name that is a kind holds only that kind, so\n" +
 			"`write 412 plan` needs no --kind. A second document of one kind takes another\n" +
-			"name, as `write 412 cli-plan --kind plan`.\n" +
+			"name, as `write 412 cli-plan --kind plan`. A review checks one phase's built\n" +
+			"work against the plan mid-build, as `write 412 phase-2-review --kind review`,\n" +
+			"and a retro looks back once the build is done.\n" +
 			"\n" +
 			"The version is written as the login slate runs under, and names the session\n" +
 			"and the worklog it is in. A session in no worklog warns, since the version then\n" +
 			"names no go at the record.",
 		Example: "  slate documents write 412 plan --file plan.md\n" +
+			"  slate documents write 412 phase-2-review --kind review --file review.md\n" +
 			"  slate documents write 412 humanlayer --kind research < research.md",
 		Args:        cobra.ExactArgs(2),
 		Annotations: scopesForService(scopeDocumentsWrite),

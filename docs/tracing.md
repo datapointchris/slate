@@ -156,8 +156,12 @@ Each row below keeps a flow as `flow_id`:
   session in no worklog writes under its baggage flow or its trace id, which
   need not be the record's.
 
-`flow_id` is null on a row written before the column existed, and on a worklog
-whose record's flow is null.
+An idea, initiative or issue filed before the column existed holds a root flow
+minted for it once, and each worklog opened on it before then holds that flow.
+So every go at one record shares one flow. An initiative promoted from such an
+idea shares the idea's, as a promotion does now. `flow_id` is null on any other row
+written before the column existed: a pursuit, a claim, a comment, a document
+version or an audit row.
 
 The flow is resolved in the request's first transaction and set as the
 transaction-local setting `audit.flow_id`. The audit trigger copies it onto
