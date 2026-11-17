@@ -105,22 +105,23 @@ exit 0
 repository whose `origin` has no host asks slate nothing, so a test suite
 committing in fixture repositories reaches no worklog.
 
-A `post-commit` hook records the commit on the worklog, named by its full sha
-and the repository its `origin` names. It reads the worklog and the session from
-the commit's own trailers, so a commit made outside any worklog links nothing
-and prints nothing. A rebase keeps each trailer, so a new sha links to the
-worklog and the session that wrote the commit, whichever session ran the rebase.
-`--session` is the session that made the commit, and the link's `linked_by`
-names who ran it:
+A hook run at `post-commit` and `post-merge` records the commit on the worklog
+the session is in as the commit is made, named by its full sha and the
+repository its `origin` names. A merge commit runs `post-merge` and never
+`post-commit`, so it listens on both. `post-merge` also runs after a squash,
+which passes it 1, and after a fast-forward, whose reflog subject ends
+`: Fast-forward`, and neither makes a commit, so neither links one. A commit
+made outside any worklog links nothing and prints nothing. A rebase makes new
+shas, and each links to the worklog of the session that ran it. `--session`
+defaults to that session, and the link's `linked_by` names who ran it:
 
 ```sh
 #!/bin/sh
 origin=$(git remote get-url origin 2>/dev/null)
 case $origin in file:*) exit 0 ;; *:*) ;; *) exit 0 ;; esac
-name=$(git log -1 --format='%(trailers:key=Worklog,valueonly)') && [ -n "$name" ] || exit 0
-session=$(git log -1 --format='%(trailers:key=Agent-Session,valueonly)')
-slate worklogs link "$name" --commit "$(git rev-parse HEAD)" --repo "$(basename "$origin" .git)" \
-  --session "$session" >/dev/null
+[ $# -eq 0 ] || { [ "$1" = 0 ] && ! git reflog -1 --format=%gs HEAD | grep -q ': Fast-forward'; } || exit 0
+name=$(slate worklogs current) && [ -n "$name" ] || exit 0
+slate worklogs link "$name" --commit "$(git rev-parse HEAD)" --repo "$(basename "$origin" .git)" >/dev/null
 ```
 
 `current` reads the session from `CLAUDE_CODE_SESSION_ID`, or `--session`. With
