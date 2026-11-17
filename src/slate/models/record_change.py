@@ -36,7 +36,6 @@ from sqlalchemy import select
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import REGCLASS
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import Session
@@ -139,7 +138,8 @@ class AuditTrailTable(Base):
     __tablename__ = 'audit_trail_tables'
     __table_args__ = ({'info': {RECORDED: False}},)
 
-    audited_table: Mapped[str] = mapped_column(REGCLASS, primary_key=True)
+    table_schema: Mapped[str] = mapped_column(Text, primary_key=True)
+    table_name: Mapped[str] = mapped_column(Text, primary_key=True)
     is_recorded: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('true'))
     ignored_columns: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default=text("'{}'"))
 
@@ -148,7 +148,8 @@ def declare_audit_trail(connection: Connection) -> None:
     """Write what each model declares about the trail, then have Postgres attach or drop each trigger to match."""
     declared = [
         {
-            'audited_table': table.fullname,
+            'table_schema': table.schema or 'public',
+            'table_name': table.name,
             'is_recorded': table.info.get(RECORDED, True),
             'ignored_columns': sorted(column.name for column in table.columns if not column.info.get(RECORDED, True)),
         }
@@ -157,7 +158,7 @@ def declare_audit_trail(connection: Connection) -> None:
     statement = insert(AuditTrailTable).values(declared)
     connection.execute(
         statement.on_conflict_do_update(
-            index_elements=[AuditTrailTable.audited_table],
+            index_elements=[AuditTrailTable.table_schema, AuditTrailTable.table_name],
             set_={'is_recorded': statement.excluded.is_recorded, 'ignored_columns': statement.excluded.ignored_columns},
         )
     )
