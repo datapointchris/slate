@@ -207,9 +207,10 @@ func newClaimsExtendCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "extend <record>",
-		Short: "Move your claim's expiry to --minutes from now",
+		Short: "Move your claim's expiry to --minutes from now, never earlier",
 		Long: "Refused unless --holder holds the record's claim. A claim of yours that\n" +
-			"ran out is held again from now, with a warning that it had run out.\n" +
+			"ran out is held again from now, with a warning that it had run out. A lease\n" +
+			"already running past --minutes from now keeps its expiry, with a warning.\n" +
 			"\n" +
 			"--holder " + narrowedActorHelp,
 		Example:     "  slate claims extend 412\n  slate claims extend 412 --minutes 600",

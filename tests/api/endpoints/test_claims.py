@@ -87,6 +87,10 @@ def test_holding_again_changes_nothing_and_only_an_extend_moves_the_expiry(clien
     extended = ok(client.post(f'{CLAIMS}/{bug}/extend', json={'holder': 'agent-a', 'minutes': 600}))['claim']
     assert dt.datetime.fromisoformat(extended['expires_ts']) > dt.datetime.fromisoformat(first['expires_ts'])
 
+    shorter = ok(client.post(f'{CLAIMS}/{bug}/extend', json={'holder': 'agent-a', 'minutes': 10}))
+    assert shorter['claim']['expires_ts'] == extended['expires_ts']
+    assert [warning['code'] for warning in shorter['warnings']] == ['lease_already_longer']
+
 
 def test_an_expired_claim_frees_the_issue_and_ends_as_expired_once_taken_over_with_its_worklog(seeded):
     client, session = seeded

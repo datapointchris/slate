@@ -184,6 +184,11 @@ holding stopped, rather than when someone noticed.
 The holder extending its own expired claim holds it again from now, and the
 answer warns `claim_had_expired`.
 
+An extend never moves an expiry earlier. A lease already running past
+`--minutes` from now keeps its expiry, and the answer warns
+`lease_already_longer`. So a coordinator that extends by a day each round
+leaves a week-long lease on a parked claim alone.
+
 ## A service claims under its own client id
 
 `slate.claims.hold` reaches the hold, extend, release, wait and resume routes,

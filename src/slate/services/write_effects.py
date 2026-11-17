@@ -85,6 +85,7 @@ class WriteEffectCode(enum.StrEnum):
     # Warnings on a claim write that changed nothing, or went through without the lease asked for.
     ALREADY_HELD = 'already_held'
     CLAIM_HAD_EXPIRED = 'claim_had_expired'
+    LEASE_ALREADY_LONGER = 'lease_already_longer'
     NOTHING_READY = 'nothing_ready'
     PASSED_OVER_PLAN = 'passed_over_plan'
     NOTHING_TO_RELEASE = 'nothing_to_release'

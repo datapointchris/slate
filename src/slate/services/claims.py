@@ -194,7 +194,7 @@ def hold_next(
 
 
 def extend(session: Session, number: int, holder: str, minutes: int, now: dt.datetime, effects: WriteEffects) -> models.Claim:
-    """Move the holder's own claim's expiry to `minutes` from now. Extending is never done by a hold."""
+    """Move the holder's own claim's expiry to `minutes` from now, never earlier. Extending is never done by a hold."""
     current = unended_claims(session, [number]).get(number)
     if current is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} holds no claim to extend. Hold it instead.')
@@ -208,7 +208,15 @@ def extend(session: Session, number: int, holder: str, minutes: int, now: dt.dat
             f'The claim on #{number} had expired at {effects.moment(current.expires_ts)}. Nobody held #{number} since, so it holds again.',
             number,
         )
-    current.expires_ts = now + dt.timedelta(minutes=minutes)
+    wanted = now + dt.timedelta(minutes=minutes)
+    if current.expires_ts >= wanted:
+        effects.warn(
+            WriteEffectCode.LEASE_ALREADY_LONGER,
+            f'The claim on #{number} already runs until {effects.moment(current.expires_ts)}, past {minutes} minutes from now.',
+            number,
+        )
+        return current
+    current.expires_ts = wanted
     logger.info('claim_extended', record=number, holder=holder, expires_ts=current.expires_ts.isoformat())
     return current
 
