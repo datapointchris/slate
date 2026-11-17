@@ -1,6 +1,7 @@
 import pytest
 from fastapi import status
 
+from tests.util import check_step
 from tests.util import show_status_and_response
 
 TAGS = '/tags'
@@ -29,6 +30,7 @@ def numbers(rows: list[dict]) -> list[int]:
 
 def test_an_issue_reads_its_initiatives_tags_and_every_list_narrows_on_them(client):
     initiative = created(client, '/initiatives', {'name': 'Harden the servers', 'summary': 'No plaintext secret is left'})['initiative']
+    check_step(client, initiative['number'], 'preflight')
     inside = created(client, '/issues', {'title': 'Rotate the keys', 'initiative': initiative['number'], 'tags': ['performance']})['issue']
     created(client, '/issues', {'title': 'Elsewhere'})
     idea = created(client, '/ideas', {'title': 'Scan images', 'tags': ['security']})['idea']

@@ -4,6 +4,7 @@ from fastapi import status
 from sqlalchemy import update
 
 from slate import models
+from tests.util import check_step
 from tests.util import show_status_and_response
 
 
@@ -29,6 +30,7 @@ def test_an_initiative_placed_in_a_pursuit_lends_it_to_its_issues_and_every_list
     pursuit = a_pursuit(client)
     named = {'number': pursuit['number'], 'name': 'Data Warehouse'}
     initiative = created(client, '/initiatives', {'name': 'Load the events', 'summary': 'Every event lands in a table'})['initiative']
+    check_step(client, initiative['number'], 'preflight')
     inside = created(client, '/issues', {'title': 'Write the loader', 'initiative': initiative['number']})['issue']
     created(client, '/issues', {'title': 'Elsewhere'})
     idea = created(client, '/ideas', {'title': 'Model the sessions', 'pursuits': [pursuit['number']]})['idea']

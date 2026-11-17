@@ -10,6 +10,7 @@ from slate import models
 from slate import schemas
 from slate.services.initiatives import ROUTED_NAMES
 from tests.session_database import insert_test_data_transactional
+from tests.util import check_step
 from tests.util import show_status_and_response
 
 from .crud_test import ApiCrudTester
@@ -173,6 +174,8 @@ def test_an_initiatives_issues_are_blocked_while_the_record_it_waits_on_is_open(
     first = filed_initiative(client, 'Build the warehouse')['number']
     filed_later = filed_initiative(client, 'Read through the warehouse')
     later = filed_later['number']
+    for planned in (first, later):
+        check_step(client, planned, 'preflight')
     gate = filed_issue(client, 'Load the tables', initiative=first)
     work = filed_issue(client, 'Read the tables', initiative=later)
 
@@ -233,6 +236,7 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     initiative = wrote(
         client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Progress', 'priority': 2}), 'initiative', status.HTTP_201_CREATED
     )['number']
+    check_step(client, initiative, 'preflight')
 
     def filed(title: str, **fields) -> int:
         issue = {'title': title, 'initiative': initiative, **fields}
@@ -276,7 +280,7 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     assert numbers(progress['closed']) == [canceled, completed]
     assert triage not in numbers(progress['blocked'])
     totals = progress['totals']
-    assert (totals['scope']['record']['number'], totals['worklog_count'], totals['tokens']) == (initiative, 2, tokens)
+    assert (totals['scope']['record']['number'], totals['worklog_count'], totals['tokens']) == (initiative, 3, tokens)
 
     later = (dt.datetime.now(dt.UTC) + dt.timedelta(minutes=1)).isoformat()
     (windowed,) = ok(client.get(f'{INITIATIVES}/progress', params={'initiative': initiative, 'since': later}))

@@ -3,6 +3,7 @@
 import pytest
 from fastapi import status
 
+from tests.util import check_step
 from tests.util import show_status_and_response
 
 QUEUE = '/queue'
@@ -56,6 +57,8 @@ def test_each_initiatives_issues_run_together_and_move_with_it(client):
     """Filed interleaved, each initiative's issues still run together, in the order the initiatives rank."""
     importer = initiative(client, 'Ship the importer', priority=1)
     exporter = initiative(client, 'Ship the exporter', priority=1)
+    for planned in (importer, exporter):
+        check_step(client, planned, 'preflight')
     for step in (1, 2):
         issue(client, f'Import stage {step}', initiative=importer)
         issue(client, f'Export stage {step}', initiative=exporter)
@@ -83,11 +86,6 @@ def test_ideas_promote_after_ideas_reorder_keeps_the_place_the_reorder_gave(clie
     ]
 
 
-def check_step(client, record: int, step: str) -> None:
-    worklog = ok(client.post('/worklogs', json={'record': record, 'opened_by': 'chris', 'step': step}), status.HTTP_201_CREATED)
-    ok(client.post(f'/worklogs/{worklog["worklog"]["name"]}/finish', json={'finished_by': 'chris'}))
-
-
 def test_an_initiative_lists_at_the_step_after_its_furthest_checked_one_beside_its_issues_at_build(client):
     shaped = initiative(client, 'Ship the importer', priority=1)
     designed = initiative(client, 'Ship the exporter', priority=2)
@@ -105,6 +103,7 @@ def test_an_initiative_lists_at_the_step_after_its_furthest_checked_one_beside_i
         ('Ship the exporter', 'preflight', 2),
         ('Write the exporter', 'build', 2),
         ('Ship the syncer', 'retro', 3),
+        ('Ship the parser', 'shape', 4),
         ('Write the parser', 'build', 4),
     ]
     assert [row['title'] for row in ok(client.get(QUEUE, params={'step': 'design'}))['queue']] == ['Ship the importer']
@@ -120,6 +119,8 @@ def test_a_records_work_holds_everything_it_transitively_waits_on_with_what_each
     """A coordinator taking this plan to done reads it whole, across initiatives, ready or not."""
     plan = initiative(client, 'Ship the importer', priority=2)
     other = initiative(client, 'Ship the exporter', priority=3)
+    for planned in (plan, other):
+        check_step(client, planned, 'preflight')
     first = issue(client, 'Import stage 1', initiative=plan)
     second = issue(client, 'Import stage 2', initiative=plan)
     outside = issue(client, 'Shared parser', initiative=other)
@@ -183,6 +184,7 @@ def test_a_pin_leads_every_priority_and_an_initiative_brings_its_issues(client):
     free = issue(client, 'Water the plants', priority=4)
     idea = ok(client.post('/ideas', json={'title': 'Try a layout', 'priority': 4}), status.HTTP_201_CREATED)['idea']['number']
     importer = initiative(client, 'Ship the importer', priority=4)
+    check_step(client, importer, 'preflight')
     issue(client, 'Import stage 1', initiative=importer)
     by_priority = ['Patch the outage', 'Water the plants', 'Try a layout', 'Import stage 1']
     assert [title for title, _, _ in rows(client)] == by_priority

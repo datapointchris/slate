@@ -40,6 +40,14 @@ def show_status_and_response(response: httpx2.Response) -> dict[str, str]:
     return {d.get(response.status_code, 'UNKNOWN'): content}
 
 
+def check_step(client, record: int, step: str) -> None:
+    """Check a step on the record by opening a worklog of it and finishing it."""
+    opened = client.post('/worklogs', json={'record': record, 'opened_by': 'chris', 'step': step})
+    assert opened.status_code == status.HTTP_201_CREATED, show_status_and_response(opened)
+    finished = client.post(f'/worklogs/{opened.json()["worklog"]["name"]}/finish', json={'finished_by': 'chris'})
+    assert finished.status_code == status.HTTP_200_OK, show_status_and_response(finished)
+
+
 def verify_page_title(response, title):
     """Check that the title is present in the response text."""
     # Match <title>, any whitespace/newlines, the title, and </title>

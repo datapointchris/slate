@@ -33,11 +33,9 @@ func newNextCommand() *cobra.Command {
 		Short: "Every kind of open work, in the order to take it",
 		Long: "Ideas, initiatives and issues by priority, each row with its step: discuss an\n" +
 			"idea, decide a decision issue, build any other ready issue. An initiative\n" +
-			"whose worklogs checked no step lists at shape, or only through its issues\n" +
-			"where it has open ones. One whose furthest checked step is shape lists at\n" +
-			"design, and design at preflight, beside its open issues, which still list at\n" +
-			"build. One past design lists through its issues, and at retro once none is\n" +
-			"open.\n" +
+			"lists at the first step past its furthest checked one that it has not\n" +
+			"marked not planned, beside its open issues, which list at build. One past\n" +
+			"preflight lists through its issues, and at retro once none is open.\n" +
 			"--step keeps one step's rows. Within a priority, each initiative's issues run\n" +
 			"together in the order their ranks set, and `slate initiatives reorder` moves\n" +
 			"an initiative with its issues.\n" +

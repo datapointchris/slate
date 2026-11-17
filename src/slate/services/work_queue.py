@@ -83,11 +83,8 @@ def issue_step(issue_type: str) -> Step:
 def initiative_step(initiative: schemas.Initiative) -> Step | None:
     """The first planned step before building past its stage, else `build` while its issues are the work, else the first planned after.
 
-    One that checked no step and holds open issues was built before steps existed, so its issues carry it.
     None is no step to offer, which is one planning no step after building once its issues close.
     """
-    if initiative.stage == 'idea' and initiative.open_count:
-        return BUILD
     passed = 0 if initiative.stage == 'idea' else WORKLOG_STEPS.index(initiative.stage) + 1
     for step in STEPS_BEFORE_BUILD[passed:]:
         if step not in initiative.not_planned_steps:

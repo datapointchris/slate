@@ -62,10 +62,9 @@ left and no unclosed issue is no row of its own. Held, it is listed in
 takes. A step never holds work back. An initiative offered `design` or
 `preflight` is a row beside its open issues, which still list at `build`. An initiative at
 `build` is not a row of its own, because its issues are. That holds for one
-past `design` with unclosed issues, and for one with unclosed issues and no
-checked step, which was built before steps existed. It is listed only when
-held, in `claimed`, at step `build`, so whoever holds it is seen beside the
-issues it gathers. `repo`, `type`, `label` and `autofixable` read only issues, so
+past `preflight` with unclosed issues. It is listed only when held, in
+`claimed`, at step `build`, so whoever holds it is seen beside the issues it
+gathers. `repo`, `type`, `label` and `autofixable` read only issues, so
 each leaves the ideas and initiatives out. `tag` keeps the ideas and initiatives
 carrying the tag, and the issues carrying it or in an initiative that does.
 `pursuit` keeps the ideas and initiatives in the pursuit, and the issues of
