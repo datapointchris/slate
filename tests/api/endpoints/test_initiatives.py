@@ -286,7 +286,9 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     assert [row['initiative']['number'] for row in every_active] == [row['number'] for row in ok(client.get(INITIATIVES))]
 
 
-def test_the_burnup_counts_an_issue_moved_in_from_its_move_and_a_canceled_one_out_from_its_close(client, txn_api_logged_in):
+def test_the_burnup_counts_an_issue_moved_in_from_its_move_and_a_canceled_one_out_from_its_close(
+    client, txn_api_logged_in, app_writes_the_trail
+):
     _, session = txn_api_logged_in
 
     def created(name: str) -> int:

@@ -99,7 +99,9 @@ A new command takes a noun unless no one noun owns what it reads.
   attaches or drops each trigger to match, refusing a credential-named column
   still recorded. `SELECT * FROM audit_trail_targets` shows each table's state.
   The trigger runs as the schema owner, so `slate_app` reads the trail and
-  cannot write it. The actor is the person's `actor` or the client
+  cannot write it. pytest's Postgres holds both roles, migrates as `slate` and
+  runs every test as `slate_app`. A test that seeds the trail takes the
+  `app_writes_the_trail` fixture. The actor is the person's `actor` or the client
   id, set per transaction by `bind_actor`. `message_tokens` opts out, because
   its rows mirror a transcript, and each report that changes them is audited
   on `agent_sessions`.

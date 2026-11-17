@@ -37,6 +37,8 @@ def test_postgres_stopping_after_its_first_answer_leaves_the_api_ready_and_answe
     # The session's Postgres runs on the same Docker, so its host reaches this one too.
     settings = copy.deepcopy(test_settings)
     settings.postgres.port = port
+    # This server has no slate_app, and the test is about its outage rather than its roles.
+    settings.postgres.username, settings.postgres.password = POSTGRES_USER, POSTGRES_PASSWORD
     api = create_api(settings)
 
     def session() -> Generator[Session]:

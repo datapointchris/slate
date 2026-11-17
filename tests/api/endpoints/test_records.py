@@ -39,7 +39,9 @@ def test_the_record_read_answers_each_kind_with_its_claim_history(client):
     ok(client.get('/records/999999'), status.HTTP_404_NOT_FOUND)
 
 
-def test_the_changes_read_every_write_to_an_issue_and_its_rows_with_imported_history_beside(client, txn_api_logged_in):
+def test_the_changes_read_every_write_to_an_issue_and_its_rows_with_imported_history_beside(
+    client, txn_api_logged_in, app_writes_the_trail
+):
     _, session = txn_api_logged_in
     issue = ok(client.post('/issues', json={'title': 'Read the changes'}), status.HTTP_201_CREATED)['issue']
     number, issue_id = issue['number'], issue['id']

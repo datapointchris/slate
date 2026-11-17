@@ -14,6 +14,7 @@ from slate.api.oidc_auth import OIDCIdentity
 from slate.config import get_settings
 from slate.database.session import get_db_engine
 from slate.database.session import get_sqlalchemy_session
+from tests.environment import APP
 from tests.environment import PrivateServices
 from tests.session_database import get_test_runner_settings
 from tests.session_database import get_transactional_session
@@ -31,6 +32,14 @@ TEST_PERSON = OIDCIdentity(subject='test-person', client_id='slate-cli-test')
 def private_services():
     with PrivateServices(test_settings) as services:
         yield services
+
+
+@pytest.fixture
+def app_writes_the_trail(private_services):
+    """slate_app may write audit_trail for one test, which stands in for an import the owner ran."""
+    private_services.run_as_owner(f'GRANT INSERT, UPDATE ON audit_trail TO {APP}')
+    yield
+    private_services.run_as_owner(f'REVOKE INSERT, UPDATE ON audit_trail FROM {APP}')
 
 
 @pytest.fixture(scope='session')
