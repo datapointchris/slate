@@ -51,6 +51,7 @@ func newCommentsListCommand() *cobra.Command {
 		document string
 		limit    int
 	)
+	listed := fetchedType((*api.Client).ListComments)
 	cmd := &cobra.Command{
 		Use:   "list <record>",
 		Short: "List a record's comments, oldest first, line comments included",
@@ -59,10 +60,10 @@ func newCommentsListCommand() *cobra.Command {
 			"list to one document's line comments.\n" +
 			"\n" +
 			"--json prints a list of comments, each with the keys\n" +
-			"  " + jsonKeys[api.Comment]() + "\n" +
+			"  " + jsonKeys(listed) + "\n" +
 			"written_ts is when it was written. on is null on a comment on the record, and\n" +
 			"on a line comment holds\n" +
-			"  " + jsonKeys[api.CommentLine]() + "\n" +
+			"  " + jsonKeys(jsonFieldType(listed, "on")) + "\n" +
 			"of the version and line it was written on.",
 		Example: "  slate comments list 412\n" +
 			"  slate comments list 412 --document plan --json",

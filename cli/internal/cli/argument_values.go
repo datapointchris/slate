@@ -15,28 +15,61 @@ func encodeJSON(out io.Writer, v any) error {
 	return enc.Encode(v)
 }
 
-// jsonKeys is the keys encodeJSON writes for a struct of type T, in its order, so help naming
-// what --json prints reads them off the type it prints.
-func jsonKeys[T any]() string {
-	return strings.Join(structJSONKeys(reflect.TypeFor[T]()), ", ")
+// fetchedType is the struct a fetch function's first result holds, through any slice or pointer.
+// Help naming what --json prints reads it off the call that fetches the value, so the keys it
+// lists follow whatever that call returns.
+func fetchedType(fetch any) reflect.Type {
+	return elementType(reflect.TypeOf(fetch).Out(0))
 }
 
-func structJSONKeys(t reflect.Type) []string {
-	var keys []string
+// jsonKeys is the keys encodeJSON writes for a struct of type t, in its order.
+func jsonKeys(t reflect.Type) string {
+	fields := jsonFields(t)
+	keys := make([]string, 0, len(fields))
+	for _, field := range fields {
+		keys = append(keys, field.key)
+	}
+	return strings.Join(keys, ", ")
+}
+
+// jsonFieldType is the struct t holds under the JSON key key, through any slice or pointer.
+func jsonFieldType(t reflect.Type, key string) reflect.Type {
+	for _, field := range jsonFields(t) {
+		if field.key == key {
+			return elementType(field.typ)
+		}
+	}
+	panic(t.String() + " encodes no key " + key)
+}
+
+type jsonField struct {
+	key string
+	typ reflect.Type
+}
+
+func jsonFields(t reflect.Type) []jsonField {
+	var fields []jsonField
 	for i := range t.NumField() {
 		field := t.Field(i)
 		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
 		switch {
 		case name == "" && field.Anonymous && field.Type.Kind() == reflect.Struct:
-			keys = append(keys, structJSONKeys(field.Type)...)
+			fields = append(fields, jsonFields(field.Type)...)
 		case name == "-" || !field.IsExported():
 		case name == "":
-			keys = append(keys, field.Name)
+			fields = append(fields, jsonField{key: field.Name, typ: field.Type})
 		default:
-			keys = append(keys, name)
+			fields = append(fields, jsonField{key: name, typ: field.Type})
 		}
 	}
-	return keys
+	return fields
+}
+
+func elementType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Slice || t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return t
 }
 
 func strValue(s *string) string {
