@@ -44,25 +44,48 @@ func (b *initiativesBoard) claude(m *gotermboard.Model) tea.Cmd {
 // resource attributes, because an interactive Claude session ignores an incoming trace. The
 // record goes under the name slate's spans give it, and each member of the baggage slate
 // inherited goes on as it came, so slate names no key of its caller's. The attributes slate
-// inherited stay ahead of them.
+// inherited stay ahead of them, less each pair whose key slate sets.
 func sessionTelemetry(number int) []string {
-	var attributes []string
-	if resource := os.Getenv("OTEL_RESOURCE_ATTRIBUTES"); resource != "" {
-		attributes = append(attributes, resource)
-	}
-	attributes = append(attributes, fmt.Sprintf("slate.record.number=%d", number))
+	set := []resourceAttribute{{key: "slate.record.number", value: strconv.Itoa(number)}}
 	flow := os.Getenv("BAGGAGE")
 	carried, _ := baggage.Parse(flow)
 	members := carried.Members()
 	slices.SortFunc(members, func(a, b baggage.Member) int { return strings.Compare(a.Key(), b.Key()) })
 	for _, member := range members {
-		attributes = append(attributes, member.Key()+"="+url.PathEscape(member.Value()))
+		set = append(set, resourceAttribute{key: member.Key(), value: member.Value()})
 	}
-	env := []string{"OTEL_RESOURCE_ATTRIBUTES=" + strings.Join(attributes, ",")}
+	env := []string{"OTEL_RESOURCE_ATTRIBUTES=" + resourceAttributes(os.Getenv("OTEL_RESOURCE_ATTRIBUTES"), set)}
 	if flow != "" {
 		env = append(env, "BAGGAGE="+flow)
 	}
 	return env
+}
+
+type resourceAttribute struct{ key, value string }
+
+// resourceAttributes is inherited's pairs, less any whose key set names, then set's, so a key
+// appears once and holds slate's value. Each value is percent-encoded as the variable's W3C
+// baggage format asks. Of two in set with one key the first wins, and an attribute with an
+// empty value, or a key that format cannot carry, is left out and replaces nothing.
+func resourceAttributes(inherited string, set []resourceAttribute) string {
+	named := map[string]bool{}
+	var pairs []string
+	for _, attribute := range set {
+		member, err := baggage.NewMemberRaw(attribute.key, attribute.value)
+		if err != nil || attribute.value == "" || named[attribute.key] {
+			continue
+		}
+		named[attribute.key] = true
+		pairs = append(pairs, member.String())
+	}
+	var kept []string
+	for pair := range strings.SplitSeq(inherited, ",") {
+		key, _, _ := strings.Cut(pair, "=")
+		if strings.TrimSpace(pair) != "" && !named[strings.TrimSpace(key)] {
+			kept = append(kept, pair)
+		}
+	}
+	return strings.Join(append(kept, pairs...), ",")
 }
 
 // sessionDirectory is where C opens Claude: the checkout the registry names for the record's
