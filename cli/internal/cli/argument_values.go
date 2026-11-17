@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"io"
+	"reflect"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -12,6 +13,30 @@ func encodeJSON(out io.Writer, v any) error {
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	return enc.Encode(v)
+}
+
+// jsonKeys is the keys encodeJSON writes for a struct of type T, in its order, so help naming
+// what --json prints reads them off the type it prints.
+func jsonKeys[T any]() string {
+	return strings.Join(structJSONKeys(reflect.TypeFor[T]()), ", ")
+}
+
+func structJSONKeys(t reflect.Type) []string {
+	var keys []string
+	for i := range t.NumField() {
+		field := t.Field(i)
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+		switch {
+		case name == "" && field.Anonymous && field.Type.Kind() == reflect.Struct:
+			keys = append(keys, structJSONKeys(field.Type)...)
+		case name == "-" || !field.IsExported():
+		case name == "":
+			keys = append(keys, field.Name)
+		default:
+			keys = append(keys, name)
+		}
+	}
+	return keys
 }
 
 func strValue(s *string) string {

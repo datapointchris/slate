@@ -56,7 +56,14 @@ func newCommentsListCommand() *cobra.Command {
 		Short: "List a record's comments, oldest first, line comments included",
 		Long: "Each row starts with the comment's id, which `remove` takes. A line comment\n" +
 			"names the document version and line it was written on. --document narrows the\n" +
-			"list to one document's line comments.",
+			"list to one document's line comments.\n" +
+			"\n" +
+			"--json prints a list of comments, each with the keys\n" +
+			"  " + jsonKeys[api.Comment]() + "\n" +
+			"written_ts is when it was written. on is null on a comment on the record, and\n" +
+			"on a line comment holds\n" +
+			"  " + jsonKeys[api.CommentLine]() + "\n" +
+			"of the version and line it was written on.",
 		Example: "  slate comments list 412\n" +
 			"  slate comments list 412 --document plan --json",
 		Args:        cobra.ExactArgs(1),
