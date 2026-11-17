@@ -12,8 +12,9 @@ and so once per request. Every row the write creates that keeps its writer's flo
 setting through `WRITERS_FLOW`.
 
 A table opts out with `'info': {'record_changes': False}` in its `__table_args__`, and a column
-with the same key in its `info`. Each declaration is mirrored in the table's trigger, which the
-audit trail's tests compare against the models.
+with the same key in its `info`. Once the migrations reach head, `declare_audit_trail` writes
+those declarations into `audit_trail_tables`, and `audit_trail_reconcile()` attaches or drops each
+table's trigger to match. So a migration creating a table writes no trigger of its own.
 """
 
 import datetime as dt
@@ -22,6 +23,7 @@ from typing import Any
 import structlog
 from opentelemetry import propagate
 from sqlalchemy import BigInteger
+from sqlalchemy import Boolean
 from sqlalchemy import CheckConstraint
 from sqlalchemy import Connection
 from sqlalchemy import DateTime
@@ -32,7 +34,10 @@ from sqlalchemy import event
 from sqlalchemy import func
 from sqlalchemy import select
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import REGCLASS
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import SessionTransaction
@@ -126,3 +131,34 @@ def set_writer_settings(session: Session, connection: Connection) -> None:
 def name_the_writer(session: Session, _transaction: SessionTransaction, connection: Connection) -> None:
     """Tell the audit trigger who writes in this transaction. The settings end with it."""
     set_writer_settings(session, connection)
+
+
+class AuditTrailTable(Base):
+    """What the trail records of one table. A table with no row is recorded whole."""
+
+    __tablename__ = 'audit_trail_tables'
+    __table_args__ = ({'info': {RECORDED: False}},)
+
+    audited_table: Mapped[str] = mapped_column(REGCLASS, primary_key=True)
+    is_recorded: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('true'))
+    ignored_columns: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default=text("'{}'"))
+
+
+def declare_audit_trail(connection: Connection) -> None:
+    """Write what each model declares about the trail, then have Postgres attach or drop each trigger to match."""
+    declared = [
+        {
+            'audited_table': table.fullname,
+            'is_recorded': table.info.get(RECORDED, True),
+            'ignored_columns': sorted(column.name for column in table.columns if not column.info.get(RECORDED, True)),
+        }
+        for table in Base.metadata.sorted_tables
+    ]
+    statement = insert(AuditTrailTable).values(declared)
+    connection.execute(
+        statement.on_conflict_do_update(
+            index_elements=[AuditTrailTable.audited_table],
+            set_={'is_recorded': statement.excluded.is_recorded, 'ignored_columns': statement.excluded.ignored_columns},
+        )
+    )
+    connection.execute(select(func.audit_trail_reconcile()))

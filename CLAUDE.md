@@ -93,9 +93,13 @@ A new command takes a noun unless no one noun owns what it reads.
   every read** in `services/issue_readiness.py`. A client filters on those
   fields and never re-derives them.
 - **Every write is audited in `audit_trail`** by a row trigger on each table,
-  so no write path does anything for it. A new table's migration creates its
-  trigger, and `test_every_table_is_audited_but_what_opts_out` names the
-  statement when one is missing. The actor is the person's `actor` or the client
+  so no write path does anything for it. A new table's migration writes no
+  trigger: once a migration run reaches head, `declare_audit_trail` writes each
+  model's opt-outs into `audit_trail_tables`, and `audit_trail_reconcile()`
+  attaches or drops each trigger to match, refusing a credential-named column
+  still recorded. `SELECT * FROM audit_trail_targets` shows each table's state.
+  The trigger runs as the schema owner, so `slate_app` reads the trail and
+  cannot write it. The actor is the person's `actor` or the client
   id, set per transaction by `bind_actor`. `message_tokens` opts out, because
   its rows mirror a transcript, and each report that changes them is audited
   on `agent_sessions`.

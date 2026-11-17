@@ -7,6 +7,7 @@ from sqlalchemy import pool
 from slate.database.migrate import database_url
 from slate.database.migrate import first_connection
 from slate.models import RecordChange
+from slate.models.record_change import declare_audit_trail
 
 alembic_config = context.config
 
@@ -33,6 +34,9 @@ def run_migrations_online() -> None:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
+            # The models describe the schema at head, so a run ending anywhere else declares nothing.
+            if set(context.get_context().get_current_heads()) == set(context.script.get_heads()):
+                declare_audit_trail(connection)
 
 
 if context.is_offline_mode():

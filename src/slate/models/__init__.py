@@ -27,6 +27,7 @@ from slate.models.pursuit import RecordPursuit
 from slate.models.record import Kind
 from slate.models.record import Record
 from slate.models.record import RecordKind
+from slate.models.record_change import AuditTrailTable
 from slate.models.record_change import RecordChange
 from slate.models.tag import RecordTag
 from slate.models.tag import Tag
@@ -45,6 +46,7 @@ KIND_MODELS: dict[Kind, type[Idea] | type[Initiative] | type[Issue] | type[Pursu
 __all__ = [
     'KIND_MODELS',
     'AgentSession',
+    'AuditTrailTable',
     'Claim',
     'ClaimEnding',
     'ClaimWait',
