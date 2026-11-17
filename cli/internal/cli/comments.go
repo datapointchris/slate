@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -156,7 +155,7 @@ func newCommentsAddCommand() *cobra.Command {
 	f.StringVar(&document, "document", "", "The document whose line it is on, by name")
 	f.IntVar(&line, "line", 0, "The line it is on, counting from one")
 	f.IntVar(&version, "version", 0, "The version whose line it is (default the latest)")
-	f.StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp+", which wrote it")
+	addActingSessionFlag(f, &session, agentSessionHelp+", which wrote it")
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	// A comment that opens with a bullet parses as a group of short flags.
 	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {

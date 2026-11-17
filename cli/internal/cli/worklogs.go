@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -172,7 +171,7 @@ func newWorklogsCurrentCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp)
+	addActingSessionFlag(cmd.Flags(), &session, agentSessionHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the worklog as JSON to stdout, or null")
 	return cmd
 }
@@ -223,7 +222,7 @@ func newWorklogsStartCommand() *cobra.Command {
 	}
 	f := cmd.Flags()
 	addStepFlag(cmd, &step, "The step of the record's life this worklog performs")
-	f.StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp+"; empty puts no session in it")
+	addActingSessionFlag(f, &session, agentSessionHelp+"; empty puts no session in it")
 	f.StringVar(&openedBy, "opened-by", actorIdentity(), "Who opened it")
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
@@ -261,7 +260,7 @@ func newWorklogsJoinCommand() *cobra.Command {
 			return reportWrite(cmd, asJSON, written, written.WriteEffects, worklogLine("Session "+session+" is in", written.Worklog))
 		},
 	}
-	cmd.Flags().StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp)
+	addActingSessionFlag(cmd.Flags(), &session, agentSessionHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -350,7 +349,7 @@ func newWorklogsLinkCommand() *cobra.Command {
 	f.StringVar(&pr, "pr", "", "A pull request's URL")
 	f.StringVar(&ref, "landed", "", "The commit or pull request that reached the main branch")
 	f.StringVar(&repo, "repo", "", "The repo it is in")
-	f.StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp+", which made it")
+	addActingSessionFlag(f, &session, agentSessionHelp+", which made it")
 	f.StringVar(&linkedBy, "linked-by", actorIdentity(), "Who linked it")
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -41,7 +40,7 @@ func newPinCommand(kind, closes, example string) *cobra.Command {
 			return reportWrite(cmd, asJSON, written, effects, fmt.Sprintf("Pinned %s", pinned))
 		},
 	}
-	cmd.Flags().StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp)
+	addActingSessionFlag(cmd.Flags(), &session, agentSessionHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }

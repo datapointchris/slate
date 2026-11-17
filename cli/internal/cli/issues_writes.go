@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -345,7 +344,7 @@ func newIssuesCreateCommand() *cobra.Command {
 	withFlagValues(cmd, "status", createStatuses...)
 	f.StringVar(&parent, "parent", "", "Parent issue, which waits on this one")
 	f.StringVar(&discoveredFrom, "discovered-from", "", "Issue whose work turned this up (default: the issue --session's worklog is on; empty sets none)")
-	f.StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp+", whose worklog's issue --discovered-from defaults to")
+	addActingSessionFlag(f, &session, agentSessionHelp+", whose worklog's issue --discovered-from defaults to")
 	f.StringArrayVar(&dependsOn, "depends-on", nil, "Issue this waits on (repeatable)")
 	f.StringArrayVar(&paths, "path", nil, issuePathHelp)
 	f.StringVar(&deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD")
