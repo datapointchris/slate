@@ -69,16 +69,23 @@ def open_worklog(
     claim: models.Claim | None = None,
     step: str | None = None,
 ) -> models.Worklog:
-    """Open the record's next worklog.
+    """Open the record's next worklog, in the record's flow.
 
     The record's row is locked while the sequence is counted, so two openings on one record never
     draw the same one. `FOR NO KEY UPDATE` leaves the row free for the key-share lock every foreign
     key into it takes.
     """
-    session.execute(select(models.Record.number).where(models.Record.number == record_number).with_for_update(key_share=True))
+    locked = select(models.Record.flow_id).where(models.Record.number == record_number).with_for_update(key_share=True)
+    flow_id = session.scalar(locked)
     latest = session.scalar(select(func.max(models.Worklog.sequence)).where(models.Worklog.record_number == record_number))
     worklog = models.Worklog(
-        record_number=record_number, sequence=(latest or 0) + 1, claim=claim, opened_by=opened_by, step=step, started_ts=now
+        record_number=record_number,
+        sequence=(latest or 0) + 1,
+        claim=claim,
+        opened_by=opened_by,
+        step=step,
+        started_ts=now,
+        flow_id=flow_id,
     )
     session.add(worklog)
     session.flush()

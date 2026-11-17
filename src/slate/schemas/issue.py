@@ -136,6 +136,7 @@ class Issue(InPursuits):
     false. `waiting_initiatives` is each initiative waiting on this issue. `tags` is the
     issue's own, which a write sets, and `effective_tags` its own plus its initiative's, which a
     `tag` filter matches. `pursuits` is its initiative's, since an issue joins none itself.
+    `flow_id` is the flow of the work that filed it.
     """
 
     id: UUID
@@ -154,6 +155,7 @@ class Issue(InPursuits):
     pinned_ts: dt.datetime | None = None
     pinned_by: str | None = None
     pinned_session: str | None = None
+    flow_id: str | None = None
     deferred_until_date: dt.date | None = None
     claim: Claim | None = None
     autofix: bool

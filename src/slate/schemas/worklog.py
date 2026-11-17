@@ -83,7 +83,8 @@ class Worklog(RecordModel):
     each session last reported them, and is null while none of its spans holds a reported message.
     `document_versions` is every version a session wrote while in it, oldest first. `step` is the
     step of its record's life it performed, null where it names none. `estimate` is the tokens by
-    kind its record's work is expected to spend, null where no kind is estimated.
+    kind its record's work is expected to spend, null where no kind is estimated. `flow_id` is its
+    record's flow, whatever flow the session that opened it worked under.
     """
 
     name: str
@@ -97,6 +98,7 @@ class Worklog(RecordModel):
     ended_ts: dt.datetime | None = None
     outcome: str | None = None
     ended_by: str | None = None
+    flow_id: str | None = None
     state: WorklogState
     stage: WorklogStage
     claim: Claim | None = None

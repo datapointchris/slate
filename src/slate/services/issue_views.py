@@ -125,6 +125,7 @@ def issue_view(
         pinned_ts=issue.pinned_ts,
         pinned_by=issue.pinned_by,
         pinned_session=issue.pinned_session,
+        flow_id=issue.flow_id,
         deferred_until_date=issue.deferred_until_date,
         claim=claims.get(issue.number),
         autofix=issue.autofix,

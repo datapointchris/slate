@@ -88,6 +88,8 @@ class Claim(RecordModel):
 
     `state` is derived on every read from `expires_ts` and `ended_ts`. `worklog` names the worklog
     the hold opened, and `waiting` is what the holder waits on now, or null while it works.
+    `flow_id` is the flow of the hold that took it, which differs from its record's where work of
+    one flow took another's record.
     """
 
     id: int
@@ -101,6 +103,7 @@ class Claim(RecordModel):
     ended_ts: dt.datetime | None = None
     ending: str | None = None
     ended_by: str | None = None
+    flow_id: str | None = None
     state: ClaimState
     worklog: str | None = None
     waiting: ClaimWait | None = None

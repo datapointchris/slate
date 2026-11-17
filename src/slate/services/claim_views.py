@@ -43,6 +43,7 @@ def claim_view(claim: models.Claim, now: dt.datetime) -> schemas.Claim:
         ended_ts=claim.ended_ts,
         ending=claim.ending,
         ended_by=claim.ended_by,
+        flow_id=claim.flow_id,
         state=claim_state(claim, now),
         worklog=claim.worklog.name if claim.worklog is not None else None,
         waiting=schemas.ClaimWait.model_validate(wait) if wait is not None else None,

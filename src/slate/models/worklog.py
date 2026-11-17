@@ -122,6 +122,8 @@ class Worklog(Base):
     outcome: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_outcomes.name'), nullable=True)
     # Who ended it. Null when its claim expired, which nobody ended.
     ended_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Its record's flow, whatever flow the session that opened it worked under, since a worklog is one go at that record's work.
+    flow_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     record: Mapped[Record] = relationship(Record)
     claim: Mapped[Claim | None] = relationship(Claim, back_populates='worklog')

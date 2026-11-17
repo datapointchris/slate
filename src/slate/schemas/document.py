@@ -14,13 +14,14 @@ from slate.schemas.write_effects import Written
 
 
 class DocumentVersionSummary(RecordModel):
-    """One version: who wrote it, the agent session that did, and the worklog that session was in."""
+    """One version: who wrote it, the agent session that did, the worklog that session was in, and the flow it wrote under."""
 
     version: int
     written_by: str
     session: str | None = None
     worklog: str | None = None
     written_ts: dt.datetime
+    flow_id: str | None = None
     line_count: int
 
 

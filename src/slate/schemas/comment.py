@@ -30,7 +30,8 @@ class Comment(RecordModel):
     """A comment on a record, or on one line of its document's version when `on` is set.
 
     `written_by` is the caller's actor, as the audit trail records it, and null on a comment nobody recorded the
-    writer of. `session` and `worklog` are where an agent session wrote it from.
+    writer of. `session` and `worklog` are where an agent session wrote it from, and `flow_id` the
+    flow it wrote it under.
     """
 
     id: int
@@ -40,6 +41,7 @@ class Comment(RecordModel):
     session: str | None = None
     worklog: str | None = None
     written_ts: dt.datetime
+    flow_id: str | None = None
     on: CommentLine | None = None
 
 
