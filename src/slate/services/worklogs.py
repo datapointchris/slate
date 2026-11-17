@@ -94,9 +94,8 @@ def open_worklog(
 
 
 def open_span(session: Session, session_id: str) -> models.WorklogSpan | None:
-    """The span the session is in now. The partial unique index allows one per session."""
-    query = select(models.WorklogSpan).where(models.WorklogSpan.session_id == session_id, models.WorklogSpan.ended_ts.is_(None))
-    return session.scalar(query)
+    """The span the session is in now."""
+    return session.scalar(select(models.WorklogSpan).where(models.WorklogSpan.is_open_for(session_id)))
 
 
 def leave(span: models.WorklogSpan, now: dt.datetime, effects: WriteEffects) -> None:

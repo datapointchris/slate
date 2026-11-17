@@ -21,9 +21,6 @@ from opentelemetry.trace import format_trace_id
 from sqlalchemy import ColumnElement
 from sqlalchemy import func
 from sqlalchemy import literal
-from sqlalchemy import select
-
-from slate.database.base import Base
 
 FLOW_ID_MEMBER = 'fleet.flow.id'
 SESSION_ID_MEMBER = 'fleet.session.id'
@@ -46,22 +43,11 @@ def request_trace_flow() -> str:
     return format_trace_id(trace_id)
 
 
-def held_worklog_flow(session_id: str) -> ColumnElement[str | None]:
-    """The flow of the worklog `session_id`'s open span is in, null where it is in none.
-
-    The tables are read from the metadata, because the models import this module's caller.
-    """
-    spans, worklogs = Base.metadata.tables['worklog_spans'], Base.metadata.tables['worklogs']
-    query = (
-        select(worklogs.c.flow_id)
-        .join_from(spans, worklogs, spans.c.worklog_id == worklogs.c.id)
-        .where(spans.c.session_id == session_id, spans.c.ended_ts.is_(None))
-    )
-    return query.scalar_subquery()
-
-
 def writers_flow() -> ColumnElement[str]:
     """The SQL that resolves the current request's flow, by the order this module names."""
+    # Imported here because `models.record_change`, which the models import, calls this module.
+    from slate.models.worklog import held_worklog_flow
+
     fallback = flow_or_none(baggage.get_baggage(FLOW_ID_MEMBER)) or request_trace_flow()
     session_id = baggage.get_baggage(SESSION_ID_MEMBER)
     if isinstance(session_id, str) and session_id:

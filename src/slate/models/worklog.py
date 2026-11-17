@@ -23,12 +23,14 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import Identity
 from sqlalchemy import Index
 from sqlalchemy import Integer
+from sqlalchemy import ScalarSelect
 from sqlalchemy import Select
 from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
 from sqlalchemy import and_
 from sqlalchemy import func
 from sqlalchemy import or_
+from sqlalchemy import select
 from sqlalchemy import text
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -227,6 +229,11 @@ class WorklogSpan(Base):
     def _held_until_expression(cls, now: dt.datetime) -> ColumnElement[dt.datetime | None]:
         return func.coalesce(cls.ended_ts, Claim.stopped_holding_at(now))
 
+    @classmethod
+    def is_open_for(cls, session_id: str) -> ColumnElement[bool]:
+        """The span the session is in now. The partial unique index allows one per session."""
+        return and_(cls.session_id == session_id, cls.ended_ts.is_(None))
+
     __table_args__ = (
         CheckConstraint('ended_ts IS NULL OR ended_ts >= started_ts', name='span_ends_after_it_starts'),
         Index(ONE_OPEN_SPAN_PER_SESSION, 'session_id', unique=True, postgresql_where=text('ended_ts IS NULL')),
@@ -258,3 +265,8 @@ class WorklogLink(Base):
 def with_worklog_claim[*Columns](query: Select[*Columns]) -> Select[*Columns]:
     """Outer-join the claim of the worklog `query` already reads, which each SQL form of a worklog's or span's state reads."""
     return query.outerjoin(Claim, Worklog.claim_id == Claim.id)
+
+
+def held_worklog_flow(session_id: str) -> ScalarSelect[str | None]:
+    """The flow of the worklog the session is in now, null where it is in none."""
+    return select(Worklog.flow_id).join(Worklog.spans).where(WorklogSpan.is_open_for(session_id)).scalar_subquery()
