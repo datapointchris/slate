@@ -48,6 +48,7 @@ def comment_view(
         session=comment.session_id,
         worklog=worklogs.get(comment.worklog_id) if comment.worklog_id is not None else None,
         written_ts=comment.written_ts,
+        flow_id=comment.flow_id,
         on=on,
     )
 

@@ -59,6 +59,7 @@ def version_summary(version: models.DocumentVersion, worklogs: dict[int, str]) -
         session=version.session_id,
         worklog=worklogs.get(version.worklog_id) if version.worklog_id is not None else None,
         written_ts=version.written_ts,
+        flow_id=version.flow_id,
         line_count=len(version.lines),
     )
 

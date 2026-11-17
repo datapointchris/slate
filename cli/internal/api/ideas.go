@@ -29,6 +29,7 @@ type Idea struct {
 	PinnedTS      *time.Time `json:"pinned_ts"`
 	PinnedBy      *string    `json:"pinned_by"`
 	PinnedSession *string    `json:"pinned_session"`
+	FlowID        *string    `json:"flow_id"`
 	CreatedTS     time.Time  `json:"created_ts"`
 	UpdatedTS     time.Time  `json:"updated_ts"`
 	Tags          []string   `json:"tags"`

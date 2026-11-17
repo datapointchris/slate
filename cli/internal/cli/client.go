@@ -45,7 +45,7 @@ func newAPIClient(cmd *cobra.Command) (*api.Client, error) {
 		return nil, carry(fmt.Errorf("prepare API client: %w", err))
 	}
 	httpClient := oauth2.NewClient(cmd.Context(), source)
-	httpClient.Transport = retryingTransport{next: carryingTrace(httpClient.Transport), pause: randomPause}
+	httpClient.Transport = retryingTransport{next: carryingTrace(cmd, httpClient.Transport), pause: randomPause}
 	return api.New(deployment.API.Value, httpClient, api.WrapErrors(carry)), nil
 }
 

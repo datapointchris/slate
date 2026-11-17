@@ -38,6 +38,7 @@ from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 
 from slate.database.base import Base
+from slate.models.record_change import WRITERS_FLOW
 
 RECORD_NUMBER_SEQUENCE = Sequence('record_numbers', metadata=Base.metadata)
 
@@ -77,6 +78,8 @@ class Record(Base):
     pinned_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     pinned_by: Mapped[str | None] = mapped_column(Text, nullable=True)
     pinned_session: Mapped[str | None] = mapped_column(Text, ForeignKey('agent_sessions.id'), nullable=True)
+    # The flow of the work that created the record, set once by the write that created it.
+    flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
 
     # The pair each kind's table references, so the kind it declares is the kind recorded here.
     __table_args__ = (
@@ -126,12 +129,17 @@ class NumberedRecord:
     def pinned_session(cls: type[NumberedRecord]) -> Mapped[str | None]:
         return column_property(select(Record.pinned_session).where(Record.number == cls.number).scalar_subquery())
 
+    @declared_attr
+    def flow_id(cls: type[NumberedRecord]) -> Mapped[str | None]:
+        return column_property(select(Record.flow_id).where(Record.number == cls.number).scalar_subquery())
+
     def __init__(self, **kwargs: Any) -> None:
-        """`rank` places the new record; left out, it goes one past the last."""
+        """`rank` places the new record; left out, it goes one past the last. `flow_id` names its flow; left out, it takes its writer's."""
         rank = kwargs.pop('rank', None)
+        flow_id = kwargs.pop('flow_id', None)
         if 'record' not in kwargs and 'number' not in kwargs:
-            placed = {} if rank is None else {'rank': rank}
-            kwargs['record'] = Record(kind=self.RECORD_KIND, **placed)
+            given = {name: value for name, value in (('rank', rank), ('flow_id', flow_id)) if value is not None}
+            kwargs['record'] = Record(kind=self.RECORD_KIND, **given)
         super().__init__(**kwargs)
 
 

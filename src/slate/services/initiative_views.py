@@ -64,6 +64,7 @@ def initiative_view(
         pinned_ts=initiative.pinned_ts,
         pinned_by=initiative.pinned_by,
         pinned_session=initiative.pinned_session,
+        flow_id=initiative.flow_id,
         autofix=initiative.autofix,
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,

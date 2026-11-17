@@ -27,6 +27,7 @@ from sqlalchemy.orm import relationship
 
 from slate.database.base import Base
 from slate.models.record import Record
+from slate.models.record_change import WRITERS_FLOW
 
 # What a document is for. A worklog that wrote a plan has reached its `planned` stage.
 DocumentKindName = Literal['research', 'design', 'plan', 'retro']
@@ -82,6 +83,8 @@ class DocumentVersion(Base):
     # The worklog the session was in when it wrote the version. Null when it was in none, or no session wrote it.
     worklog_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('worklogs.id', ondelete='SET NULL'), nullable=True)
     written_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
+    # The flow of the write that added it, never copied from its record's.
+    flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
 
     document: Mapped[Document] = relationship(back_populates='versions')
 

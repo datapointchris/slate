@@ -65,6 +65,7 @@ class Pursuit(RecordModel):
     status_reason: str | None = None
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None
+    flow_id: str | None = None
     ideas: list[RecordSummary] = []
     initiatives: list[RecordSummary] = []
 

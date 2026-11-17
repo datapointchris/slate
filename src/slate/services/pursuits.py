@@ -133,6 +133,7 @@ def pursuit_views(session: Session, pursuits: Sequence[models.Pursuit]) -> list[
                 status_reason=pursuit.status_reason,
                 created_ts=pursuit.created_ts,
                 closed_ts=pursuit.closed_ts,
+                flow_id=pursuit.flow_id,
                 ideas=[member for member in held if member.kind == Kind.IDEA],
                 initiatives=[member for member in held if member.kind == Kind.INITIATIVE],
             )

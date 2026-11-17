@@ -12,13 +12,15 @@ import (
 var DocumentKinds = []string{"research", "design", "plan", "retro"}
 
 // DocumentVersionSummary is one version of a document: who wrote it, the agent
-// session that did, and the worklog that session was in.
+// session that did, the worklog that session was in, and the flow it wrote
+// under.
 type DocumentVersionSummary struct {
 	Version   int       `json:"version"`
 	WrittenBy string    `json:"written_by"`
 	Session   *string   `json:"session"`
 	Worklog   *string   `json:"worklog"`
 	WrittenTS time.Time `json:"written_ts"`
+	FlowID    *string   `json:"flow_id"`
 	LineCount int       `json:"line_count"`
 }
 

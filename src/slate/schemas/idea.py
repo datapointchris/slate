@@ -91,7 +91,8 @@ class Idea(InPursuits):
     """An idea, its evidence oldest first, and the initiative it became with that initiative's progress.
 
     `claim` is the idea's unended claim, live or expired. `rank` places it among the records of its
-    priority in the queue. `pursuits` is each pursuit it is in, in number order.
+    priority in the queue. `pursuits` is each pursuit it is in, in number order. `flow_id` is the
+    flow of the work that filed it, which an initiative promoted from it takes.
     """
 
     id: UUID
@@ -103,6 +104,7 @@ class Idea(InPursuits):
     pinned_ts: dt.datetime | None = None
     pinned_by: str | None = None
     pinned_session: str | None = None
+    flow_id: str | None = None
     created_ts: dt.datetime
     updated_ts: dt.datetime
     tags: list[str] = []

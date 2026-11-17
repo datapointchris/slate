@@ -29,6 +29,7 @@ type Comment struct {
 	Session      *string      `json:"session"`
 	Worklog      *string      `json:"worklog"`
 	WrittenTS    time.Time    `json:"written_ts"`
+	FlowID       *string      `json:"flow_id"`
 	On           *CommentLine `json:"on"`
 }
 

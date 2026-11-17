@@ -69,16 +69,23 @@ def open_worklog(
     claim: models.Claim | None = None,
     step: str | None = None,
 ) -> models.Worklog:
-    """Open the record's next worklog.
+    """Open the record's next worklog, in the record's flow.
 
     The record's row is locked while the sequence is counted, so two openings on one record never
     draw the same one. `FOR NO KEY UPDATE` leaves the row free for the key-share lock every foreign
     key into it takes.
     """
-    session.execute(select(models.Record.number).where(models.Record.number == record_number).with_for_update(key_share=True))
+    locked = select(models.Record.flow_id).where(models.Record.number == record_number).with_for_update(key_share=True)
+    flow_id = session.scalar(locked)
     latest = session.scalar(select(func.max(models.Worklog.sequence)).where(models.Worklog.record_number == record_number))
     worklog = models.Worklog(
-        record_number=record_number, sequence=(latest or 0) + 1, claim=claim, opened_by=opened_by, step=step, started_ts=now
+        record_number=record_number,
+        sequence=(latest or 0) + 1,
+        claim=claim,
+        opened_by=opened_by,
+        step=step,
+        started_ts=now,
+        flow_id=flow_id,
     )
     session.add(worklog)
     session.flush()
@@ -87,9 +94,8 @@ def open_worklog(
 
 
 def open_span(session: Session, session_id: str) -> models.WorklogSpan | None:
-    """The span the session is in now. The partial unique index allows one per session."""
-    query = select(models.WorklogSpan).where(models.WorklogSpan.session_id == session_id, models.WorklogSpan.ended_ts.is_(None))
-    return session.scalar(query)
+    """The span the session is in now."""
+    return session.scalar(select(models.WorklogSpan).where(models.WorklogSpan.is_open_for(session_id)))
 
 
 def leave(span: models.WorklogSpan, now: dt.datetime, effects: WriteEffects) -> None:

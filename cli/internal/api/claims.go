@@ -44,9 +44,12 @@ type Claim struct {
 	EndedTS      *time.Time `json:"ended_ts"`
 	Ending       *string    `json:"ending"`
 	EndedBy      *string    `json:"ended_by"`
-	State        string     `json:"state"`
-	Worklog      *string    `json:"worklog"`
-	Waiting      *ClaimWait `json:"waiting"`
+	// FlowID is the flow of the hold that took it, which can differ from its
+	// record's.
+	FlowID  *string    `json:"flow_id"`
+	State   string     `json:"state"`
+	Worklog *string    `json:"worklog"`
+	Waiting *ClaimWait `json:"waiting"`
 }
 
 // RecordSummary names a record of any kind on one line. Title is an

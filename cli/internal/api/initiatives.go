@@ -55,6 +55,7 @@ type Initiative struct {
 	PinnedTS      *time.Time `json:"pinned_ts"`
 	PinnedBy      *string    `json:"pinned_by"`
 	PinnedSession *string    `json:"pinned_session"`
+	FlowID        *string    `json:"flow_id"`
 	Autofix       bool       `json:"autofix"`
 	CreatedTS     time.Time  `json:"created_ts"`
 	ClosedTS      *time.Time `json:"closed_ts"`

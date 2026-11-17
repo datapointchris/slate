@@ -117,7 +117,8 @@ class Initiative(InPursuits, InitiativeSteps):
     issue it waits on, and `waiting_initiatives` each initiative waiting on it,
     open or closed, by number. `tags` is the
     initiative's own, and each of its issues reads them as its own too. `pursuits` is each
-    pursuit it is in, in number order, and each of its issues reads them as its own.
+    pursuit it is in, in number order, and each of its issues reads them as its own. `flow_id` is
+    the flow of the work that created it, or of the idea promoted into it.
     """
 
     id: UUID
@@ -132,6 +133,7 @@ class Initiative(InPursuits, InitiativeSteps):
     pinned_ts: dt.datetime | None = None
     pinned_by: str | None = None
     pinned_session: str | None = None
+    flow_id: str | None = None
     autofix: bool
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None

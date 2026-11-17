@@ -45,9 +45,10 @@ The driver is traced rather than SQLAlchemy because OpenTelemetry's SQLAlchemy
 instrumentation, at 0.66b2, declares support below SQLAlchemy 2.1 only. It
 instruments nothing on the 2.1 slate runs.
 
-Every baggage entry the caller sends is copied onto every span. So a caller
-that keeps a flow id in its baggage finds it on slate's spans, and slate's code
-names no key of its own for it.
+Every baggage entry the caller sends is copied onto every span, whatever its
+key. So a caller that keeps a flow id in its baggage finds it on slate's spans.
+The two members slate reads itself, to keep a write's flow, are in "A record
+keeps the flow of the work that created it" below.
 
 `service.name` is `slate`. `service.version` is the installed package's
 version, which the image build sets to the release it builds. A tree no release
@@ -104,7 +105,8 @@ the line apart from the span, so a span the sampler drops still leaves the line
 its record.
 
 Every write's audit row keeps the `traceparent` and `baggage` of the span that
-made it, beside its `request_id`. `GET /records/{number}/changes` answers both.
+made it, beside its `request_id`, and the write's `flow_id`.
+`GET /records/{number}/changes` answers all three.
 
 A process that acts on a record later starts a trace of its own, with a span
 link to the `traceparent` of the change it acts on. It carries that change's
@@ -115,12 +117,72 @@ would put the claim under a trace that ended days before.
 The API's own spans add no link. Each continues its caller's trace, and the
 record's number on each joins every trace that touched the record.
 
+## A record keeps the flow of the work that created it
+
+A flow is one cause's life: everything done because of one report, request or
+idea. Its id has a W3C trace id's form, 32 lowercase hex characters, not all
+zeros. A value in any other form reads as no flow.
+
+A request's flow is the first of these it has:
+
+1. the flow of the worklog the writing agent session is in, from that
+   session's open span. The request names its session in the baggage member
+   `fleet.session.id`.
+2. its `fleet.flow.id` baggage member
+3. its trace id, or a fresh one where it carries no trace
+
+The session's worklog comes first because a session's baggage is fixed when it
+starts. A session that claims another record keeps its first baggage, while
+its open span moves to the new worklog.
+
+The baggage member alone decides the flow. A write that also names a session in
+its body, as a claim, a comment or a document version does, takes its worklog
+from the body. So a client names the same session in both, as the CLI does.
+
+The API takes the session as the request names it, as it does every body
+`session` field. A token names a person or a service, never an agent session.
+So a row's `flow_id` is what its writer asserted, a key for grouping work rather
+than proof of who did it.
+
+Each row below keeps a flow as `flow_id`:
+
+- A record of any kind takes the request's flow when it is created, and keeps
+  it. An initiative promoted from an idea takes the idea's flow instead.
+- A worklog takes its record's flow, whatever flow the session that opened it
+  works under, because it is one go at that record's work.
+- A claim, a comment, a document version and an audit row take the request's
+  flow rather than one copied from their record. Where the writing session was
+  already in another record's worklog, that flow is the other record's. A
+  session in no worklog writes under its baggage flow or its trace id, which
+  need not be the record's.
+
+`flow_id` is null on a row written before the column existed, and on a worklog
+whose record's flow is null.
+
+The flow is resolved in the request's first transaction and set as the
+transaction-local setting `audit.flow_id`. The audit trigger copies it onto
+each audit row, and every `flow_id` column that keeps its writer's flow
+defaults to it. So a row inserted by any path keeps it, with no code at the
+insert. The request keeps that flow to its end. A hold moves the session's span
+mid-request, and the rows written after it are still the work of the flow the
+request arrived under.
+
+`slate show <number> --json` answers a record's flow at `.record.flow_id`, and
+`slate worklogs current --json` its worklog's at `.flow_id`. Every read of the
+rows above answers it too.
+
 ## The CLI forwards its parent's trace and makes no span
 
 The CLI reads `TRACEPARENT`, `TRACESTATE` and `BAGGAGE` from its environment at
 startup, the specification's carriers for a trace handed to a child process.
 Every API request then sends them on as its `traceparent` and `baggage`
-headers.
+headers. The baggage member `fleet.session.id` names the agent session the
+command acts as: its `--session` where it takes one, else
+`CLAUDE_CODE_SESSION_ID`. That replaces any member the CLI inherited, because
+the session running a command is the one writing, not the one that started it.
+An empty `--session` sends no member. Where neither names a session, an
+inherited member stands. The API reads the member to find the session's
+worklog.
 
 The CLI makes no span of its own. Where something traced started it, that
 caller's span is already the run's span, and the API's spans sit directly

@@ -40,6 +40,7 @@ from slate.database.base import Base
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Record
+from slate.models.record_change import WRITERS_FLOW
 
 if TYPE_CHECKING:
     from slate.models.worklog import Worklog
@@ -77,6 +78,8 @@ class Claim(Base):
     ending: Mapped[str | None] = mapped_column(Text, ForeignKey('claim_endings.name'), nullable=True)
     # Who ended it. Null on an expired claim, which nobody ended.
     ended_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The flow of the request that took it, not one copied from its record.
+    flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
 
     record: Mapped[Record] = relationship(Record)
     # Every read of a claim names its worklog and whether it waits, so both load with it.

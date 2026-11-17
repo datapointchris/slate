@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 
 from slate.database.base import Base
+from slate.models.record_change import WRITERS_FLOW
 
 
 class Comment(Base):
@@ -40,6 +41,8 @@ class Comment(Base):
     # The worklog the session was in when it wrote the comment.
     worklog_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('worklogs.id', ondelete='SET NULL'), nullable=True)
     written_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
+    # The flow of the write that added it, never copied from its record's.
+    flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
 
     __table_args__ = (
         ForeignKeyConstraint(['record_number', 'document_id'], ['documents.record_number', 'documents.id'], ondelete='CASCADE'),

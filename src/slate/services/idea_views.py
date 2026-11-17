@@ -52,6 +52,7 @@ def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.I
             pinned_ts=idea.pinned_ts,
             pinned_by=idea.pinned_by,
             pinned_session=idea.pinned_session,
+            flow_id=idea.flow_id,
             created_ts=idea.created_ts,
             updated_ts=idea.updated_ts,
             tags=tags.get(idea.number, []),

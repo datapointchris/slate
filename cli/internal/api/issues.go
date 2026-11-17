@@ -77,6 +77,8 @@ type Issue struct {
 	PinnedTS          *time.Time `json:"pinned_ts"`
 	PinnedBy          *string    `json:"pinned_by"`
 	PinnedSession     *string    `json:"pinned_session"`
+	// FlowID is the flow of the work that filed it.
+	FlowID *string `json:"flow_id"`
 	// DeferredUntilDate is a day, so it decodes as the string the API sends. A
 	// time.Time would refuse the bare YYYY-MM-DD and fail the whole list.
 	DeferredUntilDate *string `json:"deferred_until_date"`

@@ -193,7 +193,7 @@ func newDocumentsWriteCommand() *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&file, "file", "", "The file holding the body, or - for stdin (default stdin)")
 	f.StringVar(&kind, "kind", "", "One of: "+strings.Join(api.DocumentKinds, ", ")+" (default the name, when it is one)")
-	f.StringVar(&session, "session", os.Getenv(claudeCodeSessionEnv), agentSessionHelp+", which wrote it")
+	addActingSessionFlag(f, &session, agentSessionHelp+", which wrote it")
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
