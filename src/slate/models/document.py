@@ -29,8 +29,9 @@ from slate.database.base import Base
 from slate.models.record import Record
 from slate.models.record_change import WRITERS_FLOW
 
-# What a document is for. A worklog that wrote a plan has reached its `planned` stage.
-DocumentKindName = Literal['research', 'design', 'plan', 'retro']
+# What a document is for. A worklog that wrote a plan has reached its `planned` stage. A review
+# checks a phase's built work against the plan mid-build, and a retro looks back once it is built.
+DocumentKindName = Literal['research', 'design', 'plan', 'review', 'retro']
 DOCUMENT_KINDS: list[str] = list(get_args(DocumentKindName))
 PLAN: DocumentKindName = 'plan'
 
