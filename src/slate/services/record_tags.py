@@ -12,6 +12,7 @@ from collections import defaultdict
 from collections.abc import Collection
 from collections.abc import Iterable
 from dataclasses import dataclass
+from itertools import chain
 
 from fastapi import HTTPException
 from fastapi import status
@@ -39,7 +40,7 @@ def unknown_tags(session: Session, unknown: list[str]) -> HTTPException:
     known = list(session.scalars(select(models.Tag.name).order_by(models.Tag.name)))
     named = ', '.join(repr(name) for name in unknown)
     detail = f'Unknown tag {named}. A record carries only a tag that exists: {", ".join(known) or "none yet"}.'
-    near = list(dict.fromkeys(close for name in unknown for close in names_near(name, known)))
+    near = list(dict.fromkeys(chain.from_iterable(names_near(name, known) for name in unknown)))
     if near:
         detail += f' Near what was typed: {", ".join(near)}.'
     detail += ' `slate tags create` adds a tag.'

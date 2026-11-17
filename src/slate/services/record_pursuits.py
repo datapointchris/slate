@@ -11,6 +11,7 @@ from collections import defaultdict
 from collections.abc import Collection
 from collections.abc import Iterable
 from collections.abc import Sequence
+from itertools import chain
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -40,7 +41,8 @@ def unknown_pursuits(session: Session, unknown: Sequence[int | str]) -> HTTPExce
     listed = ', '.join(f'#{number} {name}' for number, name in active) or 'none yet'
     detail = f'{named} names no pursuit. The active pursuits: {listed}.'
     known = pursuit_names(session)
-    near = list(dict.fromkeys(close for ref in unknown if isinstance(ref, str) for close in names_near(ref, known)))
+    typed = [ref for ref in unknown if isinstance(ref, str)]
+    near = list(dict.fromkeys(chain.from_iterable(names_near(ref, known) for ref in typed)))
     if near:
         detail += f' Near what was typed: {", ".join(near)}.'
     detail += ' `slate pursuits create` adds a pursuit.'

@@ -15,6 +15,7 @@ from collections import Counter
 from collections import defaultdict
 from collections.abc import Iterable
 from collections.abc import Sequence
+from itertools import chain
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -78,7 +79,7 @@ def repo_board(session: Session, zone: str) -> schemas.RepoBoard:
         rows = [row for _, row in issues]
         return {**counts_of(rows, calendar), 'closes_by_week': closes_by_week(close_moments(rows), weeks, calendar.zone)}
 
-    every = [pair for issues in in_repo.values() for pair in issues]
+    every = list(chain.from_iterable(in_repo.values()))
     return schemas.RepoBoard(
         read_ts=calendar.now,
         zone=zone,

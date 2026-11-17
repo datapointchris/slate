@@ -7,6 +7,7 @@ covered in `test_oidc_auth.py`.
 import datetime as dt
 import json
 from collections.abc import Iterator
+from itertools import product
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -546,7 +547,10 @@ def test_the_documents_scope_adds_a_version_as_its_client_id_and_only_it_reaches
 
 @pytest.mark.parametrize(
     ('method', 'template'),
-    [(method, f'/{noun}/pin') for method in ('POST', 'DELETE') for noun in ('issues/{issue}', 'initiatives/{initiative}', 'ideas/{idea}')],
+    [
+        (method, f'/{noun}/pin')
+        for method, noun in product(('POST', 'DELETE'), ('issues/{issue}', 'initiatives/{initiative}', 'ideas/{idea}'))
+    ],
 )
 def test_no_scope_reaches_a_pin(as_caller, method, template):
     every_scope = ScopedClient(client_id=SERVICE, scopes=frozenset(SCOPE_ROUTES))

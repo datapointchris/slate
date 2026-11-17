@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Collection
 from collections.abc import Sequence
+from itertools import chain
 from typing import cast
 from uuid import UUID
 
@@ -71,11 +72,11 @@ def initiative_steps(session: Session, initiatives: Sequence[models.Initiative])
         initiative.number: [number for number in (initiative.number, idea_numbers.get(initiative.idea_id)) if number is not None]
         for initiative in initiatives
     }
-    checked = checked_steps(session, [number for numbers in records.values() for number in numbers])
+    checked = checked_steps(session, list(chain.from_iterable(records.values())))
     steps: dict[int, list[schemas.CheckedStep]] = {}
     for initiative, numbers in records.items():
         latest: dict[str, schemas.CheckedStep] = {}
-        for step in (step for number in numbers for step in checked.get(number, {}).values()):
+        for step in chain.from_iterable(checked.get(number, {}).values() for number in numbers):
             if step.step not in latest or step.ended_ts > latest[step.step].ended_ts:
                 latest[step.step] = step
         steps[initiative] = sorted(latest.values(), key=lambda step: WORKLOG_STEPS.index(step.step))

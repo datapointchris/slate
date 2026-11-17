@@ -99,7 +99,9 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
     written = set(own)
     found = own
     while found:
-        parents = [(link, int(key) if link.key_is_int else key) for table, key in found for link in HANGING.get(table, ())]
+        parents: list[tuple[Hanging, int | str]] = []
+        for table, key in found:
+            parents.extend((link, int(key) if link.key_is_int else key) for link in HANGING.get(table, ()))
         found = set(rows_naming(session, parents)) - written
         written |= found
 

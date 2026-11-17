@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Iterable
 from dataclasses import dataclass
+from itertools import chain
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -72,10 +73,11 @@ class IssueWaits:
 
 def issue_waits(session: Session, issues: list[models.Issue], readiness: IssueReadiness) -> IssueWaits:
     """A closed issue waits on nothing through its initiative, so only an unclosed one's initiative is read."""
+    blocked_by = chain.from_iterable(readiness.blocked_by.get(issue.id, ()) for issue in issues)
     return IssueWaits(
         of_initiative=waited_on(session, {issue.initiative_id for issue in issues if issue.initiative_id and not issue.is_closed}),
         on_issue=waiting_initiatives(session, [issue.number for issue in issues]),
-        blocking=record_summaries(session, (blocking.number for issue in issues for blocking in readiness.blocked_by.get(issue.id, ()))),
+        blocking=record_summaries(session, (blocking.number for blocking in blocked_by)),
     )
 
 

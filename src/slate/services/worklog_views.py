@@ -8,6 +8,7 @@ sessions reported inside its spans.
 from __future__ import annotations
 
 import datetime as dt
+from itertools import chain
 from typing import cast
 
 from sqlalchemy.orm import Session
@@ -109,7 +110,8 @@ def worklog_view(
 
 def worklog_views(session: Session, worklogs: list[models.Worklog], now: dt.datetime) -> list[schemas.Worklog]:
     summaries = record_summaries(session, [worklog.record_number for worklog in worklogs])
-    span_tokens = tokens_by_span(session, (span.id for worklog in worklogs for span in worklog.spans))
+    spans = chain.from_iterable(worklog.spans for worklog in worklogs)
+    span_tokens = tokens_by_span(session, (span.id for span in spans))
     versions = worklog_document_versions(session, [worklog.id for worklog in worklogs])
     return [worklog_view(worklog, summaries[worklog.record_number], span_tokens, versions.get(worklog.id, []), now) for worklog in worklogs]
 

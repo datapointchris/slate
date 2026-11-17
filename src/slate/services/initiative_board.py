@@ -21,6 +21,7 @@ from collections.abc import Iterable
 from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
+from itertools import chain
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -136,7 +137,7 @@ def counts_of(issues: Sequence[schemas.BoardIssue], calendar: CloseCalendar) -> 
 
 def rollup_of(initiatives: Sequence[schemas.BoardInitiative], calendar: CloseCalendar) -> dict[str, Any]:
     """The fields of a `BoardRollup` over `initiatives`."""
-    issues = [issue for initiative in initiatives for issue in initiative.issues]
+    issues = list(chain.from_iterable(initiative.issues for initiative in initiatives))
     return {'initiative_count': len(initiatives), **counts_of(issues, calendar)}
 
 
@@ -354,7 +355,7 @@ def in_none_where_empty[Key](keys: list[Key]) -> list[Key | None]:
 
 def grouping_rollup(tally: GroupTally, calendar: CloseCalendar) -> dict[str, Any]:
     """The fields of a `BoardGroupingRollup` over `tally`."""
-    on_the_board = close_moments(issue for row in tally.rows for issue in row.issues)
+    on_the_board = close_moments(chain.from_iterable(row.issues for row in tally.rows))
     active = [row for row in tally.rows if row.status == 'active']
     untouched = min(active, key=lambda row: row.touched_ts, default=None)
     return {
@@ -376,7 +377,8 @@ def pursuit_rollups(
 ) -> list[schemas.BoardPursuitRollup]:
     """Every active pursuit, each other one an initiative counted is in, and the initiatives in none, the fewest closes first."""
     named = dict(session.execute(select(models.Pursuit.number, models.Pursuit.name).where(models.Pursuit.status == 'active')).all())
-    for pursuit in (*(d for row in rows for d in row.pursuits), *(d for held in elsewhere.pursuits.values() for d in held)):
+    on_rows = chain.from_iterable(row.pursuits for row in rows)
+    for pursuit in chain(on_rows, chain.from_iterable(elsewhere.pursuits.values())):
         named[pursuit.number] = pursuit.name
     tallies = tally_groups(
         rows,
