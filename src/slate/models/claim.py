@@ -78,7 +78,7 @@ class Claim(Base):
     ending: Mapped[str | None] = mapped_column(Text, ForeignKey('claim_endings.name'), nullable=True)
     # Who ended it. Null on an expired claim, which nobody ended.
     ended_by: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # The flow of the hold that took it, which differs from its record's where one flow's work took another's record.
+    # The flow of the request that took it, not one copied from its record.
     flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
 
     record: Mapped[Record] = relationship(Record)

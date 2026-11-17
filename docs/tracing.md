@@ -135,6 +135,15 @@ The session's worklog comes first because a session's baggage is fixed when it
 starts. A session that claims another record keeps its first baggage, while
 its open span moves to the new worklog.
 
+The baggage member alone decides the flow. A write that also names a session in
+its body, as a claim, a comment or a document version does, takes its worklog
+from the body. So a client names the same session in both, as the CLI does.
+
+The API takes the session as the request names it, as it does every body
+`session` field. A token names a person or a service, never an agent session.
+So a row's `flow_id` is what its writer asserted, a key for grouping work rather
+than proof of who did it.
+
 Each row below keeps a flow as `flow_id`:
 
 - A record of any kind takes the request's flow when it is created, and keeps
@@ -142,10 +151,13 @@ Each row below keeps a flow as `flow_id`:
 - A worklog takes its record's flow, whatever flow the session that opened it
   works under, because it is one go at that record's work.
 - A claim, a comment, a document version and an audit row take the request's
-  flow, never their record's. A row whose flow differs from its record's is
-  where work under one flow touched another flow's record.
+  flow rather than one copied from their record. Where the writing session was
+  already in another record's worklog, that flow is the other record's. A
+  session in no worklog writes under its baggage flow or its trace id, which
+  need not be the record's.
 
-A row an older release wrote holds null.
+`flow_id` is null on a row written before the column existed, and on a worklog
+whose record's flow is null.
 
 The flow is resolved in the request's first transaction and set as the
 transaction-local setting `audit.flow_id`. The audit trigger copies it onto
@@ -164,9 +176,13 @@ rows above answers it too.
 The CLI reads `TRACEPARENT`, `TRACESTATE` and `BAGGAGE` from its environment at
 startup, the specification's carriers for a trace handed to a child process.
 Every API request then sends them on as its `traceparent` and `baggage`
-headers. Where `CLAUDE_CODE_SESSION_ID` names the session running the CLI, and
-the baggage names none, the CLI adds it as the member `fleet.session.id`. The
-API reads that member to find the session's worklog.
+headers. The baggage member `fleet.session.id` names the agent session the
+command acts as: its `--session` where it takes one, else
+`CLAUDE_CODE_SESSION_ID`. That replaces any member the CLI inherited, because
+the session running a command is the one writing, not the one that started it.
+An empty `--session` sends no member. Where neither names a session, an
+inherited member stands. The API reads the member to find the session's
+worklog.
 
 The CLI makes no span of its own. Where something traced started it, that
 caller's span is already the run's span, and the API's spans sit directly

@@ -7,8 +7,9 @@ which `name_the_writer` calls each time a session begins a transaction. The API 
 the caller: a person's username, else their `sub`, or a service client's id. `request_id` and `job_run_id` come from structlog's context,
 where the request middleware or a batch job binds them. `traceparent` and `baggage` are the span
 writing and its baggage, so a reader of the change can follow it to the trace that made it.
-`flow_id` is the write's flow, which `tracing/writer_flow.py` resolves once per session. Every row
-the write creates that keeps its writer's flow reads the same setting through `WRITERS_FLOW`.
+`flow_id` is the write's flow, which `tracing/writer_flow.py` resolves once per database session,
+and so once per request. Every row the write creates that keeps its writer's flow reads the same
+setting through `WRITERS_FLOW`.
 
 A table opts out with `'info': {'record_changes': False}` in its `__table_args__`, and a column
 with the same key in its `info`. Each declaration is mirrored in the table's trigger, which the
@@ -100,9 +101,9 @@ def bind_actor(session: Session, actor: str) -> None:
 def set_writer_settings(session: Session, connection: Connection) -> None:
     """Each setting is transaction-local, so a pooled connection carries no request's writer into the next.
 
-    The flow is resolved in the session's first transaction and kept. A hold moves the session's
-    span within the request, and the rows the request writes after it are still the work of the flow
-    it arrived under.
+    The flow is resolved in the database session's first transaction and kept. A hold moves the
+    agent session's span within the request, and the rows the request writes after it are still the
+    work of the flow it arrived under.
     """
     bound = structlog.contextvars.get_contextvars()
     trace_context: dict[str, str] = {}
