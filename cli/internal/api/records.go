@@ -134,6 +134,8 @@ type RecordChange struct {
 	// Traceparent and Baggage are the W3C headers of the span that wrote it.
 	Traceparent *string `json:"traceparent"`
 	Baggage     *string `json:"baggage"`
+	// FlowID is the flow the write was made under.
+	FlowID *string `json:"flow_id"`
 	// IsOwnRow is a write to the record's own row, as the API decides it.
 	IsOwnRow bool `json:"is_own_row"`
 	// ReferencedNames is the name a person knows a row by, for each column of

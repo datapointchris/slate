@@ -83,13 +83,15 @@ type Worklog struct {
 	EndedTS   *time.Time     `json:"ended_ts"`
 	Outcome   *string        `json:"outcome"`
 	EndedBy   *string        `json:"ended_by"`
-	State     string         `json:"state"`
-	Stage     string         `json:"stage"`
-	Claim     *Claim         `json:"claim"`
-	Waits     []ClaimWait    `json:"waits"`
-	Tokens    *Tokens        `json:"tokens"`
-	Spans     []WorklogSpan  `json:"spans"`
-	Links     []WorklogLink  `json:"links"`
+	// FlowID is its record's flow, whatever flow its opener worked under.
+	FlowID *string       `json:"flow_id"`
+	State  string        `json:"state"`
+	Stage  string        `json:"stage"`
+	Claim  *Claim        `json:"claim"`
+	Waits  []ClaimWait   `json:"waits"`
+	Tokens *Tokens       `json:"tokens"`
+	Spans  []WorklogSpan `json:"spans"`
+	Links  []WorklogLink `json:"links"`
 	// DocumentVersions is every document version a session wrote while in it.
 	DocumentVersions []DocumentVersionRef `json:"document_versions"`
 }

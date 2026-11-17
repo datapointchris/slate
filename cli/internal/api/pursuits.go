@@ -37,6 +37,7 @@ type Pursuit struct {
 	StatusReason *string         `json:"status_reason"`
 	CreatedTS    time.Time       `json:"created_ts"`
 	ClosedTS     *time.Time      `json:"closed_ts"`
+	FlowID       *string         `json:"flow_id"`
 	Ideas        []RecordSummary `json:"ideas"`
 	Initiatives  []RecordSummary `json:"initiatives"`
 }
