@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goselfupdate"
@@ -53,7 +55,14 @@ func githubToken() string {
 			return token
 		}
 	}
-	out, err := exec.Command("gh", "auth", "token").Output()
+	// gh answers from its local store, so ten seconds is a hung gh rather than a
+	// slow one. WaitDelay closes the output pipe a gh child could hold open past
+	// the kill, which would otherwise keep Output waiting.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", "auth", "token")
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
 	if err != nil {
 		return ""
 	}

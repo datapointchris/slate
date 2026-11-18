@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -146,7 +147,8 @@ func (b *initiativesBoard) openInPrs(m *gotermboard.Model, link string) tea.Cmd 
 		m.Say(fmt.Sprintf("prs is not on PATH, so o opens %s in the browser", name))
 		return nil
 	}
-	return m.HandOver(exec.Command("prs", "tui", "--pr", link), func(m *gotermboard.Model, err error, stderr []byte) tea.Cmd {
+	// prs holds the terminal until the user quits it, so the handover has no deadline.
+	return m.HandOver(exec.CommandContext(context.Background(), "prs", "tui", "--pr", link), func(m *gotermboard.Model, err error, stderr []byte) tea.Cmd {
 		var exited *exec.ExitError
 		switch {
 		case errors.As(err, &exited) && exited.ExitCode() == usageExit:

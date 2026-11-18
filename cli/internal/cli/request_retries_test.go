@@ -65,7 +65,7 @@ func TestARetrySendsOnlyWhatCannotHappenTwice(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			next := &scriptedTransport{answers: c.answers}
 			transport := retryingTransport{next: next, pause: func(int, *http.Response) time.Duration { return 0 }}
-			req, err := http.NewRequest(c.method, "https://slate.example.com/api/v1/issues/1", strings.NewReader("sent"))
+			req, err := http.NewRequestWithContext(t.Context(), c.method, "https://slate.example.com/api/v1/issues/1", strings.NewReader("sent"))
 			if err != nil {
 				t.Fatal(err)
 			}
