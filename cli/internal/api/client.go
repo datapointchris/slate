@@ -38,8 +38,9 @@ func WrapErrors(wrap func(error) error) Option {
 	return func(c *Client) { c.wrap = wrap }
 }
 
-// New builds a client for baseURL. Trailing slashes are trimmed so path joining
-// is unambiguous (the API's own routes carry their own trailing slashes).
+// New builds a client for baseURL. Trailing slashes are trimmed because a
+// request's URL is baseURL, then prefix, then the path, and prefix starts with
+// its own slash: a base ending in one would put a double slash before /api/v1.
 func New(baseURL string, httpClient *http.Client, options ...Option) *Client {
 	c := &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),

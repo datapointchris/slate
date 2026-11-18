@@ -9,7 +9,7 @@ import (
 
 // limitUsage is the description every server-side --limit carries. It is shared
 // text rather than a sentence written per command because a flag has to mean one
-// thing everywhere in the binary: a caller who has read it once on `tasks list`
+// thing everywhere in the binary: a caller who has read it once on `issues list`
 // has read it everywhere, and a divergence between two commands is invisible in
 // help because both rows still read the same.
 const limitUsage = "Maximum number of rows to return (default: every row)"
@@ -56,9 +56,10 @@ func addLimitFlag(cmd *cobra.Command, target *int) {
 // addCapFlag declares --limit/-n on a command that caps what it prints rather
 // than what it asks for, defaulting to fallback.
 //
-// `what` is a parameter because "rows" is wrong for these two: `overview` caps
-// each section separately, so --limit 3 across seven sections prints up to 21
-// rows. A shared sentence would be invisible in help and wrong in the answer.
+// `what` is a parameter because "rows" is wrong for both callers: `next` caps
+// the queued records it shows and always prints claimed work beyond the cap,
+// and `tui` sets how many initiatives the board opens on. A shared sentence
+// would be invisible in help and wrong in the answer.
 // The default is seeded into target before registering, because pflag reads
 // DefValue off the value's String method at that moment.
 func addCapFlag(cmd *cobra.Command, target *int, fallback int, what string) {
