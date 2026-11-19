@@ -255,7 +255,7 @@ func newIssuesListCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List issues, open work first in queue order",
-		Long: "Unclosed issues by default: triage and open. Completed and canceled ones\n" +
+		Long: "Unclosed issues by default: incoming and open. Completed and canceled ones\n" +
 			"accumulate without end, so --status asks for them. --search keeps the issues\n" +
 			"whose title or description holds every word, beside any other filter. A word\n" +
 			"that is a number, as 2175 or #2175, also matches that issue.\n" +
@@ -275,7 +275,7 @@ func newIssuesListCommand() *cobra.Command {
 			"  slate issues list --repo webapp\n" +
 			"  slate issues list --search routing --repo webapp --status all\n" +
 			"  slate issues list --type decision\n" +
-			"  slate issues list --status triage\n" +
+			"  slate issues list --status incoming\n" +
 			"  slate issues list --blocked\n" +
 			"  slate issues list --label needs-design --priority high\n" +
 			"  slate issues list --status completed --since 2026-10-01 --json\n" +

@@ -4,7 +4,7 @@ A state is derived on every read from the issue's status, its live claim and its
 never stored. `issue_state` gives each issue the first state that holds.
 
 A claim outranks every unclosed state, because someone holding an issue is working it whatever
-else is true of it. Triage outranks blocked, because nobody has accepted the work its blockers hold.
+else is true of it. Incoming outranks blocked, because nobody has accepted the work its blockers hold.
 
 One readiness pass serves every initiative's states, lists and head of the queue, so a read of
 any number of initiatives measures the issue graph once, and progress and `next` never disagree
@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
+from slate.models.issue import current_issue_status
 from slate.schemas.initiative_progress import IssueState
 from slate.schemas.queue import InitiativeRow
 from slate.schemas.queue import IssueRow
@@ -56,8 +57,8 @@ def issue_state(issue: models.Issue, claim: models.Claim | None, readiness: Issu
         return 'canceled'
     if claim is not None:
         return 'waiting' if claim.open_wait is not None else 'running'
-    if issue.status == 'triage':
-        return 'triage'
+    if current_issue_status(issue.status) == 'incoming':
+        return 'incoming'
     if issue.id in readiness.blocked:
         return 'blocked'
     if issue.id in readiness.ready:

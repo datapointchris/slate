@@ -80,7 +80,7 @@ else it finds, and the answer carries a warning for each thing:
 | --- | --- |
 | `already_held` | the holder already holds the record; the claim stays as it was |
 | `record_closed` | the record is closed |
-| `in_triage` | the issue waits on triage |
+| `incoming` | the issue is incoming, so nobody has accepted it |
 | `deferred` | the issue's deferral day has not come |
 | `shelved` | the initiative is someday, or the issue is shelved in one |
 | `open_dependency` | the issue depends on an unclosed issue, one warning each |
@@ -98,7 +98,7 @@ warnings under their own comment.
 A neighbor the same holder claims is not named, because a lead holding an
 initiative and its issues is one actor working one plan.
 
-Triage, closed, blocked and deferred work are warnings rather than refusals.
+Incoming, closed, blocked and deferred work are warnings rather than refusals.
 Each is a judgment the holder can make with the fact in hand. A second holder
 is not: two sessions editing one record collide.
 

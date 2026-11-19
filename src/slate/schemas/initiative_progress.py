@@ -11,7 +11,7 @@ from slate.schemas.record import RecordModel
 from slate.schemas.work_totals import WorkTotals
 
 # Each issue counts in exactly one of these. `issue_state` decides which, in its own order.
-IssueState = Literal['completed', 'canceled', 'running', 'waiting', 'ready', 'blocked', 'triage', 'deferred', 'shelved', 'open_children']
+IssueState = Literal['completed', 'canceled', 'running', 'waiting', 'ready', 'blocked', 'incoming', 'deferred', 'shelved', 'open_children']
 
 
 class IssueStateCounts(RecordModel):
@@ -27,7 +27,7 @@ class IssueStateCounts(RecordModel):
     waiting: int = 0
     ready: int = 0
     blocked: int = 0
-    triage: int = 0
+    incoming: int = 0
     deferred: int = 0
     shelved: int = 0
     open_children: int = 0

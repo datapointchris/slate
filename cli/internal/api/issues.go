@@ -8,19 +8,22 @@ import (
 	"time"
 )
 
-// The issue statuses, in lifecycle order. `triage` holds what a machine filed
+// The issue statuses, in lifecycle order. `incoming` holds what a machine filed
 // until someone accepts it. Whether anyone works an open issue is its claim.
+// `triage` is incoming's earlier name: the API reads it as incoming, and an API
+// one release behind still writes it.
 const (
-	IssueStatusTriage    = "triage"
+	IssueStatusIncoming  = "incoming"
 	IssueStatusOpen      = "open"
 	IssueStatusCompleted = "completed"
 	IssueStatusCanceled  = "canceled"
+	IssueStatusTriage    = "triage"
 	IssueStatusAll       = "all"
 )
 
 // IssueStatuses is what --status accepts, in the order help lists them.
 var IssueStatuses = []string{
-	IssueStatusTriage, IssueStatusOpen, IssueStatusCompleted, IssueStatusCanceled, IssueStatusAll,
+	IssueStatusIncoming, IssueStatusOpen, IssueStatusCompleted, IssueStatusCanceled, IssueStatusTriage, IssueStatusAll,
 }
 
 // IssueTypeDecision is the one type that changes what happens to an issue: it

@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import AfterValidator
 from pydantic import StringConstraints
 
+from slate.models.issue import current_issue_status
 from slate.schemas.claim import Claim
 from slate.schemas.initiative import InitiativeRef
 from slate.schemas.initiative import InitiativeSummary
@@ -49,6 +50,9 @@ def distinct_paths(paths: list[str]) -> list[str]:
 
 IssuePaths = Annotated[list[IssuePath], AfterValidator(distinct_paths)]
 
+# A status a write names, with an earlier name read as the status it became.
+IssueStatusName = Annotated[str, AfterValidator(current_issue_status)]
+
 
 class IssueSummary(RecordModel):
     """Enough of another issue to print it beside this one without fetching it."""
@@ -60,7 +64,7 @@ class IssueSummary(RecordModel):
 
 
 class IssueCreate(RecordModel):
-    """`status` takes `triage` for work filed by a machine, which waits there until accepted.
+    """`status` takes `incoming` for work filed by a machine, which waits there until accepted.
 
     `paths` are files and directories in `repo` the work changes, so an issue naming any needs a repo.
     """
@@ -71,7 +75,7 @@ class IssueCreate(RecordModel):
     repo: str | None = None
     paths: IssuePaths = []
     type: str = 'task'
-    status: str = 'open'
+    status: IssueStatusName = 'open'
     priority: Priority = 0
     deferred_until_date: dt.date | None = None
     autofix: bool = False
@@ -99,7 +103,7 @@ class IssueUpdate(RecordModel):
     repo: str | None = None
     paths: NotNull[IssuePaths] = None
     type: NotNull[str] = None
-    status: NotNull[str] = None
+    status: NotNull[IssueStatusName] = None
     status_reason: str | None = None
     priority: NotNull[Priority] = None
     deferred_until_date: dt.date | None = None

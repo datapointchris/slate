@@ -27,6 +27,7 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.models.issue import issue_status_names
 from slate.models.record import Kind
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
 from slate.services.claims import end_with_record
@@ -74,7 +75,7 @@ router = APIRouter()
 ALL_STATUSES = 'all'
 
 # The statuses a new issue may start in. Anything later is reached by working it.
-CREATE_STATUSES = ('triage', 'open')
+CREATE_STATUSES = ('incoming', 'open')
 
 
 def path_issue(id: str, session: DbSession) -> models.Issue:
@@ -291,7 +292,7 @@ def read_many(
         query = query.where(models.Issue.status.not_in(CLOSED_ISSUE_STATUSES))
     elif issue_status != ALL_STATUSES:
         validate_lookup(session, models.IssueStatus, issue_status, 'issue status', extra=(ALL_STATUSES,))
-        query = query.where(models.Issue.status == issue_status)
+        query = query.where(models.Issue.status.in_(issue_status_names(issue_status)))
     if type is not None:
         validate_lookup(session, models.IssueType, type, 'issue type')
         query = query.where(models.Issue.type == type)
@@ -327,18 +328,18 @@ def read_many(
     return issue_views(session, issues, zone, readiness)
 
 
-def refuse_all_but_a_triage_filing(issue: schemas.IssueCreate) -> None:
-    """A scoped client's filing waits for a person, and names no parent, which would wait on it."""
+def refuse_all_but_an_incoming_filing(issue: schemas.IssueCreate) -> None:
+    """A scoped client's filing waits for someone to accept it, and names no parent, which would wait on it."""
     if issue.parent is not None:
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_FILES_ONLY_INTO_TRIAGE}; this filing names a parent', logger)
-    if issue.status != 'triage':
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_FILES_ONLY_INTO_TRIAGE}; this filing starts as {issue.status}', logger)
+        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_FILES_ONLY_AS_INCOMING}; this filing names a parent', logger)
+    if issue.status != 'incoming':
+        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_FILES_ONLY_AS_INCOMING}; this filing starts as {issue.status}', logger)
 
 
 @router.post('', response_model=schemas.IssueWritten, status_code=status.HTTP_201_CREATED)
 def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects):
     if isinstance(caller, ScopedClient):
-        refuse_all_but_a_triage_filing(issue)
+        refuse_all_but_an_incoming_filing(issue)
     if issue.status not in CREATE_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

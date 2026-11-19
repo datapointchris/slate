@@ -197,7 +197,7 @@ type IssueStateCounts struct {
 	Waiting      int `json:"waiting"`
 	Ready        int `json:"ready"`
 	Blocked      int `json:"blocked"`
-	Triage       int `json:"triage"`
+	Incoming     int `json:"incoming"`
 	Deferred     int `json:"deferred"`
 	Shelved      int `json:"shelved"`
 	OpenChildren int `json:"open_children"`

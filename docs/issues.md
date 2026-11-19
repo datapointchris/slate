@@ -228,15 +228,21 @@ missing or does not match. `slate next` and `slate claims hold --next
 Neither status nor someday carries this. Status says where the work is in its
 life, and someday means nobody has taken the work on.
 
-## Triage holds what nobody has accepted yet
+## An incoming issue waits outside the queue until someone accepts it
 
-An issue filed as `triage` sits outside the ready queue until someone accepts
-it as `open`. Work noticed in passing is filed there, with `discovered_from`
-naming the issue it was found during. It is recorded without jumping ahead of
-work someone chose. `slate issues create` fills `discovered_from` with the
+An issue filed as `incoming` sits outside the ready queue until someone
+accepts it as `open`. A hook, a script or a job files there, so a capture sent
+three times waits as three incoming issues rather than heading the queue three
+times at its filer's priority. Work noticed in passing is filed there, with
+`discovered_from` naming the issue it was found during. It is recorded without
+jumping ahead of work someone chose. `slate issues create` fills `discovered_from` with the
 issue the session's worklog is on, so the link costs a session nothing. A
 retrospective then reads an initiative's trailing fixes as the issues
 discovered from its own.
+
+`triage` is the status's earlier name. A write or a list filter sending it
+reads as `incoming`, and so does a row an API one release behind wrote, until
+no released writer sends it.
 
 ## Order is a person's pin, then priority, then each initiative's work together, then rank
 
@@ -508,7 +514,7 @@ takes the first state that holds:
 | `completed`, `canceled` | its closing status |
 | `running` | a live claim holds it |
 | `waiting` | a live claim holds it, and its holder parked it with `slate claims wait` |
-| `triage` | it was filed and nobody has accepted it |
+| `incoming` | it was filed and nobody has accepted it |
 | `blocked` | it depends on an unclosed issue, or its initiative waits on an open record |
 | `ready` | `next` would hand it out |
 | `deferred` | its not-before day has not come |
@@ -516,7 +522,7 @@ takes the first state that holds:
 | `open_children` | only its open children hold it back |
 
 A claim outranks every unclosed state. A held issue is being worked, whatever
-else is true of it. Triage outranks blocked, because nobody has accepted the
+else is true of it. Incoming outranks blocked, because nobody has accepted the
 work its blockers hold back. No status says an issue is in progress. Its claim
 says that.
 
@@ -688,5 +694,5 @@ columns serve every row.
   back.
 - **Sprints and estimates.** Both measure a team's throughput against a
   calendar. The queue here is taken one issue at a time in order.
-- **Custom workflow states.** The statuses are `triage`, `open`, `completed`
+- **Custom workflow states.** The statuses are `incoming`, `open`, `completed`
   and `canceled`. Anything finer is a label.

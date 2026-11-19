@@ -85,10 +85,10 @@ class TestCreate:
         created = create(client)
         assert created['rank'] > max(row['rank'] for row in ok(client.get(ISSUES, params={'status': 'all'})) if row['id'] != created['id'])
 
-    def test_a_new_issue_starts_open_or_in_triage(self, client):
-        assert create(client, status='triage')['status'] == 'triage'
+    def test_a_new_issue_starts_open_or_incoming(self, client):
+        assert create(client, status='incoming')['status'] == 'incoming'
         detail = refused(client.post(ISSUES, json={'title': 'Done already', 'status': 'completed'}), 422)
-        assert 'triage or open' in detail
+        assert 'incoming or open' in detail
 
     def test_an_unknown_type_names_the_known_ones(self, client):
         detail = refused(client.post(ISSUES, json={'title': 'x', 'type': 'epic'}), 422)
@@ -153,7 +153,7 @@ class TestList:
             'Decision waiting on a person',
             'Ready chore with low priority',
             'Ready task without priority',
-            'Filed by a hook into triage',
+            'Filed by a hook as incoming',
         ]
 
     def test_an_empty_repo_asks_for_issues_on_no_repo(self, client):
@@ -190,7 +190,7 @@ class TestList:
 
 
 class TestReadyQueue:
-    def test_building_leaves_out_decisions_and_triage(self, client):
+    def test_building_leaves_out_decisions_and_incoming(self, client):
         assert titles(ready(client)) == [
             'Ready bug with high priority',
             'Ready chore with low priority',
@@ -448,6 +448,6 @@ class TestRank:
 
 def test_the_vocabulary_lists_values_in_lifecycle_order(client):
     vocabulary = ok(client.get('/vocabulary'))
-    assert vocabulary['issue_statuses'] == ['triage', 'open', 'completed', 'canceled']
+    assert vocabulary['issue_statuses'] == ['incoming', 'open', 'completed', 'canceled', 'triage']
     assert vocabulary['priorities'][0] == {'value': 0, 'name': 'none'}
     assert [label['slug'] for label in vocabulary['labels']] == ['area-api', 'area-cli', 'needs-design']

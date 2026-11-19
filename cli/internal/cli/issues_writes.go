@@ -18,11 +18,15 @@ import (
 	"github.com/datapointchris/slate/cli/internal/repos"
 )
 
-// createStatuses are where a new issue may start: accepted, or waiting on triage.
-var createStatuses = []string{api.IssueStatusOpen, api.IssueStatusTriage}
+// createStatuses are where a new issue may start: accepted, or incoming until
+// someone accepts it. The API files triage as incoming.
+var createStatuses = []string{api.IssueStatusOpen, api.IssueStatusIncoming, api.IssueStatusTriage}
+
+// holdingStatuses are the states accept moves into the queue.
+var holdingStatuses = []string{api.IssueStatusIncoming, api.IssueStatusTriage}
 
 // unclosedStatuses are the states complete and cancel act on.
-var unclosedStatuses = []string{api.IssueStatusTriage, api.IssueStatusOpen}
+var unclosedStatuses = []string{api.IssueStatusIncoming, api.IssueStatusTriage, api.IssueStatusOpen}
 
 // --- Create ---
 
@@ -217,8 +221,8 @@ func newIssuesCreateCommand() *cobra.Command {
 			"Description and Acceptance take lines until a blank one. Ctrl-C abandons the\n" +
 			"issue.\n" +
 			"\n" +
-			"--status triage holds it for a person to accept before an agent may take it.\n" +
-			"Anything a hook or a script files belongs there.\n" +
+			"--status incoming holds it out of the queue until someone accepts it, so no\n" +
+			"agent takes it first. Anything a hook or a script files belongs there.\n" +
 			"\n" +
 			"An issue starts with autofix off, so only a session takes it. --autofix opens\n" +
 			"it to an unattended fix, unless its initiative or an unclosed parent is off.\n" +
@@ -238,7 +242,7 @@ func newIssuesCreateCommand() *cobra.Command {
 		Example: "  slate issues create\n" +
 			"  slate issues create --title \"Routing drops /issues\" --type bug --repo webapp --priority high\n" +
 			"  slate issues create --title \"Pick a rank scheme\" --type decision --label needs-design\n" +
-			"  slate issues create --title \"TestSync fails one CI run in five\" --type bug --status triage --discovered-from 412 --description \"$(cat log.md)\"",
+			"  slate issues create --title \"TestSync fails one CI run in five\" --type bug --status incoming --discovered-from 412 --description \"$(cat log.md)\"",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead, scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -664,14 +668,14 @@ func newIssuesAcceptCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:         "accept <issue>",
-		Short:       "Move an issue out of triage and into the queue",
-		Long:        "Triage holds what a hook or a script filed until a person says it is real.",
+		Short:       "Move an incoming issue into the queue",
+		Long:        "Incoming holds what a hook or a script filed until someone accepts it as real work.",
 		Example:     "  slate issues accept 412",
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			open := api.IssueStatusOpen
-			return runIssueTransition(cmd, args[0], []string{api.IssueStatusTriage}, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
+			return runIssueTransition(cmd, args[0], holdingStatuses, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)

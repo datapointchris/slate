@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from slate.api import API_PREFIX
@@ -48,9 +49,12 @@ def api(private_services):
 
 
 @contextmanager
-def transactional_api_client(api, caller: Callable[[], OIDCIdentity] | None):
-    """A client and a session sharing one transaction, which is rolled back when the test ends."""
-    connection = get_db_engine(test_settings).connect()
+def transactional_api_client(api, caller: Callable[[], OIDCIdentity] | None, engine: Engine | None = None):
+    """A client and a session sharing one transaction, which is rolled back when the test ends.
+
+    `engine` defaults to the session's database.
+    """
+    connection = (engine or get_db_engine(test_settings)).connect()
     transaction = connection.begin()
     set_test_connection(connection)
     session = Session(bind=connection, join_transaction_mode='create_savepoint')
