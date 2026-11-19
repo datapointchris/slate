@@ -36,20 +36,14 @@ if TYPE_CHECKING:
 ISSUE_STATUSES = ['incoming', 'open', 'completed', 'canceled']
 CLOSED_ISSUE_STATUSES = ['completed', 'canceled']
 
-# A status's earlier name, read as the status it became. Its row stays in `issue_statuses` while a
-# released writer still sends it, so a write or a filter naming it lands, and a row an older API
-# wrote reads as the status it means.
+# A status's earlier name, read as the status it became wherever a caller names one. Its row stays
+# in `issue_statuses` while a released writer still sends it, and the trigger
+# `store_triage_as_incoming` stores such a write as `incoming`, so no row holds it.
 FORMER_ISSUE_STATUSES = {'triage': 'incoming'}
 
 
 def current_issue_status(name: str) -> str:
     return FORMER_ISSUE_STATUSES.get(name, name)
-
-
-def issue_status_names(name: str) -> list[str]:
-    """The status `name` means, then each earlier name a row may still hold for it."""
-    status = current_issue_status(name)
-    return [status, *(former for former, current in FORMER_ISSUE_STATUSES.items() if current == status)]
 
 
 # `decision` is the one type that changes what happens to an issue: it waits on

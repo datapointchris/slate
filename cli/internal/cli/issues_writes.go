@@ -18,15 +18,12 @@ import (
 	"github.com/datapointchris/slate/cli/internal/repos"
 )
 
-// createStatuses are where a new issue may start: accepted, or incoming until
-// someone accepts it. The API files triage as incoming.
-var createStatuses = []string{api.IssueStatusOpen, api.IssueStatusIncoming, api.IssueStatusTriage}
-
-// holdingStatuses are the states accept moves into the queue.
-var holdingStatuses = []string{api.IssueStatusIncoming, api.IssueStatusTriage}
+// createStatuses are where a new issue may start: incoming until someone
+// accepts it, or accepted.
+var createStatuses = api.IssueCreateStatuses
 
 // unclosedStatuses are the states complete and cancel act on.
-var unclosedStatuses = []string{api.IssueStatusIncoming, api.IssueStatusTriage, api.IssueStatusOpen}
+var unclosedStatuses = []string{api.IssueStatusIncoming, api.IssueStatusOpen}
 
 // --- Create ---
 
@@ -247,7 +244,7 @@ func newIssuesCreateCommand() *cobra.Command {
 		Annotations: scopesForService(scopeRecordsRead, scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f := cmd.Flags()
-			if f.Changed("status") && !slices.Contains(createStatuses, issueStatus) {
+			if f.Changed("status") && !slices.Contains(createStatuses, api.CurrentIssueStatus(issueStatus)) {
 				return goclikit.UsageError(fmt.Errorf("--status %q: a new issue starts %s", issueStatus, strings.Join(createStatuses, " or ")))
 			}
 			if f.Changed("deferred-until") {
@@ -653,7 +650,7 @@ func runIssueTransition(cmd *cobra.Command, ref string, from []string, in api.Is
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	if !slices.Contains(from, current.Status) {
+	if !slices.Contains(from, api.CurrentIssueStatus(current.Status)) {
 		return fmt.Errorf("#%d is %s — %s applies to an issue that is %s",
 			current.Number, current.Status, cmd.Name(), strings.Join(from, " or "))
 	}
@@ -675,7 +672,7 @@ func newIssuesAcceptCommand() *cobra.Command {
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			open := api.IssueStatusOpen
-			return runIssueTransition(cmd, args[0], holdingStatuses, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
+			return runIssueTransition(cmd, args[0], []string{api.IssueStatusIncoming}, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)

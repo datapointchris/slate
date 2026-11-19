@@ -25,7 +25,6 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
-from slate.models.issue import current_issue_status
 from slate.schemas.initiative_progress import IssueState
 from slate.schemas.queue import InitiativeRow
 from slate.schemas.queue import IssueRow
@@ -57,7 +56,7 @@ def issue_state(issue: models.Issue, claim: models.Claim | None, readiness: Issu
         return 'canceled'
     if claim is not None:
         return 'waiting' if claim.open_wait is not None else 'running'
-    if current_issue_status(issue.status) == 'incoming':
+    if issue.status == 'incoming':
         return 'incoming'
     if issue.id in readiness.blocked:
         return 'blocked'

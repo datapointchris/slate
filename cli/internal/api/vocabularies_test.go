@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"slices"
 	"testing"
@@ -15,7 +16,7 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the API's vocabularies — run tests/api/test_cli_vocabularies.py to write them: %v", err)
 	}
-	var api map[string][]string
+	var api map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &api); err != nil {
 		t.Fatalf("decode the API's vocabularies: %v", err)
 	}
@@ -25,6 +26,7 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		"worklog_steps":              WorklogSteps,
 		"worklog_link_kinds":         WorklogLinkKinds,
 		"issue_statuses":             IssueStatuses,
+		"issue_create_statuses":      IssueCreateStatuses,
 		"issue_types":                IssueTypes,
 		"priority_names":             IssuePriorityNames,
 		"initiative_statuses":        InitiativeStatuses,
@@ -36,8 +38,19 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		"document_kinds":             DocumentKinds,
 		"queue_steps":                QueueSteps,
 	} {
-		if !slices.Equal(copied, api[name]) {
-			t.Errorf("%s = %v, the API's are %v", name, copied, api[name])
+		var theirs []string
+		if err := json.Unmarshal(api[name], &theirs); err != nil {
+			t.Errorf("decode the API's %s: %v", name, err)
 		}
+		if !slices.Equal(copied, theirs) {
+			t.Errorf("%s = %v, the API's are %v", name, copied, theirs)
+		}
+	}
+	var former map[string]string
+	if err := json.Unmarshal(api["former_issue_statuses"], &former); err != nil {
+		t.Errorf("decode the API's former_issue_statuses: %v", err)
+	}
+	if !maps.Equal(FormerIssueStatuses, former) {
+		t.Errorf("former_issue_statuses = %v, the API's are %v", FormerIssueStatuses, former)
 	}
 }

@@ -241,8 +241,9 @@ retrospective then reads an initiative's trailing fixes as the issues
 discovered from its own.
 
 `triage` is the status's earlier name. A write or a list filter sending it
-reads as `incoming`, and so does a row an API one release behind wrote, until
-no released writer sends it.
+reads as `incoming`, and the trigger `store_triage_as_incoming` stores a write
+of it from an API one release behind as `incoming`, so no row holds it. Both
+last until no released writer sends it.
 
 ## Order is a person's pin, then priority, then each initiative's work together, then rank
 

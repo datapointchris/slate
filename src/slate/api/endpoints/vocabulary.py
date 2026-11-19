@@ -9,6 +9,7 @@ from slate import schemas
 from slate.api.callers import DbSession
 from slate.models.document import DOCUMENT_KINDS
 from slate.models.initiative import INITIATIVE_STATUSES
+from slate.models.issue import FORMER_ISSUE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
 from slate.models.pursuit import PURSUIT_STATUSES
@@ -25,7 +26,8 @@ def read(session: DbSession):
     """Every value the closed fields accept, with the open issue count per label and the open record counts per tag.
 
     Statuses and types come back in their lifecycle order rather than the
-    table's, so a client can render them as given.
+    table's, so a client can render them as given. An issue status's earlier
+    name is accepted and left out, so a reader is offered only the current one.
     """
     issue_statuses = set(session.scalars(select(models.IssueStatus.name)).all())
     issue_types = set(session.scalars(select(models.IssueType.name)).all())
@@ -34,7 +36,7 @@ def read(session: DbSession):
     document_kinds = set(session.scalars(select(models.DocumentKind.name)).all())
     worklog_steps = session.scalars(select(models.WorklogStep).order_by(models.WorklogStep.position)).all()
     return schemas.Vocabulary(
-        issue_statuses=in_declared_order(issue_statuses, ISSUE_STATUSES),
+        issue_statuses=in_declared_order(issue_statuses - FORMER_ISSUE_STATUSES.keys(), ISSUE_STATUSES),
         issue_types=in_declared_order(issue_types, ISSUE_TYPES),
         priorities=[schemas.PriorityName(value=value, name=name) for value, name in PRIORITIES.items()],
         initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),

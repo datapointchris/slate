@@ -46,7 +46,7 @@ func newDependenciesTreeCommand() *cobra.Command {
 		Args:        cobra.MaximumNArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if cmd.Flags().Changed("status") && !slices.Contains(api.IssueStatuses, issueStatus) {
+			if cmd.Flags().Changed("status") && !slices.Contains(api.IssueStatuses, api.CurrentIssueStatus(issueStatus)) {
 				return goclikit.UsageError(fmt.Errorf("unknown status %q — one of: %s", issueStatus, strings.Join(api.IssueStatuses, ", ")))
 			}
 			if depth < 0 {
@@ -196,7 +196,7 @@ func treeMatches(members []string, byID map[string]treeRecord, issueStatus strin
 			if issueStatus == "" {
 				statusOK = !record.isClosed()
 			} else {
-				statusOK = record.Kind == api.RecordKindIssue && record.Status == issueStatus
+				statusOK = record.Kind == api.RecordKindIssue && api.CurrentIssueStatus(record.Status) == api.CurrentIssueStatus(issueStatus)
 			}
 		}
 		if !repoOK && record.Kind == api.RecordKindIssue && strValue(record.Repo) == *repo {

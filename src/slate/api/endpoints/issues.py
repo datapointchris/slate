@@ -27,7 +27,7 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
-from slate.models.issue import issue_status_names
+from slate.models.issue import current_issue_status
 from slate.models.record import Kind
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
 from slate.services.claims import end_with_record
@@ -292,7 +292,7 @@ def read_many(
         query = query.where(models.Issue.status.not_in(CLOSED_ISSUE_STATUSES))
     elif issue_status != ALL_STATUSES:
         validate_lookup(session, models.IssueStatus, issue_status, 'issue status', extra=(ALL_STATUSES,))
-        query = query.where(models.Issue.status.in_(issue_status_names(issue_status)))
+        query = query.where(models.Issue.status == current_issue_status(issue_status))
     if type is not None:
         validate_lookup(session, models.IssueType, type, 'issue type')
         query = query.where(models.Issue.type == type)
