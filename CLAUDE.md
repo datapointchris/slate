@@ -63,8 +63,11 @@ scopes change.
 `Annotations`: `scopesForService(...)`, or `personOnly()` where a route it
 sends is in no scope or the API refuses every scoped client its body. A service
 grant asks for those alone, and `newAPIClient(cmd)` refuses a command that
-declares neither. The CLI's service tests run every declaring command against
-both files, so a declaration either file contradicts fails there.
+declares neither. Where the flags decide which declared scope a run's requests
+need, the run names that part with `narrowGrant` before `newAPIClient`, as
+`issues edit` does. The CLI's service tests run every declaring command against
+both files, and fail a run whose grant asks for a scope none of its requests
+needed, so a declaration either file contradicts fails there.
 
 ## A command names its noun first, unless no one noun owns it
 

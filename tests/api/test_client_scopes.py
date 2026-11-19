@@ -18,8 +18,9 @@ from sqlalchemy import select
 
 from slate import models
 from slate.api import API_PREFIX
+from slate.api.client_scopes import ISSUE_UPDATE
 from slate.api.client_scopes import SCOPE_ROUTES
-from slate.api.endpoints.issues import SCOPED_BODIES
+from slate.api.endpoints.issues import SCOPED_UPDATES
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import OIDCIdentity
 from slate.api.oidc_auth import ScopedClient
@@ -366,19 +367,14 @@ def test_a_scoped_client_is_refused_off_its_scopes(as_caller, scope, method, url
     assert all(f'{method} {template}' in message for method, template in SCOPE_ROUTES[scope])
 
 
-ONLY_CLOSES = Refusal.SCOPED_CLIENT_ONLY_CLOSES
-ONLY_PLAN_FIELDS = Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS
-ONLY_RECHECKS = Refusal.SCOPED_CLIENT_ONLY_RECHECKS
-
-
 @pytest.mark.parametrize(
-    ('scopes', 'body', 'refusal', 'refused'),
+    ('scopes', 'body', 'refused'),
     [
-        ({CLOSE}, {'status': 'completed', 'title': 'renamed'}, ONLY_CLOSES, 'title'),
-        ({CLOSE}, {'priority': 0}, ONLY_CLOSES, 'priority'),
-        ({CLOSE}, {'status': 'incoming'}, ONLY_CLOSES, 'status'),
-        ({PLAN, CLOSE, RECHECK}, {'priority': 2, 'description': 'rewritten'}, Refusal.SCOPED_UPDATE_FITS_NO_HELD_SCOPE, 'description'),
-        ({PLAN, CLOSE}, {'status': 'completed', 'priority': 2}, ONLY_CLOSES, 'priority'),
+        ({CLOSE}, {'status': 'completed', 'title': 'renamed'}, 'title'),
+        ({CLOSE}, {'priority': 0}, 'priority'),
+        ({CLOSE}, {'status': 'incoming'}, 'status'),
+        ({PLAN, CLOSE, RECHECK}, {'priority': 2, 'description': 'rewritten'}, None),
+        ({PLAN, CLOSE}, {'status': 'completed', 'priority': 2}, None),
     ],
     ids=[
         'close-an-edit-beside-a-close',
@@ -388,12 +384,12 @@ ONLY_RECHECKS = Refusal.SCOPED_CLIENT_ONLY_RECHECKS
         'both-an-edit-beside-a-close',
     ],
 )
-def test_a_scoped_update_passes_only_whole_under_one_held_scope(as_caller, scopes, body, refusal, refused):
+def test_a_scoped_update_passes_only_whole_under_one_held_scope(as_caller, scopes, body, refused):
     client = as_caller.caller(ScopedClient(client_id=SERVICE, scopes=frozenset(scopes)))
     response = client.patch(as_caller.url('/issues/{issue}'), json=body)
     assert response.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(response)
-    assert refusal in response.json()['message']
-    assert refused in response.json()['message']
+    if refused is not None:
+        assert refused in response.json()['message']
 
 
 @pytest.mark.parametrize(
@@ -417,7 +413,6 @@ def test_the_close_scope_signs_with_its_client_id_and_closes_an_issue_once(as_ca
 
     moved = client.patch(url, json={'status': 'canceled'})
     assert moved.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(moved)
-    assert Refusal.SCOPED_CLIENT_ONLY_CLOSES in moved.json()['message']
     assert 'completed' in moved.json()['message']
 
 
@@ -449,7 +444,6 @@ def test_the_recheck_scope_accepts_closes_and_describes_what_the_plan_scope_is_r
     for number, body, _, _ in changes:
         refused = planner.patch(f'/issues/{number}', json=body)
         assert refused.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(refused)
-        assert ONLY_PLAN_FIELDS in refused.json()['message']
 
     rechecker = as_caller.caller(scoped(RECHECK))
     for number, body, verdict, reached in changes:
@@ -463,7 +457,6 @@ def test_the_recheck_scope_accepts_closes_and_describes_what_the_plan_scope_is_r
     accepted = changes[0][0]
     again = rechecker.patch(f'/issues/{accepted}', json={'status': 'open'})
     assert again.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(again)
-    assert ONLY_RECHECKS in again.json()['message']
     assert f'#{accepted} is open' in again.json()['message']
 
 
@@ -576,20 +569,23 @@ def test_the_documents_the_cli_reads_hold_what_each_scope_reaches():
     route whose handler narrows it, which `refuse_a_scoped_update` reads. Its fake provider grants
     the scope the CLI spells, so a scope renamed here would otherwise pass both suites and answer
     403 to every scheduled run. A stale file is rewritten here and the test fails, so the change is
-    committed beside the table.
+    committed beside the table. A scope reaching the issue update with no bodies of its own would be
+    refused every one, so the two tables name the same scopes.
     """
+    reaching = sorted(scope for scope, routes in SCOPE_ROUTES.items() if ISSUE_UPDATE in routes)
+    assert reaching == sorted(SCOPED_UPDATES), f'{reaching} reach {ISSUE_UPDATE}, and SCOPED_UPDATES narrows {sorted(SCOPED_UPDATES)}'
     table = {scope: sorted(f'{method} {template}' for method, template in SCOPE_ROUTES[scope]) for scope in sorted(SCOPE_ROUTES)}
     bodies = {
-        f'PATCH {API_PREFIX}/issues/{{id}}': {
+        ' '.join(ISSUE_UPDATE): {
             scope: [
                 {
                     'fields': sorted(body.fields),
                     **({'statuses': sorted(body.statuses)} if body.statuses else {}),
                     **({'from': sorted(body.from_statuses)} if body.from_statuses else {}),
                 }
-                for body in each
+                for body in narrowing.bodies
             ]
-            for scope, each in SCOPED_BODIES.items()
+            for scope, narrowing in SCOPED_UPDATES.items()
         },
     }
     stale = []

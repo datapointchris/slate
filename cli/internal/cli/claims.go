@@ -141,6 +141,10 @@ func newClaimsHoldCommand() *cobra.Command {
 				return err
 			}
 			lease.Step = nonEmpty(step)
+			// Only a --next hold narrowed by tag or pursuit reads back what it took.
+			if !next || (queue.tag == "" && queue.pursuit == "") {
+				narrowGrant(cmd, scopeClaimsHold)
+			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)

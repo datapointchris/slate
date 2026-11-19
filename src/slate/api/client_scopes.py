@@ -9,10 +9,12 @@ from itertools import chain
 
 from slate.api import API_PREFIX
 
-# The issue update reads these three to decide how far it narrows a scoped client's body.
+# The issue update reads these to decide how far it narrows a scoped client's body.
 ISSUES_CLOSE = 'slate.issues.close'
 RECORDS_PLAN = 'slate.records.plan'
 RECORDS_RECHECK = 'slate.records.recheck'
+# The route whose body `SCOPED_UPDATES` in `endpoints/issues.py` narrows for each scope reaching it.
+ISSUE_UPDATE = ('PATCH', f'{API_PREFIX}/issues/{{id}}')
 # The worklog join reads this one to let a scoped client into a worklog it did not open.
 WORKLOGS_OBSERVE = 'slate.worklogs.observe'
 
@@ -111,18 +113,13 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
         }
     ),
     # Closing an issue, for a job closing an issue whose fix merged. The update handler narrows the
-    # body to the close of an open issue.
-    ISSUES_CLOSE: frozenset({('PATCH', f'{API_PREFIX}/issues/{{id}}')}),
-    # Accepting an incoming issue, completing or canceling an open one with its reason or the issue it
-    # duplicates, rewriting an issue's description, and adding a check, for a job reading each record
-    # against the world. The update handler narrows the body to one of those three issue changes,
-    # each alone. A check is signed by the client id, and clears the record's check request.
-    RECORDS_RECHECK: frozenset(
-        {
-            ('PATCH', f'{API_PREFIX}/issues/{{id}}'),
-            ('POST', f'{API_PREFIX}/records/{{number}}/checks'),
-        }
-    ),
+    # body to the close of an issue not yet closed.
+    ISSUES_CLOSE: frozenset({ISSUE_UPDATE}),
+    # Accepting an incoming issue, completing or canceling one not yet closed with its reason or the
+    # issue it duplicates, rewriting an issue's description, and adding a check, for a job reading
+    # each record against the world. The update handler narrows the body to one of those three issue
+    # changes, each alone. A check is signed by the client id.
+    RECORDS_RECHECK: frozenset({ISSUE_UPDATE, ('POST', f'{API_PREFIX}/records/{{number}}/checks')}),
     # Filing an issue, setting the issue fields `SCOPED_PLAN_FIELDS` in `endpoints/issues.py` names,
     # adding and removing what an issue or an initiative waits on, creating and updating an
     # initiative, and moving an issue, initiative or idea in the queue, for a job ordering and
@@ -136,7 +133,7 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/vocabulary'),
             ('GET', f'{API_PREFIX}/pursuits/{{ref:path}}'),
             ('POST', f'{API_PREFIX}/issues'),
-            ('PATCH', f'{API_PREFIX}/issues/{{id}}'),
+            ISSUE_UPDATE,
             ('POST', f'{API_PREFIX}/issues/{{id}}/rank'),
             ('POST', f'{API_PREFIX}/issues/{{id}}/dependencies'),
             ('DELETE', f'{API_PREFIX}/issues/{{id}}/dependencies/{{dep_id}}'),

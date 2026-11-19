@@ -407,6 +407,13 @@ def read_one(issue: IssueFromPath, session: DbSession, zone: RequestZone):
     return fresh_issue_detail(session, issue, zone)
 
 
+class Shortfall(NamedTuple):
+    """Why one body refuses an update, and how near it came: its fields, then its status, then the issue's."""
+
+    nearness: tuple[int, int]
+    reason: str
+
+
 class ScopedBody(NamedTuple):
     """A body a scope may send: only `fields`, and where each names any, a status in `statuses` on an issue in `from_statuses`."""
 
@@ -414,60 +421,68 @@ class ScopedBody(NamedTuple):
     statuses: frozenset[str] = frozenset()
     from_statuses: frozenset[str] = frozenset()
 
-    def carries(self, update_data: dict) -> bool:
-        return set(update_data) <= self.fields and (not self.statuses or update_data.get('status') in self.statuses)
+    def shortfall(self, issue: models.Issue, update_data: dict) -> Shortfall | None:
+        """The first thing this body refuses in the update, or None where it admits all of it."""
+        if extra := sorted(set(update_data) - self.fields):
+            return Shortfall((0, -len(extra)), f'this update also sets {", ".join(extra)}')
+        new_status = update_data.get('status')
+        if self.statuses and new_status not in self.statuses:
+            return Shortfall((1, 0), 'this update sets no status' if new_status is None else f'this update sets the status {new_status}')
+        if self.from_statuses and issue.status not in self.from_statuses:
+            return Shortfall((2, 0), f'#{issue.number} is {issue.status}')
+        return None
 
-    def admits(self, issue: models.Issue, update_data: dict) -> bool:
-        return self.carries(update_data) and (not self.from_statuses or issue.status in self.from_statuses)
+
+class ScopedUpdate(NamedTuple):
+    """The bodies one scope may send to the issue update, and the refusal it answers any other with."""
+
+    refusal: Refusal
+    bodies: tuple[ScopedBody, ...]
+
+    def refuses(self, issue: models.Issue, update_data: dict) -> str | None:
+        """Why this scope refuses the update, from the body that came nearest, or None where a body admits it."""
+        shortfalls = []
+        for body in self.bodies:
+            if (shortfall := body.shortfall(issue, update_data)) is None:
+                return None
+            shortfalls.append(shortfall)
+        return f'{self.refusal}; {max(shortfalls, key=lambda each: each.nearness).reason}'
 
 
 CLOSING_STATUSES = frozenset(CLOSED_ISSUE_STATUSES)
 UNCLOSED_STATUSES = frozenset(ISSUE_STATUSES) - CLOSING_STATUSES
 
-# What a scoped client's update may carry, by the scope that admits it. slate.issues.close reaches
-# this route to complete an issue whose fix merged, slate.records.plan to re-tier an issue, move it
-# between initiatives, tag it or specify it, and slate.records.recheck to accept, close or describe
-# an issue a read against the world found wrong. A body passes when one body of one held scope
-# admits all of it, so a client holding several still sends what each admits apart.
-SCOPED_CLOSE_FIELDS = frozenset({'status', 'closed_by'})
+# What a scoped client's update may carry, by each scope that reaches `ISSUE_UPDATE`.
+# slate.issues.close completes an issue whose fix merged, slate.records.plan re-tiers an issue, moves
+# it between initiatives, tags it or specifies it, and slate.records.recheck accepts, closes or
+# describes an issue a read against the world found wrong. A body passes when one body of one held
+# scope admits all of it, so a client holding several still sends what each admits apart.
 SCOPED_PLAN_FIELDS = frozenset({'priority', 'initiative', 'acceptance', 'paths', 'tags'})
-SCOPED_BODIES: dict[str, tuple[ScopedBody, ...]] = {
-    ISSUES_CLOSE: (ScopedBody(SCOPED_CLOSE_FIELDS, CLOSING_STATUSES, UNCLOSED_STATUSES),),
-    RECORDS_PLAN: (ScopedBody(SCOPED_PLAN_FIELDS),),
-    RECORDS_RECHECK: (
-        ScopedBody(frozenset({'status'}), frozenset({'open'}), frozenset({'incoming'})),
-        ScopedBody(frozenset({'status', 'closed_by', 'status_reason', 'duplicate_of'}), CLOSING_STATUSES, UNCLOSED_STATUSES),
-        ScopedBody(frozenset({'description'})),
+SCOPED_UPDATES: dict[str, ScopedUpdate] = {
+    ISSUES_CLOSE: ScopedUpdate(
+        Refusal.SCOPED_CLIENT_ONLY_CLOSES,
+        (ScopedBody(frozenset({'status', 'closed_by'}), CLOSING_STATUSES, UNCLOSED_STATUSES),),
+    ),
+    RECORDS_PLAN: ScopedUpdate(Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS, (ScopedBody(SCOPED_PLAN_FIELDS),)),
+    RECORDS_RECHECK: ScopedUpdate(
+        Refusal.SCOPED_CLIENT_ONLY_RECHECKS,
+        (
+            ScopedBody(frozenset({'status'}), frozenset({'open'}), frozenset({'incoming'})),
+            ScopedBody(frozenset({'status', 'closed_by', 'status_reason', 'duplicate_of'}), CLOSING_STATUSES, UNCLOSED_STATUSES),
+            ScopedBody(frozenset({'description'})),
+        ),
     ),
 }
-SCOPED_REFUSALS = {
-    ISSUES_CLOSE: Refusal.SCOPED_CLIENT_ONLY_CLOSES,
-    RECORDS_PLAN: Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS,
-    RECORDS_RECHECK: Refusal.SCOPED_CLIENT_ONLY_RECHECKS,
-}
-
-
-def why_no_body_admits(issue: models.Issue, update_data: dict, bodies: tuple[ScopedBody, ...]) -> str:
-    """The first of the update's fields, its status and the issue's status that keeps every body out."""
-    sent = set(update_data)
-    if extra := sorted(sent - frozenset[str]().union(*(body.fields for body in bodies))):
-        return f'this update also sets {", ".join(extra)}'
-    fitting = [body for body in bodies if sent <= body.fields]
-    if not fitting:
-        *rest, last = sorted(sent)
-        return f'this update sets {", ".join(rest)} and {last} together'
-    if not any(body.carries(update_data) for body in fitting):
-        new_status = update_data.get('status')
-        return 'this update sets no status' if new_status is None else f'this update sets the status {new_status}'
-    return f'#{issue.number} is {issue.status}'
 
 
 def refuse_a_scoped_update(issue: models.Issue, update_data: dict, scopes: frozenset[str]) -> None:
     """Pass a body one held scope admits whole. Otherwise refuse it, naming why each held scope does."""
-    held = [scope for scope in SCOPED_BODIES if scope in scopes]
-    if any(body.admits(issue, update_data) for scope in held for body in SCOPED_BODIES[scope]):
-        return
-    reasons = [(scope, f'{SCOPED_REFUSALS[scope]}; {why_no_body_admits(issue, update_data, SCOPED_BODIES[scope])}') for scope in held]
+    reasons = []
+    for scope, narrowing in SCOPED_UPDATES.items():
+        if scope in scopes:
+            if (reason := narrowing.refuses(issue, update_data)) is None:
+                return
+            reasons.append((scope, reason))
     if len(reasons) == 1:
         raise ForbiddenException(reasons[0][1], logger)
     each = ' '.join(f'{scope}: {reason}.' for scope, reason in reasons)

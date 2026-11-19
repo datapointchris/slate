@@ -172,9 +172,9 @@ reaches only the routes its scopes list:
 | `slate.documents.write` | writing the next version of a document on any record, under the service's own client id, which keeps every earlier version |
 | `slate.checks.request` | marking an issue or initiative to be checked next, and withdrawing the mark |
 | `slate.focus.write` | setting a focus, which ends the one in force, and ending one with a reason |
-| `slate.issues.close` | closing an open issue |
+| `slate.issues.close` | closing an issue not yet closed |
 | `slate.records.plan` | filing an incoming issue, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue or an initiative waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives, reading a pursuit to place one in it |
-| `slate.records.recheck` | accepting an incoming issue, completing or canceling an open one with its reason or the issue it duplicates, and rewriting an issue's description, each in an update of its own, and adding a check on an issue or initiative under the service's own client id |
+| `slate.records.recheck` | accepting an incoming issue, completing or canceling one not yet closed with its reason or the issue it duplicates, and rewriting an issue's description, each in an update of its own, and adding a check on an issue or initiative under the service's own client id |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 | `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
@@ -190,7 +190,10 @@ one update carrying both is refused, naming why each scope refuses it.
 
 Each command asks the grant for the scopes its own routes need, and no others.
 Its `--help` ends with them under `Service scopes:`, so register a service
-client for the scopes of the commands it runs. A command no scope reaches, such
+client for the scopes of the commands it runs. Where a command's flags decide
+which of those its request needs, a run asks only for that one:
+`slate issues edit` asks for `slate.records.recheck` when the description is
+its only change, and `slate.records.plan` otherwise. A command no scope reaches, such
 as `slate labels list`, says so there, and refuses a service before asking.
 `slate auth status` asks a grant for each scope in the table alone. Its text
 lists the scopes the client holds. `--json` gives each scope's `grant`:

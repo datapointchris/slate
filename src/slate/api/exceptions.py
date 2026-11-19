@@ -24,10 +24,10 @@ class Refusal(enum.StrEnum):
     SCOPED_CLIENT_CLAIMS_AS_ITSELF = 'A service client may only hold, extend, release, wait on or resume a claim under its own client id'
     SCOPED_CLIENT_WRITES_ITS_OWN_WORKLOGS = 'A service client may only join, edit or finish a worklog it opened'
     SCOPED_CLIENT_FILES_ONLY_AS_INCOMING = 'A service client may only file an issue as incoming, under no parent'
-    SCOPED_CLIENT_ONLY_CLOSES = 'A service client may only close an open issue'
+    SCOPED_CLIENT_ONLY_CLOSES = 'A service client may only close an issue not yet closed'
     SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS = "A service client's edit may only set an issue's priority, initiative, acceptance, paths and tags"
     SCOPED_CLIENT_ONLY_RECHECKS = (
-        "A service client's recheck may only accept an incoming issue, complete or cancel an open one, "
+        "A service client's recheck may only accept an incoming issue, complete or cancel one not yet closed, "
         'or rewrite its description, each in an update of its own'
     )
     SCOPED_UPDATE_FITS_NO_HELD_SCOPE = 'No one scope this client holds admits the whole update, so send what each admits on its own'

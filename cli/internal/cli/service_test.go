@@ -652,14 +652,23 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		path := command.CommandPath()
 		t.Run(strings.Join(call.args, " "), func(t *testing.T) {
 			var sent int
+			// carried is the scopes this run's token carries, and needed the
+			// ones among them that admitted one of its requests.
+			var carried []string
+			needed := map[string]bool{}
 			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				sent++
 				request, raw, fields := sentRequest(r)
 				var reached bool
-				for _, scope := range tokenScopes(r.Header.Get("Authorization")) {
+				scopes := tokenScopes(r.Header.Get("Authorization"))
+				mu.Lock()
+				carried = scopes
+				mu.Unlock()
+				for _, scope := range scopes {
 					if gate.admits(scope, request, fields, servedStatus(call.body)) {
 						reached = true
 						mu.Lock()
+						needed[scope] = true
 						if used[path] == nil {
 							used[path] = map[string]bool{}
 						}
@@ -700,6 +709,13 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 			}
 			if sent == 0 {
 				t.Fatal("sent nothing to hold against the scopes")
+			}
+			// A client registered for only what this run sends would be refused
+			// a grant naming more, as Authelia refuses a whole request.
+			for _, scope := range carried {
+				if !needed[scope] {
+					t.Errorf("asked the grant for %s, which none of the requests this run sent needs", scope)
+				}
 			}
 		})
 	}

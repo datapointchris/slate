@@ -83,6 +83,33 @@ func declaredGrant(cmd *cobra.Command) (serviceGrant, bool) {
 	return serviceGrant{scopes: strings.Fields(value)}, declared
 }
 
+// runScopesKey holds, in a run's context, the declared scopes its grant asks for.
+type runScopesKey struct{}
+
+// narrowGrant has this run's service grant ask for scopes alone, for a
+// command whose flags decide which of its declared scopes its body passes
+// under. A client holding only that scope then runs it.
+func narrowGrant(cmd *cobra.Command, scopes ...string) {
+	cmd.SetContext(context.WithValue(cmd.Context(), runScopesKey{}, scopes))
+}
+
+// runGrant is what this run asks a service grant for: its command's
+// declaration, or the part of it the run named with narrowGrant.
+func runGrant(cmd *cobra.Command) (grant serviceGrant, declared bool, err error) {
+	grant, declared = declaredGrant(cmd)
+	narrowed, ok := cmd.Context().Value(runScopesKey{}).([]string)
+	if !ok {
+		return grant, declared, nil
+	}
+	for _, scope := range narrowed {
+		if !slices.Contains(grant.scopes, scope) {
+			return grant, declared, fmt.Errorf("%#q narrows its grant to %s, which it does not declare", cmd.CommandPath(), scope)
+		}
+	}
+	grant.scopes = narrowed
+	return grant, declared, nil
+}
+
 // showServiceScopesInHelp ends every declaring command's help with its scopes,
 // so whoever registers a service client reads them from the binary it runs.
 func showServiceScopesInHelp(root *cobra.Command) {
