@@ -98,6 +98,15 @@ from slate.schemas.record import RecordPin
 from slate.schemas.record import RecordRankMove
 from slate.schemas.record import RecordSummary
 from slate.schemas.record_change import RecordChange
+from slate.schemas.record_check import CheckCite
+from slate.schemas.record_check import CheckRequest
+from slate.schemas.record_check import CheckRequestCreate
+from slate.schemas.record_check import CheckRequestWritten
+from slate.schemas.record_check import DueCheck
+from slate.schemas.record_check import LastCheck
+from slate.schemas.record_check import RecordCheck
+from slate.schemas.record_check import RecordCheckCreate
+from slate.schemas.record_check import RecordCheckWritten
 from slate.schemas.record_parts import RecordParts
 from slate.schemas.repo_board import BoardRepo
 from slate.schemas.repo_board import ReadyIssue
@@ -150,6 +159,10 @@ __all__ = [
     'BoardTier',
     'BoardUntouched',
     'BurnupStep',
+    'CheckCite',
+    'CheckRequest',
+    'CheckRequestCreate',
+    'CheckRequestWritten',
     'CheckedStep',
     'Claim',
     'ClaimExtend',
@@ -167,6 +180,8 @@ __all__ = [
     'CommentDeleted',
     'CommentLine',
     'CommentWritten',
+    'DueCheck',
+    'LastCheck',
     'Pursuit',
     'PursuitCreate',
     'PursuitDetail',
@@ -230,6 +245,9 @@ __all__ = [
     'QueueFilter',
     'ReadyIssue',
     'RecordChange',
+    'RecordCheck',
+    'RecordCheckCreate',
+    'RecordCheckWritten',
     'RecordDeleted',
     'RecordDependencyCreate',
     'RecordListed',

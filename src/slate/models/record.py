@@ -78,6 +78,10 @@ class Record(Base):
     pinned_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     pinned_by: Mapped[str | None] = mapped_column(Text, nullable=True)
     pinned_session: Mapped[str | None] = mapped_column(Text, ForeignKey('agent_sessions.id'), nullable=True)
+    # Someone asking that the record be checked next, ahead of its interval. The next check clears it.
+    check_requested_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    check_requested_by: Mapped[str | None] = mapped_column(Text, nullable=True)
+    check_requested_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The flow of the work that created the record, set once by the write that created it.
     flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
 

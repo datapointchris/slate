@@ -240,6 +240,9 @@ issue the session's worklog is on, so the link costs a session nothing. A
 retrospective then reads an initiative's trailing fixes as the issues
 discovered from its own.
 
+Every incoming issue heads the order records come due for a check, so a check
+reads it before any other record. `checks.md` gives that order.
+
 `triage` is the status's earlier name. A write or a list filter sending it
 reads as `incoming`, and the trigger `store_triage_as_incoming` stores a write
 of it from an API one release behind as `incoming`, so no row holds it. Both
@@ -402,6 +405,10 @@ An issue stays open until someone completes or cancels it, however long it
 sits. A stale-close bot closes real work that simply has not come up yet, and
 the order already decides what gets done next. So age is never an input to
 the order or to the status.
+
+The age of an issue's last check decides when it is read again. A check closes
+nothing itself, so an issue still closes only when someone completes or cancels
+it. `checks.md` gives the intervals.
 
 Closing is deliberate in both directions:
 

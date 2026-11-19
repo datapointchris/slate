@@ -29,6 +29,8 @@ from slate.models.record import Record
 from slate.models.record import RecordKind
 from slate.models.record_change import AuditTrailTable
 from slate.models.record_change import RecordChange
+from slate.models.record_check import CheckVerdict
+from slate.models.record_check import RecordCheck
 from slate.models.tag import RecordTag
 from slate.models.tag import Tag
 from slate.models.worklog import Worklog
@@ -47,6 +49,7 @@ __all__ = [
     'KIND_MODELS',
     'AgentSession',
     'AuditTrailTable',
+    'CheckVerdict',
     'Claim',
     'ClaimEnding',
     'ClaimWait',
@@ -73,6 +76,7 @@ __all__ = [
     'PursuitStatus',
     'Record',
     'RecordChange',
+    'RecordCheck',
     'RecordKind',
     'RecordPursuit',
     'RecordTag',

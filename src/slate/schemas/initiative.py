@@ -16,6 +16,8 @@ from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
 from slate.schemas.record import SummaryText
+from slate.schemas.record_check import CheckRequest
+from slate.schemas.record_check import LastCheck
 from slate.schemas.record_parts import RecordParts
 from slate.schemas.worklog import CheckedStep
 from slate.schemas.worklog import RecordStage
@@ -118,7 +120,9 @@ class Initiative(InPursuits, InitiativeSteps):
     open or closed, by number. `tags` is the
     initiative's own, and each of its issues reads them as its own too. `pursuits` is each
     pursuit it is in, in number order, and each of its issues reads them as its own. `flow_id` is
-    the flow of the work that created it, or of the idea promoted into it.
+    the flow of the work that created it, or of the idea promoted into it. `last_check` is its
+    latest check, and `check_request` someone asking that it be checked next, each null where there
+    is none.
     """
 
     id: UUID
@@ -144,6 +148,8 @@ class Initiative(InPursuits, InitiativeSteps):
     canceled_count: int = 0
     repos: list[str] = []
     claim: Claim | None = None
+    last_check: LastCheck | None = None
+    check_request: CheckRequest | None = None
     idea: RecordSummary | None = None
     depends_on: list[RecordSummary] = []
     waiting_initiatives: list[RecordSummary] = []

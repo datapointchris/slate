@@ -29,6 +29,8 @@ from slate.services.initiative_waits import waited_on
 from slate.services.initiative_waits import waiting_initiatives
 from slate.services.issue_readiness import IssueReadiness
 from slate.services.issue_readiness import measure_readiness
+from slate.services.record_checks import check_requests
+from slate.services.record_checks import latest_checks
 from slate.services.record_parts import record_parts
 from slate.services.record_pursuits import issue_pursuits
 from slate.services.record_summaries import record_summaries
@@ -108,6 +110,8 @@ def issue_view(
     waits: IssueWaits,
     tags: IssueTags,
     pursuits: list[schemas.PursuitSummary],
+    last_check: schemas.LastCheck | None,
+    check_request: schemas.CheckRequest | None,
 ) -> schemas.Issue:
     initiative = issue.initiative
     return schemas.Issue(
@@ -130,6 +134,8 @@ def issue_view(
         flow_id=issue.flow_id,
         deferred_until_date=issue.deferred_until_date,
         claim=claims.get(issue.number),
+        last_check=last_check,
+        check_request=check_request,
         autofix=issue.autofix,
         initiative=None
         if initiative is None
@@ -191,7 +197,22 @@ def issue_views(session: Session, issues: list[models.Issue], zone: str, readine
     waits = issue_waits(session, issues, readiness)
     tags = issue_tags(session, issues)
     pursuits = issue_pursuits(session, issues)
-    return [issue_view(issue, readiness, counts, claims, waits, tags[issue.number], pursuits[issue.number]) for issue in issues]
+    numbers = [issue.number for issue in issues]
+    checks, requests = latest_checks(session, numbers), check_requests(session, numbers)
+    return [
+        issue_view(
+            issue,
+            readiness,
+            counts,
+            claims,
+            waits,
+            tags[issue.number],
+            pursuits[issue.number],
+            checks.get(issue.number),
+            requests.get(issue.number),
+        )
+        for issue in issues
+    ]
 
 
 def label_views(session: Session, slug: str | None = None) -> list[schemas.IssueLabel]:

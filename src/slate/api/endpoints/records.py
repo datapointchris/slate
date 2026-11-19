@@ -1,4 +1,4 @@
-"""Any record by its number, whatever kind holds it, and what an issue or an initiative waits on."""
+"""Any record by its number, whatever kind holds it, what an issue or an initiative waits on, and its checks."""
 
 from typing import Annotated
 
@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
+from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
+from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
 from slate.schemas.record_read import IdeaRecord
@@ -26,6 +28,12 @@ from slate.services.initiative_views import initiative_detail
 from slate.services.issue_views import fresh_issue_detail
 from slate.services.pursuits import pursuit_detail
 from slate.services.record_changes import record_changes
+from slate.services.record_checks import add_check
+from slate.services.record_checks import check_request_view
+from slate.services.record_checks import checks_of
+from slate.services.record_checks import request_check
+from slate.services.record_checks import resolve_checked_record
+from slate.services.record_checks import withdraw_check_request
 from slate.services.record_dependencies import add_initiative_wait
 from slate.services.record_dependencies import add_issue_dependency
 from slate.services.record_dependencies import remove_initiative_wait
@@ -136,3 +144,55 @@ def remove_dependency(waiter: WaiterFromPath, dep_id: str, session: DbSession, z
     else:
         remove_initiative_wait(session, waiter, dep_id)
     return waiter_written(session, waiter, zone, effects)
+
+
+def path_checked(number: str, session: DbSession) -> models.Record:
+    """Resolve the `{number}` segment to an issue or an initiative, as `N` or `#N`."""
+    record = resolve_checked_record(session, number)
+    name_record(record.number)
+    return record
+
+
+CheckedFromPath = Annotated[models.Record, Depends(path_checked)]
+
+
+@router.get('/{number}/checks', response_model=list[schemas.RecordCheck], status_code=status.HTTP_200_OK)
+def read_checks(record: CheckedFromPath, session: DbSession, limit: RowLimit = None) -> list[models.RecordCheck]:
+    """Every check on the issue or initiative, latest first, so `limit` keeps the latest."""
+    return checks_of(session, record.number, limit)
+
+
+@router.post('/{number}/checks', response_model=schemas.RecordCheckWritten, status_code=status.HTTP_201_CREATED)
+def add_one_check(
+    record: CheckedFromPath, request: schemas.RecordCheckCreate, session: DbSession, caller: CurrentCaller, effects: Effects
+) -> schemas.RecordCheckWritten:
+    """Record what reading the issue or initiative against the world found, signed by the caller.
+
+    A check clears the record's check request, and the answer names it.
+    """
+    check = add_check(session, record, request, caller_actor(caller), effects)
+    session.commit()
+    session.refresh(check)
+    return effects.answer(schemas.RecordCheckWritten, check=schemas.RecordCheck.model_validate(check))
+
+
+def check_request_written(session: Session, record: models.Record, effects: WriteEffects) -> schemas.CheckRequestWritten:
+    session.commit()
+    session.refresh(record)
+    return effects.answer(schemas.CheckRequestWritten, number=record.number, check_request=check_request_view(record))
+
+
+@router.put('/{number}/check-request', response_model=schemas.CheckRequestWritten, status_code=status.HTTP_200_OK)
+def request_one_check(
+    record: CheckedFromPath, request: schemas.CheckRequestCreate, session: DbSession, caller: CurrentCaller, effects: Effects
+) -> schemas.CheckRequestWritten:
+    """Mark the issue or initiative to be checked next, ahead of its interval, until a check lands on it or the mark is withdrawn."""
+    request_check(record, request, caller_actor(caller), effects)
+    return check_request_written(session, record, effects)
+
+
+@router.delete('/{number}/check-request', response_model=schemas.CheckRequestWritten, status_code=status.HTTP_200_OK)
+def withdraw_one_check_request(record: CheckedFromPath, session: DbSession, effects: Effects) -> schemas.CheckRequestWritten:
+    """Withdraw the mark, leaving the record due at its interval."""
+    withdraw_check_request(record, effects)
+    return check_request_written(session, record, effects)
