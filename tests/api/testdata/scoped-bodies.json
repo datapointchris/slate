@@ -1,23 +1,65 @@
 {
   "PATCH /api/v1/issues/{id}": {
-    "slate.issues.close": {
-      "fields": [
-        "closed_by",
-        "status"
-      ],
-      "statuses": [
-        "canceled",
-        "completed"
-      ]
-    },
-    "slate.records.plan": {
-      "fields": [
-        "acceptance",
-        "initiative",
-        "paths",
-        "priority",
-        "tags"
-      ]
-    }
+    "slate.issues.close": [
+      {
+        "fields": [
+          "closed_by",
+          "status"
+        ],
+        "statuses": [
+          "canceled",
+          "completed"
+        ],
+        "from": [
+          "incoming",
+          "open"
+        ]
+      }
+    ],
+    "slate.records.plan": [
+      {
+        "fields": [
+          "acceptance",
+          "initiative",
+          "paths",
+          "priority",
+          "tags"
+        ]
+      }
+    ],
+    "slate.records.recheck": [
+      {
+        "fields": [
+          "status"
+        ],
+        "statuses": [
+          "open"
+        ],
+        "from": [
+          "incoming"
+        ]
+      },
+      {
+        "fields": [
+          "closed_by",
+          "duplicate_of",
+          "status",
+          "status_reason"
+        ],
+        "statuses": [
+          "canceled",
+          "completed"
+        ],
+        "from": [
+          "incoming",
+          "open"
+        ]
+      },
+      {
+        "fields": [
+          "description"
+        ]
+      }
+    ]
   }
 }

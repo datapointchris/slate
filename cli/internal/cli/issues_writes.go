@@ -417,7 +417,10 @@ func newIssuesEditCommand() *cobra.Command {
 			"--title, --type and --priority cannot be emptied. --priority none drops the\n" +
 			"issue's own, so it takes its parent's or its initiative's.\n" +
 			"--autofix=false keeps it and its children from an unattended fix.\n" +
-			"--description-file reads the description from a file, or from stdin as -.",
+			"--description-file reads the description from a file, or from stdin as -.\n" +
+			"\n" +
+			"A service's grant asks for slate.records.recheck where the description is\n" +
+			"the only change, and for slate.records.plan otherwise.",
 		Example: "  slate issues edit 412 --priority urgent\n" +
 			"  slate issues edit 412 --autofix=false\n" +
 			"  slate issues edit 412 --description-file description.md\n" +
@@ -427,12 +430,13 @@ func newIssuesEditCommand() *cobra.Command {
 			"  slate issues edit 412 --initiative \"\" --deferred-until 2026-11-01",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
-		Annotations: scopesForService(scopeRecordsPlan),
+		Annotations: scopesForService(scopeRecordsPlan, scopeRecordsRecheck),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in, clear, err := v.update(cmd)
 			if err != nil {
 				return err
 			}
+			narrowGrant(cmd, editGrant(in, clear)...)
 			return runIssueUpdate(cmd, args[0], in, clear, asJSON, "Updated")
 		},
 	}
@@ -545,6 +549,22 @@ func (v *issueEditFlags) update(cmd *cobra.Command) (api.IssueUpdateInput, []str
 		return api.IssueUpdateInput{}, nil, goclikit.UsageError(errors.New("nothing to change — pass at least one field flag"))
 	}
 	return in, clear, nil
+}
+
+// editGrant is the scopes an edit's body passes under for a service:
+// recheck for a description alone, plan for anything else, and both where a
+// description rides beside another field, which no one scope admits.
+func editGrant(in api.IssueUpdateInput, clear []string) []string {
+	describes := in.Description != nil || slices.Contains(clear, "description")
+	in.Description = nil
+	rest := in != (api.IssueUpdateInput{}) || slices.ContainsFunc(clear, func(field string) bool { return field != "description" })
+	switch {
+	case !describes:
+		return []string{scopeRecordsPlan}
+	case rest:
+		return []string{scopeRecordsPlan, scopeRecordsRecheck}
+	}
+	return []string{scopeRecordsRecheck}
 }
 
 // readDescriptionFile sets --description from the file --description-file
@@ -669,7 +689,7 @@ func newIssuesAcceptCommand() *cobra.Command {
 		Long:        "Incoming holds what a hook or a script filed until someone accepts it as real work.",
 		Example:     "  slate issues accept 412",
 		Args:        cobra.ExactArgs(1),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRecordsRead, scopeRecordsRecheck),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			open := api.IssueStatusOpen
 			return runIssueTransition(cmd, args[0], []string{api.IssueStatusIncoming}, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
@@ -736,7 +756,7 @@ func newIssuesCancelCommand() *cobra.Command {
 		Example: "  slate issues cancel 412 --reason \"the router rewrite removed the path\"\n" +
 			"  slate issues cancel 413 --duplicate-of 412",
 		Args:        cobra.ExactArgs(1),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRecordsRead, scopeRecordsRecheck),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.IssueUpdateInput{
 				StatusReason: valuedStrFlag(cmd.Flags(), "reason", &reason),

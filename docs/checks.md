@@ -99,10 +99,13 @@ open titles serves the whole batch.
 | --- | --- |
 | `GET /records/{number}/checks`, `GET /checks/due` | `slate.records.read` |
 | `PUT` and `DELETE /records/{number}/check-request` | `slate.checks.request` |
-| `POST /records/{number}/checks` | a person only |
+| `POST /records/{number}/checks` | `slate.records.recheck` |
 
 A mark only moves a record up the due order and writes nothing a person reads as its meaning, so
-a job ordering the work may hold the scope that sets it.
+a job ordering the work may hold the scope that sets it. A check does say what is true of the
+record, so it shares a scope with the issue changes a read can find owed: accepting an incoming
+issue, closing one with its reason, and rewriting a description. A service's check is signed by
+its client id.
 
 ## Rejected
 

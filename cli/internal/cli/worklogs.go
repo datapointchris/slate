@@ -322,6 +322,10 @@ func newWorklogsLinkCommand() *cobra.Command {
 				return err
 			}
 			in.LinkedBy = linkedBy
+			// Only a link naming no worklog reads which one the session is in.
+			if len(args) == 1 {
+				narrowGrant(cmd, scopeWorklogsWrite)
+			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)

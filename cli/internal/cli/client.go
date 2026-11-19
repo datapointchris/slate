@@ -62,14 +62,17 @@ func (e *builtFrom) Error() string { return e.err.Error() }
 func (e *builtFrom) Unwrap() error { return e.err }
 
 // tokenSource is the config file's token_command where it names one, the
-// client-credentials grant for the scopes cmd declares when SLATE_CLIENT_SECRET
-// is set, and otherwise the token this machine logged in for.
+// client-credentials grant for the scopes this run of cmd asks for when
+// SLATE_CLIENT_SECRET is set, and otherwise the token this machine logged in for.
 //
 // A command that declares nothing is refused whoever runs it, so any test
 // running it names the omission rather than a service finding it.
 func tokenSource(cmd *cobra.Command, d goclilogin.Deployment) (oauth2.TokenSource, error) {
 	ctx := cmd.Context()
-	grant, declared := declaredGrant(cmd)
+	grant, declared, err := runGrant(cmd)
+	if err != nil {
+		return nil, err
+	}
 	if !declared {
 		return nil, fmt.Errorf("%#q declares no service scopes; give its literal Annotations: scopesForService(...) or personOnly()", cmd.CommandPath())
 	}
