@@ -240,8 +240,8 @@ issue the session's worklog is on, so the link costs a session nothing. A
 retrospective then reads an initiative's trailing fixes as the issues
 discovered from its own.
 
-Every incoming issue heads the order records come due for a check, so a check
-reads it before any other record. `checks.md` gives that order.
+An incoming issue nobody holds heads the order records come due for a check,
+until a check reads it. `checks.md` gives that order and what is never due.
 
 `triage` is the status's earlier name. A write or a list filter sending it
 reads as `incoming`, and the trigger `store_triage_as_incoming` stores a write

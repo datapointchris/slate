@@ -43,6 +43,8 @@ def test_each_record_comes_due_at_the_first_rung_it_meets_and_held_ideas_and_clo
     seeded = {
         'incoming low': issue(client, 'incoming low', status='incoming', priority=4),
         'incoming urgent': issue(client, 'incoming urgent', status='incoming', priority=1),
+        'incoming checked 8 days ago': issue(client, 'incoming checked 8 days ago', status='incoming', priority=4),
+        'incoming checked a day ago': issue(client, 'incoming checked a day ago', status='incoming', priority=4),
         'head checked 8 days ago': issue(client, 'head checked 8 days ago', priority=1),
         'head checked 2 days ago': issue(client, 'head checked 2 days ago', priority=1),
         'never checked, high': issue(client, 'never checked, high', priority=2),
@@ -58,6 +60,8 @@ def test_each_record_comes_due_at_the_first_rung_it_meets_and_held_ideas_and_clo
     initiative = ok(client.post('/initiatives', json={'name': 'never checked initiative', 'summary': 'It ships.', 'priority': 3}), 201)
     ok(client.post('/ideas', json={'title': 'an idea nobody took on'}), status.HTTP_201_CREATED)
     for title, days in (
+        ('incoming checked 8 days ago', 8),
+        ('incoming checked a day ago', 1),
         ('head checked 8 days ago', 8),
         ('head checked 2 days ago', 2),
         ('requested first', 1),
@@ -76,6 +80,7 @@ def test_each_record_comes_due_at_the_first_rung_it_meets_and_held_ideas_and_clo
     assert [(row['title'], row['due_because']) for row in due] == [
         ('incoming urgent', 'incoming'),
         ('incoming low', 'incoming'),
+        ('incoming checked 8 days ago', 'incoming'),
         ('requested first', 'requested'),
         ('requested second', 'requested'),
         ('never checked, high', 'never_checked'),
@@ -85,8 +90,12 @@ def test_each_record_comes_due_at_the_first_rung_it_meets_and_held_ideas_and_clo
         ('tail checked 40 days ago', 'stale'),
         ('tail checked 31 days ago', 'stale'),
     ]
-    assert due[5]['kind'] == 'initiative' and due[5]['number'] == initiative['initiative']['number']
-    assert [row['title'] for row in ok(client.get('/checks/due?limit=3'))] == ['incoming urgent', 'incoming low', 'requested first']
+    assert due[6]['kind'] == 'initiative' and due[6]['number'] == initiative['initiative']['number']
+    assert [row['title'] for row in ok(client.get('/checks/due?limit=3'))] == [
+        'incoming urgent',
+        'incoming low',
+        'incoming checked 8 days ago',
+    ]
 
 
 def test_the_queue_and_every_read_carry_the_latest_check_and_a_check_clears_the_mark(txn_api_logged_in):

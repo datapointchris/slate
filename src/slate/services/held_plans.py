@@ -1,6 +1,6 @@
-"""Which issues a live claim on an initiative holds, which is its plan.
+"""Which issues a live claim on an initiative holds, which is its plan, and which claim holds a record.
 
-The queue, `POST /claims/next` and a hold's warnings each read this, so they agree on one issue.
+The queue, the due order, `POST /claims/next` and a hold's warnings each read this, so they agree on one issue.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from slate import models
+from slate.models.worklog import BUILD
 from slate.services.record_work import read_work_graph
 from slate.services.record_work import record_work
 
@@ -26,3 +27,17 @@ def held_plans(session: Session, held: Mapping[int, models.Claim]) -> dict[int, 
         for number in record_work(session, claim.record_number, graph).unblocks:
             plans.setdefault(number, claim)
     return plans
+
+
+def holding_claim(
+    number: int, step: str | None, held: Mapping[int, models.Claim], plans: Mapping[int, models.Claim]
+) -> models.Claim | None:
+    """The live claim holding a record: its own, else the claimed initiative's whose plan holds it at `build`.
+
+    A decision waits on a person whoever coordinates, so a plan never holds one. `step` is the step
+    the record's queue row asks for, or None where it has none.
+    """
+    claim = held.get(number)
+    if claim is None and step == BUILD:
+        claim = plans.get(number)
+    return claim

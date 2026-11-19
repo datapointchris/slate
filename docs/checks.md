@@ -1,8 +1,8 @@
 # Checks
 
-An issue filed against code that has since moved keeps its place in the queue, because the queue
-orders by priority and rank and nothing reads the issue again. A check is that reading: one row
-saying what an issue or an initiative was found to be, when, by whom, and on what evidence.
+The queue orders by priority and rank alone, so an issue filed against code that has since moved
+keeps its place until someone reads it again. A check is that reading: one row saying what an issue
+or an initiative was found to be, when, by whom, and on what evidence.
 
 ## A check is one row, added and never edited
 
@@ -63,13 +63,17 @@ reason, or `slate checks request`. The mark is three columns on `records` in the
 answer and keep no state of their own. Each record is due at the first rung it meets, and each row
 says which as `due_because`:
 
-1. **`incoming`**: an issue nobody has accepted yet, most urgent first, then oldest
+1. **`incoming`**: an issue nobody has accepted yet, most urgent first, then oldest. It stays on
+   this rung until a check reads it, and returns once that check is older than
+   `SLATE_CHECK_HEAD_DAYS`.
 2. **`requested`**: a record under a check request, the oldest request first
 3. **`never_checked`**: a record with no check, in queue order
-4. **`queue_head`**: one of the queue's first `SLATE_CHECK_HEAD_ROWS` (30) rows whose last check is
-   older than `SLATE_CHECK_HEAD_DAYS` (7)
-5. **`stale`**: any other record whose last check is older than `SLATE_CHECK_DAYS` (30), the oldest
+4. **`queue_head`**: one of the queue's first `SLATE_CHECK_HEAD_ROWS` rows whose last check is
+   older than `SLATE_CHECK_HEAD_DAYS`
+5. **`stale`**: any other record whose last check is older than `SLATE_CHECK_DAYS`, the oldest
    check first
+
+README's settings table gives each default.
 
 The head is read more often because it is the work about to be taken. The head is the queue's
 first rows as `slate next` lists them, ideas included, so an idea takes a row and is never due.
@@ -77,16 +81,17 @@ The priority on a row is an issue's effective priority, as the queue's is.
 
 These are never due:
 
-- **A record under a live claim,** because a worker holds it. That includes each issue in the plan
-  of a claimed initiative, as the queue lists it under that holder.
+- **A record under a live claim,** because a worker holds it. That includes each issue to build in
+  the plan of a claimed initiative, as the queue lists it under that holder. A decision in that plan
+  waits on a person, so the plan does not hold it and it still comes due.
 - **An idea,** which holds no work yet.
 - **A closed issue, and a finished or dropped initiative.** A someday initiative is open, so it
   comes due.
 
 Each row carries `likely_duplicates`: the open records whose titles read like it, by the measure
 `slate issues create` warns with, most alike first. A reader starts from the candidates rather than
-searching for them. `limit` caps the rows before the duplicates are read, so a batch of 20 pays for
-20.
+searching for them. `limit` caps the rows before their duplicates are scored, so one read of the
+open titles serves the whole batch.
 
 ## Who reaches which route
 

@@ -29,7 +29,7 @@ from slate.services.issue_views import fresh_issue_detail
 from slate.services.pursuits import pursuit_detail
 from slate.services.record_changes import record_changes
 from slate.services.record_checks import add_check
-from slate.services.record_checks import check_request_view
+from slate.services.record_checks import check_request_of
 from slate.services.record_checks import checks_of
 from slate.services.record_checks import request_check
 from slate.services.record_checks import resolve_checked_record
@@ -179,7 +179,7 @@ def add_one_check(
 def check_request_written(session: Session, record: models.Record, effects: WriteEffects) -> schemas.CheckRequestWritten:
     session.commit()
     session.refresh(record)
-    return effects.answer(schemas.CheckRequestWritten, number=record.number, check_request=check_request_view(record))
+    return effects.answer(schemas.CheckRequestWritten, number=record.number, check_request=check_request_of(record))
 
 
 @router.put('/{number}/check-request', response_model=schemas.CheckRequestWritten, status_code=status.HTTP_200_OK)

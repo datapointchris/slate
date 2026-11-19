@@ -184,7 +184,7 @@ func newChecksAddCommand() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVar(&verdict, "verdict", "", "What the read found, one of `slate vocabulary`'s check verdicts")
+	f.StringVar(&verdict, "verdict", "", "What the read found, one of the check verdicts slate vocabulary lists")
 	f.StringVar(&evidence, "evidence", "", "What shows it, in prose")
 	f.StringArrayVar(&cites, "cite", nil, "A source the evidence rests on, as <kind>:<ref> (repeatable)")
 	f.StringVar(&run, "run", "", "The scheduled run that made the check, where one did")

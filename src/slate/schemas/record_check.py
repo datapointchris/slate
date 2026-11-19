@@ -83,7 +83,7 @@ class CheckRequestWritten(Written):
 
 # Why a record is due, one value per rung of the due order, in the order the rungs run.
 DueBecause = Literal['incoming', 'requested', 'never_checked', 'queue_head', 'stale']
-DUE_BECAUSE: list[str] = list(get_args(DueBecause))
+DUE_BECAUSE: list[DueBecause] = list(get_args(DueBecause))
 
 
 class DueCheck(BaseModel):

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Collection
+from typing import Any
 
 import structlog
 from fastapi import HTTPException
@@ -96,11 +97,19 @@ def clear_check_request(record: models.Record) -> None:
     record.check_requested_reason = None
 
 
-def check_request_view(record: models.Record) -> schemas.CheckRequest | None:
-    if record.check_requested_ts is None or record.check_requested_by is None or record.check_requested_reason is None:
+# The columns a check request is read from, so every read of one selects the same three.
+CHECK_REQUEST_COLUMNS = (models.Record.check_requested_ts, models.Record.check_requested_by, models.Record.check_requested_reason)
+
+
+def check_request_of(marked: Any) -> schemas.CheckRequest | None:
+    """The request a record holds, read from it or from a row selecting `CHECK_REQUEST_COLUMNS`.
+
+    A request sets all three columns, and clearing it empties all three.
+    """
+    if marked.check_requested_ts is None or marked.check_requested_by is None or marked.check_requested_reason is None:
         return None
     return schemas.CheckRequest(
-        requested_ts=record.check_requested_ts, requested_by=record.check_requested_by, reason=record.check_requested_reason
+        requested_ts=marked.check_requested_ts, requested_by=marked.check_requested_by, reason=marked.check_requested_reason
     )
 
 
@@ -134,5 +143,7 @@ def check_requests(session: Session, numbers: Collection[int]) -> dict[int, sche
     """Each marked record's request, by number, in one read for all of them."""
     if not numbers:
         return {}
-    query = select(models.Record).where(models.Record.number.in_(list(numbers)), models.Record.check_requested_ts.is_not(None))
-    return {record.number: view for record in session.scalars(query).all() if (view := check_request_view(record)) is not None}
+    query = select(models.Record.number, *CHECK_REQUEST_COLUMNS).where(
+        models.Record.number.in_(list(numbers)), models.Record.check_requested_ts.is_not(None)
+    )
+    return {row.number: request for row in session.execute(query).all() if (request := check_request_of(row)) is not None}
