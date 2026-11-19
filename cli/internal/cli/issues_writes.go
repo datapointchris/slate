@@ -427,7 +427,7 @@ func newIssuesEditCommand() *cobra.Command {
 			"  slate issues edit 412 --initiative \"\" --deferred-until 2026-11-01",
 		SuggestFor:  editMistakenFor,
 		Args:        cobra.ExactArgs(1),
-		Annotations: scopesForService(scopeRecordsPlan),
+		Annotations: scopesForService(scopeRecordsPlan, scopeRecordsRecheck),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in, clear, err := v.update(cmd)
 			if err != nil {
@@ -669,7 +669,7 @@ func newIssuesAcceptCommand() *cobra.Command {
 		Long:        "Incoming holds what a hook or a script filed until someone accepts it as real work.",
 		Example:     "  slate issues accept 412",
 		Args:        cobra.ExactArgs(1),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRecordsRead, scopeRecordsRecheck),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			open := api.IssueStatusOpen
 			return runIssueTransition(cmd, args[0], []string{api.IssueStatusIncoming}, api.IssueUpdateInput{Status: &open}, asJSON, "Accepted")
@@ -736,7 +736,7 @@ func newIssuesCancelCommand() *cobra.Command {
 		Example: "  slate issues cancel 412 --reason \"the router rewrite removed the path\"\n" +
 			"  slate issues cancel 413 --duplicate-of 412",
 		Args:        cobra.ExactArgs(1),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRecordsRead, scopeRecordsRecheck),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.IssueUpdateInput{
 				StatusReason: valuedStrFlag(cmd.Flags(), "reason", &reason),

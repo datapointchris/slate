@@ -174,6 +174,7 @@ reaches only the routes its scopes list:
 | `slate.focus.write` | setting a focus, which ends the one in force, and ending one with a reason |
 | `slate.issues.close` | closing an open issue |
 | `slate.records.plan` | filing an incoming issue, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue or an initiative waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives, reading a pursuit to place one in it |
+| `slate.records.recheck` | accepting an incoming issue, completing or canceling an open one with its reason or the issue it duplicates, and rewriting an issue's description, each in an update of its own, and adding a check on an issue or initiative under the service's own client id |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 | `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
@@ -181,6 +182,11 @@ reaches only the routes its scopes list:
 No scope deletes anything, and none files an idea or edits one. A planning
 job only moves one in the queue.
 `src/slate/api/client_scopes.py` holds the exact routes.
+
+An issue update from a service passes only where one scope it holds admits
+the whole body. A client holding `slate.records.plan` and
+`slate.records.recheck` sends a priority and a description in two updates, and
+one update carrying both is refused, naming why each scope refuses it.
 
 Each command asks the grant for the scopes its own routes need, and no others.
 Its `--help` ends with them under `Service scopes:`, so register a service

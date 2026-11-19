@@ -73,6 +73,10 @@
     "GET /api/v1/worklogs/current",
     "GET /api/v1/worklogs/{name}"
   ],
+  "slate.records.recheck": [
+    "PATCH /api/v1/issues/{id}",
+    "POST /api/v1/records/{number}/checks"
+  ],
   "slate.sessions.write": [
     "PUT /api/v1/sessions/{id}/usage"
   ],

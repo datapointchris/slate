@@ -55,7 +55,8 @@ scope gate reads it. A router left out answers every scoped client with 403.
 
 `tests/api/test_client_scopes.py` writes two files to `tests/api/testdata/`.
 `client-scopes.json` is the routes each scope reaches. `scoped-bodies.json` is
-the body each scope may send where a handler narrows it. Commit both when the
+the bodies each scope may send where a handler narrows it, each with the
+statuses it sets and the issue statuses it applies to. Commit both when the
 scopes change.
 
 **A CLI command declares the scopes its routes need**, as its literal's

@@ -153,7 +153,7 @@ func newChecksAddCommand() *cobra.Command {
 		Example: "  slate checks add 412 --verdict holds --evidence \"The export still gives up on a timeout\"\n" +
 			"  slate checks add 412 --verdict done --evidence \"Shipped in 4e9aec7\" --cite commit:slate@4e9aec7",
 		Args:        cobra.ExactArgs(1),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRecordsRecheck),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(verdict) == "" || strings.TrimSpace(evidence) == "" {
 				return goclikit.UsageError(errors.New("a check needs --verdict and --evidence"))

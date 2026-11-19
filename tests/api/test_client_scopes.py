@@ -19,13 +19,11 @@ from sqlalchemy import select
 from slate import models
 from slate.api import API_PREFIX
 from slate.api.client_scopes import SCOPE_ROUTES
-from slate.api.endpoints.issues import SCOPED_CLOSE_FIELDS
-from slate.api.endpoints.issues import SCOPED_PLAN_FIELDS
+from slate.api.endpoints.issues import SCOPED_BODIES
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import OIDCIdentity
 from slate.api.oidc_auth import ScopedClient
 from slate.api.oidc_auth import get_oidc_identity
-from slate.models.issue import CLOSED_ISSUE_STATUSES
 from tests.util import show_status_and_response
 
 READ = 'slate.records.read'
@@ -36,6 +34,7 @@ COMMENTS = 'slate.comments.write'
 DOCUMENTS = 'slate.documents.write'
 FOCUS = 'slate.focus.write'
 PLAN = 'slate.records.plan'
+RECHECK = 'slate.records.recheck'
 WORKLOGS = 'slate.worklogs.write'
 SESSIONS = 'slate.sessions.write'
 OBSERVE = 'slate.worklogs.observe'
@@ -148,6 +147,16 @@ SCOPED_WRITES: dict[tuple[str, str, str], tuple[str, dict[str, Any] | None, int]
     (FOCUS, 'PUT', f'{API_PREFIX}/focus'): ('/focus', {'statement': 'The scheduler first', 'until_date': '2099-12-31'}, status.HTTP_200_OK),
     (FOCUS, 'POST', f'{API_PREFIX}/focus/end'): ('/focus/end', {'reason': 'The scheduler runs'}, status.HTTP_200_OK),
     (CLOSE, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): ('/issues/{issue}', {'status': 'completed', 'closed_by': CLOSER}, status.HTTP_200_OK),
+    (RECHECK, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): (
+        '/issues/{issue}',
+        {'description': 'It times out on a cold start'},
+        status.HTTP_200_OK,
+    ),
+    (RECHECK, 'POST', f'{API_PREFIX}/records/{{number}}/checks'): (
+        '/records/{issue}/checks',
+        {'verdict': 'holds', 'evidence': 'The scheduler still drops it', 'cites': [{'kind': 'path', 'ref': 'scheduler-repo:run.py'}]},
+        status.HTTP_201_CREATED,
+    ),
     (PLAN, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): (
         '/issues/{issue}',
         {'priority': 2, 'initiative': '{initiative}', 'acceptance': 'It answers 200', 'paths': ['src/slate']},
@@ -359,6 +368,7 @@ def test_a_scoped_client_is_refused_off_its_scopes(as_caller, scope, method, url
 
 ONLY_CLOSES = Refusal.SCOPED_CLIENT_ONLY_CLOSES
 ONLY_PLAN_FIELDS = Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS
+ONLY_RECHECKS = Refusal.SCOPED_CLIENT_ONLY_RECHECKS
 
 
 @pytest.mark.parametrize(
@@ -367,22 +377,18 @@ ONLY_PLAN_FIELDS = Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS
         ({CLOSE}, {'status': 'completed', 'title': 'renamed'}, ONLY_CLOSES, 'title'),
         ({CLOSE}, {'priority': 0}, ONLY_CLOSES, 'priority'),
         ({CLOSE}, {'status': 'incoming'}, ONLY_CLOSES, 'status'),
-        ({PLAN}, {'status': 'completed'}, ONLY_PLAN_FIELDS, 'status'),
-        ({PLAN}, {'description': 'rewritten', 'acceptance': 'It answers 200'}, ONLY_PLAN_FIELDS, 'description'),
-        ({PLAN, CLOSE}, {'title': 'renamed'}, ONLY_PLAN_FIELDS, 'title'),
+        ({PLAN, CLOSE, RECHECK}, {'priority': 2, 'description': 'rewritten'}, Refusal.SCOPED_UPDATE_FITS_NO_HELD_SCOPE, 'description'),
         ({PLAN, CLOSE}, {'status': 'completed', 'priority': 2}, ONLY_CLOSES, 'priority'),
     ],
     ids=[
         'close-an-edit-beside-a-close',
         'close-an-edit-alone',
         'close-a-status-that-keeps-it-open',
-        'plan-a-close',
-        'plan-a-description',
-        'both-a-title',
+        'every-write-scope-a-plan-field-beside-a-description',
         'both-an-edit-beside-a-close',
     ],
 )
-def test_a_scoped_update_is_a_close_or_sets_only_the_plan_fields(as_caller, scopes, body, refusal, refused):
+def test_a_scoped_update_passes_only_whole_under_one_held_scope(as_caller, scopes, body, refusal, refused):
     client = as_caller.caller(ScopedClient(client_id=SERVICE, scopes=frozenset(scopes)))
     response = client.patch(as_caller.url('/issues/{issue}'), json=body)
     assert response.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(response)
@@ -413,6 +419,52 @@ def test_the_close_scope_signs_with_its_client_id_and_closes_an_issue_once(as_ca
     assert moved.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(moved)
     assert Refusal.SCOPED_CLIENT_ONLY_CLOSES in moved.json()['message']
     assert 'completed' in moved.json()['message']
+
+
+def test_the_recheck_scope_accepts_closes_and_describes_what_the_plan_scope_is_refused(as_caller):
+    """A recheck places an incoming filing, closes what is done or duplicated, corrects a description, and checks each."""
+
+    def filed(title, **fields):
+        response = as_caller.caller(PERSON).post('/issues', json={'title': title, **fields})
+        assert response.status_code == status.HTTP_201_CREATED, show_status_and_response(response)
+        return response.json()['issue']['number']
+
+    def shown(issue):
+        return issue['status'], issue['description'], issue['closed_by'], (issue['duplicate_of'] or {}).get('number')
+
+    duplicated = as_caller.issue.number
+    rewritten = 'It gives up after one retry'
+    changes = [
+        (filed('filed by a hook', status='incoming'), {'status': 'open'}, 'holds', ('open', None, None, None)),
+        (filed('shipped last week'), {'status': 'completed', 'closed_by': CLOSER}, 'done', ('completed', None, CLOSER, None)),
+        (
+            filed('the scheduler issue again'),
+            {'status': 'canceled', 'duplicate_of': duplicated},
+            'duplicate',
+            ('canceled', None, SERVICE, duplicated),
+        ),
+        (filed('the exporter', description='It times out'), {'description': rewritten}, 'corrected', ('open', rewritten, None, None)),
+    ]
+    planner = as_caller.caller(scoped(PLAN))
+    for number, body, _, _ in changes:
+        refused = planner.patch(f'/issues/{number}', json=body)
+        assert refused.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(refused)
+        assert ONLY_PLAN_FIELDS in refused.json()['message']
+
+    rechecker = as_caller.caller(scoped(RECHECK))
+    for number, body, verdict, reached in changes:
+        written = rechecker.patch(f'/issues/{number}', json=body)
+        assert written.status_code == status.HTTP_200_OK, show_status_and_response(written)
+        assert shown(written.json()['issue']) == reached
+        checked = rechecker.post(f'/records/{number}/checks', json={'verdict': verdict, 'evidence': 'Read against the scheduler'})
+        assert checked.status_code == status.HTTP_201_CREATED, show_status_and_response(checked)
+        assert checked.json()['check']['checked_by'] == SERVICE
+
+    accepted = changes[0][0]
+    again = rechecker.patch(f'/issues/{accepted}', json={'status': 'open'})
+    assert again.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(again)
+    assert ONLY_RECHECKS in again.json()['message']
+    assert f'#{accepted} is open' in again.json()['message']
 
 
 def test_the_hold_scope_holds_under_its_own_id_and_releases_only_that(as_caller):
@@ -520,7 +572,7 @@ def test_no_credentials_is_401(as_caller):
 def test_the_documents_the_cli_reads_hold_what_each_scope_reaches():
     """The CLI's suite holds the scopes each command declares, and every request it sends, against these files.
 
-    The first is the routes each scope reaches. The second is the body each scope may send to a
+    The first is the routes each scope reaches. The second is the bodies each scope may send to a
     route whose handler narrows it, which `refuse_a_scoped_update` reads. Its fake provider grants
     the scope the CLI spells, so a scope renamed here would otherwise pass both suites and answer
     403 to every scheduled run. A stale file is rewritten here and the test fails, so the change is
@@ -529,8 +581,15 @@ def test_the_documents_the_cli_reads_hold_what_each_scope_reaches():
     table = {scope: sorted(f'{method} {template}' for method, template in SCOPE_ROUTES[scope]) for scope in sorted(SCOPE_ROUTES)}
     bodies = {
         f'PATCH {API_PREFIX}/issues/{{id}}': {
-            CLOSE: {'fields': sorted(SCOPED_CLOSE_FIELDS), 'statuses': sorted(CLOSED_ISSUE_STATUSES)},
-            PLAN: {'fields': sorted(SCOPED_PLAN_FIELDS)},
+            scope: [
+                {
+                    'fields': sorted(body.fields),
+                    **({'statuses': sorted(body.statuses)} if body.statuses else {}),
+                    **({'from': sorted(body.from_statuses)} if body.from_statuses else {}),
+                }
+                for body in each
+            ]
+            for scope, each in SCOPED_BODIES.items()
         },
     }
     stale = []

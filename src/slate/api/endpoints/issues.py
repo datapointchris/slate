@@ -20,6 +20,7 @@ from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.client_scopes import ISSUES_CLOSE
 from slate.api.client_scopes import RECORDS_PLAN
+from slate.api.client_scopes import RECORDS_RECHECK
 from slate.api.exceptions import ForbiddenException
 from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import ScopedClient
@@ -27,6 +28,7 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import current_issue_status
 from slate.models.record import Kind
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
@@ -405,34 +407,71 @@ def read_one(issue: IssueFromPath, session: DbSession, zone: RequestZone):
     return fresh_issue_detail(session, issue, zone)
 
 
-# What a scoped client's update may carry. slate.issues.close reaches this route to complete an issue
-# whose fix merged, and slate.records.plan to re-tier an issue, move it between initiatives, tag it or
-# specify it. A body naming a close field is a close, and any other is an edit.
+class ScopedBody(NamedTuple):
+    """A body a scope may send: only `fields`, and where each names any, a status in `statuses` on an issue in `from_statuses`."""
+
+    fields: frozenset[str]
+    statuses: frozenset[str] = frozenset()
+    from_statuses: frozenset[str] = frozenset()
+
+    def carries(self, update_data: dict) -> bool:
+        return set(update_data) <= self.fields and (not self.statuses or update_data.get('status') in self.statuses)
+
+    def admits(self, issue: models.Issue, update_data: dict) -> bool:
+        return self.carries(update_data) and (not self.from_statuses or issue.status in self.from_statuses)
+
+
+CLOSING_STATUSES = frozenset(CLOSED_ISSUE_STATUSES)
+UNCLOSED_STATUSES = frozenset(ISSUE_STATUSES) - CLOSING_STATUSES
+
+# What a scoped client's update may carry, by the scope that admits it. slate.issues.close reaches
+# this route to complete an issue whose fix merged, slate.records.plan to re-tier an issue, move it
+# between initiatives, tag it or specify it, and slate.records.recheck to accept, close or describe
+# an issue a read against the world found wrong. A body passes when one body of one held scope
+# admits all of it, so a client holding several still sends what each admits apart.
 SCOPED_CLOSE_FIELDS = frozenset({'status', 'closed_by'})
 SCOPED_PLAN_FIELDS = frozenset({'priority', 'initiative', 'acceptance', 'paths', 'tags'})
+SCOPED_BODIES: dict[str, tuple[ScopedBody, ...]] = {
+    ISSUES_CLOSE: (ScopedBody(SCOPED_CLOSE_FIELDS, CLOSING_STATUSES, UNCLOSED_STATUSES),),
+    RECORDS_PLAN: (ScopedBody(SCOPED_PLAN_FIELDS),),
+    RECORDS_RECHECK: (
+        ScopedBody(frozenset({'status'}), frozenset({'open'}), frozenset({'incoming'})),
+        ScopedBody(frozenset({'status', 'closed_by', 'status_reason', 'duplicate_of'}), CLOSING_STATUSES, UNCLOSED_STATUSES),
+        ScopedBody(frozenset({'description'})),
+    ),
+}
+SCOPED_REFUSALS = {
+    ISSUES_CLOSE: Refusal.SCOPED_CLIENT_ONLY_CLOSES,
+    RECORDS_PLAN: Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS,
+    RECORDS_RECHECK: Refusal.SCOPED_CLIENT_ONLY_RECHECKS,
+}
 
 
-def refuse_all_but_a_close(issue: models.Issue, update_data: dict) -> None:
-    if extra := sorted(set(update_data) - SCOPED_CLOSE_FIELDS):
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_ONLY_CLOSES}; this update also sets {", ".join(extra)}', logger)
-    if update_data.get('status') not in CLOSED_ISSUE_STATUSES:
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_ONLY_CLOSES}; this update sets no closing status', logger)
-    if issue.is_closed:
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_ONLY_CLOSES}; #{issue.number} is already {issue.status}', logger)
-
-
-def refuse_all_but_a_plan(update_data: dict) -> None:
-    if extra := sorted(set(update_data) - SCOPED_PLAN_FIELDS):
-        raise ForbiddenException(f'{Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS}; this update also sets {", ".join(extra)}', logger)
+def why_no_body_admits(issue: models.Issue, update_data: dict, bodies: tuple[ScopedBody, ...]) -> str:
+    """The first of the update's fields, its status and the issue's status that keeps every body out."""
+    sent = set(update_data)
+    if extra := sorted(sent - frozenset[str]().union(*(body.fields for body in bodies))):
+        return f'this update also sets {", ".join(extra)}'
+    fitting = [body for body in bodies if sent <= body.fields]
+    if not fitting:
+        *rest, last = sorted(sent)
+        return f'this update sets {", ".join(rest)} and {last} together'
+    if not any(body.carries(update_data) for body in fitting):
+        new_status = update_data.get('status')
+        return 'this update sets no status' if new_status is None else f'this update sets the status {new_status}'
+    return f'#{issue.number} is {issue.status}'
 
 
 def refuse_a_scoped_update(issue: models.Issue, update_data: dict, scopes: frozenset[str]) -> None:
-    """Narrow the body to the scope it is aimed at. The route gate admits a client holding either."""
-    closing = not SCOPED_CLOSE_FIELDS.isdisjoint(update_data)
-    if RECORDS_PLAN in scopes and not (closing and ISSUES_CLOSE in scopes):
-        refuse_all_but_a_plan(update_data)
-    else:
-        refuse_all_but_a_close(issue, update_data)
+    """Pass a body one held scope admits whole. Otherwise refuse it, naming why each held scope does."""
+    held = [scope for scope in SCOPED_BODIES if scope in scopes]
+    if any(body.admits(issue, update_data) for scope in held for body in SCOPED_BODIES[scope]):
+        return
+    reasons = [(scope, f'{SCOPED_REFUSALS[scope]}; {why_no_body_admits(issue, update_data, SCOPED_BODIES[scope])}') for scope in held]
+    if len(reasons) == 1:
+        raise ForbiddenException(reasons[0][1], logger)
+    each = ' '.join(f'{scope}: {reason}.' for scope, reason in reasons)
+    raise ForbiddenException(f'{Refusal.SCOPED_UPDATE_FITS_NO_HELD_SCOPE}. {each}', logger)
 
 
 @router.patch('/{id}', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)

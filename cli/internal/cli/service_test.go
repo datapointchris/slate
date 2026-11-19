@@ -381,30 +381,42 @@ func TestService_ARejectedTokenNamesTheAPIItWasSentTo(t *testing.T) {
 	}
 }
 
-// scopedBody is what a scope may send to a route whose handler narrows the
-// body: only these fields, and a status among Statuses where it names any.
+// scopedBody is one body a scope may send to a route whose handler narrows
+// it: only these fields, and where each names any, a status among Statuses on
+// a record whose status is among From.
 type scopedBody struct {
 	Fields   []string `json:"fields"`
 	Statuses []string `json:"statuses"`
+	From     []string `json:"from"`
 }
 
-func (b scopedBody) admits(body map[string]any) bool {
+func (b scopedBody) admits(body map[string]any, heldStatus string) bool {
 	for field := range body {
 		if !slices.Contains(b.Fields, field) {
 			return false
 		}
 	}
 	status, _ := body["status"].(string)
-	return len(b.Statuses) == 0 || slices.Contains(b.Statuses, status)
+	return (len(b.Statuses) == 0 || slices.Contains(b.Statuses, status)) && (len(b.From) == 0 || slices.Contains(b.From, heldStatus))
 }
 
 // scopeGate admits a request as the API does a client holding one scope: its
 // route is among the scope's, and where the handler narrows that route's
-// body, the body is one the scope may send.
+// body, one of the bodies the scope may send admits it.
 type scopeGate struct {
 	routes map[string][]route
 	// bodies is keyed by route template, then by scope.
-	bodies map[string]map[string]scopedBody
+	bodies map[string]map[string][]scopedBody
+}
+
+// servedStatus is the status of the record a fake API answers with, which a
+// narrowed body reads as the record's status before the write.
+func servedStatus(answer string) string {
+	var record struct {
+		Status string `json:"status"`
+	}
+	_ = json.Unmarshal([]byte(answer), &record)
+	return record.Status
 }
 
 type route struct {
@@ -426,11 +438,11 @@ func sentRequest(r *http.Request) (request string, raw []byte, fields map[string
 	return r.Method + " " + r.URL.Path, raw, fields
 }
 
-func (g scopeGate) admits(scope, request string, body map[string]any) bool {
+func (g scopeGate) admits(scope, request string, body map[string]any, heldStatus string) bool {
 	for _, r := range g.routes[scope] {
 		if r.pattern.MatchString(request) {
 			narrowed, ok := g.bodies[r.template][scope]
-			return !ok || narrowed.admits(body)
+			return !ok || slices.ContainsFunc(narrowed, func(b scopedBody) bool { return b.admits(body, heldStatus) })
 		}
 	}
 	return false
@@ -485,6 +497,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 	idp := serviceIDP(t)
 
 	openIssue := `{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b","number":412,"title":"t","status":"open"}`
+	incomingIssue := strings.Replace(openIssue, `"open"`, `"incoming"`, 1)
 	heldClaim := `{"claim":{"id":1,"record_number":412,"holder":"` + serviceClientID + `","started_ts":"2026-10-19T00:00:00Z",` +
 		`"expires_ts":"2026-10-20T00:00:00Z","state":"live","record":{"number":412,"kind":"issue","title":"t","status":"open"}},` +
 		`"side_effects":[],"warnings":[]}`
@@ -542,6 +555,11 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"checks", "due", "-n", "20", "--json"}, `[]`, nil},
 		{[]string{"checks", "request", "412", "--reason", "Its paths moved"}, `{"number":412,"check_request":null}`, nil},
 		{[]string{"checks", "withdraw", "412"}, `{"number":412,"check_request":null}`, nil},
+		{
+			[]string{"checks", "add", "412", "--verdict", "duplicate", "--evidence", "Filed again as 411", "--cite", "issue:411"},
+			`{"check":{"id":1,"record_number":412,"verdict":"duplicate"},"side_effects":[],"warnings":[]}`,
+			nil,
+		},
 		{[]string{"vocabulary", "--json"}, `{}`, nil},
 		{[]string{"totals", "412", "--json"}, `{}`, nil},
 		{[]string{"claims", "list", "--holder", serviceClientID, "--json"}, `[]`, nil},
@@ -574,6 +592,9 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"comments", "add", "412", "--body", "Landed: a merged fix"}, `{"comment":{"id":1,"record_number":412}}`, nil},
 		{[]string{"documents", "write", "412", "plan", "--file", plan}, `{}`, nil},
 		{[]string{"issues", "complete", "412"}, openIssue, nil},
+		{[]string{"issues", "accept", "412"}, incomingIssue, nil},
+		{[]string{"issues", "cancel", "412", "--duplicate-of", "411"}, openIssue, nil},
+		{[]string{"issues", "edit", "412", "--description", "It gives up after one retry"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--priority", "none", "--initiative", "Practical help guides"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--acceptance", "It answers 200", "--path", "src/slate"}, openIssue, nil},
 		{[]string{"issues", "edit", "412", "--tag", "security"}, `{"issue":{"number":412,"tags":["security"]}}`, nil},
@@ -636,7 +657,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 				request, raw, fields := sentRequest(r)
 				var reached bool
 				for _, scope := range tokenScopes(r.Header.Get("Authorization")) {
-					if gate.admits(scope, request, fields) {
+					if gate.admits(scope, request, fields, servedStatus(call.body)) {
 						reached = true
 						mu.Lock()
 						if used[path] == nil {
@@ -683,7 +704,6 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		})
 	}
 
-	incomingIssue := strings.Replace(openIssue, `"open"`, `"incoming"`, 1)
 	completedIssue := strings.Replace(openIssue, `"open"`, `"completed"`, 1)
 	idea := `{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5d","number":1860,"title":"t","status":"open"}`
 	personOnlyCalls := []struct {
@@ -710,7 +730,6 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"ideas", "link", "1860", "inbox:4102"}, idea},
 		{[]string{"ideas", "promote", "1860", "--summary", "Review rounds run on a schedule"}, idea},
 		{[]string{"comments", "remove", "57", "--yes"}, `{}`},
-		{[]string{"checks", "add", "412", "--verdict", "holds", "--evidence", "It still fails", "--cite", "issue:411"}, `{}`},
 		{[]string{"issues", "delete", "412", "--yes"}, openIssue},
 		{[]string{"issues", "pin", "412"}, openIssue},
 		{[]string{"issues", "unpin", "412"}, openIssue},
@@ -718,8 +737,6 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"initiatives", "unpin", "Practical help guides"}, `{}`},
 		{[]string{"ideas", "pin", "1860"}, idea},
 		{[]string{"ideas", "unpin", "1860"}, idea},
-		{[]string{"issues", "accept", "412"}, incomingIssue},
-		{[]string{"issues", "cancel", "412", "--reason", "the router rewrite removed the path"}, openIssue},
 		{[]string{"issues", "reopen", "412"}, completedIssue},
 		{[]string{"initiatives", "delete", "Practical help guides", "--yes"}, `{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","name":"Practical help guides"}`},
 	}
@@ -736,7 +753,8 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 			api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				request, raw, fields := sentRequest(r)
 				sent = append(sent, request+" "+string(raw))
-				if !slices.ContainsFunc(serviceScopes, func(scope string) bool { return gate.admits(scope, request, fields) }) {
+				admitted := func(scope string) bool { return gate.admits(scope, request, fields, servedStatus(call.body)) }
+				if !slices.ContainsFunc(serviceScopes, admitted) {
 					refused = append(refused, request)
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusForbidden)
