@@ -242,9 +242,9 @@ discovered from its own.
 
 An incoming issue nobody holds heads the order records come due for a check,
 until a check reads it. `checks.md` gives that order and what is never due.
-`slate-issues-recheck` accepts or cancels an incoming issue on its first read,
-as a service holding `slate.records.recheck`. That scope accepts only an issue
-still incoming, so a second accept is refused.
+A scheduled job holding `slate.records.recheck` reads each incoming issue as it
+comes due, then accepts or cancels it. That scope accepts only an issue still
+incoming, so a second accept is refused.
 
 `triage` is the status's earlier name. A write or a list filter sending it
 reads as `incoming`, and the trigger `store_triage_as_incoming` stores a write
