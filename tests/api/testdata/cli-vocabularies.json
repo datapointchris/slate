@@ -34,9 +34,6 @@
     "incoming",
     "open"
   ],
-  "former_issue_statuses": {
-    "triage": "incoming"
-  },
   "issue_types": [
     "bug",
     "feature",

@@ -157,7 +157,7 @@ const autofixableFilterHelp = "Only issues whose own, initiative's and parents' 
 // filter validates what can be refused without the API and builds the query.
 func (v *issueFilterFlags) filter(cmd *cobra.Command) (api.IssueFilter, error) {
 	f := cmd.Flags()
-	if f.Changed("status") && !slices.Contains(api.IssueStatuses, api.CurrentIssueStatus(v.status)) {
+	if f.Changed("status") && !slices.Contains(api.IssueStatuses, v.status) {
 		return api.IssueFilter{}, goclikit.UsageError(fmt.Errorf("unknown status %q — one of: %s", v.status, strings.Join(api.IssueStatuses, ", ")))
 	}
 	if err := validateIssueType(f, "type", v.issueType); err != nil {

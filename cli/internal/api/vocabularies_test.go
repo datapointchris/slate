@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"maps"
 	"os"
 	"slices"
 	"testing"
@@ -45,12 +44,5 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		if !slices.Equal(copied, theirs) {
 			t.Errorf("%s = %v, the API's are %v", name, copied, theirs)
 		}
-	}
-	var former map[string]string
-	if err := json.Unmarshal(api["former_issue_statuses"], &former); err != nil {
-		t.Errorf("decode the API's former_issue_statuses: %v", err)
-	}
-	if !maps.Equal(FormerIssueStatuses, former) {
-		t.Errorf("former_issue_statuses = %v, the API's are %v", FormerIssueStatuses, former)
 	}
 }

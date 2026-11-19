@@ -1,4 +1,4 @@
-"""A filing held at `triage` reads `incoming` once migrated, and a writer still sending `triage` lands there too."""
+"""A filing left at `triage` reads `incoming` once migrated, and a write or filter sending `triage` is refused, naming `incoming`."""
 
 from alembic import command
 from fastapi import status
@@ -9,42 +9,37 @@ from tests.conftest import TEST_PERSON
 from tests.conftest import transactional_api_client
 from tests.util import show_status_and_response
 
-# The revision before the one that moves every `triage` issue to `incoming`.
-BEFORE_INCOMING = '6d88eaec7184'
+# The revision before the one that removes the status `triage`.
+BEFORE_TRIAGE_IS_REFUSED = '74d59b6f8b72'
 
-# A filing as the API one release behind writes it.
+# A filing at `triage` the trigger would have stored as `incoming`, as a writer it missed would leave one.
 FILE_INTO_TRIAGE = """
-WITH record AS (INSERT INTO records (kind, rank) VALUES ('issue', :rank) RETURNING number)
+WITH record AS (INSERT INTO records (kind, rank) VALUES ('issue', 1.0) RETURNING number)
 INSERT INTO issues (id, number, title, status) SELECT gen_random_uuid(), number, :title, 'triage' FROM record
 """
 
 
-def ok(response, code=status.HTTP_200_OK):
-    assert response.status_code == code, show_status_and_response(response)
-    return response.json()
-
-
-def titles(client, issue_status: str) -> list[str]:
-    return [row['title'] for row in ok(client.get('/issues', params={'status': issue_status}))]
-
-
-def file_into_triage(engine: Engine, title: str, rank: float) -> None:
+def file_into_triage(engine: Engine, title: str) -> None:
     with engine.begin() as connection:
-        connection.execute(text(FILE_INTO_TRIAGE), {'title': title, 'rank': rank})
+        connection.execute(text('ALTER TABLE issues DISABLE TRIGGER store_triage_as_incoming'))
+        connection.execute(text(FILE_INTO_TRIAGE), {'title': title})
 
 
-def test_a_triage_filing_reads_incoming_after_the_migration(scratch_database, api):
+def test_triage_is_refused_once_migrated(scratch_database, api):
     config, engine = scratch_database
-    command.upgrade(config, BEFORE_INCOMING)
-    file_into_triage(engine, 'Filed before the migration', 1.0)
-
+    command.upgrade(config, BEFORE_TRIAGE_IS_REFUSED)
+    file_into_triage(engine, 'Left at triage')
     command.upgrade(config, 'head')
-    file_into_triage(engine, 'Filed by an older API', 2.0)
 
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM issues WHERE status = 'triage'")) == 0
     with transactional_api_client(api, caller=lambda: TEST_PERSON, engine=engine) as (client, _):
-        assert titles(client, 'incoming') == ['Filed before the migration', 'Filed by an older API']
-        filed = ok(client.post('/issues', json={'title': 'Filed by an older CLI', 'status': 'triage'}), status.HTTP_201_CREATED)
-        assert filed['issue']['status'] == 'incoming'
-        assert titles(client, 'triage') == ['Filed before the migration', 'Filed by an older API', 'Filed by an older CLI']
+        incoming = client.get('/issues', params={'status': 'incoming'}).json()
+        assert [row['title'] for row in incoming] == ['Left at triage']
+        for response in (
+            client.post('/issues', json={'title': 'Filed by an older CLI', 'status': 'triage'}),
+            client.patch(f'/issues/{incoming[0]["number"]}', json={'status': 'triage'}),
+            client.get('/issues', params={'status': 'triage'}),
+        ):
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, show_status_and_response(response)
+            assert 'incoming' in response.json()['message'], show_status_and_response(response)

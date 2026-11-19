@@ -246,11 +246,6 @@ A scheduled job holding `slate.records.recheck` reads each incoming issue as it
 comes due, then accepts or cancels it. That scope accepts only an issue still
 incoming, so a second accept is refused.
 
-`triage` is the status's earlier name. A write or a list filter sending it
-reads as `incoming`, and the trigger `store_triage_as_incoming` stores a write
-of it from an API one release behind as `incoming`, so no row holds it. Both
-last until no released writer sends it.
-
 ## Order is a person's pin, then priority, then each initiative's work together, then rank
 
 A pin puts a record ahead of every priority. [Its own section](#a-pin-holds-a-record-above-every-priority-until-it-is-lifted-or-the-record-closes)

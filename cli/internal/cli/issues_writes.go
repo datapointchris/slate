@@ -244,7 +244,7 @@ func newIssuesCreateCommand() *cobra.Command {
 		Annotations: scopesForService(scopeRecordsRead, scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			f := cmd.Flags()
-			if f.Changed("status") && !slices.Contains(createStatuses, api.CurrentIssueStatus(issueStatus)) {
+			if f.Changed("status") && !slices.Contains(createStatuses, issueStatus) {
 				return goclikit.UsageError(fmt.Errorf("--status %q: a new issue starts %s", issueStatus, strings.Join(createStatuses, " or ")))
 			}
 			if f.Changed("deferred-until") {
@@ -670,7 +670,7 @@ func runIssueTransition(cmd *cobra.Command, ref string, from []string, in api.Is
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}
-	if !slices.Contains(from, api.CurrentIssueStatus(current.Status)) {
+	if !slices.Contains(from, current.Status) {
 		return fmt.Errorf("#%d is %s — %s applies to an issue that is %s",
 			current.Number, current.Status, cmd.Name(), strings.Join(from, " or "))
 	}

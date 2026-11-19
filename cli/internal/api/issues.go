@@ -26,19 +26,6 @@ var IssueStatuses = []string{
 // IssueCreateStatuses are where a new issue may start.
 var IssueCreateStatuses = []string{IssueStatusIncoming, IssueStatusOpen}
 
-// FormerIssueStatuses maps a status's earlier name to the status it became.
-// The API reads one as its successor, and --status takes one while a caller may
-// still send it.
-var FormerIssueStatuses = map[string]string{"triage": IssueStatusIncoming}
-
-// CurrentIssueStatus is the status name means, an earlier name read as its successor.
-func CurrentIssueStatus(name string) string {
-	if current, ok := FormerIssueStatuses[name]; ok {
-		return current
-	}
-	return name
-}
-
 // IssueTypeDecision is the one type that changes what happens to an issue: it
 // waits on a person, so the queue lists it at step decide, and holding the
 // queue's head leaves it out unless asked for.
