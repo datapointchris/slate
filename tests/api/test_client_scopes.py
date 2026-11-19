@@ -157,7 +157,7 @@ SCOPED_WRITES: dict[tuple[str, str, str], tuple[str, dict[str, Any] | None, int]
     ),
     (PLAN, 'POST', f'{API_PREFIX}/issues'): (
         '/issues',
-        {'title': 'left of the initiative', 'initiative': '{initiative}', 'status': 'triage'},
+        {'title': 'left of the initiative', 'initiative': '{initiative}', 'status': 'incoming'},
         status.HTTP_201_CREATED,
     ),
     (PLAN, 'POST', f'{API_PREFIX}/initiatives'): (
@@ -357,7 +357,7 @@ ONLY_PLAN_FIELDS = Refusal.SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS
     [
         ({CLOSE}, {'status': 'completed', 'title': 'renamed'}, ONLY_CLOSES, 'title'),
         ({CLOSE}, {'priority': 0}, ONLY_CLOSES, 'priority'),
-        ({CLOSE}, {'status': 'triage'}, ONLY_CLOSES, 'status'),
+        ({CLOSE}, {'status': 'incoming'}, ONLY_CLOSES, 'status'),
         ({PLAN}, {'status': 'completed'}, ONLY_PLAN_FIELDS, 'status'),
         ({PLAN}, {'description': 'rewritten', 'acceptance': 'It answers 200'}, ONLY_PLAN_FIELDS, 'description'),
         ({PLAN, CLOSE}, {'title': 'renamed'}, ONLY_PLAN_FIELDS, 'title'),
@@ -383,14 +383,14 @@ def test_a_scoped_update_is_a_close_or_sets_only_the_plan_fields(as_caller, scop
 
 @pytest.mark.parametrize(
     'body',
-    [{'title': 'ready on its own'}, {'title': 'holds its parent back', 'status': 'triage', 'parent': '{issue}'}],
+    [{'title': 'ready on its own'}, {'title': 'holds its parent back', 'status': 'incoming', 'parent': '{issue}'}],
     ids=['an-open-filing', 'a-filing-under-a-parent'],
 )
-def test_a_scoped_filing_goes_into_triage_under_no_parent(as_caller, body):
+def test_a_scoped_filing_is_incoming_under_no_parent(as_caller, body):
     body = {key: as_caller.url(value) for key, value in body.items()}
     response = as_caller.caller(scoped(PLAN)).post(as_caller.url('/issues'), json=body)
     assert response.status_code == status.HTTP_403_FORBIDDEN, show_status_and_response(response)
-    assert Refusal.SCOPED_CLIENT_FILES_ONLY_INTO_TRIAGE in response.json()['message']
+    assert Refusal.SCOPED_CLIENT_FILES_ONLY_AS_INCOMING in response.json()['message']
 
 
 def test_the_close_scope_signs_with_its_client_id_and_closes_an_issue_once(as_caller):

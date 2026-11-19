@@ -189,7 +189,7 @@ func stateCounts(s api.IssueStateCounts) []stateCount {
 		{s.Waiting, "waiting", gotermstyle.CodeYellow},
 		{s.Blocked, "blocked", gotermstyle.CodeRed},
 		{s.Ready, "ready", ""},
-		{s.Triage, "in triage", ""},
+		{s.Incoming, "incoming", ""},
 		{s.Deferred, "deferred", ""},
 		{s.Shelved, "shelved", ""},
 		{s.OpenChildren, "with open children", ""},

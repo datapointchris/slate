@@ -8,19 +8,35 @@ import (
 	"time"
 )
 
-// The issue statuses, in lifecycle order. `triage` holds what a machine filed
+// The issue statuses, in lifecycle order. `incoming` holds what a machine filed
 // until someone accepts it. Whether anyone works an open issue is its claim.
 const (
-	IssueStatusTriage    = "triage"
+	IssueStatusIncoming  = "incoming"
 	IssueStatusOpen      = "open"
 	IssueStatusCompleted = "completed"
 	IssueStatusCanceled  = "canceled"
 	IssueStatusAll       = "all"
 )
 
-// IssueStatuses is what --status accepts, in the order help lists them.
+// IssueStatuses is what --status lists, in the order help lists them.
 var IssueStatuses = []string{
-	IssueStatusTriage, IssueStatusOpen, IssueStatusCompleted, IssueStatusCanceled, IssueStatusAll,
+	IssueStatusIncoming, IssueStatusOpen, IssueStatusCompleted, IssueStatusCanceled, IssueStatusAll,
+}
+
+// IssueCreateStatuses are where a new issue may start.
+var IssueCreateStatuses = []string{IssueStatusIncoming, IssueStatusOpen}
+
+// FormerIssueStatuses maps a status's earlier name to the status it became.
+// The API reads one as its successor, and --status takes one while a caller may
+// still send it.
+var FormerIssueStatuses = map[string]string{"triage": IssueStatusIncoming}
+
+// CurrentIssueStatus is the status name means, an earlier name read as its successor.
+func CurrentIssueStatus(name string) string {
+	if current, ok := FormerIssueStatuses[name]; ok {
+		return current
+	}
+	return name
 }
 
 // IssueTypeDecision is the one type that changes what happens to an issue: it

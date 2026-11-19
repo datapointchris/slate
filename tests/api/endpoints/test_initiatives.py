@@ -232,7 +232,7 @@ def test_reopening_an_issue_that_what_its_initiative_waits_on_depends_on_is_refu
 
 
 def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_blocked_comes_next_and_closed(client):
-    """The running issue and the triage issue each depend on an open one, and neither counts as blocked."""
+    """The running issue and the incoming issue each depend on an open one, and neither counts as blocked."""
     initiative = wrote(
         client.post(INITIATIVES, json={'summary': 'It is done.', 'name': 'Progress', 'priority': 2}), 'initiative', status.HTTP_201_CREATED
     )['number']
@@ -245,7 +245,7 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     ready = filed('Ready')
     completed, canceled, waiting = filed('Completed'), filed('Canceled'), filed('Waiting')
     running = filed('Running', depends_on=[ready])
-    triage = filed('Triage', status='triage', depends_on=[ready])
+    incoming = filed('Incoming', status='incoming', depends_on=[ready])
     blocked = filed('Blocked', depends_on=[ready])
     parent = filed('Parent')
     filed('Deferred', parent=parent, deferred_until_date='2099-01-01')
@@ -268,7 +268,7 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
         'waiting': 1,
         'ready': 1,
         'blocked': 1,
-        'triage': 1,
+        'incoming': 1,
         'deferred': 1,
         'shelved': 0,
         'open_children': 1,
@@ -278,7 +278,7 @@ def test_progress_counts_each_issue_in_one_state_and_lists_what_runs_waits_is_bl
     assert progress['waiting'][0]['claim']['waiting']['waiting_on'] == 'a review'
     assert numbers(progress['next']) == [ready]
     assert numbers(progress['closed']) == [canceled, completed]
-    assert triage not in numbers(progress['blocked'])
+    assert incoming not in numbers(progress['blocked'])
     totals = progress['totals']
     assert (totals['scope']['record']['number'], totals['worklog_count'], totals['tokens']) == (initiative, 3, tokens)
 

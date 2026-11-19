@@ -82,7 +82,7 @@ func TestASplitPaneKeepsTheInitiativeNameAndDropsTheRepos(t *testing.T) {
 const initiativeProgressAnswer = `[{
   "initiative": {"id": "019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c", "number": 2072, "name": "Move the work to slate", "status": "active",
     "priority": 2, "created_ts": "2026-10-01T00:00:00Z", "issue_count": 9, "open_count": 7, "completed_count": 1, "canceled_count": 1},
-  "states": {"completed": 1, "canceled": 1, "running": 1, "waiting": 1, "ready": 1, "blocked": 1, "triage": 1, "deferred": 1,
+  "states": {"completed": 1, "canceled": 1, "running": 1, "waiting": 1, "ready": 1, "blocked": 1, "incoming": 1, "deferred": 1,
     "shelved": 0, "open_children": 1},
   "running": [{"number": 2096, "title": "Drop the old order columns", "status": "open",
     "depends_on": [{"number": 2099, "status": "open"}], "blocked_by": [{"number": 2099, "kind": "issue", "status": "open"}],
@@ -128,7 +128,7 @@ func TestInitiativesProgressPrintsEveryPartAndItsJSONCarriesThem(t *testing.T) {
 	for _, want := range []string{
 		"#2072  high  Move the work to slate",
 		strings.Repeat("▰", 4) + strings.Repeat("▱", 26) + "  1/8 done",
-		"1 done · 1 running · 1 waiting · 1 blocked · 1 ready · 1 in triage · 1 deferred · 1 with open children · 1 canceled · 9 issues",
+		"1 done · 1 running · 1 waiting · 1 blocked · 1 ready · 1 incoming · 1 deferred · 1 with open children · 1 canceled · 9 issues",
 		"Running · 1", "#2096  Drop the old order columns", "claimed by claude-code/s1 until", "; blocked by #2099\n",
 		"Waiting · 1", "waiting on a review since",
 		"Next · 1", "#1789  build  high  Show initiative progress",

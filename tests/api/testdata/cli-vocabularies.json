@@ -24,12 +24,19 @@
     "landing"
   ],
   "issue_statuses": [
-    "triage",
+    "incoming",
     "open",
     "completed",
     "canceled",
     "all"
   ],
+  "issue_create_statuses": [
+    "incoming",
+    "open"
+  ],
+  "former_issue_statuses": {
+    "triage": "incoming"
+  },
   "issue_types": [
     "bug",
     "feature",

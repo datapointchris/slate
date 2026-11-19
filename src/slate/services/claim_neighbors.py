@@ -98,8 +98,8 @@ def warn_about_issue(session: Session, number: int, holder: str, now: dt.datetim
     readiness = measure_readiness(session, today, now)
     if issue.is_closed:
         effects.warn(WriteEffectCode.RECORD_CLOSED, f'#{number} is {issue.status}, so a claim on it holds no open work.', number)
-    elif issue.status == 'triage':
-        effects.warn(WriteEffectCode.IN_TRIAGE, f'#{number} is in triage, so nobody has accepted it as work yet.', number)
+    elif issue.status == 'incoming':
+        effects.warn(WriteEffectCode.INCOMING, f'#{number} is incoming, so nobody has accepted it as work yet.', number)
     if issue.id in readiness.deferred:
         effects.warn(WriteEffectCode.DEFERRED, f'#{number} is deferred until {issue.deferred_until_date}.', number)
     if issue.id in readiness.shelved and issue.initiative is not None:

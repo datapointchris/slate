@@ -23,7 +23,7 @@ class Refusal(enum.StrEnum):
     OUTSIDE_CLIENT_SCOPES = "Route is outside this client's scopes"
     SCOPED_CLIENT_CLAIMS_AS_ITSELF = 'A service client may only hold, extend, release, wait on or resume a claim under its own client id'
     SCOPED_CLIENT_WRITES_ITS_OWN_WORKLOGS = 'A service client may only join, edit or finish a worklog it opened'
-    SCOPED_CLIENT_FILES_ONLY_INTO_TRIAGE = 'A service client may only file an issue into triage, under no parent'
+    SCOPED_CLIENT_FILES_ONLY_AS_INCOMING = 'A service client may only file an issue as incoming, under no parent'
     SCOPED_CLIENT_ONLY_CLOSES = 'A service client may only close an open issue'
     SCOPED_CLIENT_ONLY_SETS_PLAN_FIELDS = "A service client's edit may only set an issue's priority, initiative, acceptance, paths and tags"
     SCOPED_CLIENT_RELEASES_ITS_OWN = 'A service client may only release a claim it holds'

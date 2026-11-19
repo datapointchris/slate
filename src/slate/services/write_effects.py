@@ -114,7 +114,7 @@ class WriteEffectCode(enum.StrEnum):
 
     # Warnings on a hold, about the record held and its neighbors.
     RECORD_CLOSED = 'record_closed'
-    IN_TRIAGE = 'in_triage'
+    INCOMING = 'incoming'
     DEFERRED = 'deferred'
     SHELVED = 'shelved'
     IDEA_PROMOTED = 'idea_promoted'

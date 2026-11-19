@@ -31,9 +31,20 @@ from slate.models.record_change import KNOWN_BY
 if TYPE_CHECKING:
     from slate.models.initiative import Initiative
 
-# Whether anyone is working an open issue is its live claim, never a status.
-ISSUE_STATUSES = ['triage', 'open', 'completed', 'canceled']
+# Whether anyone is working an open issue is its live claim, never a status. `incoming` holds a
+# filing until someone accepts it into the queue.
+ISSUE_STATUSES = ['incoming', 'open', 'completed', 'canceled']
 CLOSED_ISSUE_STATUSES = ['completed', 'canceled']
+
+# A status's earlier name, read as the status it became wherever a caller names one. Its row stays
+# in `issue_statuses` while a released writer still sends it, and the trigger
+# `store_triage_as_incoming` stores such a write as `incoming`, so no row holds it.
+FORMER_ISSUE_STATUSES = {'triage': 'incoming'}
+
+
+def current_issue_status(name: str) -> str:
+    return FORMER_ISSUE_STATUSES.get(name, name)
+
 
 # `decision` is the one type that changes what happens to an issue: it waits on
 # a person, so the queue lists it at step `decide` and an agent builds the rest.

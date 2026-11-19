@@ -107,7 +107,7 @@ def hold_claim(request: schemas.ClaimHold, session: DbSession, zone: RequestZone
     """Hold a claim on one record of any kind.
 
     Another holder's live claim refuses it with 409. Everything else a hold
-    finds is a warning: the record closed, in triage or deferred, and each
+    finds is a warning: the record closed, incoming or deferred, and each
     neighbor that is open or claimed by someone else. Holding a record already
     held by the same holder changes nothing and warns, because only an extend
     moves an expiry.

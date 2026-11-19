@@ -594,7 +594,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"initiatives", "reorder", "Practical help guides", "--before", "398"}, `{}`, nil},
 		{[]string{"ideas", "reorder", "412", "--after", "398"}, `{}`, nil},
 		{
-			[]string{"issues", "create", "--title", "Left of the guides", "--initiative", "Practical help guides", "--status", "triage", "--session", "run-pod-session"},
+			[]string{"issues", "create", "--title", "Left of the guides", "--initiative", "Practical help guides", "--status", "incoming", "--session", "run-pod-session"},
 			`{}`,
 			map[string]string{
 				"/api/v1/initiatives":      `[{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","name":"Practical help guides"}]`,
@@ -679,7 +679,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		})
 	}
 
-	triageIssue := strings.Replace(openIssue, `"open"`, `"triage"`, 1)
+	incomingIssue := strings.Replace(openIssue, `"open"`, `"incoming"`, 1)
 	completedIssue := strings.Replace(openIssue, `"open"`, `"completed"`, 1)
 	idea := `{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5d","number":1860,"title":"t","status":"open"}`
 	personOnlyCalls := []struct {
@@ -713,7 +713,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"initiatives", "unpin", "Practical help guides"}, `{}`},
 		{[]string{"ideas", "pin", "1860"}, idea},
 		{[]string{"ideas", "unpin", "1860"}, idea},
-		{[]string{"issues", "accept", "412"}, triageIssue},
+		{[]string{"issues", "accept", "412"}, incomingIssue},
 		{[]string{"issues", "cancel", "412", "--reason", "the router rewrite removed the path"}, openIssue},
 		{[]string{"issues", "reopen", "412"}, completedIssue},
 		{[]string{"initiatives", "delete", "Practical help guides", "--yes"}, `{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","name":"Practical help guides"}`},

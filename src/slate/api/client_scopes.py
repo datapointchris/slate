@@ -106,7 +106,7 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # initiative, and moving an issue, initiative or idea in the queue, for a job ordering and
     # specifying the work. A filing reads the vocabulary first, and an initiative placed in a pursuit
     # by name reads the pursuit for its number. The handlers narrow any other update to those
-    # fields, and a filing to triage under no parent. A description stays out, because a person and a
+    # fields, and a filing to incoming under no parent. A description stays out, because a person and a
     # worker read it as the issue's meaning. Nothing here deletes a record.
     RECORDS_PLAN: frozenset(
         {

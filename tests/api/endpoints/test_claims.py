@@ -202,8 +202,8 @@ def test_a_hold_names_another_holders_issue_changing_the_same_code(client):
     assert codes(hold(client, elsewhere['issue']['number'], 'agent-c')['warnings']) == []
 
 
-@pytest.mark.parametrize(('title', 'code'), [('Filed by a hook into triage', 'in_triage'), ('Completed feature', 'record_closed')])
-def test_a_triage_or_closed_issue_is_held_with_a_warning(client, title, code):
+@pytest.mark.parametrize(('title', 'code'), [('Filed by a hook as incoming', 'incoming'), ('Completed feature', 'record_closed')])
+def test_an_incoming_or_closed_issue_is_held_with_a_warning(client, title, code):
     answer = hold(client, number(client, title), 'agent')
     assert answer['claim']['state'] == 'live'
     assert [warning['code'] for warning in answer['warnings']] == [code]
