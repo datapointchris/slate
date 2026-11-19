@@ -1,6 +1,6 @@
 """Name everything a record's delete takes or changes, read before the delete runs.
 
-Deleting a record cascades to its claims, worklogs, documents, comments and edges, and clears every
+Deleting a record cascades to its claims, worklogs, documents, comments, checks and edges, and clears every
 other record's link to it.
 None of that is in the request, so each is named in the answer.
 """
@@ -63,11 +63,19 @@ def name_documents_and_comments_deleted(session: Session, number: int, effects: 
         effects.did(WriteEffectCode.COMMENTS_DELETED, f'Deleted the {comments} {noun} on #{number} and its documents.', number)
 
 
+def name_checks_deleted(session: Session, number: int, effects: WriteEffects) -> None:
+    checks = session.scalar(select(func.count()).select_from(models.RecordCheck).where(models.RecordCheck.record_number == number)) or 0
+    if checks:
+        noun = 'check' if checks == 1 else 'checks'
+        effects.did(WriteEffectCode.CHECKS_DELETED, f'Deleted the {checks} {noun} on #{number}.', number)
+
+
 def name_record_parts_deleted(session: Session, number: int, deleted_by: str, now: dt.datetime, effects: WriteEffects) -> None:
     """Name what hangs off the record's number and goes with it, whatever the kind."""
     name_claims_deleted(session, number, deleted_by, now, effects)
     name_worklogs_deleted(session, number, effects)
     name_documents_and_comments_deleted(session, number, effects)
+    name_checks_deleted(session, number, effects)
 
 
 def name_issue_delete(session: Session, issue: models.Issue, deleted_by: str, now: dt.datetime, effects: WriteEffects) -> None:

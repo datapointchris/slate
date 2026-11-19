@@ -52,6 +52,7 @@ from slate.schemas.ready_filter import ReadyFilter
 from slate.schemas.ready_filter import RecordGroupings
 from slate.services.claim_views import live_claims_on_every_record
 from slate.services.held_plans import held_plans
+from slate.services.held_plans import holding_claim
 from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_views
 from slate.services.initiative_views import initiative_views
@@ -181,8 +182,8 @@ def queue_as_measured(
 
     def place(key: QueueKey, row: Row) -> None:
         row.pinned = key.pin == PINNED
-        claim = held.get(row.number)
-        if claim is None and row.step == 'build' and (claim := plans.get(row.number)) is not None:
+        claim = holding_claim(row.number, row.step, held, plans)
+        if claim is not None and claim.record_number != row.number:
             row.held_through = claim.record_number
         if claim is None:
             queued.append((key, row))

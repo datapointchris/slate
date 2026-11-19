@@ -60,6 +60,9 @@ directory is read first where one exists, and the environment outranks it.
 | `POSTGRES_USERNAME` | required | |
 | `POSTGRES_PASSWORD` | required | |
 | `POSTGRES_DB` | required | |
+| `SLATE_CHECK_HEAD_ROWS` | `30` | How many rows at the head of the queue come due for a check at `SLATE_CHECK_HEAD_DAYS` |
+| `SLATE_CHECK_HEAD_DAYS` | `7` | How old a head row's last check is when it comes due again |
+| `SLATE_CHECK_DAYS` | `30` | How old any other open record's last check is when it comes due again |
 | `LOG_FORMAT` | `json` | `json` for one object per line, `console` for a terminal |
 | `LOG_LEVEL` | `INFO` | A Python logging level name |
 | `OTEL_TRACES_EXPORTER` | unset | The exporters to run, from those `docs/tracing.md` lists. Unset, `otlp` where an OTLP endpoint is set, else nothing exports |
@@ -163,10 +166,11 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives, ideas and pursuits, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, a session's tokens, the work's totals, and the focus with each pursuit's standing against it |
+| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives, ideas and pursuits, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, the checks on an issue or initiative and the order they come due, a session's tokens, the work's totals, and the focus with each pursuit's standing against it |
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready issues, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.comments.write` | commenting on any record, or on one line of its document, under the service's own client id |
 | `slate.documents.write` | writing the next version of a document on any record, under the service's own client id, which keeps every earlier version |
+| `slate.checks.request` | marking an issue or initiative to be checked next, and withdrawing the mark |
 | `slate.focus.write` | setting a focus, which ends the one in force, and ending one with a reason |
 | `slate.issues.close` | closing an open issue |
 | `slate.records.plan` | filing an incoming issue, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue or an initiative waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives, reading a pursuit to place one in it |

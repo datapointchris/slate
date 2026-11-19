@@ -15,6 +15,8 @@ from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.record import RecordSummary
+from slate.schemas.record_check import CheckRequest
+from slate.schemas.record_check import LastCheck
 from slate.schemas.record_parts import RecordParts
 from slate.schemas.write_effects import Written
 
@@ -140,7 +142,8 @@ class Issue(InPursuits):
     false. `waiting_initiatives` is each initiative waiting on this issue. `tags` is the
     issue's own, which a write sets, and `effective_tags` its own plus its initiative's, which a
     `tag` filter matches. `pursuits` is its initiative's, since an issue joins none itself.
-    `flow_id` is the flow of the work that filed it.
+    `flow_id` is the flow of the work that filed it. `last_check` is its latest check, and
+    `check_request` someone asking that it be checked next, each null where there is none.
     """
 
     id: UUID
@@ -162,6 +165,8 @@ class Issue(InPursuits):
     flow_id: str | None = None
     deferred_until_date: dt.date | None = None
     claim: Claim | None = None
+    last_check: LastCheck | None = None
+    check_request: CheckRequest | None = None
     autofix: bool
     initiative: InitiativeSummary | None = None
     parent: IssueSummary | None = None

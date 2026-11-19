@@ -149,8 +149,11 @@ class IssueReadiness:
     slot_key_by_number: dict[int, QueueKey]
 
     def sort_key(self, issue: models.Issue) -> QueueKey:
+        return self.issue_sort_key(issue.id, issue.priority, issue.rank, issue.number)
+
+    def issue_sort_key(self, issue_id: UUID, priority: int, rank: float, number: int) -> QueueKey:
         """A closed issue stands alone at its own priority, which the queue never reads."""
-        return self.queue_key.get(issue.id) or slot_key(urgency(issue.priority), issue.rank, issue.number)
+        return self.queue_key.get(issue_id) or slot_key(urgency(priority), rank, number)
 
     def record_sort_key(self, number: int, priority: int, rank: float) -> QueueKey:
         """An idea or an initiative the queue holds no slot for, such as a held someday one, stands alone at its own priority."""

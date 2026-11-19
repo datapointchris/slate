@@ -101,6 +101,10 @@ type Issue struct {
 	// Claim is the issue's unended claim, live or expired, and nil when nobody
 	// holds it.
 	Claim *Claim `json:"claim"`
+	// LastCheck is its latest check, and CheckRequest someone asking that it be
+	// checked next, each nil where there is none.
+	LastCheck    *LastCheck    `json:"last_check"`
+	CheckRequest *CheckRequest `json:"check_request"`
 	// Autofix is the issue's own setting. IsAutofixable is false when it, its
 	// initiative's or an unclosed parent's is false, and nil from an API that
 	// predates the field.

@@ -18,6 +18,8 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.services.claim_views import unended_claim_views
 from slate.services.initiative_waits import waited_on
 from slate.services.initiative_waits import waiting_initiatives
+from slate.services.record_checks import check_requests
+from slate.services.record_checks import latest_checks
 from slate.services.record_parts import record_parts
 from slate.services.record_pursuits import pursuits_of
 from slate.services.record_steps import initiative_step_views
@@ -48,6 +50,8 @@ def initiative_view(
     steps: schemas.InitiativeSteps,
     tags: list[str],
     pursuits: list[schemas.PursuitSummary],
+    last_check: schemas.LastCheck | None,
+    check_request: schemas.CheckRequest | None,
 ) -> schemas.Initiative:
     """`counts` is a row of `issue_count_columns()`."""
     issue_count, open_count, completed_count, canceled_count, repos = counts
@@ -76,6 +80,8 @@ def initiative_view(
         canceled_count=canceled_count,
         repos=sorted(repos) if repos else [],
         claim=claim,
+        last_check=last_check,
+        check_request=check_request,
         idea=idea,
         depends_on=depends_on,
         waiting_initiatives=waiting,
@@ -91,6 +97,8 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
     steps = initiative_step_views(session, [initiative for initiative, _ in rows])
     tags = own_tags(session, [initiative.number for initiative, _ in rows])
     pursuits = pursuits_of(session, [initiative.number for initiative, _ in rows])
+    checks = latest_checks(session, [initiative.number for initiative, _ in rows])
+    requests = check_requests(session, [initiative.number for initiative, _ in rows])
     idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
     ideas = {
         idea_id: schemas.RecordSummary(number=number, kind=models.Idea.RECORD_KIND, title=title)
@@ -109,6 +117,8 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
             steps[initiative.number],
             tags.get(initiative.number, []),
             pursuits.get(initiative.number, []),
+            checks.get(initiative.number),
+            requests.get(initiative.number),
         )
         for initiative, counts in rows
     ]

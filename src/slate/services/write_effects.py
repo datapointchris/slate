@@ -40,6 +40,11 @@ class WriteEffectCode(enum.StrEnum):
     ALREADY_PINNED = 'already_pinned'
     NOT_PINNED = 'not_pinned'
 
+    # A check clearing the request it answered, and warnings on a request or withdrawal that changed nothing.
+    CHECK_REQUEST_CLEARED = 'check_request_cleared'
+    ALREADY_CHECK_REQUESTED = 'already_check_requested'
+    NOT_CHECK_REQUESTED = 'not_check_requested'
+
     # Side effects on worklogs and a claim's waits.
     WORKLOG_OPENED = 'worklog_opened'
     WORKLOG_ENDED = 'worklog_ended'
@@ -52,6 +57,7 @@ class WriteEffectCode(enum.StrEnum):
     WORKLOGS_DELETED = 'worklogs_deleted'
     DOCUMENTS_DELETED = 'documents_deleted'
     COMMENTS_DELETED = 'comments_deleted'
+    CHECKS_DELETED = 'checks_deleted'
     CHILD_DETACHED = 'child_detached'
     DEPENDENCY_REMOVED = 'dependency_removed'
     ISSUE_DETACHED = 'issue_detached'

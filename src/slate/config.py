@@ -66,11 +66,26 @@ class PostgresSettings:
         return url.render_as_string(hide_password=False)
 
 
+class CheckSettings:
+    """When a record checked before comes due again, as `services/check_due.py` orders them.
+
+    The first `head_rows` rows of the queue come due once their last check is `head_days` old, so
+    the work about to be taken is read against the world more often. Every other open record comes
+    due at `days`.
+    """
+
+    def __init__(self) -> None:
+        self.head_rows: int = int(os.environ.get('SLATE_CHECK_HEAD_ROWS') or 30)
+        self.head_days: int = int(os.environ.get('SLATE_CHECK_HEAD_DAYS') or 7)
+        self.days: int = int(os.environ.get('SLATE_CHECK_DAYS') or 30)
+
+
 class Settings:
     def __init__(self) -> None:
         self.fastapi = FastAPISettings()
         self.oidc = OIDCSettings()
         self.postgres = PostgresSettings()
+        self.checks = CheckSettings()
 
 
 @functools.cache

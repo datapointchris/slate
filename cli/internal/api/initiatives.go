@@ -69,6 +69,8 @@ type Initiative struct {
 	CanceledCount      int             `json:"canceled_count"`
 	Repos              []string        `json:"repos"`
 	Claim              *Claim          `json:"claim"`
+	LastCheck          *LastCheck      `json:"last_check"`
+	CheckRequest       *CheckRequest   `json:"check_request"`
 	Idea               *RecordSummary  `json:"idea"`
 	DependsOn          []RecordSummary `json:"depends_on"`
 	WaitingInitiatives []RecordSummary `json:"waiting_initiatives"`

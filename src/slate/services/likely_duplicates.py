@@ -67,22 +67,43 @@ def open_record_titles():
     )
 
 
-def likely_duplicates(session: Session, number: int, title: str, repo: str | None) -> list[OpenRecord]:
-    """The open records whose titles read most like `title`, most alike first.
+def open_records(session: Session) -> list[OpenRecord]:
+    return [OpenRecord(row[0], row[1], row[2], row[3], frozenset(row[4] or ())) for row in session.execute(open_record_titles()).all()]
+
+
+def most_alike(number: int, title_stems: frozenset[str], repo: str | None, candidates: list[OpenRecord]) -> list[OpenRecord]:
+    """The candidates whose titles read most like the one `title_stems` holds, most alike first.
 
     Two records on different repos are different work, however alike their titles read. A record
     on no repo, which every idea and initiative is, is read against every other.
     """
-    filed = frozenset(session.scalar(select(stems(literal(title)))) or ())
     scored = []
-    for row in session.execute(open_record_titles()).all():
-        record = OpenRecord(row[0], row[1], row[2], row[3], frozenset(row[4] or ()))
+    for record in candidates:
         if record.number == number or (repo is not None and record.repo is not None and record.repo != repo):
             continue
-        if (likeness := dice(filed, record.stems)) >= DUPLICATE_LIKENESS:
+        if (likeness := dice(title_stems, record.stems)) >= DUPLICATE_LIKENESS:
             scored.append((likeness, record))
     scored.sort(key=lambda pair: (-pair[0], -pair[1].number))
     return [record for _, record in scored[:MOST_NAMED]]
+
+
+def likely_duplicates(session: Session, number: int, title: str, repo: str | None) -> list[OpenRecord]:
+    """The open records whose titles read most like `title`, most alike first."""
+    filed = frozenset(session.scalar(select(stems(literal(title)))) or ())
+    return most_alike(number, filed, repo, open_records(session))
+
+
+def likely_duplicates_of_open(session: Session, numbers: list[int]) -> dict[int, list[OpenRecord]]:
+    """Each open record's likely duplicates among the others, by number, from one read of every open title."""
+    if not numbers:
+        return {}
+    candidates = open_records(session)
+    by_number = {record.number: record for record in candidates}
+    return {
+        number: most_alike(number, record.stems, record.repo, candidates)
+        for number in numbers
+        if (record := by_number.get(number)) is not None
+    }
 
 
 def warn_likely_duplicates(session: Session, number: int, title: str, repo: str | None, effects: WriteEffects) -> None:

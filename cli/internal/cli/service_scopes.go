@@ -27,6 +27,7 @@ const (
 	scopeWorklogsWrite  = "slate.worklogs.write"
 	scopeSessionsWrite  = "slate.sessions.write"
 	scopeFocusWrite     = "slate.focus.write"
+	scopeChecksRequest  = "slate.checks.request"
 	// scopeWorklogsObserve joins a session to a worklog another client opened.
 	// No command declares it. A job holding it reaches `worklogs join` on a
 	// token its token_command hands, which asks no grant.
@@ -37,6 +38,7 @@ const (
 var serviceScopes = []string{
 	scopeRecordsRead, scopeRecordsPlan, scopeClaimsHold, scopeIssuesClose,
 	scopeCommentsWrite, scopeDocumentsWrite, scopeWorklogsWrite, scopeSessionsWrite, scopeWorklogsObserve, scopeFocusWrite,
+	scopeChecksRequest,
 }
 
 // serviceScopesAnnotation is what a command asks a service grant for. Its value

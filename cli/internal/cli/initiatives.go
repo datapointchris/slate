@@ -777,6 +777,12 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	if initiative.Idea != nil {
 		_, _ = fmt.Fprintf(out, "  idea:       #%d %s\n", initiative.Idea.Number, initiative.Idea.Title)
 	}
+	if note := lastCheckNote(initiative.LastCheck); note != "" {
+		_, _ = fmt.Fprintf(out, "  last check: %s\n", note)
+	}
+	if note := checkRequestNote(initiative.CheckRequest); note != "" {
+		_, _ = fmt.Fprintf(out, "  check next: %s\n", note)
+	}
 	printRecordField(out, "waits on:", initiative.DependsOn)
 	printRecordField(out, "waited on:", initiative.WaitingInitiatives)
 	if description := strValue(initiative.Description); description != "" {

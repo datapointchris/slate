@@ -30,6 +30,7 @@ from tests.util import show_status_and_response
 
 READ = 'slate.records.read'
 CLAIM = 'slate.claims.hold'
+CHECKS = 'slate.checks.request'
 CLOSE = 'slate.issues.close'
 COMMENTS = 'slate.comments.write'
 DOCUMENTS = 'slate.documents.write'
@@ -51,6 +52,8 @@ SCOPED_URLS = {
     f'{API_PREFIX}/records': '/records?search=scheduler',
     f'{API_PREFIX}/records/{{number}}': '/records/{issue}',
     f'{API_PREFIX}/records/{{number}}/changes': '/records/{issue}/changes',
+    f'{API_PREFIX}/records/{{number}}/checks': '/records/{issue}/checks',
+    f'{API_PREFIX}/checks/due': '/checks/due?limit=5',
     f'{API_PREFIX}/claims': f'/claims?holder={SERVICE}',
     f'{API_PREFIX}/comments': '/comments?record={issue}',
     f'{API_PREFIX}/pursuits': '/pursuits',
@@ -136,6 +139,12 @@ SCOPED_WRITES: dict[tuple[str, str, str], tuple[str, dict[str, Any] | None, int]
         {'body': 'What earlier work found', 'kind': 'research'},
         status.HTTP_201_CREATED,
     ),
+    (CHECKS, 'PUT', f'{API_PREFIX}/records/{{number}}/check-request'): (
+        '/records/{issue}/check-request',
+        {'reason': 'its paths moved since it was filed'},
+        status.HTTP_200_OK,
+    ),
+    (CHECKS, 'DELETE', f'{API_PREFIX}/records/{{number}}/check-request'): ('/records/{issue}/check-request', None, status.HTTP_200_OK),
     (FOCUS, 'PUT', f'{API_PREFIX}/focus'): ('/focus', {'statement': 'The scheduler first', 'until_date': '2099-12-31'}, status.HTTP_200_OK),
     (FOCUS, 'POST', f'{API_PREFIX}/focus/end'): ('/focus/end', {'reason': 'The scheduler runs'}, status.HTTP_200_OK),
     (CLOSE, 'PATCH', f'{API_PREFIX}/issues/{{id}}'): ('/issues/{issue}', {'status': 'completed', 'closed_by': CLOSER}, status.HTTP_200_OK),

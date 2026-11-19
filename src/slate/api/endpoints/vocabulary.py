@@ -14,6 +14,7 @@ from slate.models.issue import ISSUE_STATUSES
 from slate.models.issue import ISSUE_TYPES
 from slate.models.pursuit import PURSUIT_STATUSES
 from slate.models.record import PRIORITIES
+from slate.models.record_check import CHECK_VERDICTS
 from slate.schemas.queue import QUEUE_STEPS
 from slate.services.issue_views import label_views
 from slate.services.record_tags import tag_views
@@ -34,6 +35,7 @@ def read(session: DbSession):
     initiative_statuses = set(session.scalars(select(models.InitiativeStatus.name)).all())
     pursuit_statuses = set(session.scalars(select(models.PursuitStatus.name)).all())
     document_kinds = set(session.scalars(select(models.DocumentKind.name)).all())
+    check_verdicts = set(session.scalars(select(models.CheckVerdict.name)).all())
     worklog_steps = session.scalars(select(models.WorklogStep).order_by(models.WorklogStep.position)).all()
     return schemas.Vocabulary(
         issue_statuses=in_declared_order(issue_statuses - FORMER_ISSUE_STATUSES.keys(), ISSUE_STATUSES),
@@ -42,6 +44,7 @@ def read(session: DbSession):
         initiative_statuses=in_declared_order(initiative_statuses, INITIATIVE_STATUSES),
         pursuit_statuses=in_declared_order(pursuit_statuses, PURSUIT_STATUSES),
         document_kinds=in_declared_order(document_kinds, DOCUMENT_KINDS),
+        check_verdicts=in_declared_order(check_verdicts, CHECK_VERDICTS),
         worklog_steps=[schemas.WorklogStep.model_validate(step) for step in worklog_steps],
         queue_steps=QUEUE_STEPS,
         labels=label_views(session),

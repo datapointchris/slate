@@ -16,15 +16,17 @@ RECORDS_PLAN = 'slate.records.plan'
 WORKLOGS_OBSERVE = 'slate.worklogs.observe'
 
 SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
-    # Every read of a record of any kind, of who holds which, of the documents and comments on it,
-    # of the work's totals, of the focus and each pursuit's standing against it, and of the values
-    # each flag accepts. An issue in a series often has no description of its own, so a reader
-    # judging it needs its initiative's.
+    # Every read of a record of any kind, of who holds which, of the documents, comments and checks
+    # on it, of the order records come due for a check, of the work's totals, of the focus and each
+    # pursuit's standing against it, and of the values each flag accepts. An issue in a series often
+    # has no description of its own, so a reader judging it needs its initiative's.
     'slate.records.read': frozenset(
         {
             ('GET', f'{API_PREFIX}/records'),
             ('GET', f'{API_PREFIX}/records/{{number}}'),
             ('GET', f'{API_PREFIX}/records/{{number}}/changes'),
+            ('GET', f'{API_PREFIX}/records/{{number}}/checks'),
+            ('GET', f'{API_PREFIX}/checks/due'),
             ('GET', f'{API_PREFIX}/claims'),
             ('GET', f'{API_PREFIX}/comments'),
             ('GET', f'{API_PREFIX}/pursuits'),
@@ -98,6 +100,15 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     # Setting and ending the focus, for a job applying a change of direction a person asked for.
     # A set ends the focus in force and writes the client id as who set the new one.
     'slate.focus.write': frozenset({('PUT', f'{API_PREFIX}/focus'), ('POST', f'{API_PREFIX}/focus/end')}),
+    # Marking an issue or an initiative to be checked next, and withdrawing the mark, for a job
+    # ordering the work that doubts an item still holds. A mark only moves the record up the due
+    # order, so it writes nothing a person reads as the record's meaning.
+    'slate.checks.request': frozenset(
+        {
+            ('PUT', f'{API_PREFIX}/records/{{number}}/check-request'),
+            ('DELETE', f'{API_PREFIX}/records/{{number}}/check-request'),
+        }
+    ),
     # Closing an issue, for a job closing an issue whose fix merged. The update handler narrows a
     # body naming `status` or `closed_by` to the close of an open issue.
     ISSUES_CLOSE: frozenset({('PATCH', f'{API_PREFIX}/issues/{{id}}')}),

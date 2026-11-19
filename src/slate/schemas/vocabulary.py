@@ -16,6 +16,7 @@ class Vocabulary(RecordModel):
     `worklog_steps` comes in position order, the order a record goes through them. `queue_steps` is
     what a `GET /queue` row asks for: every worklog step, with `discuss` for an idea and `decide` for
     a decision issue, in the order work moves through them. `tags` is what every kind's `--tag` takes.
+    `check_verdicts` is what a check on an issue or an initiative may find.
     """
 
     issue_statuses: list[str]
@@ -24,6 +25,7 @@ class Vocabulary(RecordModel):
     initiative_statuses: list[str]
     pursuit_statuses: list[str]
     document_kinds: list[str]
+    check_verdicts: list[str]
     worklog_steps: list[WorklogStep]
     queue_steps: list[str]
     labels: list[IssueLabel]

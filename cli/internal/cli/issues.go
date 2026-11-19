@@ -597,6 +597,8 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 	field("paths", strings.Join(issue.Paths, ", "))
 	field("deferred", strValue(issue.DeferredUntilDate))
 	field("created", localDay(issue.CreatedTS))
+	field("last check", lastCheckNote(issue.LastCheck))
+	field("check next", checkRequestNote(issue.CheckRequest))
 
 	section := func(title, body string) {
 		if body != "" {
