@@ -137,8 +137,10 @@ spec:
               port: http
             periodSeconds: 20
             failureThreshold: 3
-          # Sized from the API's working set under steady use, which passes 200 MiB
-          # within minutes of a start and climbs with its requests. The limit equals
+          # Sized from the API's working set, which levels off near 390 MiB, peaking at
+          # 405, with six clients replaying production's request mix at about ten times
+          # its average rate. It levels off only under the image's glibc settings, which
+          # docs/api-memory.md explains. The limit equals
           # the request, so the pod never uses more memory than the scheduler set
           # aside for it. The CPU request is twice the API's busiest reading, about
           # 100m. A node short of CPU shares it by request, and a starved API

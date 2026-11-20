@@ -45,6 +45,11 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+# Left to its defaults, glibc keeps what each request thread frees, and RSS climbs to the limit.
+# Two arenas, and every buffer of 128 KiB or more mapped on its own, keep it level: docs/api-memory.md.
+ENV MALLOC_ARENA_MAX=2 \
+    MALLOC_MMAP_THRESHOLD_=131072
+
 USER 10400:10400
 EXPOSE 8000
 
