@@ -67,3 +67,4 @@ def test_the_request_line_names_its_record_and_worklog_when_the_callers_sampler_
 
     request_line = next(line for line in lines if line['event'] == 'request_completed')
     assert (request_line['record'], request_line['worklog']) == (number, f'{number}.1')
+    assert request_line['response_bytes'] == len(response.content)

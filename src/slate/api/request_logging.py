@@ -1,8 +1,9 @@
 """One line per request, logged once its response is sent or its handler raised.
 
 It is plain ASGI middleware, so a handler raising past every exception handler still logs its 500
-here before the server's error handler answers it. The line names the route's template, and the
-record, worklog and agent session the route named.
+here before the server's error handler answers it. The line names the route's template, the query
+string, the bytes of body sent, and the record, worklog and agent session the route named. A list
+read's size depends on its query, so both are on the line to tell a large response from a slow one.
 """
 
 import time
@@ -42,23 +43,34 @@ class RequestLoggingMiddleware:
         started = time.perf_counter()
         # A handler that raises sends nothing, and the server's error handler answers 500.
         status = 500
+        response_bytes = 0
 
         async def send_with_request_id(message: Message) -> None:
-            nonlocal status
+            nonlocal status, response_bytes
             if message['type'] == 'http.response.start':
                 status = message['status']
                 MutableHeaders(scope=message).append('X-Request-ID', request_id)
+            elif message['type'] == 'http.response.body':
+                response_bytes += len(message.get('body', b''))
             await send(message)
 
         try:
             await self.app(scope, receive, send_with_request_id)
         finally:
             if scope['path'] not in UNLOGGED_PATHS:
-                log_request(scope, status, round((time.perf_counter() - started) * 1000, 2), named)
+                log_request(scope, status, round((time.perf_counter() - started) * 1000, 2), response_bytes, named)
 
 
-def log_request(scope: Scope, status: int, duration_ms: float, named: dict[str, str | int]) -> None:
-    fields: dict[str, str | int | float] = {'method': scope['method'], 'path': scope['path'], 'status': status, 'duration_ms': duration_ms}
+def log_request(scope: Scope, status: int, duration_ms: float, response_bytes: int, named: dict[str, str | int]) -> None:
+    fields: dict[str, str | int | float] = {
+        'method': scope['method'],
+        'path': scope['path'],
+        'status': status,
+        'duration_ms': duration_ms,
+        'response_bytes': response_bytes,
+    }
+    if query := scope.get('query_string', b'').decode('latin-1'):
+        fields['query'] = query
     templates = getattr(scope['app'].state, 'route_templates', {})
     if (route := templates.get((scope['method'], scope.get('endpoint')))) is not None:
         fields['route'] = route
