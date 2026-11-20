@@ -143,3 +143,11 @@ Spent beside the estimate of preflight 2804.3:
   leave it as it is.
 - **A total naming no record carries none**, as a worklog, repo or window alone
   names no work an estimate was made for.
+- **The estimate is measurement, and nothing steers by it.** It exists to show
+  over weeks whether work is underestimated, with tokens as the proxy. So
+  budget admission, the queue, pacing, effort and a worker's scope never read
+  it, and a worker's brief, prompt and ordinary reads never carry it. A worker
+  aiming at the number would bend the spend it measures, which is Goodhart's
+  law. Coordinators, preflight, retros and planning views read it. The first
+  estimate on a record stays as written, so the trend compares what was known
+  then.
