@@ -493,7 +493,7 @@ func (v *issueEditFlags) update(cmd *cobra.Command) (api.IssueUpdateInput, []str
 			return api.IssueUpdateInput{}, nil, err
 		}
 	}
-	if err := v.readDescriptionFile(cmd); err != nil {
+	if err := readDescriptionFile(cmd, v.descriptionFile); err != nil {
 		return api.IssueUpdateInput{}, nil, err
 	}
 
@@ -571,7 +571,7 @@ func editGrant(in api.IssueUpdateInput, clear []string) []string {
 // names, so a body too long to quote on a command line goes through as
 // --description would. Trailing line breaks are dropped, as "$(cat file)"
 // drops them, and a blank file clears the description as an empty value does.
-func (v *issueEditFlags) readDescriptionFile(cmd *cobra.Command) error {
+func readDescriptionFile(cmd *cobra.Command, file string) error {
 	f := cmd.Flags()
 	if !f.Changed("description-file") {
 		return nil
@@ -579,7 +579,7 @@ func (v *issueEditFlags) readDescriptionFile(cmd *cobra.Command) error {
 	if f.Changed("description") {
 		return goclikit.UsageError(errors.New("--description and --description-file both set the description — pass one"))
 	}
-	body, err := readBodyFlag(cmd, "description-file", v.descriptionFile)
+	body, err := readBodyFlag(cmd, "description-file", file)
 	if err != nil {
 		return err
 	}

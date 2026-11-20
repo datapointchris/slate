@@ -299,20 +299,22 @@ func newInitiativesCreateCommand() *cobra.Command {
 
 func newInitiativesEditCommand() *cobra.Command {
 	var (
-		name        string
-		summary     string
-		description string
-		priority    string
-		autofix     bool
-		tags        []string
-		pursuits    []string
-		notPlanned  []string
-		asJSON      bool
+		name            string
+		summary         string
+		description     string
+		descriptionFile string
+		priority        string
+		autofix         bool
+		tags            []string
+		pursuits        []string
+		notPlanned      []string
+		asJSON          bool
 	)
 	cmd := &cobra.Command{
 		Use:   "edit <initiative> [flags]",
 		Short: "Change an initiative's fields",
 		Long: "Update only the fields whose flags you pass. --description \"\" clears it.\n" +
+			"--description-file reads the description from a file, or from stdin as -.\n" +
 			"--tag, --pursuit and --not-planned each replace the whole set, and --tag \"\",\n" +
 			"--pursuit \"\" or --not-planned \"\" empties it; each of its issues reads the new\n" +
 			"tags and pursuits as its own too. A step checked before it was marked not\n" +
@@ -327,6 +329,9 @@ func newInitiativesEditCommand() *cobra.Command {
 		Annotations: scopesForService(scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
+			if err := readDescriptionFile(cmd, descriptionFile); err != nil {
+				return err
+			}
 			if readFlagIntent(f, "name") == flagClears {
 				return goclikit.UsageError(errors.New("--name cannot be emptied — every initiative carries one"))
 			}
@@ -376,6 +381,7 @@ func newInitiativesEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "New name")
 	cmd.Flags().StringVar(&summary, "summary", "", initiativeSummaryHelp)
 	cmd.Flags().StringVar(&description, "description", "", "New description (empty clears)")
+	cmd.Flags().StringVar(&descriptionFile, "description-file", "", "File holding the new description, or - for stdin (a blank one clears)")
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices())
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	cmd.Flags().BoolVar(&autofix, "autofix", false, initiativeAutofixHelp)
