@@ -128,3 +128,38 @@ def test_a_step_is_checked_once_its_go_ends_and_the_furthest_on_the_initiative_o
         row for row in ok(client.get('/initiatives/board', params={'status': 'all'}))['initiatives'] if row['number'] == initiative
     )
     assert (listed['stage'], [step['step'] for step in boarded['steps']]) == ('design', ['shape', 'design'])
+
+
+def test_a_claim_moves_to_the_worklog_its_session_starts_or_joins_so_a_hold_and_its_release_read_the_step_under_way(txn_api_logged_in):
+    """A reader matching a run's worklog against the claim's finds the step under way, not the preflight the hold opened."""
+    client, session = txn_api_logged_in
+    holder = {'holder': 'claude-code/s5', 'session': 's5'}
+    created = ok(client.post('/initiatives', json={'summary': 'It is done.', 'name': 'Steps'}), status.HTTP_201_CREATED)
+    initiative = created['initiative']['number']
+    claim = ok(client.post('/claims', json={'record': initiative, 'step': 'preflight', **holder}))['claim']
+    ok(client.post(f'{WORKLOGS}/{initiative}.1/finish', json={'finished_by': 'claude-code/s5'}))
+
+    retro = {'record': initiative, 'opened_by': 'claude-code/s5', 'step': 'retro', 'session': 's5'}
+    started = ok(client.post(WORKLOGS, json=retro), status.HTTP_201_CREATED)
+    assert ('claim_moved_to_worklog', initiative) in codes(started['side_effects'])
+    held = ok(client.post('/claims', json={'record': initiative, 'step': 'retro', **holder}))
+    (already,) = (warning['message'] for warning in held['warnings'] if warning['code'] == 'already_held')
+    assert (held['claim']['worklog'], f'{initiative}.2 carries step retro' in already, 'release' in already.lower()) == (
+        f'{initiative}.2',
+        True,
+        False,
+    )
+
+    # A claim still on its ended preflight while its session works the retro worklog, which a join corrects.
+    session.execute(update(models.Worklog).where(models.Worklog.record_number == initiative).values(claim_id=None))
+    session.execute(
+        update(models.Worklog).where(models.Worklog.record_number == initiative, models.Worklog.sequence == 1).values(claim_id=claim['id'])
+    )
+    session.flush()
+    rejoined = ok(client.post(f'{WORKLOGS}/{initiative}.2/join', json={'session': 's5'}))
+    assert (codes(rejoined['warnings']), codes(rejoined['side_effects'])) == (
+        [('already_joined', initiative)],
+        [('claim_moved_to_worklog', initiative)],
+    )
+    released = ok(client.post(f'/claims/{initiative}/release', json={'released_by': 'claude-code/s5'}))
+    assert (released['claim']['worklog'], ok(client.get(f'{WORKLOGS}/{initiative}.2'))['outcome']) == (f'{initiative}.2', 'released')

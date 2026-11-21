@@ -22,10 +22,19 @@ Two things open a worklog:
 - **A hold.** Each claim opens its own worklog, and the hold's answer names it
   as `worklog_opened`. Every ending of the claim ends the worklog at the same
   moment with the same outcome. [claims.md](claims.md) covers those endings.
-- **`slate worklogs start <record>`**, for a go nobody claims, such as
-  discussing an idea or planning an initiative. Each worklog already open on
-  the record goes through with an `open_worklog` warning, since joining it may
-  be what was meant.
+- **`slate worklogs start <record>`**, for a go no hold opens, such as
+  discussing an idea, or the next step of a record the session already holds.
+  Each worklog already open on the record goes through with an `open_worklog`
+  warning, since joining it may be what was meant.
+
+A claim is on one worklog at a time, and follows the session that holds it.
+Where that session starts or joins another worklog on the record, the claim
+moves to it, and the answer names that as `claim_moved_to_worklog`. Joining
+moves it even when the session was in that worklog already. So a holder that
+finishes its preflight worklog and starts one for `build` keeps its claim, the
+claim's `worklog` names the build's, and releasing the claim ends that one. The
+worklog the claim left keeps its state. One still open ends by hand or with its
+record, as one `start` opened does.
 
 A worklog's `outcome` says which ending it reached:
 
@@ -159,10 +168,11 @@ clears it. No step is required. Both writes refuse a field they do not name
 with a 422, so a client sending one learns it was not applied.
 
 A hold of a record its holder already holds opens no worklog, so it keeps the
-step the claim's worklog has. Where that worklog names no step, the
-`already_held` warning names the edit that sets it. Where it names another, the
-warning says to release the claim and hold the record again, which opens a
-worklog of its own under the new claim.
+step the claim's worklog has. Where that worklog is open and carries the step
+asked for, the `already_held` warning says so. Where it names no step, the
+warning names the edit that sets it. Where it carries another, or has ended,
+the warning names `slate worklogs start <record> --step <step>`, which opens a
+worklog of that step for the claim to move to.
 
 A step is checked on a record once a worklog of that step ended because its go
 did: finished by hand, released, or ended by the record completing or the idea

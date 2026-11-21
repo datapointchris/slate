@@ -1,8 +1,9 @@
 """Worklogs, each one go at one record: started, joined, linked, edited and finished here, and read.
 
-A hold opens a worklog through the claims routes. These open one with no claim, move a session into
-one, and record what one produced. `GET /worklogs/current` is the call a commit hook makes to stamp a
-commit with the worklog its session is in.
+A hold opens a worklog through the claims routes. These open one with no hold, move a session into
+one, and record what one produced. A session holding the record's claim takes the claim with it.
+`GET /worklogs/current` is the call a commit hook makes to stamp a commit with the worklog its
+session is in.
 
 A scoped client acts only under its own client id, and joins, edits and finishes only a worklog it
 opened. `slate.worklogs.observe` is the one exception: it joins a session that commits nothing to
@@ -43,6 +44,7 @@ from slate.services.worklogs import edit
 from slate.services.worklogs import finish
 from slate.services.worklogs import join
 from slate.services.worklogs import link
+from slate.services.worklogs import move_claim_to
 from slate.services.worklogs import open_worklog
 from slate.services.worklogs import resolve_worklog
 from slate.services.write_effects import Effects
@@ -157,10 +159,11 @@ def read_one(worklog: WorklogFromPath, session: DbSession):
 
 @router.post('', response_model=schemas.WorklogWritten, status_code=status.HTTP_201_CREATED)
 def start(request: schemas.WorklogStart, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Open a worklog on a record with no claim, for discussing an idea or an initiative.
+    """Open a worklog on a record with no hold, for discussing an idea, or for another step under a claim held.
 
-    `session` joins it, leaving any other worklog it was in, named in `side_effects`. Each worklog
-    already open on the record is a warning, since joining it may be what was meant.
+    `session` joins it, leaving any other worklog it was in, named in `side_effects`. Where that
+    session holds the record's live claim, the claim moves to it, named too. Each worklog already
+    open on the record is a warning, since joining it may be what was meant.
     """
     refuse_acting_for_another(caller, request.opened_by, Refusal.SCOPED_CLIENT_WRITES_WORKLOGS_AS_ITSELF)
     record = resolve_record(session, request.record)
@@ -181,6 +184,7 @@ def start(request: schemas.WorklogStart, session: DbSession, caller: CurrentCall
     name_worklog(worklog)
     if request.session is not None:
         join(session, worklog, request.session, request.host, request.directory, now, effects)
+        move_claim_to(session, worklog, request.session, now, effects)
     return written(session, worklog, now, effects)
 
 
@@ -188,8 +192,9 @@ def start(request: schemas.WorklogStart, session: DbSession, caller: CurrentCall
 def join_worklog(worklog: WorklogFromPath, request: schemas.WorklogJoin, session: DbSession, caller: CurrentCaller, effects: Effects):
     """Put the agent session in the worklog from now, ending its span in any other, named in `side_effects`.
 
-    A session is in one worklog at a time, so its spans never overlap. 409 when the worklog ended,
-    or its claim ran out or ended.
+    A session is in one worklog at a time, so its spans never overlap. Where the session holds the
+    record's live claim, the claim moves to the worklog, even when the session was in it already.
+    409 when the worklog ended, or its claim ran out or ended.
     """
     if not (isinstance(caller, ScopedClient) and WORKLOGS_OBSERVE in caller.scopes):
         refuse_anothers_worklog(caller, worklog)
@@ -197,6 +202,7 @@ def join_worklog(worklog: WorklogFromPath, request: schemas.WorklogJoin, session
     now = dt.datetime.now(dt.UTC)
     refuse_joining_unless_live(worklog, now, effects)
     join(session, worklog, request.session, request.host, request.directory, now, effects)
+    move_claim_to(session, worklog, request.session, now, effects)
     return written(session, worklog, now, effects)
 
 

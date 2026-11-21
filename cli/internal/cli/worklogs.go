@@ -185,12 +185,14 @@ func newWorklogsStartCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "start <record>",
-		Short: "Open a worklog on a record with no claim, and put this session in it",
-		Long: "For a go at a record nobody claims, such as discussing an idea or planning an\n" +
-			"initiative. The session joins it, leaving any other worklog it was in, which\n" +
-			"is printed under the line. Each worklog already open on the record goes\n" +
-			"through with a warning, since joining it may be what you meant. Completing,\n" +
-			"canceling, dropping or promoting the record ends it, as does `finish`.\n" +
+		Short: "Open a worklog on a record with no hold, and put this session in it",
+		Long: "For a go at a record no hold opens, such as discussing an idea, or the next\n" +
+			"step of a record this session holds. The session joins it, leaving any other\n" +
+			"worklog it was in, which is printed under the line. Where this session holds\n" +
+			"the record's claim, the claim moves to the new worklog, so releasing the\n" +
+			"claim ends it. Each worklog already open on the record goes through with a\n" +
+			"warning, since joining it may be what you meant. Completing, canceling,\n" +
+			"dropping or promoting the record ends it, as does `finish`.\n" +
 			"\n" +
 			stepHelp + "\n" +
 			"\n" +
@@ -239,9 +241,11 @@ func newWorklogsJoinCommand() *cobra.Command {
 		Long: "A session is in one worklog at a time. Joining ends its span in any other,\n" +
 			"which is printed under the line. Use it to work a worklog another session\n" +
 			"opened, or one `start` opened. Holding or resuming a claim returns the session\n" +
-			"to that claim's worklog. Refused when the worklog ended, or its claim ran out\n" +
-			"or ended. A service joins only a worklog its client opened, unless its token\n" +
-			"holds slate.worklogs.observe, which is for a session that commits nothing.",
+			"to that claim's worklog. Where this session holds the record's claim, the\n" +
+			"claim moves to the worklog joined, even one the session was in already.\n" +
+			"Refused when the worklog ended, or its claim ran out or ended. A service\n" +
+			"joins only a worklog its client opened, unless its token holds\n" +
+			"slate.worklogs.observe, which is for a session that commits nothing.",
 		Example:     "  slate worklogs join 1991.2",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeWorklogsWrite),

@@ -110,7 +110,7 @@ class Worklog(RecordModel):
 
 
 class WorklogStart(RecordModel):
-    """Open a worklog with no claim. `session` joins it, and leaves any other worklog it was in.
+    """Open a worklog with no hold. `session` joins it, leaves any other worklog it was in, and takes the record's claim it holds.
 
     A field it does not name is refused rather than dropped, so a client sending one learns it was not applied.
     """

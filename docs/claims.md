@@ -42,6 +42,11 @@ worklog, at the same moment and with the same outcome, and the answer names it
 as `worklog_ended`. An expired claim's worklog ends at the claim's
 `expires_ts`. [worklogs.md](worklogs.md) covers the worklog itself.
 
+The claim moves to a worklog its holder's session starts or joins on the
+record later, so `worklog` names the go under way rather than the one the hold
+opened. A reader matching a run's worklog against the claim's then finds the
+step the holder is on.
+
 ## A waiting claim still holds its record
 
 A holder parks its claim with `slate claims wait <record> --on <what>`, and
@@ -157,6 +162,8 @@ A write that ends a claim beyond the one it was asked about names it in
   has one, keeps holding.
 - `session_rejoined_worklog` when a resume, or a hold of a record the holder
   already holds, puts the session back in the claim's worklog.
+- `claim_moved_to_worklog` when the holder's session starts or joins another
+  worklog on the record, and the claim moves to it.
 
 Deleting an issue or an initiative deletes every claim it has had, live or
 ended. The answer names them as `claims_deleted`, and warns

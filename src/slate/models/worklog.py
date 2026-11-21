@@ -1,8 +1,9 @@
 """A worklog is one go at one record: the sessions that joined it, what it produced, and how it ended.
 
 A worklog is named under its record's number, so `1991.2` is the second worklog on 1991. Holding a
-claim opens one, and `worklogs start` opens one with no claim. The claim ending, the record closing
-or `worklogs finish` ends it, and `outcome` says which.
+claim opens one, and `worklogs start` opens one with no hold. A claim is on one worklog at a time, and
+moves to one its session starts or joins on the record. The claim ending, the record closing or
+`worklogs finish` ends it, and `outcome` says which.
 
 A session joins a worklog for a span of time. A session is in at most one worklog at a time, so its
 spans never overlap, and its time outside every span is its own. `services/worklogs.py` holds every
@@ -109,7 +110,8 @@ class Worklog(Base):
     record_number: Mapped[int] = mapped_column(BigInteger, ForeignKey('records.number', ondelete='CASCADE'), nullable=False)
     # The nth worklog on its record, counting from one.
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)
-    # The claim whose hold opened it. Null on one `worklogs start` opened.
+    # The claim it is worked under: the one whose hold opened it, or whose session started or joined it
+    # since, which takes it from the worklog the claim was on. Null on one no claim is on.
     claim_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('claims.id', ondelete='CASCADE'), nullable=True, unique=True)
     opened_by: Mapped[str] = mapped_column(Text, nullable=False)
     step: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_steps.name'), nullable=True)

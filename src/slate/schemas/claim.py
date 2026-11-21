@@ -87,7 +87,8 @@ class Claim(RecordModel):
     """One lease on a record. `ending` and `ended_ts` are set together, once it ends.
 
     `state` is derived on every read from `expires_ts` and `ended_ts`. `worklog` names the worklog
-    the hold opened, and `waiting` is what the holder waits on now, or null while it works.
+    the hold opened, or the one its session started or joined on the record since. `waiting` is what
+    the holder waits on now, or null while it works.
     `flow_id` is the flow of the request that took it, not one copied from its record.
     """
 

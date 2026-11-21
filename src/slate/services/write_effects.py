@@ -50,6 +50,7 @@ class WriteEffectCode(enum.StrEnum):
     WORKLOG_ENDED = 'worklog_ended'
     SESSION_LEFT_WORKLOG = 'session_left_worklog'
     SESSION_REJOINED_WORKLOG = 'session_rejoined_worklog'
+    CLAIM_MOVED_TO_WORKLOG = 'claim_moved_to_worklog'
     WAIT_ENDED = 'wait_ended'
 
     # Side effects of deleting a record: what went with it, and each other record it changed.

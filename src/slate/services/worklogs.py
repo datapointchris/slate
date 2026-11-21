@@ -7,6 +7,9 @@ and never the reverse.
 A session is in one worklog at a time. `join` ends its span in any other at the moment it joins, and
 names that in the answer. A span in a worklog whose claim ran out ends at the claim's expiry instead,
 the moment the worklog stopped holding its record.
+
+A claim follows its session. Where the session holding a record's live claim starts or joins another
+worklog on that record, `move_claim_to` makes it the claim's, so the claim names the go under way.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from slate.api.exceptions import NotFoundException
 from slate.models.worklog import PREFLIGHT
 from slate.models.worklog import WORKLOG_FINISHED
 from slate.models.worklog import estimate_column
+from slate.services.claim_views import live_claims
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -140,6 +144,30 @@ def join(
     session.flush()
     logger.info('session_joined_worklog', session_id=session_id, worklog=worklog.name)
     return span
+
+
+def move_claim_to(session: Session, worklog: models.Worklog, session_id: str, now: dt.datetime, effects: WriteEffects) -> None:
+    """Make the worklog its record's live claim's, where that claim's own session is the one entering it.
+
+    The worklog the claim leaves keeps its state. One still open then ends by hand or with its
+    record, as one `worklogs start` opened does.
+    """
+    claim = live_claims(session, [worklog.record_number], now).get(worklog.record_number)
+    if claim is None or claim.session != session_id or worklog.claim_id is not None:
+        return
+    left = claim.worklog
+    if left is not None:
+        left.claim = None
+        session.flush()
+    worklog.claim = claim
+    session.flush()
+    number = worklog.record_number
+    origin = f' from worklog {left.name}' if left is not None else ''
+    message = f"{claim.holder}'s claim on #{number} moved{origin} to worklog {worklog.name}, the one its session {session_id} is in."
+    if left is not None and left.ended_ts is None:
+        message += f' {left.name} stays open until it is finished or #{number} closes.'
+    effects.did(WriteEffectCode.CLAIM_MOVED_TO_WORKLOG, message, number)
+    logger.info('claim_moved_to_worklog', record=number, claim=claim.id, worklog=worklog.name, left=left.name if left is not None else None)
 
 
 def return_to(
