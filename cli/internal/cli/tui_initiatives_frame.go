@@ -216,7 +216,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, place
 	return gotermboard.Group{
 		Key:            initiativeKey(initiative.Number) + placement,
 		Title:          gotermboard.Line{gotermboard.C(strconv.Itoa(initiative.Number), gotermboard.Cyan)},
-		Span:           gotermboard.Line{gotermboard.C(initiative.Name, gotermboard.Bold)},
+		Span:           append(gotermboard.Line{gotermboard.C(initiative.Name, gotermboard.Bold)}, heldBy(initiativeHolder(initiative))...),
 		Beside:         gotermboard.Items(dimCode, initiative.Repos...),
 		Cells:          boardCells(counts, drawn.now),
 		WrapLast:       issueBar(counts),
@@ -233,6 +233,23 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, place
 			return b.initiativePanel(initiative, long, drawn.rows, drawn.read, drawn.now, width)
 		},
 	}
+}
+
+// initiativeHolder is who holds a live claim on the initiative, or nil where nobody does.
+func initiativeHolder(initiative api.BoardInitiative) *string {
+	if initiative.Claim == nil || initiative.Claim.State != api.ClaimStateLive {
+		return nil
+	}
+	return &initiative.Claim.Holder
+}
+
+// heldBy names a row's holder after its title, yellow as running work is on the bar, so a
+// claimed row reads as claimed without the side panel. A row nobody holds gets nothing.
+func heldBy(holder *string) gotermboard.Line {
+	if holder == nil {
+		return nil
+	}
+	return gotermboard.Line{gotermboard.C("  held by "+*holder, gotermboard.Yellow)}
 }
 
 // stepsBelow is the marks of an initiative's steps once any is checked or not
@@ -630,7 +647,7 @@ func (b *initiativesBoard) issueGroup(issue api.BoardIssue, placement string, dr
 	}
 	group := gotermboard.Group{
 		Key:      issueKey(issue.Number) + placement,
-		Title:    gotermboard.Line{lead, gotermboard.C(strconv.Itoa(issue.Number), gotermboard.Cyan), gotermboard.C("  "+issue.Title, "")},
+		Title:    append(gotermboard.Line{lead, gotermboard.C(strconv.Itoa(issue.Number), gotermboard.Cyan), gotermboard.C("  "+issue.Title, "")}, heldBy(issue.Holder)...),
 		Under:    gotermboard.C(excerpt, ""),
 		Document: b.openDescription(issue.Number, description, isRead),
 		Folded:   true,

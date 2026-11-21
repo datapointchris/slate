@@ -55,6 +55,20 @@ waiting, because the bar draws both yellow. 24H, 7D and 30D count completed issu
 since the question is how much work finished. A zero reads `·`, so the numbers that are
 there stand out.
 
+## A claimed row names its holder, and `s` can put the claimed work first
+
+An initiative or issue someone holds names them in yellow after its title, `held by <holder>`,
+as running work is yellow on the bar. So who is on what reads down the screen without moving the
+cursor, and the side panel adds when the claim expires and what it waits on. The board read
+carries each initiative's claim and each issue's holder, so the rows need no second read.
+
+`s` cycles the order within a tier between priority, latest close, most open, newest and
+claimed. Claimed puts the initiatives someone holds first, then those with the most claimed
+issues, which are the running and waiting ones.
+
+- *Rejected:* a claimed grouping on `v`. A sort keeps the tiers, so claimed work still reads
+  against the priority it sits at.
+
 ## A bar has one cell per issue
 
 `19/48` draws 48 cells through gotermboard's `TallyBar`: done in green, running or waiting

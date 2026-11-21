@@ -58,8 +58,10 @@ func newTUICommand() *cobra.Command {
 			"issues, and an issue's sessions and pull requests from its worklogs. enter on a\n" +
 			"pull request opens `prs tui` on it, and o opens it in the browser. d opens an\n" +
 			"initiative's or an issue's description, full screen where it runs past the\n" +
-			"screen. f adds summaries, s cycles the sort within a tier, and v cycles the\n" +
-			"grouping between " + strings.Join(initiativeGroupings, ", ") + ". A pursuit's or a\n" +
+			"screen. A claimed initiative or issue names its holder after its title. f adds\n" +
+			"summaries, s cycles the sort within a tier between\n" +
+			strings.Join(boardSortLabels(), ", ") + ", and v cycles the grouping between\n" +
+			strings.Join(initiativeGroupings, ", ") + ". A pursuit's or a\n" +
 			"tag's line counts the closes of every initiative in it, including one completed\n" +
 			"inside the window, and names its active initiative touched longest ago. An\n" +
 			"initiative in two draws under both. ? lists every key and every read.\n" +

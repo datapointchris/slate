@@ -86,6 +86,31 @@ var boardSorts = []boardSort{
 	}},
 	{label: "most open", compare: func(a, b *api.BoardInitiative) int { return cmp.Compare(b.OpenCount, a.OpenCount) }},
 	{label: "newest", compare: func(a, b *api.BoardInitiative) int { return b.CreatedTS.Compare(a.CreatedTS) }},
+	{label: "claimed", compare: claimedFirst},
+}
+
+func boardSortLabels() []string {
+	labels := make([]string, len(boardSorts))
+	for at, sort := range boardSorts {
+		labels[at] = sort.label
+	}
+	return labels
+}
+
+// claimedFirst puts a claimed initiative ahead of one nobody holds, then the one with the
+// most claimed issues. A claimed issue is running, or waiting where its holder waits on
+// someone.
+func claimedFirst(a, b *api.BoardInitiative) int {
+	held := func(initiative *api.BoardInitiative) int {
+		if initiativeHolder(*initiative) != nil {
+			return 1
+		}
+		return 0
+	}
+	claimedIssues := func(initiative *api.BoardInitiative) int {
+		return initiative.States.Running + initiative.States.Waiting
+	}
+	return cmp.Or(cmp.Compare(held(b), held(a)), cmp.Compare(claimedIssues(b), claimedIssues(a)))
 }
 
 func latestFirst(a, b *time.Time) int {

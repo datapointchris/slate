@@ -82,6 +82,24 @@ func TestAScopeCutsTheBoardInTheClient(t *testing.T) {
 	}
 }
 
+func TestTheClaimedSortPutsHeldInitiativesFirstThenTheMostClaimedIssues(t *testing.T) {
+	read := sevenHighAndTwoLow()
+	read.Initiatives[3].Claim = &api.Claim{Holder: "someone", State: api.ClaimStateLive}
+	read.Initiatives[5].Claim = &api.Claim{Holder: "someone else", State: "expired"}
+	read.Initiatives[1].States.Running = 1
+	read.Initiatives[4].States.Running, read.Initiatives[4].States.Waiting = 1, 1
+	read.Initiatives[8].States.Waiting = 1
+	board := &initiativesBoard{sort: slices.Index(boardSortLabels(), "claimed")}
+	ordered, _ := board.orderedAndShown(read)
+	got := make([]int, len(ordered))
+	for at, initiative := range ordered {
+		got[at] = initiative.Number
+	}
+	if want := []int{4, 5, 2, 1, 3, 6, 7, 9, 8}; !slices.Equal(got, want) {
+		t.Errorf("sorted by claimed, the board orders %v, want %v", got, want)
+	}
+}
+
 func TestAPinnedInitiativeDrawsInItsOwnTierAheadOfEveryPriority(t *testing.T) {
 	read := sevenHighAndTwoLow()
 	pinnedTS := time.Now()
