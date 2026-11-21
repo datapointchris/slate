@@ -165,8 +165,8 @@ A write that ends a claim beyond the one it was asked about names it in
 - `claim_moved_to_worklog` when the holder's session starts or joins another
   worklog on the record, and the claim moves to it.
 
-Deleting an issue or an initiative deletes every claim it has had, live or
-ended. The answer names them as `claims_deleted`, and warns
+Deleting an issue, an initiative or an idea deletes every claim it has had,
+live or ended. The answer names them as `claims_deleted`, and warns
 `deleted_anothers_claim` when another holder's live claim was one.
 
 Releasing a record nobody holds changes nothing and warns `nothing_to_release`.

@@ -53,7 +53,57 @@ func newIdeasCommand() *cobra.Command {
 		goclikit.WithRecoveryHints(newIdeasReorderCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasPinCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasUnpinCommand(), ideaHints...),
+		goclikit.WithRecoveryHints(newIdeasDeleteCommand(), ideaHints...),
 	)...)
+	return cmd
+}
+
+func newIdeasDeleteCommand() *cobra.Command {
+	var (
+		yes    bool
+		asJSON bool
+	)
+	cmd := &cobra.Command{
+		Use:   "delete <idea> [--yes]",
+		Short: "Delete an idea with its evidence, pin and claims",
+		Long: "Every claim it has had goes with it, live or ended, with a warning when\n" +
+			"another holder's live claim was one. It prints each claim and worklog it\n" +
+			"took. An idea already promoted is refused, naming its initiative, because\n" +
+			"that initiative names it as where the work came from. Prompts unless --yes.",
+		Example:     "  slate ideas delete 1860 --yes",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := newAPIClient(cmd)
+			if err != nil {
+				return handleAPIError(err)
+			}
+			idea, err := client.GetIdea(cmd.Context(), args[0])
+			if err != nil {
+				return handleArgumentAPIError(err)
+			}
+			if !yes {
+				question := fmt.Sprintf("Delete idea #%d %q and its %d evidence %s?",
+					idea.Number, idea.Title, len(idea.Evidence), plural(len(idea.Evidence), "link", "links"))
+				ok, err := confirm(cmd, question)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
+					return nil
+				}
+			}
+			deleted, err := client.DeleteIdea(cmd.Context(), idea.ID, issueZone())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			summary := fmt.Sprintf("Deleted idea #%d %q", idea.Number, idea.Title)
+			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, summary)
+		},
+	}
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
 

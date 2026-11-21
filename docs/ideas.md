@@ -55,3 +55,14 @@ reads back from any point. That is data lineage, W3C PROV's "derived from".
 
 A claim on a promoted idea goes through with an `idea_promoted` warning naming
 the initiative, because the work lives there now.
+
+## Deleting an idea takes its evidence, and a promoted idea is refused
+
+An idea has no status to close it, so an idea recorded by mistake leaves the
+queue only by its delete. `DELETE /ideas/{id}` deletes the idea's record, as
+`records.md` describes for every kind. Its evidence, its pin, and every claim
+and worklog on it go with it. The answer names the claims and worklogs as
+`claims_deleted` and `worklogs_deleted`.
+
+A promoted idea answers 409 naming its initiative. The initiative's `idea_id`
+is where its work came from, and would quietly set to null if the idea went.

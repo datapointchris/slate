@@ -9,6 +9,7 @@ from fastapi import Depends
 from fastapi import HTTPException
 from fastapi import status
 from sqlalchemy import case
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 
 from slate import models
@@ -27,6 +28,7 @@ from slate.services.initiatives import new_initiative
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
+from slate.services.record_deletes import name_record_parts_deleted
 from slate.services.record_groupings import GroupingsQuery
 from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_pins import carry_pin
@@ -36,6 +38,7 @@ from slate.services.record_pursuits import pursuits_of
 from slate.services.record_pursuits import resolve_pursuits
 from slate.services.record_pursuits import set_record_pursuits
 from slate.services.record_refs import resolve_idea
+from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import own_tags
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
@@ -134,6 +137,26 @@ def update(idea: IdeaFromPath, changes: schemas.IdeaUpdate, session: DbSession, 
     session.commit()
     session.refresh(idea)
     return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
+
+
+@router.delete('/{id}', response_model=schemas.RecordDeleted, status_code=status.HTTP_200_OK)
+def delete(idea: IdeaFromPath, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Delete the idea's record, which takes the idea, its evidence, pin, claims, worklogs, documents and comments with it.
+
+    A promoted idea is refused with 409, because its initiative names it as where that work came from.
+    """
+    if idea.initiative is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f'#{idea.number} was promoted to initiative #{idea.initiative.number} {idea.initiative.name!r}, '
+            'which names it as where that work came from, so it stays.',
+        )
+    deleted = record_summaries(session, [idea.number])[idea.number]
+    name_record_parts_deleted(session, idea.number, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
+    session.execute(sql_delete(models.Record).where(models.Record.number == idea.number))
+    session.commit()
+    logger.info('idea_deleted', number=deleted.number)
+    return effects.answer(schemas.RecordDeleted, deleted=deleted)
 
 
 @router.post('/{id}/evidence', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)

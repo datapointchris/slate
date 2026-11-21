@@ -753,6 +753,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"initiatives", "unpin", "Practical help guides"}, `{}`},
 		{[]string{"ideas", "pin", "1860"}, idea},
 		{[]string{"ideas", "unpin", "1860"}, idea},
+		{[]string{"ideas", "delete", "1860", "--yes"}, idea},
 		{[]string{"issues", "reopen", "412"}, completedIssue},
 		{[]string{"initiatives", "delete", "Practical help guides", "--yes"}, `{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c","name":"Practical help guides"}`},
 	}

@@ -172,6 +172,16 @@ func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInpu
 	return written, nil
 }
 
+// DeleteIdea removes an idea with its evidence, pin and claims. A promoted
+// idea is refused, naming its initiative. The answer gives each time in zone.
+func (c *Client) DeleteIdea(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {
+	var deleted RecordDeleted
+	if err := c.send(ctx, http.MethodDelete, withQuery(ideaPath(ref), zoneQuery(zone)), nil, &deleted); err != nil {
+		return RecordDeleted{}, err
+	}
+	return deleted, nil
+}
+
 // RankIdea places an idea directly before or after another record of its
 // priority.
 func (c *Client) RankIdea(ctx context.Context, ref string, move RankMove, zone DayZone) (IdeaWritten, error) {
