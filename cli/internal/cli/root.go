@@ -85,8 +85,7 @@ const (
 
 // runRoot answers `slate` bare with the board on a terminal and its help
 // anywhere else, and refuses a word naming no command the way every namespace
-// does. `slate version` is refused too, with the flag that prints the version
-// named under it, because the version is a flag rather than a command.
+// does. That refusal offers `slate --version` for `slate version`.
 func runRoot(tui *cobra.Command) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
@@ -95,11 +94,7 @@ func runRoot(tui *cobra.Command) func(*cobra.Command, []string) error {
 			}
 			return runBare(cmd, tui)
 		}
-		refused := goclikit.UnknownCommand(cmd, args[0])
-		if args[0] == "version" {
-			return fmt.Errorf("%w\n\nThe version is a flag: %s --version", refused, cmd.CommandPath())
-		}
-		return refused
+		return goclikit.UnknownCommand(cmd, args[0])
 	}
 }
 

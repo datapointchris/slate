@@ -6,7 +6,7 @@ toolchain go1.26.11
 
 require (
 	charm.land/bubbletea/v2 v2.1.1
-	github.com/datapointchris/goclikit v0.5.3
+	github.com/datapointchris/goclikit v0.7.0
 	github.com/datapointchris/goselfupdate v0.11.0
 	github.com/datapointchris/gotermboard v0.47.0
 	github.com/datapointchris/gotermstyle v0.6.0
