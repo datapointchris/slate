@@ -13,8 +13,6 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
-	go.opentelemetry.io/contrib/propagators/envcar v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/term v0.47.0
@@ -38,9 +36,6 @@ require (
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/datapointchris/goapiauth v0.2.0 // indirect
 	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
-	github.com/felixge/httpsnoop v1.1.0 // indirect
-	github.com/go-logr/logr v1.4.4 // indirect
-	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lrstanley/bubblezone/v2 v2.0.0 // indirect
@@ -52,9 +47,7 @@ require (
 	github.com/xo/terminfo v1.2.0 // indirect
 	github.com/yuin/goldmark v1.8.7 // indirect
 	github.com/zalando/go-keyring v0.2.8 // indirect
-	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel/log v1.47.0 // indirect
-	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/contrib/propagators/envcar v0.72.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect

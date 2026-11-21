@@ -179,8 +179,8 @@ rows above answers it too.
 
 The CLI reads `TRACEPARENT`, `TRACESTATE` and `BAGGAGE` from its environment at
 startup, the specification's carriers for a trace handed to a child process.
-Every API request then sends them on as its `traceparent` and `baggage`
-headers. The baggage member `fleet.session.id` names the agent session the
+Every API request then sends them on as its `traceparent`, `tracestate` and
+`baggage` headers. The baggage member `fleet.session.id` names the agent session the
 command acts as: its `--session` where it takes one, else
 `CLAUDE_CODE_SESSION_ID`. That replaces any member the CLI inherited, because
 the session running a command is the one writing, not the one that started it.

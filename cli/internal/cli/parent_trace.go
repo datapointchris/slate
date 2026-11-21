@@ -5,17 +5,11 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/contrib/propagators/envcar"
 	"go.opentelemetry.io/otel/baggage"
-	"go.opentelemetry.io/otel/propagation"
 )
-
-// tracePropagator reads and writes W3C trace context and baggage, the default
-// of OTEL_PROPAGATORS.
-var tracePropagator = propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
 
 // sessionBaggageKey is the baggage member naming the agent session a request
 // acts as. The API reads it to find the worklog that session is in, and
@@ -25,13 +19,6 @@ const sessionBaggageKey = "fleet.session.id"
 // actingSessionAnnotation marks the --session flag naming the session a
 // command acts as, apart from a --session that filters a list.
 const actingSessionAnnotation = "slate_acting_session"
-
-// withParentTrace is ctx carrying the trace the process that started slate
-// handed it in TRACEPARENT, TRACESTATE and BAGGAGE. slate makes no span of its
-// own, so each API request's span sits directly under whatever ran it.
-func withParentTrace(ctx context.Context) context.Context {
-	return tracePropagator.Extract(ctx, &envcar.Carrier{})
-}
 
 // addActingSessionFlag adds the --session naming the agent session a command
 // acts as, defaulting to the session running slate. Each request the command
@@ -72,7 +59,7 @@ func withSessionBaggage(ctx context.Context, session string) context.Context {
 // carryingTrace sends each request's trace and baggage on as its traceparent
 // and baggage headers, the baggage naming the session cmd acts as.
 func carryingTrace(cmd *cobra.Command, base http.RoundTripper) http.RoundTripper {
-	traced := otelhttp.NewTransport(base, otelhttp.WithPropagators(tracePropagator))
+	traced := goclikit.TraceForwardingTransport(base)
 	session, named := actingSession(cmd)
 	if !named {
 		return traced
