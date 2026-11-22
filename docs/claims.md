@@ -22,8 +22,8 @@ one, and the same row joins the session to its worklogs.
 
 `ending` is a row of `claim_endings`. `released` is a holder or a person
 letting go, `expired` is the lease running out first, and `promoted` is an idea
-becoming its initiative. The rest name the closing status the record reached.
-`ended_ts` and `ending` are set together or not at all.
+becoming its initiative. The rest name the closing status that the record
+reached. `ended_ts` and `ending` are set together or not at all.
 
 A claim holds no work, only the fact that someone is doing it. Whether an issue
 is open or closed is its status. Whether anyone is working it is its claim. So
@@ -42,10 +42,10 @@ worklog, at the same moment and with the same outcome, and the answer names it
 as `worklog_ended`. An expired claim's worklog ends at the claim's
 `expires_ts`. [worklogs.md](worklogs.md) covers the worklog itself.
 
-The claim moves to a worklog its holder's session starts or joins on the
-record later, so `worklog` names the go under way rather than the one the hold
-opened. A reader matching a run's worklog against the claim's then finds the
-step the holder is on.
+The claim moves to a worklog that its holder's session starts or joins on the
+record later, so `worklog` names the go under way rather than the one that the
+hold opened. A reader matching a run's worklog against the claim's then finds
+the step the holder is on.
 
 ## A waiting claim still holds its record
 
@@ -92,7 +92,7 @@ else it finds, and the answer carries a warning for each thing:
 | `initiative_waits` | the issue's open initiative waits on an open initiative or issue, one warning each |
 | `open_children` | the issue has open children |
 | `idea_promoted` | the idea was promoted; the warning names its initiative |
-| `claimed_initiative` | another holder claims the issue's initiative, an initiative whose plan holds the issue, or the initiative an idea became |
+| `claimed_initiative` | another holder claims the issue's initiative, an initiative whose plan holds the issue, or the initiative that an idea became |
 | `claimed_parent`, `claimed_child`, `claimed_dependent` | another holder claims an issue beside it |
 | `claimed_issue_in_initiative` | another holder claims an issue in the plan of the initiative held |
 | `claimed_overlapping_paths` | another holder claims an issue on the same repo whose paths meet this issue's, one warning each |
@@ -100,12 +100,12 @@ else it finds, and the answer carries a warning for each thing:
 `WriteEffectCode` in `services/write_effects.py` holds every code, the hold
 warnings under their own comment.
 
-A neighbor the same holder claims is not named, because a lead holding an
+A neighbor that the same holder claims is not named, because a lead holding an
 initiative and its issues is one actor working one plan.
 
 Incoming, closed, blocked and deferred work are warnings rather than refusals.
-Each is a judgment the holder can make with the fact in hand. A second holder
-is not: two sessions editing one record collide.
+Each is a judgment that the holder can make with the fact in hand. A second
+holder is not: two sessions editing one record collide.
 
 ## A live claim on an initiative takes its plan out of the queue
 
@@ -155,13 +155,13 @@ A write that ends a claim beyond the one it was asked about names it in
   ends it as `expired` rather than `released`.
 - `expired_claim_ended` when a hold finds another holder's claim run out and
   ends it before starting its own.
-- `worklog_ended` for the worklog of every claim a write ends, a plain
+- `worklog_ended` for the worklog of every claim that a write ends, a plain
   release included.
 - `session_left_worklog` when a hold or a resume moves the holder's session out
   of the worklog it was in. That worklog keeps its state, and its claim, if it
   has one, keeps holding.
-- `session_rejoined_worklog` when a resume, or a hold of a record the holder
-  already holds, puts the session back in the claim's worklog.
+- `session_rejoined_worklog` when a resume, or a hold of a record that the
+  holder already holds, puts the session back in the claim's worklog.
 - `claim_moved_to_worklog` when the holder's session starts or joins another
   worklog on the record, and the claim moves to it.
 
@@ -169,9 +169,9 @@ Deleting an issue, an initiative or an idea deletes every claim it has had,
 live or ended. The answer names them as `claims_deleted`, and warns
 `deleted_anothers_claim` when another holder's live claim was one.
 
-Releasing a record nobody holds changes nothing and warns `nothing_to_release`.
-A person may release another holder's claim, to free work a dead session left,
-and the answer warns `released_anothers_claim`.
+Releasing a record that nobody holds changes nothing and warns
+`nothing_to_release`. A person may release another holder's claim, to free work
+a dead session left, and the answer warns `released_anothers_claim`.
 
 ## A claim that runs out frees its record at once
 

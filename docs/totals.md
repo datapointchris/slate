@@ -16,10 +16,10 @@ worklogs from `worklog_spans` and `worklogs`. Each read sums those rows over
 its scope. So a report that replaces a session's tokens, or a link added to a
 worklog that ended, shows in the next read with nothing to recompute.
 
-This is a rollup over a star schema, the shape a data warehouse reports from.
-`message_tokens` and `worklog_links` are the fact tables. Record, repo and time
-are the dimensions, and each scope is a slice on them, as an OLAP cube's slice
-is.
+This is a rollup over a star schema, the shape from which a data warehouse
+reports. `message_tokens` and `worklog_links` are the fact tables. Record, repo
+and time are the dimensions, and each scope is a slice on them, as an OLAP
+cube's slice is.
 
 `work_totals` in `services/work_totals.py` computes it. A read that shows a
 record's totals calls it rather than summing a second way.
@@ -101,7 +101,7 @@ it worked there.
 
 ## A total naming no record, worklog or repo counts time outside every worklog
 
-A message no span held belongs to its session alone
+A message that no span held belongs to its session alone
 ([sessions.md](sessions.md)). A total that names none of the three counts it,
 and `tokens_outside_worklogs` is that part of `tokens`. Where any message in
 the window was reported, that part is a count, zero when every one fell in a

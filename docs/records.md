@@ -3,7 +3,7 @@
 slate's planning records are ideas, initiatives, issues and pursuits. An
 idea is work that may happen. An initiative is a committed outcome that groups
 and orders issues. An issue is one change with its acceptance. A pursuit is a
-condition the work should bring about and hold, read from what is measured,
+condition that the work should bring about and hold, read from what is measured,
 which ideas and initiatives join.
 
 ## Every kind is one record, numbered from one sequence
@@ -34,7 +34,7 @@ Each kind keeps its own UUID `id` as its key, which its own edges use: an
 issue's parent, its dependencies, its labels. The number is the handle a
 person or an agent types.
 
-`records` also holds `rank`, the place each record takes in the queue, so
+`records` also holds `rank`, the place that each record takes in the queue, so
 ideas, initiatives and issues are ordered in one space. A pursuit holds no
 work, so it never takes a place. [issues.md](issues.md) gives the order.
 
@@ -51,7 +51,7 @@ the read the kind's own route gives, with every claim the record has had:
 | `pursuit` | `GET /pursuits/{number}` |
 
 `kind` discriminates the union in the OpenAPI schema, so a typed client
-decodes `record` into the right shape before reading it. A number nobody
+decodes `record` into the right shape before reading it. A number that nobody
 holds answers 404. A number read through another kind's route answers 404
 naming the kind that holds it: `issue 1501 not found: #1501 is an initiative`.
 `slate show <number>` prints any record through its kind's own renderer. Its
@@ -93,9 +93,9 @@ Three cases are set by hand in `services/record_changes.py`:
 - An issue's comments in `issue_comments`, a table imported rows name and no
   model maps, are read by the issue each one names.
 
-A row naming another by a key a person never sees, as a tagging names its tag
-by `tag_id`, reads that row's name beside the key in `referenced_names`. The
-named table marks the column a person knows it by in its `info` under
+A row naming another by a key that a person never sees, as a tagging names its
+tag by `tag_id`, reads that row's name beside the key in `referenced_names`. The
+named table marks the column that identifies it to a person in its `info` under
 `KNOWN_BY`: a tag's `name`, a label's `slug`. The read finds every column
 keying a marked table from the schema's foreign keys. A row since deleted reads
 the name its own delete held.
@@ -104,8 +104,8 @@ An issue moving into an initiative is that issue's change, not the
 initiative's. Its key onto the initiative sets null on delete, so the
 initiative's deletion leaves the issue standing.
 
-The trigger stores only the columns an update changed, so the update ending a
-claim names no record. An insert or a delete holds the whole row, so it names
+The trigger stores only the columns that an update changed, so the update ending
+a claim names no record. An insert or a delete holds the whole row, so it names
 the row's parent. The read finds each row hanging off the record by the parent
 its insert or delete names, then every write to that row by its key. A GIN
 index over the `changes` of every insert and delete serves each parent column
@@ -122,7 +122,7 @@ that reason.
 - *Rejected:* the changes inside each kind's read. An issue's writes answer
   that read, so every write would read its whole audit trail back.
 - *Rejected:* a hand-written list of the tables hanging off each kind. Nothing
-  kept it level with the schema, and it missed the initiative a promotion
+  kept it level with the schema, and it missed the initiative that a promotion
   creates.
 
 ## A search reads every kind and every status, and a number names its record
@@ -151,7 +151,7 @@ Unknown tag 'perf'. A record carries only a tag that exists: performance, securi
 ```
 
 So `perf` beside `performance` cannot become a second tag that splits the
-records a filter finds.
+records that a filter finds.
 
 `tags` holds the list, keyed by an integer `id` with a unique `name`.
 `record_tags` holds one row per record and tag, keyed on `(record_number,
@@ -188,16 +188,17 @@ and their groups exclude each other.
 - *Rejected:* free-text tags. Nothing stops `perf`, `performance` and `speed`
   from meaning one thing, and a filter on any of them misses the rest.
 - *Rejected:* a membership keyed on the tag's name. A rename would rewrite
-  every row carrying it, and change the key each row's history is read by.
+  every row carrying it, and change the key under which each row's history is
+  read.
 - *Rejected:* copying an initiative's tags onto its issues. The copy goes stale
   the moment the initiative's tags change or the issue moves.
 
 ## A pursuit is a measured condition ideas and initiatives join, and an issue reads its initiative's
 
-A pursuit is a condition the work should bring about and hold, read from what
-is measured rather than from time spent. It closes when it is met or dropped.
-Linear draws the same layer, where an Initiative groups Projects toward a
-company objective. An OKR pairs an objective with the key results that measure
+A pursuit is a condition that the work should bring about and hold, read from
+what is measured rather than from time spent. It closes when it is met or
+dropped. Linear draws the same layer, where an Initiative groups Projects toward
+a company objective. An OKR pairs an objective with the key results that measure
 it, as a pursuit pairs its summary with its measure, and differs by being
 time-boxed.
 
@@ -297,9 +298,9 @@ A pursuit's writes from when the kind was named `direction` sit in the audit
 trail under the tables they went to: `directions` for the pursuit's own, and
 `record_directions` for each placement. Neither table exists, so no foreign
 key leads to those rows. `services/record_changes.py` links them to a pursuit
-and its records by hand, matching on the id and number each pursuit kept. So
-`slate show` of a pursuit prints those writes among its changes, each placement
-under the pursuit's name.
+and its records by hand, matching on the id and number that each pursuit kept.
+So `slate show` of a pursuit prints those writes among its changes, each
+placement under the pursuit's name.
 
 - *Rejected:* a pursuit as a tag. A tag is a category that never ends. A
   pursuit closes, says what it means and what measures it, and carries its own
@@ -325,15 +326,15 @@ A write answers an envelope, never the bare record:
 ```
 
 The key holding the record is named for what was written, such as `issue` or
-`claim`. A side effect is a change the write made beyond its
-request. A warning is a condition the write went through despite. Each entry
-carries a `code` a client branches on, a `message` for a person, and the
+`claim`. A side effect is a change that the write made beyond its
+request. A warning is a condition that did not stop the write. Each entry
+carries a `code` that a client matches, a `message` for a person, and the
 number of the record it concerns.
 
-So nothing a write changes is left for the caller to discover. A handler takes
-the `Effects` dependency from `services/write_effects.py`. It calls `did()` for
-each change beyond the request and `warn()` for each condition, then answers
-through `effects.answer()`. `WriteEffectCode` holds every code.
+So nothing that a write changes is left for the caller to discover. A handler
+takes the `Effects` dependency from `services/write_effects.py`. It calls
+`did()` for each change beyond the request and `warn()` for each condition, then
+answers through `effects.answer()`. `WriteEffectCode` holds every code.
 
 The CLI prints the record's line, then each side effect indented under it.
 Warnings go to stderr as `Warning: <message>`, under `--json` too, and

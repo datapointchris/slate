@@ -40,7 +40,7 @@ A row is a record and what taking it means:
 
 | Step | Row |
 | --- | --- |
-| `discuss` | an idea nobody has promoted |
+| `discuss` | an idea that nobody has promoted |
 | `shape`, `design`, `preflight` | an active initiative, at the first of them it plans past its furthest checked step, unless it checked none and holds an unclosed issue |
 | `decide` | a ready `decision` issue |
 | `build` | any other ready issue, or a held initiative whose issues are being built or that has no step left to offer |
@@ -58,8 +58,8 @@ goes from `idea` straight to `preflight`. An initiative with no planned step
 left and no unclosed issue is no row of its own. Held, it is listed in
 `claimed` at `build`, so its holder still sees it.
 
-`step` keeps one step's rows, so `slate next --step build` is the work an agent
-takes. A step never holds work back. An initiative offered `design` or
+`step` keeps one step's rows, so `slate next --step build` is the work that an
+agent takes. A step never holds work back. An initiative offered `design` or
 `preflight` is a row beside its open issues, which still list at `build`. An initiative at
 `build` is not a row of its own, because its issues are. That holds for one
 past `preflight` with unclosed issues. It is listed only when held, in
@@ -72,7 +72,7 @@ those initiatives. A pursuit is never a row, because it holds no work.
 `initiative` narrows to one initiative's rows.
 
 Each row says its `kind`, `number`, `step` and `priority`, and carries the
-kind's own read as `record`. `priority` is the one the row sorts at: an
+kind's own read as `record`. `priority` is the one that sorts the row: an
 issue's effective priority, else the record's own.
 
 A live claim says someone is working the record, so a held record is listed
@@ -137,11 +137,11 @@ initiative's wait holds nothing, as a finished initiative lends no priority.
   client guesses it. `/issues/{id}/dependencies` still writes an issue's edge.
 - **The issue's read says what blocks it.** `blocked_by` lists each open record
   holding it back now, whatever the cause, and is empty exactly when `is_blocked`
-  is false. An entry its initiative's wait holds names that initiative in
-  `through_initiative`. `initiative_waits_on` lists every record an unclosed
-  issue waits on through its initiative, open or closed, as `depends_on` lists
-  every dependency. The initiative's read lists `depends_on`, and each record's
-  read lists the `waiting_initiatives`.
+  is false. An entry that its initiative's wait holds names that initiative in
+  `through_initiative`. `initiative_waits_on` lists every record that an
+  unclosed issue waits on through its initiative, open or closed, as
+  `depends_on` lists every dependency. The initiative's read lists `depends_on`,
+  and each record's read lists the `waiting_initiatives`.
 - **A loop through any mix of edges is refused on write.** An initiative waits on
   its unclosed issues, since it is finished by them, and each of them waits on
   what the initiative waits on. So an initiative waiting on one of its own issues
@@ -170,8 +170,8 @@ end may be either kind. The API refuses an idea there.
 An initiative is `someday` when its work is planned and nobody has taken it
 on. A thought not yet worked out is an [idea](ideas.md) instead. A someday
 initiative's issues are captured in full, but the ready queue leaves them out,
-so no agent takes work nobody chose. Reopening the initiative makes them ready. Moving one issue into
-an active initiative takes that one alone.
+so no agent takes work that nobody chose. Reopening the initiative makes them ready. Moving one issue
+into an active initiative takes that one alone.
 
 An issue outside someday that depends on a someday issue, directly or through a
 chain, has chosen it. That someday issue enters the queue at the dependent's
@@ -187,8 +187,8 @@ An issue set aside for now keeps its repo and takes `--priority low`. It leaves
 the head of the queue and comes back up when someone works in that repo. Where
 it is all that is left of its initiative, the initiative goes to `low` too,
 because an issue sorts at its initiative's priority when that is higher. A
-`--deferred-until` date nobody chose is a false fact in the queue, so it is set
-only to a day a person named.
+`--deferred-until` date that nobody chose is a false fact in the queue, so it is
+set only to a day a person named.
 
 An initiative placed behind another stays active. `slate initiatives reorder
 <initiative> --after <other>` puts it next, and `slate dependencies add
@@ -197,15 +197,15 @@ Shelving it to `someday` instead takes it out of the queue entirely.
 
 ## An issue reaches an unattended fix only where it and every record above it say `autofix: true`
 
-An unattended fix is a commit nobody reads before it lands. Two kinds of work
-must stay out of one. A step of a larger design would land alone, out of the
-design it belongs to. That design is an initiative, or a parent issue split
+An unattended fix is a commit that nobody reads before it lands. Two kinds of
+work must stay out of one. A step of a larger design would land alone, out of
+the design it belongs to. That design is an initiative, or a parent issue split
 into children. A standalone issue may need a person, or someone may simply
 want to do it themselves.
 
 Issues and initiatives each carry `autofix`, false by default, so a record
 filed without a word about it stays with a session. Opening one is a choice
-someone makes. An issue is autofixable when it says true and none of its
+that someone makes. An issue is autofixable when it says true and none of its
 initiative and its unclosed parent says false, and the parent is read the same
 way up the tree. That is derived on every read with readiness and returned as
 `is_autofixable`. So an issue filed later into an initiative that says false,
@@ -217,11 +217,11 @@ queue for an unattended fix, and is `GET /queue?step=build&autofixable=true`.
 The filter is named for `is_autofixable`, the derived fact it reads, the way
 `blocked` reads `is_blocked`. `autofix` stays the stored setting.
 
-The flag is a veto the reader asks to honor. A hold by number takes an issue
-whatever its flag says, and a fixer narrowing further, by type or repo, does so
-on its own side. An API that does not know the filter ignores it, so `slate
-issues list` refuses any row under `--autofixable` whose `is_autofixable` is
-missing or does not match. `slate next` and `slate claims hold --next
+The flag is a veto that the reader asks to honor. A hold by number takes an
+issue whatever its flag says, and a fixer narrowing further, by type or repo,
+does so on its own side. An API that does not know the filter ignores it, so
+`slate issues list` refuses any row under `--autofixable` whose `is_autofixable`
+is missing or does not match. `slate next` and `slate claims hold --next
 --autofixable` need no such check, because every API serving `/queue` and
 `/claims/next` reads the filter.
 
@@ -235,16 +235,16 @@ accepts it as `open`. A hook, a script or a job files there, so a capture sent
 three times waits as three incoming issues rather than heading the queue three
 times at its filer's priority. Work noticed in passing is filed there, with
 `discovered_from` naming the issue it was found during. It is recorded without
-jumping ahead of work someone chose. `slate issues create` fills `discovered_from` with the
-issue the session's worklog is on, so the link costs a session nothing. A
-retrospective then reads an initiative's trailing fixes as the issues
+jumping ahead of work that someone chose. `slate issues create` fills `discovered_from`
+with the issue the session's worklog is on, so the link costs a session nothing.
+A retrospective then reads an initiative's trailing fixes as the issues
 discovered from its own.
 
-An incoming issue nobody holds heads the order records come due for a check,
-until a check reads it. `checks.md` gives that order and what is never due.
-A scheduled job holding `slate.records.recheck` reads each incoming issue as it
-comes due, then accepts or cancels it. That scope accepts only an issue still
-incoming, so a second accept is refused.
+An incoming issue that nobody holds heads the order in which records come due
+for a check, until a check reads it. `checks.md` gives that order and what is
+never due. A scheduled job holding `slate.records.recheck` reads each incoming
+issue as it comes due, then accepts or cancels it. That scope accepts only an
+issue still incoming, so a second accept is refused.
 
 ## Order is a person's pin, then priority, then each initiative's work together, then rank
 
@@ -263,7 +263,7 @@ Priority uses Linear's scale:
 
 `0` is the absence of a priority and sorts after every level.
 
-The priority an issue sorts by is its effective priority, the most urgent of:
+The priority that sorts an issue is its effective priority, the most urgent of:
 
 - its own priority
 - its open parent's effective priority
@@ -305,8 +305,8 @@ high    idea 60
 It is a float, the way Linear's `sortOrder` is. A new record goes one past the
 last, placed by the `records_rank_at_end` trigger, so a new issue lands at its
 initiative's tail. An initiative promoted from an idea takes the idea's rank,
-so it keeps the place a reorder gave the idea. A move takes the midpoint of its two new neighbors, so it
-writes one row. When a move would leave a gap smaller than `MIN_GAP` in
+so it keeps the place that a reorder gave the idea. A move takes the midpoint of its two new neighbors,
+so it writes one row. When a move would leave a gap smaller than `MIN_GAP` in
 `services/fractional_rank.py`, every rank is renumbered to whole numbers in its
 current order. `number` breaks a rank tie, because it is issued in creation
 order and never repeats.
@@ -320,7 +320,7 @@ any kind, through one rule in `services/queue_moves.py`:
 - An issue inside an initiative moves only among that initiative's issues.
 - An issue sorting ahead of what waits on it moves with that, so it is placed
   only beside another issue sorting there.
-- A record the queue holds no place for neither moves nor is moved beside:
+- A record that has no place in the queue neither moves nor is moved beside:
   a closed issue, a someday or finished initiative, a promoted idea. The
   readiness result is the one place that says which records hold a place.
 
@@ -362,9 +362,9 @@ high    idea 60
   initiative, clears it and answers `pin_cleared`. A promoted idea's work is its
   initiative's, so the pin moves there and answers `pin_carried`. Reopening
   restores no pin.
-- **A record the queue would not show is refused with 409:** a closed issue, an
-  issue in a `someday` initiative, an initiative that is not active, and a
-  promoted idea.
+- **A record that the queue would not show is refused with 409:** a closed
+  issue, an issue in a `someday` initiative, an initiative that is not active,
+  and a promoted idea.
 - **A move across the pin answers 409,** as one across priorities does. Pinning or
   unpinning is what moves a record past that line.
 
@@ -427,14 +427,14 @@ runs it, with the kind of actor as the prefix:
 
 | `closed_by` | Who |
 | --- | --- |
-| `claude-code/<session>` | a Claude Code session someone attends |
-| `claude-code-unattended/<worker>/<session>` | a session a named worker started |
-| `claude-code-unattended/<session>` | a session nobody attends, unnamed |
+| `claude-code/<session>` | a Claude Code session that someone attends |
+| `claude-code-unattended/<worker>/<session>` | a session that a named worker started |
+| `claude-code-unattended/<session>` | a session that nobody attends, unnamed |
 | `worker/<worker>` | a named worker running the CLI itself |
 | `user@host` | a person at a terminal |
 
 A scheduler names its worker in `SLATE_ACTOR`. Claude Code sets
-`CLAUDE_CODE_SESSION_ATTENDED=0` in a session nobody attends. Claims are
+`CLAUDE_CODE_SESSION_ATTENDED=0` in a session that nobody attends. Claims are
 signed the same way. A null `closed_by` means unknown. A move
 between completed and canceled keeps the first close's stamps. So `closed_by`
 is accepted only on the change that closes an open issue, and any other PATCH
@@ -455,7 +455,7 @@ rather than becoming a second label. Labels sharing a `group_slug` exclude each
 other, and an issue carries at most one label from each group.
 
 `/labels` and `slate labels` manage the vocabulary. A label marks how an issue
-was filed. A category any kind belongs to is a tag, which
+was filed. A category that any kind carries is a tag, which
 [records.md](records.md) covers.
 
 ## An initiative is a bounded outcome
@@ -501,7 +501,7 @@ issues are its build. The database refuses a row for either too. These writes
 refuse a field they do not name with a 422. An API without the field drops it
 instead, so the CLI checks each answer marks the steps it sent. Each mark is a
 row of `initiative_steps_not_planned`, and a step with no row is planned, so an
-initiative nobody marked plans every step. Every read answers
+initiative that nobody marked plans every step. Every read answers
 `not_planned_steps` in position order, and the steps line draws a dash before
 each. A step checked before it was marked stays checked, and draws its check.
 The choice is recorded before the work, so initiatives that skipped a step can
@@ -546,11 +546,11 @@ pass, so the two never disagree. `closed` lists the closes inside the `since`
 and `until` window, latest first. `totals` is what `GET /totals` answers for
 the initiative over its whole life, whatever the window.
 
-**`burnup` is the initiative's issues over its whole life**, the burn-up chart Jira
-draws for a release. Each step holds `scope`, the issues in the initiative and not
-canceled, and `completed`, those of them completed, from its `ts` until the next
-step. A step falls at each moment either changed, and a last one at the read, so
-the last step is the counts above.
+**`burnup` is the initiative's issues over its whole life**, the burn-up chart that
+Jira draws for a release. Each step holds `scope`, the issues in the initiative
+and not canceled, and `completed`, those of them completed, from its `ts` until
+the next step. A step falls at each moment either changed, and a last one at the
+read, so the last step is the counts above.
 
 An issue joins an initiative when a write sets its initiative, and leaves when one
 moves it elsewhere. The audit trail holds every such write, so membership is read
@@ -566,13 +566,14 @@ last step still agrees with the counts. A reopened issue counts as it stands now
 and a deleted one is in no step.
 
 - *Rejected:* an issue's creation as its join. An issue moved in later would read
-  as scope the initiative held all along, which is the growth the chart is for.
+  as scope the initiative held all along, which is the growth that the chart
+  exists to show.
 
 The window means what it means on every bounded read. A bound left out leaves
 that end open, so the API given no `since` lists every close. "Recently" is the
 CLI's choice. Given neither `--since` nor `--until`, it reads the closes since
-the default its help shows. `--since=` lists every close. The answer echoes the
-window as `closed_since` and `closed_until`.
+the default that its help shows. `--since=` lists every close. The answer echoes
+the window as `closed_since` and `closed_until`.
 
 - *Rejected:* a recent default in the API. `since` would mean one thing on this
   route and another on every other.
@@ -589,7 +590,7 @@ the bar in `slate initiatives list` does. Done fills it in green. Its empty
 cells are yellow for the work under way and red for the blocked, drawn by the
 same `TallyBar` as `slate tui`'s bar. So without color it still reads as done
 over done and open, with the blocked marked. `--json` prints an array,
-one entry per initiative, carrying every figure the text shows.
+one entry per initiative, carrying every figure that the text shows.
 
 ## The board read answers every initiative's counts, closes and issues, cheap enough to poll
 
@@ -613,16 +614,16 @@ counting issues itself.
 each tag of their own.** An initiative in two counts in both, and those in none
 make a last rollup whose `pursuit` or `tag` is null, where any exist. Every
 active pursuit and every tag has a rollup, an empty one included, because a
-pursuit no work serves is the answer the grouping exists to give. Each comes
-with the fewest closes in 30 days first, then by name.
+pursuit that no work serves is the answer that the grouping exists to give. Each
+comes with the fewest closes in 30 days first, then by name.
 
-A rollup's `members` are the numbers of the initiatives the board holds in it,
-and its counts cover those. Every count in its `closes` also takes the issues
-completed in the group's other initiatives, whatever their status. The board
-holds one status, so an initiative completed last week is off it, and its closes
-are still effort spent in its pursuit. Those closes are read once, back as far
-as any count of closes reaches, so the read grows with recent closes and not
-with the initiatives.
+A rollup's `members` are the numbers of the initiatives that the board holds in
+it, and its counts cover those. Every count in its `closes` also takes the
+issues completed in the group's other initiatives, whatever their status. The
+board holds one status, so an initiative completed last week is off it, and its
+closes are still effort spent in its pursuit. Those closes are read once, back
+as far as any count of closes reaches, so the read grows with recent closes and
+not with the initiatives.
 
 `untouched_longest` names the active initiative in the group touched longest ago.
 Each initiative's `touched_ts` is the latest of when it was created, when a claim
@@ -632,8 +633,9 @@ a touch.
 
 Its queries do not grow with the initiatives: every read is one query over all
 of them, and everything else folds those rows in memory. It builds no `issue_views` row, because that loads labels,
-dependencies and comments a board does not draw. A poll pays this many times a
-minute, for as long as a board stays open, so a test pins the query count.
+dependencies and comments that a board does not draw. A poll pays this many
+times a minute, for as long as a board stays open, so a test pins the query
+count.
 
 **A close is a completed issue.** `closes` counts back from the moment of the read
 over `last_24h`, `last_7d` and `last_30d`. `by_day` counts one entry per day of the
@@ -650,14 +652,15 @@ inline markdown stripped, cut at a word near 300 characters. It is derived on
 read, and walking a description is too cheap to be worth storing. An issue's whole
 description stays on `GET /issues/{id}`.
 
-The paths `board` and `board/text` are names no initiative may take, as `progress` is.
+The paths `board` and `board/text` are names that no initiative may take, as
+`progress` is.
 
 **`slate initiatives board` prints the board read, with each initiative's bar.** Its
 `--json` adds `bar` to each initiative: `done`, `under_way`, `blocked` and `rest`, split
-by the one rule every bar slate draws keeps. Under way is running and waiting, and the
-rest is what open leaves after both. So a dashboard drawing an initiative beside
-`slate tui` draws the numbers it is handed, and the split stays slate's. Its text rows
-draw `progress`'s bar.
+by the one rule that every bar that slate draws keeps. Under way is running and
+waiting, and the rest is what open leaves after both. So a dashboard drawing an
+initiative beside `slate tui` draws the numbers it is handed, and the split stays
+slate's. Its text rows draw `progress`'s bar.
 
 - *Rejected:* a dashboard reading `slate tui --json` for the counts. That is the tab's
   own state, shaped by what the screen draws, and it also reads the long text and the

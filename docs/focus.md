@@ -1,10 +1,10 @@
 # Focus
 
 A focus states where the work should go for a while: a statement in its
-setter's words, the last day it holds, and the share of the work each pursuit
-should get. `GET /api/v1/focus` reads it with each pursuit's standing against
-its share, which slate computes on every read. A reader that orders the queue
-takes slate's numbers rather than working them out again.
+setter's words, the last day it holds, and the share of the work that each
+pursuit should get. `GET /api/v1/focus` reads it with each pursuit's standing
+against its share, which slate computes on every read. A reader that orders the
+queue takes slate's numbers rather than working them out again.
 
 The pattern is fair-share scheduling, as Slurm's classic fair-share computes a
 factor from an account's assigned share and its recent usage. What a share
@@ -77,7 +77,7 @@ and usage still reads.
 *Rejected:* equal shares when no focus is set. Every pursuit would weigh the
 same, however little it matters this month.
 
-## Usage is output tokens, split evenly across the pursuits a worklog reaches
+## Usage is output tokens, split evenly across the pursuits that a worklog reaches
 
 The window opens at the later of the focus's start and `USAGE_WINDOW` in
 `services/focus_standing.py` before the read, and ends at the read. `window`
@@ -87,7 +87,7 @@ gives both instants.
   record reaches.** An idea or an initiative reaches its own pursuits. An issue
   reaches its initiative's, as an issue's read shows them. A worklog on an
   initiative in two pursuits gives each half its output.
-- **`usage` is a pursuit's part of the output every pursuit drew.** The
+- **`usage` is a pursuit's part of the output that every pursuit drew.** The
   pursuits' usages sum to 1 where any drew some. `split_output_tokens` is the
   split count it comes from, so it may hold a fraction. Every other token count
   slate answers is a whole number, so this one carries its own name.
@@ -95,11 +95,11 @@ gives both instants.
   `worklog_count` are the worklogs whose record reaches none.
   `outside_worklogs_output_tokens` is what sessions spent in no worklog.
 
-The focus splits each worklog across the pursuits its own record is in, or its
-issue's initiative is in, as `services/record_pursuits.py` reads them for every
-record. `slate totals <pursuit>` counts a pursuit as a grouping over everything
-its work reaches, as [totals.md](totals.md) gives it. So a total's figure for a
-pursuit can exceed the focus's.
+The focus splits each worklog across the pursuits that its own record joins, or
+that its issue's initiative joins, as `services/record_pursuits.py` reads them
+for every record. `slate totals <pursuit>` counts a pursuit as a grouping over
+everything its work reaches, as [totals.md](totals.md) gives it. So a total's
+figure for a pursuit can exceed the focus's.
 
 *Rejected:* worklog count as usage. A one-line fix would count as much as a
 week-long build. *Rejected:* a decay half-life. A window opening at the

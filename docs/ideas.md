@@ -1,7 +1,7 @@
 # Ideas
 
-An idea is work nobody has taken on yet. `slate ideas` is the CLI, and the API
-serves it under `/api/v1/ideas`.
+An idea is work that nobody has adopted yet. `slate ideas` is the CLI, and the
+API serves it under `/api/v1/ideas`.
 
 ## An idea is never work, so it has no status
 
@@ -39,7 +39,7 @@ warns `evidence_already_linked`. Each idea links a ref once.
 ## Promoting an idea creates its initiative, which names the idea
 
 `POST /ideas/{id}/promote` creates an initiative with `idea_id` naming the
-idea. Each field the request leaves out takes the idea's own: its title as the
+idea. Each field that the request omits takes the idea's own: its title as the
 name, its description, its priority. The answer is the idea, which then carries
 the initiative with its issue counts. Its `side_effects` name the initiative
 created, as `initiative_created`. A claim on the idea ends as `promoted`, named

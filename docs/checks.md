@@ -14,7 +14,7 @@ or an initiative was found to be, when, by whom, and on what evidence.
 | `checked_ts`, `checked_by` | when, and the caller: a service's client id, or a person's actor |
 | `verdict` | one row of the lookup `check_verdicts` |
 | `evidence` | what the check found, in prose |
-| `cites` | each source the evidence rests on, as `{kind, ref}` |
+| `cites` | each source on which the evidence rests, as `{kind, ref}` |
 | `run`, `session` | the scheduled run and agent session that made it, where one did |
 
 A check is never edited, so a record's checks read as the history of whether it still held.
@@ -101,8 +101,8 @@ open titles serves the whole batch.
 | `PUT` and `DELETE /records/{number}/check-request` | `slate.checks.request` |
 | `POST /records/{number}/checks` | `slate.records.recheck` |
 
-A mark only moves a record up the due order and writes nothing a person reads as its meaning, so
-a job ordering the work may hold the scope that sets it. A check does say what is true of the
+A mark only moves a record up the due order and writes nothing that a person reads as its meaning,
+so a job ordering the work may hold the scope that sets it. A check does say what is true of the
 record, so it shares a scope with the issue changes a read can find owed: accepting an incoming
 issue, closing one with its reason, and rewriting a description. A service's check is signed by
 its client id.

@@ -1,18 +1,18 @@
 # slate
 
-A work tracker built for coding agents. Ideas hold the work nobody has taken
-on, with their priority and evidence, until promotion makes each an
+A work tracker built for coding agents. Ideas hold the work that nobody has
+adopted, with their priority and evidence, until promotion makes each an
 initiative. Issues carry their dependencies, labels and the initiative they
 ship toward. Ideas, initiatives and issues carry tags from a short closed list,
 and an issue reads its initiative's tags as its own. Ideas and initiatives join
-pursuits, the few conditions the work should bring about and hold, each able
-to name the command that measures it, and an issue reads its initiative's. Any
-record keeps versioned documents, such as its design and plan, and comments on
-the record or on one line of a document.
+pursuits, the few conditions that the work should bring about and hold, each
+able to name the command that measures it, and an issue reads its initiative's.
+Any record keeps versioned documents, such as its design and plan, and comments
+on the record or on one line of a document.
 `slate next` lists every kind of open work in the order to take it, each with
-its step, and the work someone holds apart. A claim is a lease on a record that
-expires, so two agents never hold the same issue and a dead one never holds it
-for long. Every claim is kept after it ends, as the record's history. Every
+its step, and the work that someone holds apart. A claim is a lease on a record
+that expires, so two agents never hold the same issue and a dead one never holds
+it for long. Every claim is kept after it ends, as the record's history. Every
 write is audited, so `slate show` prints who changed what on a record, and
 when.
 
@@ -29,7 +29,7 @@ is ordered and why some things are not built. `docs/claims.md` explains
 claims, `docs/worklogs.md` worklogs, `docs/sessions.md` the tokens each
 agent session spent and the Claude Code hook that reports them,
 `docs/totals.md` the totals of the work over any record, repo or window,
-`docs/ideas.md` ideas, `docs/tracing.md` the trace each request joins, and
+`docs/ideas.md` ideas, `docs/tracing.md` the trace that each request joins, and
 `docs/index.md` lists every page.
 
 ## Running the API
@@ -66,7 +66,7 @@ directory is read first where one exists, and the environment outranks it.
 | `LOG_FORMAT` | `json` | `json` for one object per line, `console` for a terminal |
 | `LOG_LEVEL` | `INFO` | A Python logging level name |
 | `OTEL_TRACES_EXPORTER` | unset | The exporters to run, from those `docs/tracing.md` lists. Unset, `otlp` where an OTLP endpoint is set, else nothing exports |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | The OTLP/HTTP receiver spans go to. Every other `OTEL_*` variable the SDK reads applies too |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | The OTLP/HTTP receiver that takes the spans. Every other `OTEL_*` variable that the SDK reads applies too |
 
 Each request continues the caller's `traceparent`, and its span names the
 record its route is about. `docs/tracing.md` says what each span carries.
@@ -117,7 +117,7 @@ The cluster supplies what the base leaves out:
   migration creates.
 - A route to `slate-api` reaching `/.well-known/oauth-protected-resource` as
   well as `/api/v1`, at the address `PUBLIC_URL` names.
-- Each NetworkPolicy the pods need to reach Postgres and the issuer.
+- Each NetworkPolicy that the pods need to reach Postgres and the issuer.
 
 Both pods run as the image's own uid under the restricted Pod Security
 profile, on a read-only root filesystem.
@@ -188,15 +188,15 @@ the whole body. A client holding `slate.records.plan` and
 `slate.records.recheck` sends a priority and a description in two updates, and
 one update carrying both is refused, naming why each scope refuses it.
 
-Each command asks the grant for the scopes its own routes need, and no others.
-Its `--help` ends with them under `Service scopes:`, so register a service
-client for the scopes of the commands it runs. Where a command's flags decide
-which of those its request needs, a run asks only for that one:
+Each command asks the grant for the scopes that its own routes need, and no
+others. Its `--help` ends with them under `Service scopes:`, so register a
+service client for the scopes of the commands it runs. Where a command's flags
+decide which of those its request needs, a run asks only for that one:
 `slate issues edit` asks for `slate.records.recheck` when the description is
 its only change, and `slate.records.plan` otherwise. A command no scope reaches, such
 as `slate labels list`, says so there, and refuses a service before asking.
 `slate auth status` asks a grant for each scope in the table alone. Its text
-lists the scopes the client holds. `--json` gives each scope's `grant`:
+lists the scopes that the client holds. `--json` gives each scope's `grant`:
 
 - `granted`, a token carrying it.
 - `refused`, the provider refusing it.
@@ -207,7 +207,8 @@ client registered for no scope answers every one `refused`. A provider failing
 one probe leaves the others' answers standing.
 
 `slate auth token` asks the same, then one grant for every scope found held.
-It leaves out a scope the provider gave no answer for, with a warning on stderr.
+It leaves out a scope that the provider did not answer, with a warning on
+stderr.
 
 A provider says a scope is missing in one of two ways, and slate reads both:
 

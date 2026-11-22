@@ -35,8 +35,8 @@ line comment always names text that still exists.
 
 The body is kept as given. Its lines are what lies between newlines, and a
 final newline ends the last line rather than starting another. A version's
-read answers them as `lines`, and the CLI prints those. So the number a reader
-sees is the one `POST /comments` takes.
+read answers them as `lines`, and the CLI prints those. So the number that a
+reader sees is the one `POST /comments` takes.
 
 ## A version and a comment name their writer from the token, and where from by reference
 
@@ -51,7 +51,7 @@ Each version and each comment carries:
 
 The CLI sends the session from `CLAUDE_CODE_SESSION_ID`. The API finds its
 worklog the way `slate worklogs current` does, so a version names the worklog
-a commit made at the same moment is stamped with. A session in no live worklog
+that stamps a commit made at the same moment. A session in no live worklog
 writes a version naming none, and the answer warns `no_worklog`. A person at a
 terminal sends no session, and writes with neither.
 
@@ -59,8 +59,8 @@ A comment's `written_by` is null when its writer was never recorded. A write
 through `POST /comments` always records one, and a scoped client writes as its
 own client id.
 
-- *Rejected:* a free-text author the client sends. The token already says who
-  is calling, and the session and worklog are rows a reader can follow.
+- *Rejected:* a free-text author that the client sends. The token already says
+  who is calling, and the session and worklog are rows a reader can follow.
 
 A worklog's read lists every version written in it as `document_versions`.
 Its stage is `planned` once it wrote a plan, until a link takes it further.
@@ -105,14 +105,14 @@ text, and so may not have been taken up.
 
 The diff is `difflib.SequenceMatcher` over whole lines, with its junk
 heuristic off so a blank line matches like any other. Only a line inside a
-block the two versions share carries over. The placement is derived on every
-read and never stored.
+block that the two versions share carries over. The placement is derived on
+every read and never stored.
 
 - *Rejected:* showing a comment only with the version it was written on. A
   reader of version 3 would read versions 1 and 2 to find feedback that still
   applies.
 - *Rejected:* moving a comment's stored line on each write. It rewrites
-  history, and a wrong match would lose the line the comment was written on.
+  history, and a wrong match would lose the line that the comment annotated.
 
 ## A service comments under slate.comments.write and writes documents under slate.documents.write
 

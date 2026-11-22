@@ -1,6 +1,6 @@
 # Sessions
 
-An agent session is one run of a coding agent, keyed by the id its runtime
+An agent session is one run of a coding agent, keyed by the id that its runtime
 gave it: `$CLAUDE_CODE_SESSION_ID` for Claude Code. slate records a session the
 first time it holds a claim, joins a worklog, links a commit or reports its
 tokens. `slate sessions` is the CLI, and the API serves it under
@@ -23,18 +23,18 @@ does so outside slate.
 
 ## A session's tokens are stored per message
 
-`message_tokens` holds one row per model message a session reported: its four
-counts, when it was written, its model, the subagent whose transcript held it,
-and the worklog span the session was in then. The row's key is the message
-alone, with no surrogate, because the row mirrors a message the transcript
-already names.
+`message_tokens` holds one row per model message that a session reported: its
+four counts, when it was written, its model, the subagent whose transcript held
+it, and the worklog span that held the session then. The row's key is the
+message alone, with no surrogate, because the row mirrors a message that the
+transcript already names.
 
 Claude Code can continue a session under a new id. The new transcript repeats
 the parent's messages, with their ids. So the session that reports a message
 first holds it, and a later report naming it warns
 `messages_held_by_another_session`. Each message then counts once.
 
-A message is the grain any window can split at. A seven-day window, or one
+A message is the grain at which any window can split. A seven-day window, or one
 day in any time zone, may cut through a span. A message has one moment, so it
 falls on one side of every edge. Any sum, over any grouping or window, reads
 these same rows. `slate totals` sums them over any record, worklog, repo or
@@ -51,7 +51,7 @@ window ([totals.md](totals.md)).
 
 A span holds the moments from its `started_ts` up to its `ended_ts`. A span
 still open in a worklog whose claim ended or ran out stops where the claim
-did, and every read gives that moment as its `ended_ts`. A message no span
+did, and every read gives that moment as its `ended_ts`. A message that no span
 holds is the session's alone, so a window's total
 includes time outside every worklog. A session is in one worklog at a time
 ([worklogs.md](worklogs.md)), so each message lands in one place.
@@ -65,8 +65,8 @@ as the session's alone, so a window still counts the tokens they spent.
 
 ## A report replaces the session's last one
 
-`PUT /sessions/{id}/usage` takes every message the session has spent tokens on
-so far:
+`PUT /sessions/{id}/usage` takes every message on which the session has spent
+tokens so far:
 
 ```json
 {
@@ -84,12 +84,12 @@ so far:
 ```
 
 `key` is the provider's message id, or where the message was read when it has
-none. Either way it is unique across sessions. Each message the report names
-is upserted on its key. A row is written only when something the report
-carries for it differs from what slate holds. Each row the report leaves out
-is deleted. So a session resumed under its own id reports its whole transcript
-again and counts nothing twice. A report naming exactly what slate holds
-writes nothing and warns `usage_unchanged`.
+none. Either way it is unique across sessions. Each message that the report
+names is upserted on its key. A row is written only when something that the
+report carries for it differs from what slate holds. Each row that the report
+omits is deleted. So a session resumed under its own id reports its whole
+transcript again and counts nothing twice. A report naming exactly what slate
+holds writes nothing and warns `usage_unchanged`.
 
 A report replaces only one it read at least as far as. A transcript only
 grows, so a report that read less is an earlier read, or one that came back
@@ -168,7 +168,7 @@ Claude Code hands a hook its event as JSON on stdin, and the report reads
   Warnings and errors go to stderr.
 
 Run by hand, `slate sessions report --transcript <path>` reports the session
-the file is named for.
+whose id names the file.
 
 In a container, the agent's settings carry the same block. The agent
 authenticates as a service client. Register that client for the scopes that

@@ -37,10 +37,10 @@ and a tier's totals line up over the rows they sum. Repos are read when acting o
 than when scanning, so they stay dim in the first column and end in `+N`, because a repo cut in
 half names nothing. The side panel lists them all, and the filter matches every one.
 
-An initiative a worklog stepped through draws a third line marking each step of its life, a
+An initiative that has a checked step draws a third line marking each step of its life, a
 checked one green with the day its worklog ended and the rest dim, as `slate initiatives list`
-marks them. An initiative no step reached stays two lines, so marks cost screen rows only where a
-step was checked. The side panel lists each checked step with its worklog, when it ended and
+marks them. An initiative that no step reached stays two lines, so marks cost screen rows only where
+a step was checked. The side panel lists each checked step with its worklog, when it ended and
 the first session in it.
 
 - *Rejected:* three lines, keeping every repo on one of its own. Repos were the loudest line on
@@ -63,7 +63,7 @@ cursor, and the side panel adds when the claim expires and what it waits on. The
 carries each initiative's claim and each issue's holder, so the rows need no second read.
 
 `s` cycles the order within a tier between priority, latest close, most open, newest and
-claimed. Claimed puts the initiatives someone holds first, then those with the most claimed
+claimed. Claimed puts the initiatives that someone holds first, then those with the most claimed
 issues, which are the running and waiting ones.
 
 - *Rejected:* a claimed grouping on `v`. A sort keeps the tiers, so claimed work still reads
@@ -130,7 +130,7 @@ row already reads, and draw in braille through gotermboard's `chart` package.
 
 On the initiatives tab a repo is dim text beside an initiative's counts, so a cursor has nowhere
 to land on one. The repos tab is a line per repo on the same columns, then `WAIT`, the longest
-any of its ready issues has waited, and a spark of its closes in each of the weeks the API
+any of its ready issues has waited, and a spark of its closes in each of the weeks that the API
 answers. It opens on the most open, and `s` cycles to most ready, longest wait, latest close and
 name. A repo with nothing open and no close in those weeks folds under `quiet`. The issues on no
 repo are a row of their own, counted apart from the repos.
@@ -151,7 +151,7 @@ read, and the burn-up says the API answers none.
 
 ## `v` groups the same initiatives by tier, repo, pursuit, tag or alone
 
-Tier is the default, because priority is the order the queue takes them in. A pin outranks
+Tier is the default, because priority is the order in which the queue takes them. A pin outranks
 every priority, so pinned initiatives draw as a `pinned` tier ahead of `urgent`, and each
 priority's tier counts only its unpinned ones. The board read rolls the pinned up apart, so
 `pinned · 1` sums no count in the client. Repo draws a group
@@ -175,17 +175,17 @@ read. An initiative's key, its issues', and their sessions' and pull requests' a
 
 Pursuit draws a group per pursuit and tag one per tag, each holding every initiative in it
 whole. An initiative in two pursuits draws under both, and one in none under `no pursuit`,
-last. The groups come with the fewest closes in 30 days first, so the pursuit nothing has moved
-in leads the screen. That is Slurm's fair-share without assigned shares: the least served goes
+last. The groups come with the fewest closes in 30 days first, so the pursuit in which nothing has
+moved leads the screen. That is Slurm's fair-share without assigned shares: the least served goes
 first. An active pursuit holding no initiative still draws, at zero, and so does an unused tag.
 A group whose initiatives all sit past the scope draws too, as `Neglected Way · 0 of 1`. A
-pursuit whose work all ranks low is the one this grouping exists to show. The board read
+pursuit whose work all ranks low is the one that this grouping exists to show. The board read
 names each group's members, so the client never decides which initiatives a group holds.
 
 A group's line is its rollup on the same columns, and the line under it names its active
 initiative touched longest ago and how long ago. The group's closes, 24H, 7D, 30D, LAST and the
 spark, count every initiative in it, including one completed inside the window that the board
-does not hold. DONE, RUN, BLK and RDY count only the initiatives the board holds. So a pursuit
+does not hold. DONE, RUN, BLK and RDY count only the initiatives that the board holds. So a pursuit
 whose work finished last week still shows the effort. The panel says so. `docs/issues.md` says
 what counts as a touch.
 
@@ -193,7 +193,7 @@ what counts as a touch.
   initiatives at one status, so a pursuit's completed work would vanish from it the day the
   initiative closed.
 
-## An issue unfolds into the sessions and pull requests its worklogs hold
+## An issue unfolds into the sessions and pull requests that its worklogs hold
 
 An issue is a folding group rather than a row, so the cursor can land on what it opens.
 A pull request row is owned by prs, so `enter` there hands the terminal to
@@ -227,10 +227,10 @@ footer says its outcome is unknown rather than that it failed. An initiative mov
 its priority and only while sorted by priority, because otherwise the rows beside it are not its
 neighbors in the queue.
 
-A write acts at once on the row the cursor is on. It asks first where the screen does not show
+A write acts at once on the row under the cursor. It asks first where the screen does not show
 everything it changes:
 
-- the row the move passes is one the scope hides;
+- the row that the move passes is one the scope hides;
 - the queue holds records between the two rows that are not drawn there, as under a repo, or
   beside a running issue drawn at the top of its initiative, and the question names them;
 - another row's description is left open by `d`.
@@ -260,7 +260,7 @@ Descriptions are written as markdown, with headings, lists, code, tables and dia
 person opens one to read it. So `d`, `enter` and the panel all draw it through gotermboard's
 `markdown` package: colored headings, bullets whose wrapped lines hang under their text, tables
 that keep a short column whole, boxes of code highlighted in the terminal's own colors. A number
-in prose draws in the color the board gives records, where it names a record on the board.
+in prose draws in the color that the board gives records, where it names a record on the board.
 
 - *Rejected:* glamour. Its wrapped bullet lines fall back to the margin, lists are in most
   descriptions, and it answers one styled string that a board cannot color or wrap further.

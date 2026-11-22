@@ -22,10 +22,10 @@ Two things open a worklog:
 - **A hold.** Each claim opens its own worklog, and the hold's answer names it
   as `worklog_opened`. Every ending of the claim ends the worklog at the same
   moment with the same outcome. [claims.md](claims.md) covers those endings.
-- **`slate worklogs start <record>`**, for a go no hold opens, such as
-  discussing an idea, or the next step of a record the session already holds.
-  Each worklog already open on the record goes through with an `open_worklog`
-  warning, since joining it may be what was meant.
+- **`slate worklogs start <record>`**, for a go that no hold opens, such as
+  discussing an idea, or the next step of a record that the session already
+  holds. Each worklog already open on the record goes through with an
+  `open_worklog` warning, since joining it may be what was meant.
 
 A claim is on one worklog at a time, and follows the session that holds it.
 Where that session starts or joins another worklog on the record, the claim
@@ -33,8 +33,8 @@ moves to it, and the answer names that as `claim_moved_to_worklog`. Joining
 moves it even when the session was in that worklog already. So a holder that
 finishes its preflight worklog and starts one for `build` keeps its claim, the
 claim's `worklog` names the build's, and releasing the claim ends that one. The
-worklog the claim left keeps its state. One still open ends by hand or with its
-record, as one `start` opened does.
+worklog that the claim left keeps its state. One still open ends by hand or with
+its record, as one `start` opened does.
 
 A worklog's `outcome` says which ending it reached:
 
@@ -97,8 +97,8 @@ when a later write noticed.
 
 ## A commit reaches its worklog through two git hooks that call slate alone
 
-`slate worklogs current` prints the name of the worklog the session is in, or
-nothing at all, and exits 0 either way. A `commit-msg` hook stamps the commit
+`slate worklogs current` prints the name of the worklog that holds the session,
+or nothing at all, and exits 0 either way. A `commit-msg` hook stamps the commit
 with it as a trailer:
 
 ```sh
@@ -115,8 +115,8 @@ repository whose `origin` has no host asks slate nothing, so a test suite
 committing in fixture repositories reaches no worklog.
 
 A hook run at `post-commit` and `post-merge` records the commit on the worklog
-the session is in as the commit is made, named by its full sha and the
-repository its `origin` names. A merge commit runs `post-merge` and never
+that holds the session as the commit is made, named by its full sha and the
+repository that its `origin` names. A merge commit runs `post-merge` and never
 `post-commit`, so it listens on both. `post-merge` also runs after a squash,
 which passes it 1, and after a fast-forward, whose reflog subject ends
 `: Fast-forward`, and neither makes a commit, so neither links one. A commit
@@ -161,15 +161,15 @@ names its worklog.
 
 A worklog's `step` is one of the rows of `worklog_steps`, such as `design`,
 which `slate vocabulary` lists in `position` order with each description.
-`slate claims hold <record> --step <step>` sets it on the worklog the hold
+`slate claims hold <record> --step <step>` sets it on the worklog that the hold
 opens, and `slate worklogs start <record> --step <step>` on one with no claim.
 `slate worklogs edit <worklog> --step <step>` corrects it, and `--step ""`
 clears it. No step is required. Both writes refuse a field they do not name
 with a 422, so a client sending one learns it was not applied.
 
-A hold of a record its holder already holds opens no worklog, so it keeps the
-step the claim's worklog has. Where that worklog is open and carries the step
-asked for, the `already_held` warning says so. Where it names no step, the
+A hold of a record that its holder already holds opens no worklog, so it keeps
+the step the claim's worklog has. Where that worklog is open and carries the
+step asked for, the `already_held` warning says so. Where it names no step, the
 warning names the edit that sets it. Where it carries another, or has ended,
 the warning names `slate worklogs start <record> --step <step>`, which opens a
 worklog of that step for the claim to move to.
@@ -194,11 +194,12 @@ it. [issues.md](issues.md) covers the marks and how `next` skips them.
 
 ## A preflight worklog holds the token estimate of its record's work
 
-A worklog holds an estimate of the tokens its record's work will spend, by the
-kinds [sessions.md](sessions.md) counts. Each kind is its own nullable column,
-`estimated_<kind>_tokens`, so null is no estimate of that kind, and differs from
-an estimate of zero. A worklog's read carries them as `estimate`, with each kind
-null where it was not estimated, and `estimate` itself null where no kind was.
+A worklog holds an estimate of the tokens that its record's work will spend, by
+the kinds that [sessions.md](sessions.md) counts. Each kind is its own nullable
+column, `estimated_<kind>_tokens`, so null is no estimate of that kind, and
+differs from an estimate of zero. A worklog's read carries them as `estimate`,
+with each kind null where it was not estimated, and `estimate` itself null where
+no kind was.
 
 `slate worklogs edit <worklog> --estimate-output 900000` sets one kind and keeps
 the rest. `--estimate-uncached-input`, `--estimate-cache-write` and

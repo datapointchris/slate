@@ -6,7 +6,7 @@ memory Python holds stays flat.
 
 ## glibc keeps what a request frees
 
-The growth is freed memory the allocator never hands back, not objects slate keeps.
+The growth is freed memory that the allocator never hands back, not objects slate keeps.
 
 - **Each request runs on a thread of its own.** A `def` handler runs on anyio's thread pool, which
   grows to 40 threads.
@@ -28,8 +28,8 @@ Each answers several MiB of JSON and builds many times that in rows and models f
 
 Each setting answers one half of the cause:
 
-- **`MALLOC_ARENA_MAX=2`** makes threads share two arenas. Memory one request frees is reused by
-  the next, whatever thread it lands on.
+- **`MALLOC_ARENA_MAX=2`** makes threads share two arenas. Memory that one request frees is reused
+  by the next, whatever thread it lands on.
 - **`MALLOC_MMAP_THRESHOLD_=131072`** fixes the threshold at its default. Setting it turns off the
   dynamic raise, so every buffer of 128 KiB or more is mapped on its own and unmapped on free.
 

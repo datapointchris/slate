@@ -54,12 +54,12 @@ dependency the router-local path (`/{id}`), not the full template, so
 scope gate reads it. A router left out answers every scoped client with 403.
 
 `tests/api/test_client_scopes.py` writes two files to `tests/api/testdata/`.
-`client-scopes.json` is the routes each scope reaches. `scoped-bodies.json` is
-the bodies each scope may send where a handler narrows it, each with the
-statuses it sets and the issue statuses it applies to. Commit both when the
-scopes change.
+`client-scopes.json` is the routes that each scope reaches.
+`scoped-bodies.json` is the bodies that each scope may send where a handler
+narrows it, each with the statuses it sets and the issue statuses it applies
+to. Commit both when the scopes change.
 
-**A CLI command declares the scopes its routes need**, as its literal's
+**A CLI command declares the scopes that its routes need**, as its literal's
 `Annotations`: `scopesForService(...)`, or `personOnly()` where a route it
 sends is in no scope or the API refuses every scoped client its body. A service
 grant asks for those alone, and `newAPIClient(cmd)` refuses a command that
@@ -80,9 +80,9 @@ at the root instead:
   pursuits share one number sequence, so no one noun owns a read across them.
 - **`next` is the order to take the work in**, a question about all of it
   rather than about one noun. Its API path is `/queue`.
-- **`vocabulary` is one read of the values every noun's flags accept**, so it
-  has no second verb to grow. Each list in it is named for the noun whose flag
-  takes it.
+- **`vocabulary` is one read of the values that every noun's flags accept**,
+  so it has no second verb to grow. Each list in it is named for the noun whose
+  flag takes it.
 - **`totals` sums the work over any record, worklog, repo or window.** A
   window's total counts tokens no worklog held, and a repo is no record, so no
   one noun owns the read.
@@ -180,7 +180,7 @@ A `chore:` or `docs:` commit releases nothing.
   that prefix.
 - **`vX.Y.Z` moves on commits touching what the image is built from**:
   `.dockerignore`'s allowlist, the Dockerfile, `.dockerignore` and `deploy/`.
-  The release reads the allowlist, so a file the image starts copying is
+  The release reads the allowlist, so a file that the image starts copying is
   admitted there and nowhere else.
 - **The API's tag is pushed before its image**, so a re-run finds the tag on
   its own commit and finishes that release rather than cutting another.
