@@ -108,13 +108,37 @@ the window was reported, that part is a count, zero when every one fell in a
 worklog. A total naming any of the three reaches only worklogs, so that field
 is null there, and the scope says why.
 
-## Tokens are counted by kind, and split by model
+## Tokens are counted by kind, and split by model and by step
 
 Each count names one of the kinds [sessions.md](sessions.md) gives, and nothing
 sums across them. `tokens_by_model` gives each model's messages and tokens. A
 kind's cost differs by model, and pricing happens outside slate, so a reader
 needs the split to price a total. `tokens` is null while no message in the
 scope was reported, never zero.
+
+`by_step` splits the work by the step each worklog names
+([worklogs.md](worklogs.md)). It shows whether a step, such as a design
+review, was worth what it spent. Each row holds `step`, `worklog_count`,
+`session_count`, `message_count` and `tokens`, and the rows come in the order
+shape, design, preflight, build, retro. Worklogs that name no step come last,
+with a null `step`, which `slate totals` prints as `none`.
+
+- **A row counts the messages that a worklog at that step held.** A message
+  outside every worklog counts in `tokens_outside_worklogs` instead. So the
+  rows' tokens and that figure sum to `tokens` in every scope.
+- **Its worklogs and sessions follow the rules above**, narrowed to the step.
+  A session that worked in two steps counts in both rows, so the rows'
+  sessions need not sum to `session_count`. The rows' worklogs do sum to
+  `worklog_count`, because a worklog names one step.
+- **A row's `tokens` is null while none of its messages was reported**, as
+  `tokens` is, so a step whose sessions never reported reads as unknown rather
+  than free.
+
+```text
+By step (2):
+  design  1 worklog   1 session   212 messages    310 uncached input · 1,204,532 cache write · …
+  build   4 worklogs  6 sessions  2,014 messages  2,881 uncached input · 9,880,120 cache write · …
+```
 
 `slate totals --json` prints the API's answer, so it carries every figure the
 text prints.

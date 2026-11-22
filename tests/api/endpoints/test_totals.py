@@ -22,16 +22,28 @@ def message(key: str, written: dt.datetime, uncached_input: int, cache_write: in
     return {'key': key, 'written_ts': written.isoformat(), 'model': 'claude-opus-5-5', 'tokens': tokens}
 
 
+def summed_tokens(*parts: dict) -> dict:
+    return {kind: sum(part[kind] for part in parts) for kind in parts[0]}
+
+
 def test_an_initiative_totals_its_issues_and_their_children_and_a_seven_day_window_counts_time_outside_every_worklog(client):
-    """The window ends a minute into the span s1 holds, so the span's tokens split at the edge."""
+    """The window ends a minute into the span s1 holds, so the span's tokens split at the edge.
+
+    The design worklog's message falls a day past the window's edge, so the window holds its worklog and session and none of its tokens.
+    """
     initiative = ok(client.post('/initiatives', json={'summary': 'It is done.', 'name': 'Totals'}), status.HTTP_201_CREATED)['initiative'][
         'number'
     ]
     issue = ok(client.post('/issues', json={'title': 'In it', 'initiative': initiative}), status.HTTP_201_CREATED)['issue']['number']
     child = ok(client.post('/issues', json={'title': 'Under it', 'parent': issue}), status.HTTP_201_CREATED)['issue']['number']
 
-    ok(client.post('/claims', json={'record': issue, 'holder': 'claude-code/s1', 'session': 's1'}))
-    ok(client.post('/worklogs', json={'record': child, 'opened_by': 'claude-code/s2', 'session': 's2'}), status.HTTP_201_CREATED)
+    ok(client.post('/claims', json={'record': issue, 'holder': 'claude-code/s1', 'session': 's1', 'step': 'build'}))
+    ok(
+        client.post('/worklogs', json={'record': child, 'opened_by': 'claude-code/s2', 'session': 's2', 'step': 'build'}),
+        status.HTTP_201_CREATED,
+    )
+    design = {'record': initiative, 'opened_by': 'claude-code/s4', 'session': 's4', 'step': 'design'}
+    ok(client.post('/worklogs', json=design), status.HTTP_201_CREATED)
     for kind, ref in (('commit', '4fca8f1'), ('commit', '9b2e0d7'), ('pull_request', 'https://example.com/pr/5'), ('landing', '9b2e0d7')):
         link = {'kind': kind, 'ref': ref, 'repo': 'slate', 'session': 's1', 'linked_by': 'claude-code/s1'}
         ok(client.post(f'/worklogs/{issue}.1/links', json=link))
@@ -45,6 +57,8 @@ def test_an_initiative_totals_its_issues_and_their_children_and_a_seven_day_wind
         )
     )
     ok(client.put('/sessions/s2/usage', json={'messages': [message('m_child', entered + dt.timedelta(seconds=30), 4, 40, 400, 8)]}))
+    designed = dt.datetime.fromisoformat(ok(client.get(f'/worklogs/{initiative}.1'))['spans'][0]['started_ts'])
+    ok(client.put('/sessions/s4/usage', json={'messages': [message('m_design', designed + dt.timedelta(days=1), 32, 0, 0, 2)]}))
     outside = [
         message('m_outside', entered - dt.timedelta(hours=1), 8, 80, 800, 9),
         message('m_before_the_window', entered - dt.timedelta(days=8), 16, 0, 0, 1),
@@ -53,17 +67,21 @@ def test_an_initiative_totals_its_issues_and_their_children_and_a_seven_day_wind
 
     whole = ok(client.get('/totals', params={'record': initiative}))
     assert whole['scope']['record']['number'] == initiative
-    assert (whole['worklog_count'], whole['session_count'], whole['message_count']) == (2, 2, 3)
+    assert (whole['worklog_count'], whole['session_count'], whole['message_count']) == (3, 3, 4)
     assert whole['link_counts'] == {'commit': 2, 'pull_request': 1, 'landing': 1}
     assert whole['tokens_outside_worklogs'] is None
-    assert whole['tokens'] == {'uncached_input': 7, 'cache_write': 70, 'cache_read': 700, 'output': 19}
+    assert whole['tokens'] == {'uncached_input': 39, 'cache_write': 70, 'cache_read': 700, 'output': 21}
+    by_step = [(row['step'], row['worklog_count'], row['session_count'], row['message_count']) for row in whole['by_step']]
+    assert by_step == [('design', 1, 1, 1), ('build', 2, 2, 3)]
+    assert summed_tokens(*(row['tokens'] for row in whole['by_step'])) == whole['tokens']
 
     week = ok(client.get('/totals', params={'since': (until - dt.timedelta(days=7)).isoformat(), 'until': until.isoformat()}))
-    assert (week['worklog_count'], week['session_count'], week['message_count']) == (2, 3, 3)
+    assert (week['worklog_count'], week['session_count'], week['message_count']) == (3, 4, 3)
     assert week['link_counts'] == {'commit': 2, 'pull_request': 1, 'landing': 1}
     assert week['tokens'] == {'uncached_input': 13, 'cache_write': 130, 'cache_read': 1_300, 'output': 22}
     assert week['tokens_outside_worklogs'] == {'uncached_input': 8, 'cache_write': 80, 'cache_read': 800, 'output': 9}
     assert [(row['model'], row['message_count']) for row in week['tokens_by_model']] == [('claude-opus-5-5', 3)]
+    assert summed_tokens(week['tokens_outside_worklogs'], *(row['tokens'] for row in week['by_step'] if row['tokens'])) == week['tokens']
 
 
 def test_a_record_totals_its_latest_preflight_estimate_where_a_kind_never_estimated_reads_null(client):

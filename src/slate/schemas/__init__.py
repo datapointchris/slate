@@ -123,6 +123,7 @@ from slate.schemas.vocabulary import PriorityName
 from slate.schemas.vocabulary import Vocabulary
 from slate.schemas.work_totals import ModelTokens
 from slate.schemas.work_totals import PreflightEstimate
+from slate.schemas.work_totals import StepTotals
 from slate.schemas.work_totals import TotalsScope
 from slate.schemas.work_totals import WorkTotals
 from slate.schemas.worklog import CheckedStep
@@ -261,6 +262,7 @@ __all__ = [
     'SessionSpan',
     'SessionUsageReport',
     'SessionWritten',
+    'StepTotals',
     'Tag',
     'TagCreate',
     'TagDeleted',

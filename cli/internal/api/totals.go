@@ -23,14 +23,28 @@ type ModelTokens struct {
 	Tokens       Tokens  `json:"tokens"`
 }
 
+// StepTotals is the worklogs at one step that a scope reaches, with their
+// sessions, messages and tokens by kind. Step is nil for the worklogs that
+// name no step. A session that worked in two steps counts in both. Tokens is
+// nil while no message that these worklogs held was reported.
+type StepTotals struct {
+	Step         *string `json:"step"`
+	WorklogCount int     `json:"worklog_count"`
+	SessionCount int     `json:"session_count"`
+	MessageCount int     `json:"message_count"`
+	Tokens       *Tokens `json:"tokens"`
+}
+
 // WorkTotals is the worklogs, sessions, links, messages and tokens by kind
 // over one scope, each derived by the API on every read. LinkCounts holds
 // every link kind, zero where the scope linked none. Tokens is nil while no
 // message it covers was reported. TokensOutsideWorklogs is the part of Tokens
-// no worklog held, which only a scope naming no record, worklog or repo
-// reaches, so it is nil on every other scope. Estimate is what the scope's
-// record expected to spend, nil where it names no record or no preflight
-// worklog on the record holds one, and nothing but the record narrows it.
+// that no worklog held, which only a scope naming no record, worklog or repo
+// reaches, so it is nil on every other scope. ByStep splits the messages that
+// a worklog held by that worklog's step, so its tokens and
+// TokensOutsideWorklogs sum to Tokens. Estimate is what the scope's record
+// expected to spend, nil where it names no record or no preflight worklog on
+// the record holds one, and nothing but the record narrows it.
 type WorkTotals struct {
 	Scope                 TotalsScope        `json:"scope"`
 	WorklogCount          int                `json:"worklog_count"`
@@ -40,6 +54,7 @@ type WorkTotals struct {
 	Tokens                *Tokens            `json:"tokens"`
 	TokensOutsideWorklogs *Tokens            `json:"tokens_outside_worklogs"`
 	TokensByModel         []ModelTokens      `json:"tokens_by_model"`
+	ByStep                []StepTotals       `json:"by_step"`
 	Estimate              *PreflightEstimate `json:"estimate"`
 }
 

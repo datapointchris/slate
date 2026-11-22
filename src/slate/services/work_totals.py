@@ -30,6 +30,7 @@ from sqlalchemy import Select
 from sqlalchemy import func
 from sqlalchemy import or_
 from sqlalchemy import select
+from sqlalchemy import true
 from sqlalchemy import union
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.elements import SQLCoreOperations
@@ -38,6 +39,7 @@ from slate import models
 from slate import schemas
 from slate.models.worklog import PREFLIGHT
 from slate.models.worklog import WORKLOG_LINK_KINDS
+from slate.models.worklog import WORKLOG_STEPS
 from slate.models.worklog import estimate_column
 from slate.models.worklog import with_worklog_claim
 from slate.services.record_reach import within_reach
@@ -97,32 +99,52 @@ def counted_messages(query: Select, worklog_ids: Sequence[int] | None, window: T
     return apply_time_window(query, models.MessageTokens.written_ts, window, zone=None)
 
 
-def count_distinct(session: Session, *queries: Select) -> int:
-    """How many distinct rows the queries select between them."""
-    return session.scalar(select(func.count()).select_from(union(*queries).subquery())) or 0
+def counted_messages_with_worklog(query: Select, worklog_ids: Sequence[int] | None, window: TimeWindow) -> Select:
+    """Narrow a query on `message_tokens` as `counted_messages` does, outer-joined to the worklog that held each message.
+
+    A message that no worklog held joins none, so its worklog's step reads null, as a worklog's naming no step does.
+    """
+    if worklog_ids is None:
+        query = query.outerjoin(models.WorklogSpan, models.MessageTokens.span_id == models.WorklogSpan.id)
+    return counted_messages(query, worklog_ids, window).outerjoin(models.Worklog, models.WorklogSpan.worklog_id == models.Worklog.id)
 
 
-def session_count(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow, now: dt.datetime) -> int:
-    """Sessions that were in one of the worklogs during the window, or spent a token the total counts."""
-    in_worklogs = with_worklog_claim(select(models.WorklogSpan.session_id).join(models.WorklogSpan.worklog)).where(
-        *overlapping(models.WorklogSpan.started_ts, models.WorklogSpan.held_until(now), window)
-    )
+def session_counts(
+    session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow, now: dt.datetime
+) -> tuple[int, dict[str | None, int]]:
+    """Sessions that were in one of the worklogs during the window, or spent a token the total counts, and how many did so at each step.
+
+    A session that worked in two steps counts in both, so the steps' counts need not sum to the first.
+    """
+    in_worklogs = with_worklog_claim(
+        select(models.WorklogSpan.session_id, models.Worklog.step, true().label('held')).join(models.WorklogSpan.worklog)
+    ).where(*overlapping(models.WorklogSpan.started_ts, models.WorklogSpan.held_until(now), window))
     if worklog_ids is not None:
         in_worklogs = in_worklogs.where(models.WorklogSpan.worklog_id.in_(worklog_ids))
-    spent = counted_messages(select(models.MessageTokens.session_id), worklog_ids, window)
-    return count_distinct(session, in_worklogs, spent)
+    held = models.MessageTokens.span_id.is_not(None).label('held')
+    spent = counted_messages_with_worklog(select(models.MessageTokens.session_id, models.Worklog.step, held), worklog_ids, window)
+    reached = union(in_worklogs, spent).subquery()
+    total = session.scalar(select(func.count(reached.c.session_id.distinct()))) or 0
+    by_step = select(reached.c.step, func.count(reached.c.session_id.distinct())).where(reached.c.held).group_by(reached.c.step)
+    return total, dict(session.execute(by_step).all())
 
 
-def worklog_count(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow, now: dt.datetime) -> int:
-    """Worklogs under way during the window, or that took a link inside it."""
-    under_way = with_worklog_claim(select(models.Worklog.id)).where(
+def worklog_counts(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow, now: dt.datetime) -> dict[str | None, int]:
+    """How many worklogs at each step were under way during the window, or took a link inside it."""
+    under_way = with_worklog_claim(select(models.Worklog.id, models.Worklog.step)).where(
         *overlapping(models.Worklog.started_ts, models.Worklog.held_until(now), window)
     )
-    linked = apply_time_window(select(models.WorklogLink.worklog_id), models.WorklogLink.linked_ts, window, zone=None)
+    linked = apply_time_window(
+        select(models.Worklog.id, models.Worklog.step).join(models.WorklogLink, models.WorklogLink.worklog_id == models.Worklog.id),
+        models.WorklogLink.linked_ts,
+        window,
+        zone=None,
+    )
     if worklog_ids is not None:
         under_way = under_way.where(models.Worklog.id.in_(worklog_ids))
-        linked = linked.where(models.WorklogLink.worklog_id.in_(worklog_ids))
-    return count_distinct(session, under_way, linked)
+        linked = linked.where(models.Worklog.id.in_(worklog_ids))
+    reached = union(under_way, linked).subquery()
+    return dict(session.execute(select(reached.c.step, func.count()).group_by(reached.c.step)).all())
 
 
 def link_counts(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow) -> dict[str, int]:
@@ -141,10 +163,11 @@ def link_counts(session: Session, worklog_ids: Sequence[int] | None, window: Tim
 
 
 def message_rows(session: Session, worklog_ids: Sequence[int] | None, window: TimeWindow) -> Sequence[Row]:
-    """The counted messages' count and tokens by kind, grouped by model and by whether no worklog held them."""
+    """The counted messages' count and tokens by kind, grouped by model, by whether no worklog held them, and by the holder's step."""
     outside = models.MessageTokens.span_id.is_(None).label('outside')
-    query = select(models.MessageTokens.model, outside, func.count().label('messages'), *TOKEN_SUMS)
-    return session.execute(counted_messages(query, worklog_ids, window).group_by(models.MessageTokens.model, outside)).all()
+    query = select(models.MessageTokens.model, outside, models.Worklog.step, func.count().label('messages'), *TOKEN_SUMS)
+    query = counted_messages_with_worklog(query, worklog_ids, window)
+    return session.execute(query.group_by(models.MessageTokens.model, outside, models.Worklog.step)).all()
 
 
 def model_tokens(rows: Sequence[Row]) -> list[schemas.ModelTokens]:
@@ -159,6 +182,33 @@ def model_tokens(rows: Sequence[Row]) -> list[schemas.ModelTokens]:
             tokens=sum((tokens_of(row) for row in parts), schemas.TokensByKind()),
         )
         for model, parts in sorted(by_model.items(), key=lambda item: (item[0] is None, item[0] or ''))
+    ]
+
+
+def step_totals(rows: Sequence[Row], worklogs: dict[str | None, int], sessions: dict[str | None, int]) -> list[schemas.StepTotals]:
+    """Each step's worklogs, sessions, messages and tokens, in the order a record goes through the steps, with worklogs naming none last.
+
+    A row counts only the messages a worklog held, so the rows' tokens and the part outside every
+    worklog sum to the total's.
+    """
+    held: dict[str | None, list[Row]] = defaultdict(list)
+    for row in rows:
+        if not row.outside:
+            held[row.step].append(row)
+    position = {step: index for index, step in enumerate(WORKLOG_STEPS)}
+    steps = sorted(
+        held.keys() | worklogs.keys() | sessions.keys(),
+        key=lambda step: (step is None, position.get(step or '', len(position)), step or ''),
+    )
+    return [
+        schemas.StepTotals(
+            step=step,
+            worklog_count=worklogs.get(step, 0),
+            session_count=sessions.get(step, 0),
+            message_count=sum(row.messages for row in held.get(step, [])),
+            tokens=summed(tokens_of(row) for row in held.get(step, [])),
+        )
+        for step in steps
     ]
 
 
@@ -198,6 +248,8 @@ def work_totals(
     """
     worklog_ids = scope_worklog_ids(session, record, worklog, repo)
     rows = message_rows(session, worklog_ids, window)
+    worklogs = worklog_counts(session, worklog_ids, window, now)
+    sessions, sessions_by_step = session_counts(session, worklog_ids, window, now)
     tokens = summed(tokens_of(row) for row in rows)
     outside = None
     if worklog_ids is None and tokens is not None:
@@ -211,12 +263,13 @@ def work_totals(
     )
     return schemas.WorkTotals(
         scope=scope,
-        worklog_count=worklog_count(session, worklog_ids, window, now),
-        session_count=session_count(session, worklog_ids, window, now),
+        worklog_count=sum(worklogs.values()),
+        session_count=sessions,
         link_counts=link_counts(session, worklog_ids, window),
         message_count=sum(row.messages for row in rows),
         tokens=tokens,
         tokens_outside_worklogs=outside,
         tokens_by_model=model_tokens(rows),
+        by_step=step_totals(rows, worklogs, sessions_by_step),
         estimate=preflight_estimate(session, record) if record is not None else None,
     )

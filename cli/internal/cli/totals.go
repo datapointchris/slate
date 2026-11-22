@@ -26,7 +26,8 @@ func newTotalsCommand() *cobra.Command {
 		SuggestFor: []string{"summary", "usage", "stats"},
 		Short:      "Total the sessions, commits, pull requests, landings and tokens of a record, worklog, repo or window",
 		Long: "Prints how many worklogs, sessions, commits, pull requests, landings and\n" +
-			"messages a scope holds, and its tokens by kind, in all and by model.\n" +
+			"messages a scope holds, and its tokens by kind, in all, by model and by the\n" +
+			"step of the worklog that held them.\n" +
 			"\n" +
 			"A number totals that record and everything under it. An issue reaches the\n" +
 			"issues under it. An initiative reaches the idea it was promoted from, every\n" +
@@ -106,6 +107,28 @@ func printTotals(out io.Writer, totals api.WorkTotals, now time.Time) {
 		}
 		_ = tw.Flush()
 	}
+	if len(totals.ByStep) > 0 {
+		printByStep(out, totals.ByStep)
+	}
+}
+
+// printByStep sets each step's worklogs, sessions, messages and tokens on a
+// line, naming worklogs with no step none.
+func printByStep(out io.Writer, steps []api.StepTotals) {
+	_, _ = fmt.Fprintf(out, "\nBy step (%d):\n", len(steps))
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	for _, step := range steps {
+		name := strValue(step.Step)
+		if name == "" {
+			name = "none"
+		}
+		_, _ = fmt.Fprintf(tw, "  %s\t%s %s\t%s %s\t%s %s\t%s\n", name,
+			groupedDigits(step.WorklogCount), plural(step.WorklogCount, "worklog", "worklogs"),
+			groupedDigits(step.SessionCount), plural(step.SessionCount, "session", "sessions"),
+			groupedDigits(step.MessageCount), plural(step.MessageCount, "message", "messages"),
+			reportedTokens(step.Tokens))
+	}
+	_ = tw.Flush()
 }
 
 // printSpentBesideEstimate sets each kind the scope spent beside what the
