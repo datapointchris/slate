@@ -1,7 +1,7 @@
 # slate
 
 A work tracker built for coding agents. Ideas hold the work that nobody has
-adopted, with their priority and evidence, until promotion makes each an
+taken on, with their priority and evidence, until promotion makes each an
 initiative. Issues carry their dependencies, labels and the initiative they
 ship toward. Ideas, initiatives and issues carry tags from a short closed list,
 and an issue reads its initiative's tags as its own. Ideas and initiatives join

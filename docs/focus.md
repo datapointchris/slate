@@ -95,8 +95,8 @@ gives both instants.
   `worklog_count` are the worklogs whose record reaches none.
   `outside_worklogs_output_tokens` is what sessions spent in no worklog.
 
-The focus splits each worklog across the pursuits that its own record joins, or
-that its issue's initiative joins, as `services/record_pursuits.py` reads them
+The focus splits each worklog across the pursuits of its own record, or of its
+issue's initiative, as `services/record_pursuits.py` reads them
 for every record. `slate totals <pursuit>` counts a pursuit as a grouping over
 everything its work reaches, as [totals.md](totals.md) gives it. So a total's
 figure for a pursuit can exceed the focus's.

@@ -1,6 +1,6 @@
 # Ideas
 
-An idea is work that nobody has adopted yet. `slate ideas` is the CLI, and the
+An idea is work that nobody has taken on yet. `slate ideas` is the CLI, and the
 API serves it under `/api/v1/ideas`.
 
 ## An idea is never work, so it has no status

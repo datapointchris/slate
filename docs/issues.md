@@ -72,7 +72,7 @@ those initiatives. A pursuit is never a row, because it holds no work.
 `initiative` narrows to one initiative's rows.
 
 Each row says its `kind`, `number`, `step` and `priority`, and carries the
-kind's own read as `record`. `priority` is the one that sorts the row: an
+kind's own read as `record`. `priority` is the one by which the row sorts: an
 issue's effective priority, else the record's own.
 
 A live claim says someone is working the record, so a held record is listed
@@ -263,7 +263,7 @@ Priority uses Linear's scale:
 
 `0` is the absence of a priority and sorts after every level.
 
-The priority that sorts an issue is its effective priority, the most urgent of:
+The priority by which an issue sorts is its effective priority, the most urgent of:
 
 - its own priority
 - its open parent's effective priority

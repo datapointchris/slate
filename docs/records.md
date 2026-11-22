@@ -328,7 +328,7 @@ A write answers an envelope, never the bare record:
 The key holding the record is named for what was written, such as `issue` or
 `claim`. A side effect is a change that the write made beyond its
 request. A warning is a condition that did not stop the write. Each entry
-carries a `code` that a client matches, a `message` for a person, and the
+carries a `code` on which a client branches, a `message` for a person, and the
 number of the record it concerns.
 
 So nothing that a write changes is left for the caller to discover. A handler

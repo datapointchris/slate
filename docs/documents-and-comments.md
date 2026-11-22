@@ -50,8 +50,8 @@ Each version and each comment carries:
 | `written_ts` | when it was written |
 
 The CLI sends the session from `CLAUDE_CODE_SESSION_ID`. The API finds its
-worklog the way `slate worklogs current` does, so a version names the worklog
-that stamps a commit made at the same moment. A session in no live worklog
+worklog the way `slate worklogs current` does, so a version names the same
+worklog as a commit made at that moment. A session in no live worklog
 writes a version naming none, and the answer warns `no_worklog`. A person at a
 terminal sends no session, and writes with neither.
 
