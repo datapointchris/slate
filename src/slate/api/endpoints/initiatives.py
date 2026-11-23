@@ -19,6 +19,8 @@ from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
+from slate.api.callers import signer_named_or_caller
+from slate.api.exceptions import Refusal
 from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
@@ -171,7 +173,8 @@ def unpin(initiative: InitiativeFromPath, session: DbSession, effects: Effects):
 @router.post('/{id:path}/refs', response_model=schemas.InitiativeWritten, status_code=status.HTTP_200_OK)
 def link(initiative: InitiativeFromPath, request: schemas.RecordRefsLink, session: DbSession, caller: CurrentCaller, effects: Effects):
     """Link each ref. A ref already linked keeps its note and linker, and the answer warns."""
-    link_refs(session, initiative.number, request.refs, request.note, request.linked_by or caller_actor(caller), effects)
+    linker = signer_named_or_caller(caller, request.linked_by, Refusal.SCOPED_CLIENT_LINKS_REFS_AS_ITSELF)
+    link_refs(session, initiative.number, request.refs, request.note, linker, effects)
     session.commit()
     session.refresh(initiative)
     return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))

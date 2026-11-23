@@ -219,8 +219,11 @@ func newIdeasCreateCommand() *cobra.Command {
 		Example: "  slate ideas create --title \"Run review rounds on a schedule\" --priority high --tag agents\n" +
 			"  slate ideas create --title \"Run review rounds on a schedule\" --ref capture/01a1b689-a5d6-7852-b675-6acbd13ece24",
 		Args:        cobra.NoArgs,
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRecordsRead, scopeIdeasWrite),
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !slices.ContainsFunc(pursuits, namesPursuitByName) {
+				narrowGrant(cmd, scopeIdeasWrite)
+			}
 			if strings.TrimSpace(title) == "" {
 				return goclikit.UsageError(errors.New("--title is required"))
 			}

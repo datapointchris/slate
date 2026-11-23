@@ -57,5 +57,12 @@ def refuse_acting_for_another(caller: OIDCIdentity | ScopedClient, named: str, r
         raise ForbiddenException(f'{refusal}, {caller.client_id}, not {named}', logger)
 
 
+def signer_named_or_caller(caller: OIDCIdentity | ScopedClient, named: str | None, refusal: Refusal) -> str:
+    """Who a write is signed by: `named` where the request gives one, else the caller, refusing a scoped client naming another."""
+    signer = named or caller_actor(caller)
+    refuse_acting_for_another(caller, signer, refusal)
+    return signer
+
+
 DbSession = Annotated[Session, Depends(get_sqlalchemy_session)]
 CurrentCaller = Annotated[OIDCIdentity | ScopedClient, Depends(get_current_caller)]

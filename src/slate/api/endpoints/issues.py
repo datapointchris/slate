@@ -18,6 +18,7 @@ from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
+from slate.api.callers import signer_named_or_caller
 from slate.api.client_scopes import ISSUES_CLOSE
 from slate.api.client_scopes import RECORDS_PLAN
 from slate.api.client_scopes import RECORDS_RECHECK
@@ -610,7 +611,8 @@ def link(
     issue: IssueFromPath, request: schemas.RecordRefsLink, session: DbSession, caller: CurrentCaller, zone: RequestZone, effects: Effects
 ):
     """Link each ref. A ref already linked keeps its note and linker, and the answer warns."""
-    link_refs(session, issue.number, request.refs, request.note, request.linked_by or caller_actor(caller), effects)
+    linker = signer_named_or_caller(caller, request.linked_by, Refusal.SCOPED_CLIENT_LINKS_REFS_AS_ITSELF)
+    link_refs(session, issue.number, request.refs, request.note, linker, effects)
     issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))

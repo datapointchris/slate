@@ -145,6 +145,20 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('POST', f'{API_PREFIX}/ideas/{{id}}/rank'),
         }
     ),
+    # Filing an idea with its refs, for a job keeping a capture as an idea. It reaches no edit,
+    # promote, rank or delete, so what becomes of the idea stays a person's call.
+    'slate.ideas.write': frozenset({('POST', f'{API_PREFIX}/ideas')}),
+    # Linking refs to an existing issue, initiative or idea, for a job recording what a record came
+    # from, such as the inbox row that triage tracked behind it. `/evidence` is the idea link under
+    # its path from before refs. The handlers refuse a scoped client naming any linker but itself.
+    'slate.refs.write': frozenset(
+        {
+            ('POST', f'{API_PREFIX}/issues/{{id}}/refs'),
+            ('POST', f'{API_PREFIX}/initiatives/{{id:path}}/refs'),
+            ('POST', f'{API_PREFIX}/ideas/{{id}}/refs'),
+            ('POST', f'{API_PREFIX}/ideas/{{id}}/evidence'),
+        }
+    ),
 }
 
 
