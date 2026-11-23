@@ -23,7 +23,6 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.record import Kind
-from slate.schemas.record_ref import REF_PREFIX_FILTER
 from slate.services.claims import end_with_record
 from slate.services.initiative_board import initiative_board
 from slate.services.initiative_board import initiative_board_text
@@ -53,7 +52,6 @@ from slate.services.record_pins import unpin_record
 from slate.services.record_pursuits import resolve_pursuits
 from slate.services.record_pursuits import set_record_pursuits
 from slate.services.record_refs import link_refs
-from slate.services.record_refs import narrowed_to_ref_prefix
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
@@ -100,7 +98,6 @@ def read_many(
         InitiativeSort,
         Query(description='priority: the order the queue takes them in. open: most unclosed issues first. newest: latest started first.'),
     ] = 'priority',
-    ref: Annotated[str | None, Query(description=REF_PREFIX_FILTER)] = None,
     limit: RowLimit = None,
 ):
     """Active initiatives, then someday, completed and dropped ones, each status in `sort`'s order.
@@ -122,7 +119,6 @@ def read_many(
         .order_by(*listing_order(*orders[sort]))
     )
     query = narrowed_to_groupings(query, Kind.INITIATIVE, groupings, session)
-    query = narrowed_to_ref_prefix(query, Kind.INITIATIVE, ref)
     rows = session.execute(apply_row_limit(narrowed_to_status(query, initiative_status, session), limit)).all()
     return initiative_views(session, [(row[0], row[1:]) for row in rows])
 

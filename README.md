@@ -5,8 +5,8 @@ taken on, with their priority and the refs that they rest on, until promotion
 makes each an initiative. Issues carry their dependencies, labels and the
 initiative they ship toward. Ideas, initiatives and issues carry tags from a
 short closed list, and an issue reads its initiative's tags as its own. Each
-also carries refs, the keys or URLs that it came from, and a read by prefix
-finds every record naming a key. Ideas and initiatives join pursuits, the few
+also carries refs, the keys or URLs that it came from, and each list narrows
+to the records carrying a ref with a given prefix. Ideas and initiatives join pursuits, the few
 conditions that the work should bring about and hold, each able to name the
 command that measures it, and an issue reads its initiative's.
 Any record keeps versioned documents, such as its design and plan, and comments

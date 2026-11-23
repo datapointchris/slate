@@ -7,7 +7,6 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
-from fastapi import Query
 from fastapi import status
 from sqlalchemy import case
 from sqlalchemy import delete as sql_delete
@@ -20,7 +19,6 @@ from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
-from slate.schemas.record_ref import REF_PREFIX_FILTER
 from slate.services.claims import end_with_record
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
@@ -41,7 +39,6 @@ from slate.services.record_pursuits import resolve_pursuits
 from slate.services.record_pursuits import set_record_pursuits
 from slate.services.record_refs import carry_refs
 from slate.services.record_refs import link_refs
-from slate.services.record_refs import narrowed_to_ref_prefix
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import own_tags
 from slate.services.record_tags import resolve_tags
@@ -69,14 +66,12 @@ IdeaFromPath = Annotated[models.Idea, Depends(path_idea)]
 def read_many(
     session: DbSession,
     groupings: GroupingsQuery,
-    ref: str | None = Query(None, description=REF_PREFIX_FILTER),
     limit: RowLimit = None,
 ):
     """Every idea, promoted or not, most urgent first. Priority 0 is no priority and sorts last."""
     urgency = case((models.Idea.priority == 0, NO_PRIORITY_URGENCY), else_=models.Idea.priority)
     query = select(models.Idea).order_by(urgency.asc(), models.Idea.number.asc())
     query = narrowed_to_groupings(query, Kind.IDEA, groupings, session)
-    query = narrowed_to_ref_prefix(query, Kind.IDEA, ref)
     return idea_views(session, session.scalars(apply_row_limit(query, limit)).all())
 
 

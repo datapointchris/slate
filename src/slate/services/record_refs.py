@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 
 from sqlalchemy import Select
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from slate import models
@@ -48,14 +49,18 @@ def refs_of(session: Session, numbers: Collection[int]) -> dict[int, list[schema
 
 
 def link_refs(session: Session, number: int, refs: Iterable[str], note: str | None, linked_by: str, effects: WriteEffects) -> None:
-    """Link each ref to record `number` once. A ref that it already carries keeps its note and linker, and the answer warns."""
-    carried = set(session.scalars(select(models.RecordRef.ref).where(models.RecordRef.record_number == number)))
-    for ref in dict.fromkeys(refs):
-        if ref in carried:
+    """Link each ref to record `number` once. A ref that it already carries keeps its note and linker, and the answer warns.
+
+    The insert skips a ref already carried rather than reading first, so two callers linking one ref at once both succeed.
+    """
+    wanted = list(dict.fromkeys(refs))
+    if not wanted:
+        return
+    rows = [{'record_number': number, 'ref': ref, 'note': note, 'linked_by': linked_by} for ref in wanted]
+    linked = set(session.scalars(insert(models.RecordRef).values(rows).on_conflict_do_nothing().returning(models.RecordRef.ref)))
+    for ref in wanted:
+        if ref not in linked:
             effects.warn(WriteEffectCode.REF_ALREADY_LINKED, f'#{number} already carries {ref!r}, so it is left as it was.', number)
-            continue
-        session.add(models.RecordRef(record_number=number, ref=ref, note=note, linked_by=linked_by))
-    session.flush()
 
 
 def carry_refs(session: Session, source: int, target: int, effects: WriteEffects) -> None:

@@ -33,6 +33,15 @@ type Idea struct {
 	Claim      *Claim      `json:"claim"`
 }
 
+// RefsOrEvidence is the idea's refs, read from Evidence when the answer
+// carried no refs field, as an API from before refs answers.
+func (i Idea) RefsOrEvidence() []RecordRef {
+	if i.Refs == nil {
+		return i.Evidence
+	}
+	return i.Refs
+}
+
 // IdeaDetail is an idea with its claims, comments and documents.
 type IdeaDetail struct {
 	Idea

@@ -31,7 +31,6 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
-from slate.schemas.record_ref import REF_PREFIX_FILTER
 from slate.services.claims import end_with_record
 from slate.services.issue_filters import apply_label_filter
 from slate.services.issue_filters import apply_repo_filter
@@ -57,7 +56,6 @@ from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_refs import link_refs
-from slate.services.record_refs import narrowed_to_ref_prefix
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
@@ -279,7 +277,6 @@ def read_many(
     ),
     blocked: bool | None = Query(None, description='True for issues waiting on an unclosed dependency, false for the rest'),
     autofixable: bool | None = Query(None, description=AUTOFIXABLE_FILTER),
-    ref: str | None = Query(None, description=REF_PREFIX_FILTER),
     limit: RowLimit = None,
 ):
     """List issues, unclosed work first in queue order, closed work after it.
@@ -320,7 +317,6 @@ def read_many(
     query = apply_repo_filter(query, repo)
     query = apply_label_filter(query, label, session)
     query = narrowed_to_groupings(query, Kind.ISSUE, groupings, session)
-    query = narrowed_to_ref_prefix(query, Kind.ISSUE, ref)
     query = apply_time_window(query, models.Issue.closed_ts, window, zone=None)
 
     today, now = calendar_now(zone)

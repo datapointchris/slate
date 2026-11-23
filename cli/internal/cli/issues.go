@@ -312,10 +312,7 @@ func newIssuesListCommand() *cobra.Command {
 			if err := honoredAutofixable(filter.Autofixable, issues); err != nil {
 				return err
 			}
-			if err := honoredGroupings(filter.Tag, filter.Pursuit, issues, issueGrouped); err != nil {
-				return err
-			}
-			if err := honoredRefFilter(filter.Ref, issues, issueRefs); err != nil {
+			if err := honoredGroupings(groupingFilter{filter.Tag, filter.Pursuit, filter.Ref}, issues, issueGrouped); err != nil {
 				return err
 			}
 			if !cmd.Flags().Changed("status") {

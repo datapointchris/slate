@@ -14,9 +14,6 @@ RefText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, 
 
 RefKind = Literal['url', 'key']
 
-# A prefix that a list narrows to: the records carrying a ref starting with it.
-REF_PREFIX_FILTER = "A ref prefix, such as 'capture/': only records carrying a ref that starts with it"
-
 
 class RecordRefsLink(RecordModel):
     """Refs to link, each once. A ref that the record already carries is left as it is, with a warning.
@@ -30,7 +27,7 @@ class RecordRefsLink(RecordModel):
 
 
 class RecordRef(RecordModel):
-    """`kind` is derived from the ref: `url` for an http or https URL, `key` for anything else."""
+    """`kind` is `url` for an http or https URL with a host, `key` for anything else."""
 
     ref: str
     kind: RefKind

@@ -2,13 +2,13 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 )
 
 // RecordRef is one key or URL that a record names as what it came from or
-// rests on. Kind is "url" for an http or https URL and "key" for anything
-// else, derived by the API from Ref.
+// rests on. Kind is the API's reading of Ref, "url" or "key".
 type RecordRef struct {
 	Ref      string    `json:"ref"`
 	Kind     string    `json:"kind"`
@@ -46,10 +46,16 @@ func (c *Client) LinkInitiativeRefs(ctx context.Context, ref string, in RecordRe
 }
 
 // LinkIdeaRefs links refs to an idea. A ref it already carries is left as it
-// was, and the answer warns.
+// was, and the answer warns. An API from before refs answers /refs with 404
+// and takes the same body at /evidence, so a 404 is sent there.
 func (c *Client) LinkIdeaRefs(ctx context.Context, ref string, in RecordRefsInput) (IdeaWritten, error) {
 	var written IdeaWritten
-	if err := c.send(ctx, http.MethodPost, ideaPath(ref)+"/refs", in, &written); err != nil {
+	err := c.send(ctx, http.MethodPost, ideaPath(ref)+"/refs", in, &written)
+	var apiErr *APIError
+	if errors.As(err, &apiErr) && apiErr.NotFound() {
+		err = c.send(ctx, http.MethodPost, ideaPath(ref)+"/evidence", in, &written)
+	}
+	if err != nil {
 		return IdeaWritten{}, err
 	}
 	return written, nil

@@ -117,10 +117,7 @@ func newInitiativesListCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredGroupings(tag, pursuit, initiatives, initiativeGrouped); err != nil {
-				return err
-			}
-			if err := honoredRefFilter(ref, initiatives, initiativeRefs); err != nil {
+			if err := honoredGroupings(groupingFilter{tag, pursuit, ref}, initiatives, initiativeGrouped); err != nil {
 				return err
 			}
 			if !cmd.Flags().Changed("status") {

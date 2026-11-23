@@ -43,7 +43,7 @@ var refLinkWrites = map[string]func(ctx context.Context, client *api.Client, ref
 	"idea": func(ctx context.Context, client *api.Client, ref string, in api.RecordRefsInput) (refsLinked, error) {
 		written, err := client.LinkIdeaRefs(ctx, ref, in)
 		idea := written.Idea
-		return refsLinked{written, written.WriteEffects, fmt.Sprintf("Idea #%d %q", idea.Number, idea.Title), len(idea.Refs)}, err
+		return refsLinked{written, written.WriteEffects, fmt.Sprintf("Idea #%d %q", idea.Number, idea.Title), len(idea.RefsOrEvidence())}, err
 	},
 }
 
@@ -60,7 +60,7 @@ func newRefsLinkCommand(kind, example string) *cobra.Command {
 			"row's capture/<id>, or an http or https URL. slate stores it as given and never\n" +
 			"follows it. A ref that the record already carries is left as it was, with a\n" +
 			"warning on stderr. --note is kept on every ref this call links. `list --ref`\n" +
-			"finds every record carrying a ref by its prefix.\n" +
+			"narrows a list to the records carrying a ref with that prefix.\n" +
 			"\n" +
 			"--linked-by defaults to who is running slate: the Claude Code session, the\n" +
 			"worker $" + actorWorkerEnv + " names, or user@host.",
@@ -94,35 +94,10 @@ func newRefsLinkCommand(kind, example string) *cobra.Command {
 	return cmd
 }
 
-func issueRefs(issue api.Issue) (int, []api.RecordRef) { return issue.Number, issue.Refs }
-
-func initiativeRefs(initiative api.Initiative) (int, []api.RecordRef) {
-	return initiative.Number, initiative.Refs
-}
-
-func ideaRefs(idea api.Idea) (int, []api.RecordRef) { return idea.Number, idea.Refs }
-
 // refuseBlankRef refuses a ref that names nothing, before the API does.
 func refuseBlankRef(refs []string) error {
 	if i := slices.IndexFunc(refs, func(ref string) bool { return strings.TrimSpace(ref) == "" }); i >= 0 {
 		return goclikit.UsageError(fmt.Errorf("ref %d is blank — every ref names what it points at", i+1))
-	}
-	return nil
-}
-
-// honoredRefFilter refuses a reply in which a row carries no ref starting
-// with the --ref prefix it was narrowed to. An API from before refs drops the
-// filter and answers every record, so a caller asking whether any record names
-// its key would read every one as naming it.
-func honoredRefFilter[T any](prefix string, rows []T, of func(T) (int, []api.RecordRef)) error {
-	if prefix == "" {
-		return nil
-	}
-	for _, row := range rows {
-		number, refs := of(row)
-		if !slices.ContainsFunc(refs, func(ref api.RecordRef) bool { return strings.HasPrefix(ref.Ref, prefix) }) {
-			return fmt.Errorf("the API ignored --ref: #%d came back carrying no ref that starts with %s, so it predates refs", number, prefix)
-		}
 	}
 	return nil
 }

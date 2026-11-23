@@ -6,11 +6,15 @@ Create Date: 2026-11-22 20:36:01.169192
 
 Every idea's evidence becomes a row of `record_refs` under the idea's number, with its note,
 linker and time. The release before refs reads and writes `idea_evidence` while both serve, so it
-stays until a later migration drops it. A trigger on it forwards each row that the release before
-refs links, so the new release reads every link either one takes. The release before refs only
-removes evidence by deleting its idea, which deletes the idea's refs through `records`, so no
-delete is forwarded. The copy runs before the audit trigger on `record_refs` exists, so it writes
-no audit rows.
+stays until a later migration drops it, and a trigger on each table forwards every link into the
+other. Each forward skips a row that the other table already holds, so neither loops.
+
+The trigger on `idea_evidence` is created before the copy. Creating it waits out every link that
+the release before refs is still writing, and holds off the next until this migration commits, so
+the copy reads every link committed before it and the trigger forwards every one after. The
+release before refs only removes evidence by deleting its idea, which deletes the idea's refs
+through `records`, so no delete is forwarded. The copy runs before the audit trigger on
+`record_refs` exists, so it writes no audit rows.
 """
 
 import sqlalchemy as sa
@@ -26,6 +30,7 @@ COPY_EVIDENCE_TO_REFS = """
 INSERT INTO record_refs (record_number, ref, note, linked_by, linked_ts)
 SELECT ideas.number, idea_evidence.ref, idea_evidence.note, idea_evidence.linked_by, idea_evidence.linked_ts
 FROM idea_evidence JOIN ideas ON ideas.id = idea_evidence.idea_id
+ON CONFLICT DO NOTHING
 """
 
 FORWARD_EVIDENCE_WRITES = """
@@ -39,6 +44,19 @@ END;
 $$;
 CREATE TRIGGER forward_to_record_refs AFTER INSERT ON idea_evidence
     FOR EACH ROW EXECUTE FUNCTION forward_idea_evidence_writes_to_record_refs();
+"""
+
+FORWARD_IDEA_REFS_TO_EVIDENCE = """
+CREATE FUNCTION forward_idea_refs_to_idea_evidence() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO idea_evidence (idea_id, ref, note, linked_by, linked_ts)
+    SELECT ideas.id, NEW.ref, NEW.note, NEW.linked_by, NEW.linked_ts FROM ideas WHERE ideas.number = NEW.record_number
+    ON CONFLICT DO NOTHING;
+    RETURN NULL;
+END;
+$$;
+CREATE TRIGGER forward_to_idea_evidence AFTER INSERT ON record_refs
+    FOR EACH ROW EXECUTE FUNCTION forward_idea_refs_to_idea_evidence();
 """
 
 COPY_IDEA_REFS_TO_EVIDENCE = """
@@ -63,8 +81,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('record_number', 'ref', name=op.f('pk_record_refs')),
     )
     op.create_index('idx_record_refs_ref_prefix', 'record_refs', ['ref'], unique=False, postgresql_ops={'ref': 'text_pattern_ops'})
-    op.execute(COPY_EVIDENCE_TO_REFS)
     op.execute(FORWARD_EVIDENCE_WRITES)
+    op.execute(COPY_EVIDENCE_TO_REFS)
+    op.execute(FORWARD_IDEA_REFS_TO_EVIDENCE)
 
 
 def downgrade() -> None:
@@ -73,6 +92,8 @@ def downgrade() -> None:
     The forwarding put every row that the release before refs linked into `record_refs`, so the
     ideas' refs there hold all of it. The copy back writes no audit rows, as the copy forward wrote none.
     """
+    op.execute('DROP TRIGGER forward_to_idea_evidence ON record_refs')
+    op.execute('DROP FUNCTION forward_idea_refs_to_idea_evidence()')
     op.execute('DROP TRIGGER forward_to_record_refs ON idea_evidence')
     op.execute('DROP FUNCTION forward_idea_evidence_writes_to_record_refs()')
     op.execute('ALTER TABLE idea_evidence DISABLE TRIGGER audit_trail')

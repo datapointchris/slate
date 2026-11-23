@@ -193,7 +193,7 @@ and their groups exclude each other.
 - *Rejected:* copying an initiative's tags onto its issues. The copy goes stale
   the moment the initiative's tags change or the issue moves.
 
-## Refs name what a record came from, and a prefix read finds every record naming one
+## Refs name what a record came from, and each list narrows to the records naming a prefix
 
 A ref is a key that the system holding something gave it, such as an inbox
 row's `capture/<id>`, or an http or https URL. Ideas, initiatives and issues
@@ -204,10 +204,12 @@ source needs slate to understand it. The read derives `kind` from the ref:
 
 The link is written once, on the record that makes the reference. The system
 that the ref names reads it from the other side, by prefix. That is the stored
-half of a backlink, as GitHub's cross-reference timeline event is. `ref` on
-`GET /issues`, `GET /initiatives` and `GET /ideas` keeps each record carrying a
-ref that starts with it. So `?ref=capture/` answers every record filed from an
-inbox capture, without the reader fetching each record.
+half of a backlink, as GitHub's cross-reference timeline event is. `ref` is
+one of the groupings that narrow every kind, beside `tag` and `pursuit`, so
+`GET /issues`, `GET /initiatives`, `GET /ideas` and `GET /queue` each keep the
+records carrying a ref that starts with it. Each list's status default still
+applies, so `GET /issues?status=all&ref=capture/` reads every issue filed from
+an inbox capture.
 
 `record_refs` holds one row per record and ref, keyed on `(record_number,
 ref)`, with an `ON DELETE CASCADE` key onto `records.number`. Each row keeps a
@@ -232,15 +234,18 @@ row carrying no ref with the prefix fails the command, and so does a created
 record missing a ref that it was sent. Without the check, a caller asking
 whether any record already names its key would read every record as naming it.
 
-An idea's refs were its evidence, held in `idea_evidence`. While the release
-before refs still serves, an idea's read carries `evidence` beside `refs` from
-the same rows, and `POST /ideas/{id}/evidence` takes the body that `/refs`
-takes. A trigger on `idea_evidence` forwards each row that the release before
-refs links into `record_refs`.
+`idea_evidence` holds an idea's refs as the release before refs reads and
+writes them. While that release still serves, an idea's read carries
+`evidence` beside `refs` from the same rows, and `POST /ideas/{id}/evidence`
+takes the body that `/refs` takes. A trigger on each table forwards every link
+into the other, so each release reads what the other linked, and a rollback
+loses none. The CLI meets an API from before refs the same way: `slate ideas
+link` sends to `/evidence` when `/refs` answers 404, and an idea read carrying
+no `refs` shows its `evidence`.
 
 - *Rejected:* a refs table per kind. The three kinds share one number
-  sequence, so one key on the number serves them all, and a prefix read crosses
-  kinds in one table.
+  sequence, so one key on the number serves them all. One prefix index, one
+  link path and one promote copy then serve every kind.
 - *Rejected:* finding keys in descriptions. A key written in prose is easily
   shortened, and a shortened key matches nothing.
 
