@@ -21,7 +21,7 @@ from slate import models
 from slate import schemas
 from slate.api.exceptions import with_article
 from slate.models.record import Kind
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_record
 from slate.services.row_limit import apply_row_limit
 from slate.services.vocabulary import validate_lookup
 from slate.services.worklogs import record_session

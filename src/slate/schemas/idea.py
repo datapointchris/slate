@@ -4,7 +4,6 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import ConfigDict
-from pydantic import Field
 from pydantic import StringConstraints
 
 from slate.schemas.claim import Claim
@@ -12,11 +11,12 @@ from slate.schemas.initiative import Initiative
 from slate.schemas.initiative import NotPlannedStep
 from slate.schemas.not_null import NotNull
 from slate.schemas.pursuit import InPursuits
-from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
 from slate.schemas.record import SummaryText
 from slate.schemas.record_parts import RecordParts
+from slate.schemas.record_ref import RecordRef
+from slate.schemas.record_ref import RefText
 from slate.schemas.write_effects import Written
 
 # An idea answers to its UUID or its number.
@@ -24,19 +24,16 @@ IdeaRef = UUID | int | str
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
-# A key the system holding the evidence gave it, such as an inbox row's, or a URL. slate stores it
-# as given and never follows it.
-EvidenceRef = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)]
-
-EvidenceKind = Literal['url', 'key']
-
 
 class IdeaCreate(RecordModel):
+    """`refs` are linked as the caller, each once."""
+
     title: Title
     description: str | None = None
     priority: Priority = 0
     tags: list[str] = []
     pursuits: list[int] = []
+    refs: list[RefText] = []
 
 
 class IdeaUpdate(RecordModel):
@@ -47,14 +44,6 @@ class IdeaUpdate(RecordModel):
     priority: NotNull[Priority] = None
     tags: NotNull[list[str]] = None
     pursuits: NotNull[list[int]] = None
-
-
-class IdeaEvidenceLink(RecordModel):
-    """Evidence to link, each ref once. A ref the idea already links is left as it is, with a warning."""
-
-    refs: list[EvidenceRef] = Field(min_length=1)
-    note: str | None = None
-    linked_by: Actor | None = None
 
 
 class IdeaPromote(RecordModel):
@@ -77,22 +66,13 @@ class IdeaPromote(RecordModel):
     not_planned_steps: list[NotPlannedStep] = []
 
 
-class IdeaEvidence(RecordModel):
-    """`kind` is derived from the ref: `url` for an http or https URL, `key` for anything else."""
-
-    ref: str
-    kind: EvidenceKind
-    note: str | None = None
-    linked_by: str | None = None
-    linked_ts: dt.datetime
-
-
 class Idea(InPursuits):
-    """An idea, its evidence oldest first, and the initiative it became with that initiative's progress.
+    """An idea, its refs oldest first, and the initiative it became with that initiative's progress.
 
     `claim` is the idea's unended claim, live or expired. `rank` places it among the records of its
     priority in the queue. `pursuits` is each pursuit it is in, in number order. `flow_id` is the
-    flow of the work that filed it, which an initiative promoted from it takes.
+    flow of the work that filed it, which an initiative promoted from it takes. `evidence` is
+    `refs` again, under the name the release before refs served.
     """
 
     id: UUID
@@ -108,7 +88,8 @@ class Idea(InPursuits):
     created_ts: dt.datetime
     updated_ts: dt.datetime
     tags: list[str] = []
-    evidence: list[IdeaEvidence] = []
+    refs: list[RecordRef] = []
+    evidence: list[RecordRef] = []
     initiative: Initiative | None = None
     claim: Claim | None = None
 

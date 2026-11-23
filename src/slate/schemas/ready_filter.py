@@ -9,9 +9,11 @@ TAG_FILTER = "A tag's name: only records carrying it, an issue also through its 
 
 PURSUIT_FILTER = "A pursuit's number or exact name: only ideas and initiatives in it, and the issues of those initiatives"
 
+REF_PREFIX_FILTER = "A ref prefix, such as 'capture/': only records carrying a ref that starts with it"
+
 
 class RecordGroupings(BaseModel):
-    """The filters that narrow every kind of record: the tag it carries and the pursuit it is in.
+    """The filters that narrow every kind of record: the tag it carries, the pursuit it is in and the refs it names.
 
     `narrowed_to_groupings` in `services/record_groupings.py` applies each field, and a queue filter
     not declared here narrows only issues.
@@ -19,6 +21,7 @@ class RecordGroupings(BaseModel):
 
     tag: str | None = Field(None, description=TAG_FILTER)
     pursuit: int | str | None = Field(None, description=PURSUIT_FILTER)
+    ref: str | None = Field(None, description=REF_PREFIX_FILTER)
 
 
 class ReadyFilter(RecordGroupings):

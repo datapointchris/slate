@@ -747,6 +747,8 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"ideas", "promote", "1860", "--summary", "Review rounds run on a schedule"}, idea},
 		{[]string{"comments", "remove", "57", "--yes"}, `{}`},
 		{[]string{"issues", "delete", "412", "--yes"}, openIssue},
+		{[]string{"issues", "link", "412", "capture/01a1b689"}, openIssue},
+		{[]string{"initiatives", "link", "Practical help guides", "capture/01a1b689"}, `{}`},
 		{[]string{"issues", "pin", "412"}, openIssue},
 		{[]string{"issues", "unpin", "412"}, openIssue},
 		{[]string{"initiatives", "pin", "Practical help guides"}, `{}`},

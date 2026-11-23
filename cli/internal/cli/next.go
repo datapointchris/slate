@@ -97,7 +97,7 @@ func newNextCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredGroupings(filter.Tag, filter.Pursuit, slices.Concat(read.Queue, read.Claimed), queueRowGrouped); err != nil {
+			if err := honoredGroupings(groupingFilter{tag: filter.Tag, pursuit: filter.Pursuit}, slices.Concat(read.Queue, read.Claimed), queueRowGrouped); err != nil {
 				return err
 			}
 			if cmd.Flags().Changed("for") && !cmd.Flags().Changed("limit") {

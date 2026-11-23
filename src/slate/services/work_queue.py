@@ -53,7 +53,6 @@ from slate.schemas.ready_filter import RecordGroupings
 from slate.services.claim_views import live_claims_on_every_record
 from slate.services.held_plans import held_plans
 from slate.services.held_plans import holding_claim
-from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_views
 from slate.services.initiative_views import initiative_views
 from slate.services.initiative_views import issue_count_columns
@@ -70,7 +69,7 @@ from slate.services.issue_views import calendar_now
 from slate.services.issue_views import issue_views
 from slate.services.open_records import is_open
 from slate.services.record_groupings import narrowed_to_groupings
-from slate.services.record_refs import resolve_initiative
+from slate.services.record_lookup import resolve_initiative
 from slate.services.record_work import record_work
 from slate.services.vocabulary import validate_lookup
 
@@ -242,7 +241,7 @@ def queue_as_measured(
             place(readiness.record_sort_key(initiative_view.number, initiative_view.priority, initiative_view.rank), initiative_row)
 
     if reads_other_kinds and initiative is None and wanted(filters, 'discuss'):
-        query = select(models.Idea).options(*IDEA_LOAD_OPTIONS).where(is_open(Kind.IDEA))
+        query = select(models.Idea).where(is_open(Kind.IDEA))
         query = narrowed_to_groupings(query, Kind.IDEA, filters, session)
         if work is not None:
             query = query.where(models.Idea.number == work.number)

@@ -14,7 +14,7 @@ from fastapi import status
 from slate import schemas
 from slate.api.callers import DbSession
 from slate.api.time_window import TimeWindowQuery
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_record
 from slate.services.work_totals import work_totals
 from slate.services.worklogs import resolve_worklog
 from slate.tracing.named_work import name_record

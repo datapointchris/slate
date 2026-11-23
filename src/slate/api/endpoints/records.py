@@ -21,7 +21,6 @@ from slate.schemas.record_read import InitiativeRecord
 from slate.schemas.record_read import IssueRecord
 from slate.schemas.record_read import PursuitRecord
 from slate.schemas.record_read import RecordRead
-from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
 from slate.services.initiative_views import counted
 from slate.services.initiative_views import initiative_detail
@@ -39,8 +38,8 @@ from slate.services.record_dependencies import add_issue_dependency
 from slate.services.record_dependencies import remove_initiative_wait
 from slate.services.record_dependencies import remove_issue_dependency
 from slate.services.record_lists import listed_records
-from slate.services.record_refs import resolve_issue_or_initiative
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_issue_or_initiative
+from slate.services.record_lookup import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffects
@@ -83,7 +82,7 @@ def read_one(number: str, session: DbSession, zone: RequestZone) -> RecordRead:
             initiative = session.scalars(select(models.Initiative).where(models.Initiative.number == record.number)).one()
             return InitiativeRecord(number=record.number, record=initiative_detail(session, initiative))
         case Kind.IDEA:
-            idea = session.scalars(select(models.Idea).options(*IDEA_LOAD_OPTIONS).where(models.Idea.number == record.number)).one()
+            idea = session.scalars(select(models.Idea).where(models.Idea.number == record.number)).one()
             return IdeaRecord(number=record.number, record=idea_detail(session, idea))
         case Kind.PURSUIT:
             pursuit = session.scalars(select(models.Pursuit).where(models.Pursuit.number == record.number)).one()

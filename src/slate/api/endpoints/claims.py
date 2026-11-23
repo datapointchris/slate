@@ -36,7 +36,7 @@ from slate.services.claims import resume
 from slate.services.claims import wait
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_views import calendar_now
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.work_queue import candidates_to_hold

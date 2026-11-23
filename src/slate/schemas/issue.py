@@ -17,6 +17,8 @@ from slate.schemas.record import RecordSummary
 from slate.schemas.record_check import CheckRequest
 from slate.schemas.record_check import LastCheck
 from slate.schemas.record_parts import RecordParts
+from slate.schemas.record_ref import RecordRef
+from slate.schemas.record_ref import RefText
 from slate.schemas.write_effects import Written
 
 # An issue answers to its UUID or its number, and the API resolves either. `str`
@@ -65,6 +67,7 @@ class IssueCreate(RecordModel):
     """`status` takes `incoming` for work filed by a machine, which waits there until accepted.
 
     `paths` are files and directories in `repo` the work changes, so an issue naming any needs a repo.
+    `refs` are linked as the caller, each once.
     """
 
     title: str
@@ -83,6 +86,7 @@ class IssueCreate(RecordModel):
     labels: list[Slug] = []
     tags: list[str] = []
     depends_on: list[IssueRef] = []
+    refs: list[RefText] = []
 
 
 class IssueUpdate(RecordModel):
@@ -140,6 +144,7 @@ class Issue(InPursuits):
     `tag` filter matches. `pursuits` is its initiative's, since an issue joins none itself.
     `flow_id` is the flow of the work that filed it. `last_check` is its latest check, and
     `check_request` someone asking that it be checked next, each null where there is none.
+    `refs` is each key or URL that the issue names as what it came from, oldest first.
     """
 
     id: UUID
@@ -171,6 +176,7 @@ class Issue(InPursuits):
     labels: list[str] = []
     tags: list[str] = []
     effective_tags: list[str] = []
+    refs: list[RecordRef] = []
     depends_on: list[IssueSummary] = []
     blocks: list[IssueSummary] = []
     initiative_waits_on: list[RecordSummary] = []

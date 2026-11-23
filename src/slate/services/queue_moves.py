@@ -27,7 +27,7 @@ from slate.services.issue_readiness import QueueKey
 from slate.services.issue_readiness import measure_readiness
 from slate.services.issue_readiness import priority_of
 from slate.services.issue_views import calendar_now
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_record
 
 
 @dataclass(frozen=True)

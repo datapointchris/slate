@@ -1,4 +1,4 @@
-"""Build the initiative read shape: the initiative, its issues' counts, its claim, its idea, its steps, tags and pursuits."""
+"""Build the initiative read shape: the initiative, its issues' counts, its claim, its idea, its steps, tags, pursuits and refs."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from slate.services.record_checks import check_requests
 from slate.services.record_checks import latest_checks
 from slate.services.record_parts import record_parts
 from slate.services.record_pursuits import pursuits_of
+from slate.services.record_refs import refs_of
 from slate.services.record_steps import initiative_step_views
 from slate.services.record_tags import own_tags
 
@@ -50,6 +51,7 @@ def initiative_view(
     steps: schemas.InitiativeSteps,
     tags: list[str],
     pursuits: list[schemas.PursuitSummary],
+    refs: list[schemas.RecordRef],
     last_check: schemas.LastCheck | None,
     check_request: schemas.CheckRequest | None,
 ) -> schemas.Initiative:
@@ -73,6 +75,7 @@ def initiative_view(
         created_ts=initiative.created_ts,
         closed_ts=initiative.closed_ts,
         tags=tags,
+        refs=refs,
         pursuits=pursuits,
         issue_count=issue_count,
         open_count=open_count,
@@ -97,6 +100,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
     steps = initiative_step_views(session, [initiative for initiative, _ in rows])
     tags = own_tags(session, [initiative.number for initiative, _ in rows])
     pursuits = pursuits_of(session, [initiative.number for initiative, _ in rows])
+    refs = refs_of(session, [initiative.number for initiative, _ in rows])
     checks = latest_checks(session, [initiative.number for initiative, _ in rows])
     requests = check_requests(session, [initiative.number for initiative, _ in rows])
     idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
@@ -117,6 +121,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
             steps[initiative.number],
             tags.get(initiative.number, []),
             pursuits.get(initiative.number, []),
+            refs.get(initiative.number, []),
             checks.get(initiative.number),
             requests.get(initiative.number),
         )

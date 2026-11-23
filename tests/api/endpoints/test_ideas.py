@@ -1,5 +1,3 @@
-from uuid import UUID
-
 import pytest
 from fastapi import status
 from sqlalchemy import func
@@ -29,15 +27,15 @@ def new_idea(client, **fields) -> dict:
     return ok(client.post(IDEAS, json={'title': 'Run review rounds on a schedule', **fields}), status.HTTP_201_CREATED)['idea']
 
 
-def test_an_idea_with_two_rows_linked_shows_both_as_evidence(client):
+def test_an_idea_with_two_rows_linked_shows_both_as_refs(client):
     idea = new_idea(client)
     link = {'refs': ['inbox:4102', 'inbox:4117'], 'note': 'Both ask for it', 'linked_by': 'claude-code/a1b2'}
-    ok(client.post(f'{IDEAS}/{idea["number"]}/evidence', json=link))
-    again = ok(client.post(f'{IDEAS}/{idea["number"]}/evidence', json={'refs': ['inbox:4117', 'https://example.com/thread/9']}))
-    assert [warning['code'] for warning in again['warnings']] == ['evidence_already_linked']
+    ok(client.post(f'{IDEAS}/{idea["number"]}/refs', json=link))
+    again = ok(client.post(f'{IDEAS}/{idea["number"]}/refs', json={'refs': ['inbox:4117', 'https://example.com/thread/9']}))
+    assert [warning['code'] for warning in again['warnings']] == ['ref_already_linked']
 
     shown = ok(client.get(f'{IDEAS}/{idea["number"]}'))
-    assert {row['ref']: (row['kind'], row['note']) for row in shown['evidence']} == {
+    assert {row['ref']: (row['kind'], row['note']) for row in shown['refs']} == {
         'inbox:4102': ('key', 'Both ask for it'),
         'inbox:4117': ('key', 'Both ask for it'),
         'https://example.com/thread/9': ('url', None),
@@ -66,11 +64,11 @@ def test_promoting_an_idea_a_session_researched_under_a_claim_creates_its_initia
     assert [(warning['code'], warning['record']) for warning in held['warnings']] == [('idea_promoted', initiative['number'])]
 
 
-def test_deleting_an_idea_takes_its_evidence_claims_and_pin_and_a_promoted_idea_is_refused(client, txn_api_logged_in):
+def test_deleting_an_idea_takes_its_refs_claims_and_pin_and_a_promoted_idea_is_refused(client, txn_api_logged_in):
     _, session = txn_api_logged_in
     idea = new_idea(client)
     number = idea['number']
-    ok(client.post(f'{IDEAS}/{number}/evidence', json={'refs': ['inbox:4102']}))
+    ok(client.post(f'{IDEAS}/{number}/refs', json={'refs': ['inbox:4102']}))
     ok(client.post('/claims', json={'record': number, 'holder': 'claude-code/a1b2'}))
     ok(client.post(f'{IDEAS}/{number}/pin', json={}))
 
@@ -82,7 +80,7 @@ def test_deleting_an_idea_takes_its_evidence_claims_and_pin_and_a_promoted_idea_
     ]
     assert [(warning['code'], warning['record']) for warning in answer['warnings']] == [('deleted_anothers_claim', number)]
     assert client.get(f'{IDEAS}/{number}').status_code == status.HTTP_404_NOT_FOUND
-    assert session.scalar(select(func.count()).select_from(models.IdeaEvidence).where(models.IdeaEvidence.idea_id == UUID(idea['id']))) == 0
+    assert session.scalar(select(func.count()).select_from(models.RecordRef).where(models.RecordRef.record_number == number)) == 0
     assert session.scalar(select(func.count()).select_from(models.Claim).where(models.Claim.record_number == number)) == 0
     assert session.get(models.Record, number) is None
 

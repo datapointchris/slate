@@ -1,39 +1,20 @@
-"""Build the idea read shape: the idea, its evidence, its claim, and the initiative it became."""
+"""Build the idea read shape: the idea, its refs, its claim, and the initiative it became."""
 
 from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Sequence
-from urllib.parse import urlsplit
 
 from sqlalchemy.orm import Session
-from sqlalchemy.orm import selectinload
 
 from slate import models
 from slate import schemas
-from slate.schemas.idea import EvidenceKind
 from slate.services.claim_views import unended_claim_views
 from slate.services.initiative_views import initiatives_of_ideas
 from slate.services.record_parts import record_parts
 from slate.services.record_pursuits import pursuits_of
+from slate.services.record_refs import refs_of
 from slate.services.record_tags import own_tags
-
-IDEA_LOAD_OPTIONS = (selectinload(models.Idea.evidence),)
-
-
-def evidence_kind(ref: str) -> EvidenceKind:
-    parts = urlsplit(ref)
-    return 'url' if parts.scheme in ('http', 'https') and parts.netloc else 'key'
-
-
-def evidence_view(evidence: models.IdeaEvidence) -> schemas.IdeaEvidence:
-    return schemas.IdeaEvidence(
-        ref=evidence.ref,
-        kind=evidence_kind(evidence.ref),
-        note=evidence.note,
-        linked_by=evidence.linked_by,
-        linked_ts=evidence.linked_ts,
-    )
 
 
 def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.Idea]:
@@ -41,6 +22,7 @@ def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.I
     claims = unended_claim_views(session, [idea.number for idea in ideas], dt.datetime.now(dt.UTC))
     tags = own_tags(session, [idea.number for idea in ideas])
     pursuits = pursuits_of(session, [idea.number for idea in ideas])
+    refs = refs_of(session, [idea.number for idea in ideas])
     return [
         schemas.Idea(
             id=idea.id,
@@ -57,7 +39,8 @@ def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.I
             updated_ts=idea.updated_ts,
             tags=tags.get(idea.number, []),
             pursuits=pursuits.get(idea.number, []),
-            evidence=[evidence_view(evidence) for evidence in idea.evidence],
+            refs=refs.get(idea.number, []),
+            evidence=refs.get(idea.number, []),
             initiative=initiatives.get(idea.id),
             claim=claims.get(idea.number),
         )

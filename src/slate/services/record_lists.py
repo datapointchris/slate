@@ -27,7 +27,7 @@ from slate import schemas
 from slate.models.record import Kind
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.open_records import is_open
-from slate.services.record_refs import record_number
+from slate.services.record_lookup import record_number
 from slate.services.row_limit import apply_row_limit
 
 

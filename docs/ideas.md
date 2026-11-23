@@ -22,25 +22,20 @@ rolls back up to the idea.
   issues to hold, and filing it as an initiative claims a plan that does not
   exist.
 
-## Evidence is a key or a URL that slate never follows
+## What an idea rests on is its refs, keys or URLs that slate never follows
 
-`POST /ideas/{id}/evidence` links refs, each one row in `idea_evidence`. A ref
-is a key the system holding the evidence gave it, such as an inbox row's, or
-an http or https URL. The read derives `kind` from the ref: `url` for an http
-or https URL with a host, `key` for anything else.
-
-slate stores a ref as given. It never resolves a key or fetches a URL, so a
-source can move or vanish without slate knowing, and no source needs slate to
-understand it.
-
-A ref the idea already links is left with its note and linker, and the answer
-warns `evidence_already_linked`. Each idea links a ref once.
+An idea links what it rests on as refs, as initiatives and issues do.
+`records.md` describes them: one `record_refs` row per record and ref, linked
+on create or by `POST /ideas/{id}/refs`, and found again by prefix with
+`GET /ideas?ref=capture/`. An idea's read also carries them as `evidence`,
+the name it served before refs, while that release still serves.
 
 ## Promoting an idea creates its initiative, which names the idea
 
 `POST /ideas/{id}/promote` creates an initiative with `idea_id` naming the
 idea. Each field that the request omits takes the idea's own: its title as the
-name, its description, its priority. The answer is the idea, which then carries
+name, its description, its priority. The initiative carries a copy of each of
+the idea's refs, named as `refs_carried`. The answer is the idea, which then carries
 the initiative with its issue counts. Its `side_effects` name the initiative
 created, as `initiative_created`. A claim on the idea ends as `promoted`, named
 as `claim_ended`, because the idea's work is the initiative's from then on.
@@ -56,11 +51,11 @@ reads back from any point. That is data lineage, W3C PROV's "derived from".
 A claim on a promoted idea goes through with an `idea_promoted` warning naming
 the initiative, because the work lives there now.
 
-## Deleting an idea takes its evidence, and a promoted idea is refused
+## Deleting an idea takes its refs, and a promoted idea is refused
 
 An idea has no status to close it, so an idea recorded by mistake leaves the
 queue only by its delete. `DELETE /ideas/{id}` deletes the idea's record, as
-`records.md` describes for every kind. Its evidence, its pin, and every claim
+`records.md` describes for every kind. Its refs, its pin, and every claim
 and worklog on it go with it. The answer names the claims and worklogs as
 `claims_deleted` and `worklogs_deleted`.
 

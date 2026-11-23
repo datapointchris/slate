@@ -6,7 +6,7 @@ from sqlalchemy.sql import Select
 
 from slate import models
 from slate.services.issue_readiness import IssueReadiness
-from slate.services.record_refs import resolve_label
+from slate.services.record_lookup import resolve_label
 
 
 def apply_repo_filter(query: Select, repo: str | None) -> Select:

@@ -193,6 +193,62 @@ and their groups exclude each other.
 - *Rejected:* copying an initiative's tags onto its issues. The copy goes stale
   the moment the initiative's tags change or the issue moves.
 
+## Refs name what a record came from, and each list narrows to the records naming a prefix
+
+A ref is a key that the system holding something gave it, such as an inbox
+row's `capture/<id>`, or an http or https URL. Ideas, initiatives and issues
+each carry refs. slate stores a ref as given. It never resolves a key or
+fetches a URL, so a source can move or vanish without slate knowing, and no
+source needs slate to understand it. The read derives `kind` from the ref:
+`url` for an http or https URL with a host, `key` for anything else.
+
+The link is written once, on the record that makes the reference. The system
+that the ref names reads it from the other side, by prefix. That is the stored
+half of a backlink, as GitHub's cross-reference timeline event is. `ref` is
+one of the groupings that narrow every kind, beside `tag` and `pursuit`, so
+`GET /issues`, `GET /initiatives`, `GET /ideas` and `GET /queue` each keep the
+records carrying a ref that starts with it. Each list's status default still
+applies, so `GET /issues?status=all&ref=capture/` reads every issue filed from
+an inbox capture.
+
+`record_refs` holds one row per record and ref, keyed on `(record_number,
+ref)`, with an `ON DELETE CASCADE` key onto `records.number`. Each row keeps a
+`note`, the `linked_by` who linked it, and `linked_ts`. It hangs off `records`
+as tags do, so `slate show` prints each link among the record's changes. A
+`text_pattern_ops` index on `ref` serves the prefix read under any collation.
+
+- `refs` on `POST /issues`, `POST /initiatives` and `POST /ideas` links each
+  ref as the caller, so a filing and its link are one write.
+- `POST /issues/{id}/refs`, `POST /initiatives/{id}/refs` and
+  `POST /ideas/{id}/refs` link more, with one `note` and `linked_by` for all.
+  `linked_by` left out signs each with the caller. A ref that the record
+  already carries keeps its note and linker, and the answer warns
+  `ref_already_linked`.
+- A promotion copies each of the idea's refs onto its initiative as it was
+  linked, named as `refs_carried`. The idea keeps them too.
+- Every read of the three kinds carries `refs`, oldest first.
+
+The CLI checks every answer to a `--ref` it sent, as it does for `--tag`. An
+API from before refs drops the filter and the field and answers 200. A list
+row carrying no ref with the prefix fails the command, and so does a created
+record missing a ref that it was sent. Without the check, a caller asking
+whether any record already names its key would read every record as naming it.
+
+`idea_evidence` holds an idea's refs as the release before refs reads and
+writes them. While that release still serves, an idea's read carries
+`evidence` beside `refs` from the same rows, and `POST /ideas/{id}/evidence`
+takes the body that `/refs` takes. A trigger on each table forwards every link
+into the other, so each release reads what the other linked, and a rollback
+loses none. The CLI meets an API from before refs the same way: `slate ideas
+link` sends to `/evidence` when `/refs` answers 404, and an idea read carrying
+no `refs` shows its `evidence`.
+
+- *Rejected:* a refs table per kind. The three kinds share one number
+  sequence, so one key on the number serves them all. One prefix index, one
+  link path and one promote copy then serve every kind.
+- *Rejected:* finding keys in descriptions. A key written in prose is easily
+  shortened, and a shortened key matches nothing.
+
 ## A pursuit is a measured condition ideas and initiatives join, and an issue reads its initiative's
 
 A pursuit is a condition that the work should bring about and hold, read from

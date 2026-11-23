@@ -33,6 +33,7 @@ from slate.services.record_checks import check_requests
 from slate.services.record_checks import latest_checks
 from slate.services.record_parts import record_parts
 from slate.services.record_pursuits import issue_pursuits
+from slate.services.record_refs import refs_of
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import IssueTags
 from slate.services.record_tags import issue_tags
@@ -110,6 +111,7 @@ def issue_view(
     waits: IssueWaits,
     tags: IssueTags,
     pursuits: list[schemas.PursuitSummary],
+    refs: list[schemas.RecordRef],
     last_check: schemas.LastCheck | None,
     check_request: schemas.CheckRequest | None,
 ) -> schemas.Issue:
@@ -153,6 +155,7 @@ def issue_view(
         labels=[label.slug for label in issue.labels],
         tags=tags.own,
         effective_tags=tags.effective,
+        refs=refs,
         pursuits=pursuits,
         depends_on=by_number(edge.depends_on for edge in issue.dependencies),
         blocks=by_number(edge.issue for edge in issue.dependents),
@@ -199,6 +202,7 @@ def issue_views(session: Session, issues: list[models.Issue], zone: str, readine
     pursuits = issue_pursuits(session, issues)
     numbers = [issue.number for issue in issues]
     checks, requests = latest_checks(session, numbers), check_requests(session, numbers)
+    refs = refs_of(session, numbers)
     return [
         issue_view(
             issue,
@@ -208,6 +212,7 @@ def issue_views(session: Session, issues: list[models.Issue], zone: str, readine
             waits,
             tags[issue.number],
             pursuits[issue.number],
+            refs.get(issue.number, []),
             checks.get(issue.number),
             requests.get(issue.number),
         )

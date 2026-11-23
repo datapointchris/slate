@@ -55,6 +55,9 @@ func newInitiativesCommand() *cobra.Command {
 	cmd.AddCommand(inGroup(groupChanging,
 		newInitiativesCreateCommand(),
 		newInitiativesEditCommand(),
+		newRefsLinkCommand("initiative",
+			"  slate initiatives link 1800 capture/01a1b689-a5d6-7852-b675-6acbd13ece24\n"+
+				"  slate initiatives link \"Ship the tracker\" https://example.com/thread/9 --note \"Where it came up\""),
 		newInitiativesCompleteCommand(),
 		newInitiativesDropCommand(),
 		newInitiativesShelveCommand(),
@@ -80,6 +83,7 @@ func newInitiativesListCommand() *cobra.Command {
 		sort             string
 		tag              string
 		pursuit          string
+		ref              string
 		limit            int
 	)
 	cmd := &cobra.Command{
@@ -93,7 +97,8 @@ func newInitiativesListCommand() *cobra.Command {
 			"Once a step of its life is checked, a second line marks each step, a checked\n" +
 			"one with the day its worklog ended.\n\n" +
 			"`slate tui` opens the same initiatives as a board that keeps itself current.",
-		Example:     "  slate initiatives list\n  slate initiatives list --sort open --tag security\n  slate initiatives list --status all --json",
+		Example: "  slate initiatives list\n  slate initiatives list --sort open --tag security\n" +
+			"  slate initiatives list --status all --ref capture/\n  slate initiatives list --status all --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -107,12 +112,12 @@ func newInitiativesListCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			filter := api.InitiativeFilter{Status: initiativeStatus, Sort: sort, Tag: tag, Pursuit: pursuit}
+			filter := api.InitiativeFilter{Status: initiativeStatus, Sort: sort, Tag: tag, Pursuit: pursuit, Ref: ref}
 			initiatives, err := client.ListInitiatives(cmd.Context(), filter, limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredGroupings(tag, pursuit, initiatives, initiativeGrouped); err != nil {
+			if err := honoredGroupings(groupingFilter{tag, pursuit, ref}, initiatives, initiativeGrouped); err != nil {
 				return err
 			}
 			if !cmd.Flags().Changed("status") {
@@ -131,6 +136,7 @@ func newInitiativesListCommand() *cobra.Command {
 	withFlagValues(cmd, "sort", api.InitiativeSorts...)
 	cmd.Flags().StringVar(&tag, "tag", "", "Only initiatives carrying this tag (see: slate tags list)")
 	cmd.Flags().StringVar(&pursuit, "pursuit", "", "Only initiatives in this pursuit, by number or exact name (see: slate pursuits list)")
+	cmd.Flags().StringVar(&ref, "ref", "", refFilterHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output initiatives as JSON to stdout")
 	addLimitFlag(cmd, &limit)
 	return cmd
@@ -219,6 +225,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 		tags        []string
 		pursuits    []string
 		notPlanned  []string
+		refs        []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
@@ -227,7 +234,8 @@ func newInitiativesCreateCommand() *cobra.Command {
 		Long: "The initiative ranks last among the records of its priority, and\n" +
 			"`slate initiatives reorder` moves it. --not-planned names each step of its\n" +
 			"life it will not run, so `slate next` never offers that step; left out, it\n" +
-			"plans every step.",
+			"plans every step. --ref names a key or URL that it came from, and\n" +
+			"`initiatives list --ref` finds it by its prefix.",
 		Example: "  slate initiatives create --name \"Ship the tracker\" --summary \"Every project's work lives in it\" --priority high\n" +
 			"  slate initiatives create --name \"Build day\" --summary \"A day runs from one ordered stack\" --autofix=false\n" +
 			"  slate initiatives create --name \"Rename the flag\" --summary \"Every caller reads the new name\" --not-planned design --not-planned retro",
@@ -240,8 +248,13 @@ func newInitiativesCreateCommand() *cobra.Command {
 			if strings.TrimSpace(summary) == "" {
 				return goclikit.UsageError(errors.New("--summary is required: " + initiativeSummaryHelp))
 			}
+			if err := refuseBlankRef(refs); err != nil {
+				return err
+			}
 			f := cmd.Flags()
-			in := api.InitiativeCreateInput{Name: name, Summary: summary, Description: valuedStrFlag(f, "description", &description), Tags: tags}
+			in := api.InitiativeCreateInput{
+				Name: name, Summary: summary, Description: valuedStrFlag(f, "description", &description), Tags: tags, Refs: refs,
+			}
 			if f.Changed("priority") {
 				value, err := parsePriority(priority)
 				if err != nil {
@@ -280,7 +293,10 @@ func newInitiativesCreateCommand() *cobra.Command {
 			if err := honoredNotPlannedWrite(steps, initiative.Number, initiative.NotPlannedSteps); err != nil {
 				return err
 			}
-			return honoredPursuitWrite(&in.Pursuits, initiative.Number, initiative.Pursuits)
+			if err := honoredPursuitWrite(&in.Pursuits, initiative.Number, initiative.Pursuits); err != nil {
+				return err
+			}
+			return honoredRefWrite(refs, initiative.Number, initiative.Refs)
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "Initiative name, unique among active ones (required)")
@@ -293,6 +309,7 @@ func newInitiativesCreateCommand() *cobra.Command {
 	cmd.Flags().StringArrayVar(&pursuits, "pursuit", nil, pursuitSetHelp+"; its issues read it too")
 	cmd.Flags().StringArrayVar(&notPlanned, "not-planned", nil, notPlannedSetHelp)
 	withFlagValues(cmd, "not-planned", api.InitiativeOptionalSteps...)
+	cmd.Flags().StringArrayVar(&refs, "ref", nil, refSetHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -794,6 +811,7 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	if description := strValue(initiative.Description); description != "" {
 		_, _ = fmt.Fprintf(out, "\nDescription:\n%s\n", indent(description, "  "))
 	}
+	printRefs(out, initiative.Refs)
 }
 
 // printRecordField prints a record a line under a field's label, the label on
