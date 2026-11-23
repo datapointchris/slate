@@ -149,6 +149,39 @@ counts is left unlabeled rather than rounded.
 A CLI released ahead of its API says so where a chart would be: the repos tab names the missing
 read, and the burn-up says the API answers none.
 
+## The ideas tab lists the unpromoted ideas newest first, narrowed in the client from one read
+
+```text
+slate · ideas   21:32:57   3 unpromoted · newest first   pursuit all  tag all   read 0s ago
+
+   3 ideas  PRIORITY  CREATED     PURSUIT          TAG             REFS  TITLE
+▌ ▸4164     none      2026-11-22  —                —                  ·  Dated reminders
+  ▸4089     high      2026-11-21  Grow the garden  outdoors, food     1  Compost the kitchen scraps and a very long tit…
+  ▸3700     medium    2026-11-18  —                —                  ·  A shelf for the library books
+```
+
+An idea is work that nobody has taken on, so the tab answers two questions: what was thought of
+lately, and what sits near it. Newest first answers the first. `u` narrows to one pursuit and `#`
+to one tag, each cycling back to `all` after the last, which answers the second. A promoted idea
+leaves the tab, because its work is the initiative's, and the initiatives tab draws that.
+
+The tab reads `GET /ideas` whole, at the pace of the board's long text, because descriptions are
+most of what an idea weighs. It narrows in the client by each idea's own `pursuits` and `tags`.
+For an idea those lists are the whole membership that the route's `pursuit` and `tag` filters
+test, so the client derives nothing that the read does not carry. The same read gives the
+choices that `u` and `#` cycle through, every pursuit and tag that an unpromoted idea has. So a
+key narrows at once.
+
+- *Rejected:* a read per narrowing through the route's filters. A narrowed read cannot list the
+  pursuits outside it, so the choices would need a second read. Each key would also draw the last
+  narrowing's rows until its own read landed.
+
+A title is cut at the screen's edge, and `f` shows a cut one whole under its row. `enter` opens
+the idea's read: its title, priority and days, its pursuits and tags, its refs oldest first, and
+its description rendered. `/` matches the description too. `--json` prints what
+`cli/internal/cli/tui-ideas.schema.json` describes. A row carries the fields that
+`slate ideas list --json` gives the same idea, and `ref_count`, the count that the row draws.
+
 ## `v` groups the same initiatives by tier, repo, pursuit, tag or alone
 
 Tier is the default, because priority is the order in which the queue takes them. A pin outranks

@@ -29,7 +29,7 @@ const (
 // The tabs, in the order Tab cycles them.
 const tabInitiatives = "initiatives"
 
-func tuiTabs() []string { return []string{tabInitiatives, tabRepos} }
+func tuiTabs() []string { return []string{tabInitiatives, tabRepos, tabIdeas} }
 
 // onTerminal is whether a person holds the keyboard and sees the screen.
 func onTerminal() bool {
@@ -44,7 +44,7 @@ func newTUICommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "A live board of the initiatives and the repos, in a program with a tab per view",
+		Short: "A live board of the initiatives, the repos and the ideas, in a program with a tab per view",
 		Long: "One program with a tab per view, reading the API at its own pace. It draws its\n" +
 			"last good read with that read's age, so a rollout leaves the board drawn. Tab\n" +
 			"cycles the tabs once there is more than one.\n\n" +
@@ -82,6 +82,12 @@ func newTUICommand() *cobra.Command {
 			"open and no close in those weeks fold under quiet. The panel draws a repo's\n" +
 			"closes per week as columns and its ready issues by how long each has waited, and\n" +
 			"on the total every repo's. s cycles the order.\n\n" +
+			"ideas is every idea not promoted to an initiative, newest first, with its\n" +
+			"priority, the day it was created, its pursuits, its tags and how many refs it\n" +
+			"carries. u narrows it to one pursuit and # to one tag, each cycling back to all\n" +
+			"after the last. enter opens an idea's read: its placements, its refs and its\n" +
+			"description. tui-ideas.schema.json in slate's cli/internal/cli holds the shape\n" +
+			"--json prints of it.\n\n" +
 			"The next run opens on the tab last moved to, unless --view names one. Each tab\n" +
 			"keeps its p panel, f summaries, v grouping, and the groups and rows folded and\n" +
 			"opened, in $XDG_STATE_HOME/slate/tui-display.json. A run --grouping names keeps none.\n\n" +
@@ -95,6 +101,7 @@ func newTUICommand() *cobra.Command {
 			"  COLUMNS=188 LINES=88 slate tui --once > frame.txt\n" +
 			"  slate tui --grouping pursuit --once\n" +
 			"  slate tui --view repos --json | jq '.board.repos[] | {repo, ready: (.ready | length)}'\n" +
+			"  slate tui --view ideas --json | jq '.rows[] | {number, title, ref_count}'\n" +
 			"  slate tui --json | jq '.board.totals.states'\n" +
 			"  slate tui --json | jq '.board.pursuits[] | {name: .pursuit.name, closes_30d: .closes.last_30d, untouched: .untouched_longest.name}'",
 		Args:        cobra.NoArgs,
@@ -128,13 +135,14 @@ func newTUICommand() *cobra.Command {
 				scope.kind = scopeFirstInList
 			}
 			if printing {
-				return printOpeningTab(cmd, view, asJSON, func() *initiativesBoard {
+				return printOpeningTab(cmd, view, asJSON, client, func() *initiativesBoard {
 					return newInitiativesBoard(client, initiativeStatus, scope, grouping)
-				}, func() *reposBoard { return newReposBoard(client) })
+				})
 			}
 			tabs, err := gotermboard.NewTabs([]gotermboard.Tab{
 				{Name: tabInitiatives, Board: newInitiativesBoard(client, initiativeStatus, scope, grouping)},
 				{Name: tabRepos, Board: newReposBoard(client)},
+				{Name: tabIdeas, Board: newIdeasBoard(client)},
 			}, gotermstyle.PaletteFor(os.Stdout), view)
 			if err != nil {
 				return err
@@ -162,10 +170,17 @@ func newTUICommand() *cobra.Command {
 }
 
 // printOpeningTab reads the one tab --view names, and builds no other.
-func printOpeningTab(cmd *cobra.Command, view string, asJSON bool, initiatives func() *initiativesBoard, repos func() *reposBoard) error {
+func printOpeningTab(cmd *cobra.Command, view string, asJSON bool, client *api.Client, initiatives func() *initiativesBoard) error {
 	ctx, out := cmd.Context(), cmd.OutOrStdout()
-	if view == tabRepos {
-		board := repos()
+	switch view {
+	case tabRepos:
+		board := newReposBoard(client)
+		if err := board.readOnce(ctx); err != nil {
+			return handleAPIError(err)
+		}
+		return printTab(out, asJSON, board)
+	case tabIdeas:
+		board := newIdeasBoard(client)
 		if err := board.readOnce(ctx); err != nil {
 			return handleAPIError(err)
 		}

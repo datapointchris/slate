@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:slate:tui:ideas:v1",
+  "title": "The ideas that the ideas tab of slate tui lists",
+  "description": "What `slate tui --view ideas --json` prints: every idea not promoted to an initiative, newest first, narrowed by the pursuit and the tag in force. A row's fields carry the names and values that `slate ideas list --json` gives the same idea, and ref_count is how many refs the row draws. This read writes nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "taken_at", "tab", "pursuit", "tag", "unpromoted", "rows", "reads"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "taken_at": {"type": "string", "format": "date-time"},
+    "tab": {"const": "ideas"},
+    "pursuit": {
+      "description": "The pursuit that narrows the rows, which u cycles. Null narrows nothing.",
+      "oneOf": [{"type": "null"}, {"$ref": "#/definitions/pursuit"}]
+    },
+    "tag": {
+      "description": "The tag that narrows the rows, which # cycles. Null narrows nothing.",
+      "type": ["string", "null"]
+    },
+    "unpromoted": {
+      "description": "How many ideas are not promoted to an initiative, before the pursuit and the tag narrow them.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "rows": {
+      "description": "The unpromoted ideas in the pursuit and carrying the tag, newest created first, the higher number first on a tie.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["number", "title", "description", "priority", "created_ts", "updated_ts", "pursuits", "tags", "refs", "ref_count"],
+        "properties": {
+          "number": {"type": "integer", "minimum": 1},
+          "title": {"type": "string"},
+          "description": {"type": ["string", "null"]},
+          "priority": {
+            "description": "0 is none, then 1 urgent, 2 high, 3 medium and 4 low.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4
+          },
+          "created_ts": {"type": "string", "format": "date-time"},
+          "updated_ts": {"type": "string", "format": "date-time"},
+          "pursuits": {
+            "description": "Each pursuit that holds the idea, in number order.",
+            "type": "array",
+            "items": {"$ref": "#/definitions/pursuit"}
+          },
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "refs": {
+            "description": "What the idea came from, oldest linked first.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "kind", "note", "linked_by", "linked_ts"],
+              "properties": {
+                "ref": {"type": "string"},
+                "kind": {"type": "string"},
+                "note": {"type": ["string", "null"]},
+                "linked_by": {"type": ["string", "null"]},
+                "linked_ts": {"type": "string", "format": "date-time"}
+              }
+            }
+          },
+          "ref_count": {"description": "How many refs the idea carries, which its row draws.", "type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "reads": {
+      "description": "Each source the tab reads, as its last read left it.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "every"],
+        "properties": {
+          "name": {"type": "string"},
+          "every": {"type": "string"},
+          "read_at": {"type": "string", "format": "date-time"},
+          "took": {"type": "string"},
+          "tried_at": {"type": "string", "format": "date-time"},
+          "fault": {"type": "string"},
+          "note": {"type": "string"},
+          "reading": {"type": "boolean"}
+        }
+      }
+    }
+  },
+  "definitions": {
+    "pursuit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["number", "name"],
+      "properties": {
+        "number": {"type": "integer", "minimum": 1},
+        "name": {"type": "string"}
+      }
+    }
+  }
+}
