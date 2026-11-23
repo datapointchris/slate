@@ -224,7 +224,6 @@ SCOPED_WRITES: dict[tuple[str, str, str], tuple[str, dict[str, Any] | None, int]
         {'refs': [CAPTURE_REF], 'linked_by': SERVICE},
         status.HTTP_200_OK,
     ),
-    (REFS, 'POST', f'{API_PREFIX}/ideas/{{id}}/evidence'): ('/ideas/{idea}/evidence', {'refs': [CAPTURE_REF]}, status.HTTP_200_OK),
 }
 
 

@@ -27,8 +27,7 @@ rolls back up to the idea.
 An idea links what it rests on as refs, as initiatives and issues do.
 `records.md` describes them: one `record_refs` row per record and ref, linked
 on create or by `POST /ideas/{id}/refs`, and found again by prefix with
-`GET /ideas?ref=capture/`. An idea's read also carries them as `evidence`,
-the name it served before refs, while that release still serves.
+`GET /ideas?ref=capture/`.
 
 ## Promoting an idea creates its initiative, which names the idea
 

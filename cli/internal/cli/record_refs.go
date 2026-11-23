@@ -42,7 +42,7 @@ var refLinkWrites = map[string]func(ctx context.Context, client *api.Client, ref
 	"idea": func(ctx context.Context, client *api.Client, ref string, in api.RecordRefsInput) (refsLinked, error) {
 		written, err := client.LinkIdeaRefs(ctx, ref, in)
 		idea := written.Idea
-		return refsLinked{written, written.WriteEffects, fmt.Sprintf("Idea #%d %q", idea.Number, idea.Title), len(idea.RefsOrEvidence())}, err
+		return refsLinked{written, written.WriteEffects, fmt.Sprintf("Idea #%d %q", idea.Number, idea.Title), len(idea.Refs)}, err
 	},
 }
 

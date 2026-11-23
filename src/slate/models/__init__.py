@@ -31,7 +31,6 @@ from slate.models.record_change import RecordChange
 from slate.models.record_check import CheckVerdict
 from slate.models.record_check import RecordCheck
 from slate.models.record_ref import RecordRef
-from slate.models.retired_idea_evidence_table import idea_evidence as retired_idea_evidence
 from slate.models.tag import RecordTag
 from slate.models.tag import Tag
 from slate.models.worklog import Worklog
@@ -88,5 +87,4 @@ __all__ = [
     'WorklogOutcome',
     'WorklogSpan',
     'WorklogStep',
-    'retired_idea_evidence',
 ]

@@ -40,7 +40,6 @@ def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.I
             tags=tags.get(idea.number, []),
             pursuits=pursuits.get(idea.number, []),
             refs=refs.get(idea.number, []),
-            evidence=refs.get(idea.number, []),
             initiative=initiatives.get(idea.id),
             claim=claims.get(idea.number),
         )

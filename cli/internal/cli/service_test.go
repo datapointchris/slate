@@ -695,7 +695,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 				// The API refuses a scoped client any actor on a claim,
 				// worklog or ref write but its own id. A join names a session alone.
 				signed := strings.HasPrefix(r.URL.Path, "/api/v1/claims") || strings.HasPrefix(r.URL.Path, "/api/v1/worklogs") ||
-					strings.HasSuffix(r.URL.Path, "/refs") || strings.HasSuffix(r.URL.Path, "/evidence")
+					strings.HasSuffix(r.URL.Path, "/refs")
 				if r.Method == http.MethodPost && signed && !strings.HasSuffix(r.URL.Path, "/join") {
 					var write struct {
 						Holder     string `json:"holder"`

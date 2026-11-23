@@ -86,7 +86,7 @@ func newIdeasDeleteCommand() *cobra.Command {
 			}
 			if !yes {
 				question := fmt.Sprintf("Delete idea #%d %q and its %d %s?",
-					idea.Number, idea.Title, len(idea.RefsOrEvidence()), plural(len(idea.RefsOrEvidence()), "ref", "refs"))
+					idea.Number, idea.Title, len(idea.Refs), plural(len(idea.Refs), "ref", "refs"))
 				ok, err := confirm(cmd, question)
 				if err != nil {
 					return err
@@ -259,7 +259,7 @@ func newIdeasCreateCommand() *cobra.Command {
 			if err := honoredPursuitWrite(&in.Pursuits, written.Idea.Number, written.Idea.Pursuits); err != nil {
 				return err
 			}
-			return honoredRefWrite(refs, written.Idea.Number, written.Idea.RefsOrEvidence())
+			return honoredRefWrite(refs, written.Idea.Number, written.Idea.Refs)
 		},
 	}
 	cmd.Flags().StringVar(&title, "title", "", "What the idea is, in a line (required)")
@@ -479,7 +479,7 @@ func printIdeasTable(out io.Writer, ideas []api.Idea) {
 		if idea.Initiative != nil {
 			initiative = "#" + strconv.Itoa(idea.Initiative.Number)
 		}
-		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%d\t%s\t%s\n", idea.Number, priorityName(idea.Priority), len(idea.RefsOrEvidence()), initiative, idea.Title)
+		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%d\t%s\t%s\n", idea.Number, priorityName(idea.Priority), len(idea.Refs), initiative, idea.Title)
 	}
 	_ = tw.Flush()
 }
@@ -505,6 +505,6 @@ func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 	if description := strValue(idea.Description); description != "" {
 		_, _ = fmt.Fprintf(out, "\nDescription:\n%s\n", indent(description, "  "))
 	}
-	printRefs(out, idea.RefsOrEvidence())
+	printRefs(out, idea.Refs)
 	printRecordParts(out, idea.RecordParts, now)
 }

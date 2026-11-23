@@ -178,12 +178,6 @@ def link(idea: IdeaFromPath, request: schemas.RecordRefsLink, session: DbSession
     return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
 
 
-@router.post('/{id}/evidence', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK, deprecated=True)
-def link_evidence(idea: IdeaFromPath, request: schemas.RecordRefsLink, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """`POST /ideas/{id}/refs`, under the path that `slate ideas link` sent before refs."""
-    return link(idea, request, session, caller, effects)
-
-
 @router.post('/{id}/promote', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
 def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession, caller: CurrentCaller, effects: Effects):
     """Create the initiative the idea becomes, naming the idea. A promoted idea is refused with 409.

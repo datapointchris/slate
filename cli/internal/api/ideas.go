@@ -25,21 +25,9 @@ type Idea struct {
 	Tags          []string   `json:"tags"`
 	// InPursuits holds each pursuit the idea is in.
 	InPursuits
-	Refs []RecordRef `json:"refs"`
-	// Evidence is Refs again, under the name that the release before refs
-	// served, so a reader of `slate ideas list --json` finds it there too.
-	Evidence   []RecordRef `json:"evidence"`
+	Refs       []RecordRef `json:"refs"`
 	Initiative *Initiative `json:"initiative"`
 	Claim      *Claim      `json:"claim"`
-}
-
-// RefsOrEvidence is the idea's refs, read from Evidence when the answer
-// carried no refs field, as an API from before refs answers.
-func (i Idea) RefsOrEvidence() []RecordRef {
-	if i.Refs == nil {
-		return i.Evidence
-	}
-	return i.Refs
 }
 
 // IdeaDetail is an idea with its claims, comments and documents.

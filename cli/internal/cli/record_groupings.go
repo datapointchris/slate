@@ -30,7 +30,7 @@ func issueGrouped(issue api.Issue) grouped {
 }
 
 func ideaGrouped(idea api.Idea) grouped {
-	return grouped{number: idea.Number, tags: idea.Tags, pursuits: idea.Pursuits, refs: idea.RefsOrEvidence()}
+	return grouped{number: idea.Number, tags: idea.Tags, pursuits: idea.Pursuits, refs: idea.Refs}
 }
 
 func initiativeGrouped(initiative api.Initiative) grouped {

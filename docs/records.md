@@ -235,15 +235,6 @@ row carrying no ref with the prefix fails the command, and so does a created
 record missing a ref that it was sent. Without the check, a caller asking
 whether any record already names its key would read every record as naming it.
 
-`idea_evidence` holds an idea's refs as the release before refs reads and
-writes them. While that release still serves, an idea's read carries
-`evidence` beside `refs` from the same rows, and `POST /ideas/{id}/evidence`
-takes the body that `/refs` takes. A trigger on each table forwards every link
-into the other, so each release reads what the other linked, and a rollback
-loses none. The CLI meets an API from before refs the same way: `slate ideas
-link` sends to `/evidence` when `/refs` answers 404, and an idea read carrying
-no `refs` shows its `evidence`.
-
 - *Rejected:* a refs table per kind. The three kinds share one number
   sequence, so one key on the number serves them all. One prefix index, one
   link path and one promote copy then serve every kind.

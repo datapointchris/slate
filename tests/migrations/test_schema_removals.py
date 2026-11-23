@@ -14,6 +14,7 @@ REMOVED_ONCE_UNREAD: dict[str, set[str]] = {
     '9e8d02b5c6d5': {'directions', 'direction_statuses', 'record_directions'},
     # Only a migration run and the trigger function read it, and the function is replaced with it.
     '6d88eaec7184': {'audit_trail_tables.audited_table'},
+    'eccf77f525dc': {'idea_evidence'},
 }
 
 

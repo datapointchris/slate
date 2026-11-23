@@ -81,7 +81,6 @@
     "POST /api/v1/records/{number}/checks"
   ],
   "slate.refs.write": [
-    "POST /api/v1/ideas/{id}/evidence",
     "POST /api/v1/ideas/{id}/refs",
     "POST /api/v1/initiatives/{id:path}/refs",
     "POST /api/v1/issues/{id}/refs"

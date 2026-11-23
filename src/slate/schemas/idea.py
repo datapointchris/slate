@@ -71,8 +71,7 @@ class Idea(InPursuits):
 
     `claim` is the idea's unended claim, live or expired. `rank` places it among the records of its
     priority in the queue. `pursuits` is each pursuit it is in, in number order. `flow_id` is the
-    flow of the work that filed it, which an initiative promoted from it takes. `evidence` is
-    `refs` again, under the name the release before refs served.
+    flow of the work that filed it, which an initiative promoted from it takes.
     """
 
     id: UUID
@@ -89,7 +88,6 @@ class Idea(InPursuits):
     updated_ts: dt.datetime
     tags: list[str] = []
     refs: list[RecordRef] = []
-    evidence: list[RecordRef] = []
     initiative: Initiative | None = None
     claim: Claim | None = None
 
