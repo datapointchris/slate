@@ -23,7 +23,7 @@ from slate import models
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.services.initiative_waits import holding_waits
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_record
 
 
 @dataclass(frozen=True)

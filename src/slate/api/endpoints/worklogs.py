@@ -34,7 +34,7 @@ from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import OIDCIdentity
 from slate.api.oidc_auth import ScopedClient
 from slate.models.worklog import with_worklog_claim
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.worklog_views import WORKLOG_LOAD_OPTIONS

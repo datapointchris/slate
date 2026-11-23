@@ -23,6 +23,7 @@ from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.record import Kind
+from slate.schemas.record_ref import REF_PREFIX_FILTER
 from slate.services.claims import end_with_record
 from slate.services.initiative_board import initiative_board
 from slate.services.initiative_board import initiative_board_text
@@ -45,12 +46,14 @@ from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_initiative_delete
 from slate.services.record_groupings import GroupingsQuery
 from slate.services.record_groupings import narrowed_to_groupings
+from slate.services.record_lookup import resolve_initiative
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_pursuits import resolve_pursuits
 from slate.services.record_pursuits import set_record_pursuits
-from slate.services.record_refs import resolve_initiative
+from slate.services.record_refs import link_refs
+from slate.services.record_refs import narrowed_to_ref_prefix
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
@@ -97,6 +100,7 @@ def read_many(
         InitiativeSort,
         Query(description='priority: the order the queue takes them in. open: most unclosed issues first. newest: latest started first.'),
     ] = 'priority',
+    ref: Annotated[str | None, Query(description=REF_PREFIX_FILTER)] = None,
     limit: RowLimit = None,
 ):
     """Active initiatives, then someday, completed and dropped ones, each status in `sort`'s order.
@@ -118,15 +122,17 @@ def read_many(
         .order_by(*listing_order(*orders[sort]))
     )
     query = narrowed_to_groupings(query, Kind.INITIATIVE, groupings, session)
+    query = narrowed_to_ref_prefix(query, Kind.INITIATIVE, ref)
     rows = session.execute(apply_row_limit(narrowed_to_status(query, initiative_status, session), limit)).all()
     return initiative_views(session, [(row[0], row[1:]) for row in rows])
 
 
 @router.post('', response_model=schemas.InitiativeWritten, status_code=status.HTTP_201_CREATED)
-def create(initiative: schemas.InitiativeCreate, session: DbSession, effects: Effects):
-    """Create an initiative last in the queue, warning about each open record whose title reads like its name."""
+def create(initiative: schemas.InitiativeCreate, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Create an initiative last in the queue with its refs, warning about each open record whose title reads like its name."""
     db_obj = new_initiative(session, initiative)
     name_record(db_obj.number)
+    link_refs(session, db_obj.number, initiative.refs, None, caller_actor(caller), effects)
     warn_likely_duplicates(session, db_obj.number, db_obj.name, None, effects)
     session.commit()
     session.refresh(db_obj)
@@ -166,6 +172,15 @@ def unpin(initiative: InitiativeFromPath, session: DbSession, effects: Effects):
 
 
 # Ahead of `read_one`, whose `{id:path}` would otherwise read each of these paths as a name. `refuse_routed_name` keeps it from being one.
+@router.post('/{id:path}/refs', response_model=schemas.InitiativeWritten, status_code=status.HTTP_200_OK)
+def link(initiative: InitiativeFromPath, request: schemas.RecordRefsLink, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Link each ref. A ref already linked keeps its note and linker, and the answer warns."""
+    link_refs(session, initiative.number, request.refs, request.note, request.linked_by or caller_actor(caller), effects)
+    session.commit()
+    session.refresh(initiative)
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
+
+
 @router.get('/board', response_model=schemas.InitiativeBoard, status_code=status.HTTP_200_OK)
 def read_board(session: DbSession, zone: RequestZone, initiative_status: InitiativeStatusQuery = 'active'):
     """Every initiative's counts, closes and slim issue rows, with their rollups overall and per priority, cheap enough to poll."""

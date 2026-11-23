@@ -105,6 +105,9 @@ type Issue struct {
 	// plus its initiative's, which a --tag filter matches.
 	Tags          []string `json:"tags"`
 	EffectiveTags []string `json:"effective_tags"`
+	// Refs are each key or URL that the issue names as what it came from,
+	// oldest first.
+	Refs []RecordRef `json:"refs"`
 	// InPursuits holds its initiative's, since an issue joins none itself.
 	InPursuits
 	// Paths are the files and directories the issue changes, in its repo. A
@@ -140,7 +143,7 @@ type IssueDetail struct {
 
 // IssueCreateInput is the body for POST /issues. Only Title is required. The
 // references take a number or a UUID for an issue, and a name or a UUID for an
-// initiative; the API resolves either.
+// initiative; the API resolves either. Refs are linked as the caller.
 type IssueCreateInput struct {
 	Title             string   `json:"title"`
 	Description       *string  `json:"description,omitempty"`
@@ -158,6 +161,7 @@ type IssueCreateInput struct {
 	Tags              []string `json:"tags,omitempty"`
 	DependsOn         []string `json:"depends_on,omitempty"`
 	Paths             []string `json:"paths,omitempty"`
+	Refs              []string `json:"refs,omitempty"`
 }
 
 // IssueUpdateInput is a partial update. A field left nil is not sent. A field
@@ -190,6 +194,7 @@ type IssueUpdateInput struct {
 // IssueFilter narrows a list. A zero field narrows nothing. Repo is a pointer
 // because an empty string is its own question: the issues no single repo owns.
 // A pointer field's zero value is an answer too, so nil is what narrows nothing.
+// Ref is a prefix: the issues carrying a ref that starts with it.
 type IssueFilter struct {
 	Status      string
 	Repo        *string
@@ -204,6 +209,7 @@ type IssueFilter struct {
 	Autofixable *bool
 	ClosedBy    string
 	Search      string
+	Ref         string
 }
 
 func (f IssueFilter) query() url.Values {
@@ -218,6 +224,7 @@ func (f IssueFilter) query() url.Values {
 		"parent":     f.Parent,
 		"closed_by":  f.ClosedBy,
 		"search":     f.Search,
+		"ref":        f.Ref,
 	} {
 		if value != "" {
 			query.Set(name, value)

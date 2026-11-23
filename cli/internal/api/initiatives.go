@@ -41,25 +41,27 @@ type InitiativeSteps struct {
 // cover every issue in it. Repos names the repos its issues touch, leaving out
 // canceled issues and keeping completed ones. DependsOn is each initiative or
 // issue it waits on, and WaitingInitiatives each initiative waiting on it,
-// open or closed.
+// open or closed. Refs are each key or URL it names as what it came from,
+// oldest first, an idea's carried across when it was promoted.
 type Initiative struct {
-	ID            string     `json:"id"`
-	Number        int        `json:"number"`
-	Name          string     `json:"name"`
-	Summary       string     `json:"summary"`
-	Description   *string    `json:"description"`
-	Status        string     `json:"status"`
-	StatusReason  *string    `json:"status_reason"`
-	Priority      int        `json:"priority"`
-	Rank          float64    `json:"rank"`
-	PinnedTS      *time.Time `json:"pinned_ts"`
-	PinnedBy      *string    `json:"pinned_by"`
-	PinnedSession *string    `json:"pinned_session"`
-	FlowID        *string    `json:"flow_id"`
-	Autofix       bool       `json:"autofix"`
-	CreatedTS     time.Time  `json:"created_ts"`
-	ClosedTS      *time.Time `json:"closed_ts"`
-	Tags          []string   `json:"tags"`
+	ID            string      `json:"id"`
+	Number        int         `json:"number"`
+	Name          string      `json:"name"`
+	Summary       string      `json:"summary"`
+	Description   *string     `json:"description"`
+	Status        string      `json:"status"`
+	StatusReason  *string     `json:"status_reason"`
+	Priority      int         `json:"priority"`
+	Rank          float64     `json:"rank"`
+	PinnedTS      *time.Time  `json:"pinned_ts"`
+	PinnedBy      *string     `json:"pinned_by"`
+	PinnedSession *string     `json:"pinned_session"`
+	FlowID        *string     `json:"flow_id"`
+	Autofix       bool        `json:"autofix"`
+	CreatedTS     time.Time   `json:"created_ts"`
+	ClosedTS      *time.Time  `json:"closed_ts"`
+	Tags          []string    `json:"tags"`
+	Refs          []RecordRef `json:"refs"`
 	// InPursuits holds each pursuit it is in. Each of its issues reads them as
 	// its own.
 	InPursuits
@@ -84,7 +86,7 @@ type InitiativeDetail struct {
 }
 
 // InitiativeCreateInput is the body for POST /initiatives. The initiative ranks
-// last, and RankInitiative moves it.
+// last, and RankInitiative moves it. Refs are linked as the caller.
 type InitiativeCreateInput struct {
 	Name        string   `json:"name"`
 	Summary     string   `json:"summary"`
@@ -95,6 +97,7 @@ type InitiativeCreateInput struct {
 	Pursuits    []int    `json:"pursuits,omitempty"`
 	// NotPlannedSteps left empty plans every step.
 	NotPlannedSteps []string `json:"not_planned_steps,omitempty"`
+	Refs            []string `json:"refs,omitempty"`
 }
 
 // InitiativeUpdateInput is a partial update, cleared the way IssueUpdateInput
@@ -118,19 +121,21 @@ func initiativePath(ref string) string {
 }
 
 // InitiativeFilter narrows a list of initiatives. A zero field is left off the
-// query, so the API's own default applies.
+// query, so the API's own default applies. Ref is a prefix: the initiatives
+// carrying a ref that starts with it.
 type InitiativeFilter struct {
 	Status  string
 	Sort    string
 	Tag     string
 	Pursuit string
+	Ref     string
 }
 
 // ListInitiatives returns initiatives in the order to work them.
 func (c *Client) ListInitiatives(ctx context.Context, filter InitiativeFilter, limit *int) ([]Initiative, error) {
 	query := url.Values{}
 	for name, value := range map[string]string{
-		"status": filter.Status, "sort": filter.Sort, "tag": filter.Tag, "pursuit": filter.Pursuit,
+		"status": filter.Status, "sort": filter.Sort, "tag": filter.Tag, "pursuit": filter.Pursuit, "ref": filter.Ref,
 	} {
 		if value != "" {
 			query.Set(name, value)

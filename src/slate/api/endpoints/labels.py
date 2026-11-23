@@ -13,7 +13,7 @@ from slate import models
 from slate import schemas
 from slate.api.callers import DbSession
 from slate.services.issue_views import label_views
-from slate.services.record_refs import resolve_label
+from slate.services.record_lookup import resolve_label
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 

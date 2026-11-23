@@ -35,6 +35,7 @@ class WriteEffectCode(enum.StrEnum):
     INITIATIVE_CREATED = 'initiative_created'
     PIN_CLEARED = 'pin_cleared'
     PIN_CARRIED = 'pin_carried'
+    REFS_CARRIED = 'refs_carried'
 
     # Warnings on a pin write that changed nothing.
     ALREADY_PINNED = 'already_pinned'
@@ -83,8 +84,8 @@ class WriteEffectCode(enum.StrEnum):
     FOCUS_UNCHANGED = 'focus_unchanged'
     SHARES_UNDER_ONE = 'shares_under_one'
 
-    # A warning on linking evidence an idea already links.
-    EVIDENCE_ALREADY_LINKED = 'evidence_already_linked'
+    # A warning on linking a ref that a record already carries.
+    REF_ALREADY_LINKED = 'ref_already_linked'
 
     # A warning on creating a record whose title reads like an open record's.
     POSSIBLE_DUPLICATE = 'possible_duplicate'

@@ -40,8 +40,6 @@ from slate.schemas.focus import UnattributedUsage
 from slate.schemas.idea import Idea
 from slate.schemas.idea import IdeaCreate
 from slate.schemas.idea import IdeaDetail
-from slate.schemas.idea import IdeaEvidence
-from slate.schemas.idea import IdeaEvidenceLink
 from slate.schemas.idea import IdeaPromote
 from slate.schemas.idea import IdeaUpdate
 from slate.schemas.idea import IdeaWritten
@@ -108,6 +106,8 @@ from slate.schemas.record_check import RecordCheck
 from slate.schemas.record_check import RecordCheckCreate
 from slate.schemas.record_check import RecordCheckWritten
 from slate.schemas.record_parts import RecordParts
+from slate.schemas.record_ref import RecordRef
+from slate.schemas.record_ref import RecordRefsLink
 from slate.schemas.repo_board import BoardRepo
 from slate.schemas.repo_board import ReadyIssue
 from slate.schemas.repo_board import RepoBoard
@@ -208,8 +208,6 @@ __all__ = [
     'Idea',
     'IdeaCreate',
     'IdeaDetail',
-    'IdeaEvidence',
-    'IdeaEvidenceLink',
     'IdeaPromote',
     'IdeaUpdate',
     'IdeaWritten',
@@ -255,6 +253,8 @@ __all__ = [
     'RecordParts',
     'RecordPin',
     'RecordRankMove',
+    'RecordRef',
+    'RecordRefsLink',
     'RecordStage',
     'RecordSummary',
     'RepoBoard',

@@ -7,16 +7,6 @@ import (
 	"time"
 )
 
-// IdeaEvidence is one thing an idea rests on. Kind is "url" for an http or
-// https URL and "key" for anything else, derived by the API from Ref.
-type IdeaEvidence struct {
-	Ref      string    `json:"ref"`
-	Kind     string    `json:"kind"`
-	Note     *string   `json:"note"`
-	LinkedBy *string   `json:"linked_by"`
-	LinkedTS time.Time `json:"linked_ts"`
-}
-
 // Idea is work nobody has taken on yet. Initiative is the one it was promoted
 // into, with that initiative's progress, and nil until then.
 type Idea struct {
@@ -35,9 +25,12 @@ type Idea struct {
 	Tags          []string   `json:"tags"`
 	// InPursuits holds each pursuit the idea is in.
 	InPursuits
-	Evidence   []IdeaEvidence `json:"evidence"`
-	Initiative *Initiative    `json:"initiative"`
-	Claim      *Claim         `json:"claim"`
+	Refs []RecordRef `json:"refs"`
+	// Evidence is Refs again, under the name that the release before refs
+	// served, so a reader of `slate ideas list --json` finds it there too.
+	Evidence   []RecordRef `json:"evidence"`
+	Initiative *Initiative `json:"initiative"`
+	Claim      *Claim      `json:"claim"`
 }
 
 // IdeaDetail is an idea with its claims, comments and documents.
@@ -52,13 +45,14 @@ type IdeaWritten struct {
 	WriteEffects
 }
 
-// IdeaCreateInput is the body for POST /ideas.
+// IdeaCreateInput is the body for POST /ideas. Refs are linked as the caller.
 type IdeaCreateInput struct {
 	Title       string   `json:"title"`
 	Description *string  `json:"description,omitempty"`
 	Priority    *int     `json:"priority,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
 	Pursuits    []int    `json:"pursuits,omitempty"`
+	Refs        []string `json:"refs,omitempty"`
 }
 
 // IdeaUpdateInput is a partial update, cleared the way IssueUpdateInput is.
@@ -69,13 +63,6 @@ type IdeaUpdateInput struct {
 	Priority    *int      `json:"priority,omitempty"`
 	Tags        *[]string `json:"tags,omitempty"`
 	Pursuits    *[]int    `json:"pursuits,omitempty"`
-}
-
-// IdeaEvidenceInput links each of Refs, with one note and linker for all.
-type IdeaEvidenceInput struct {
-	Refs     []string `json:"refs"`
-	Note     *string  `json:"note,omitempty"`
-	LinkedBy *string  `json:"linked_by,omitempty"`
 }
 
 // IdeaPromoteInput shapes the initiative a promotion creates. An idea has no
@@ -98,10 +85,12 @@ func ideaPath(ref string) string {
 	return "/ideas/" + url.PathEscape(ref)
 }
 
-// IdeaFilter narrows a list of ideas. A zero field narrows nothing.
+// IdeaFilter narrows a list of ideas. A zero field narrows nothing. Ref is a
+// prefix: the ideas carrying a ref that starts with it.
 type IdeaFilter struct {
 	Tag     string
 	Pursuit string
+	Ref     string
 }
 
 // ListIdeas returns every idea, promoted or not, most urgent first.
@@ -112,6 +101,9 @@ func (c *Client) ListIdeas(ctx context.Context, filter IdeaFilter, limit *int) (
 	}
 	if filter.Pursuit != "" {
 		query.Set("pursuit", filter.Pursuit)
+	}
+	if filter.Ref != "" {
+		query.Set("ref", filter.Ref)
 	}
 	applyLimit(query, limit)
 	var ideas []Idea
@@ -152,16 +144,6 @@ func (c *Client) UpdateIdea(ctx context.Context, ref string, in IdeaUpdateInput,
 	return written, nil
 }
 
-// LinkIdeaEvidence links evidence to an idea. A ref it already links is left
-// as it was, and the answer warns.
-func (c *Client) LinkIdeaEvidence(ctx context.Context, ref string, in IdeaEvidenceInput) (IdeaWritten, error) {
-	var written IdeaWritten
-	if err := c.send(ctx, http.MethodPost, ideaPath(ref)+"/evidence", in, &written); err != nil {
-		return IdeaWritten{}, err
-	}
-	return written, nil
-}
-
 // PromoteIdea creates the initiative an idea becomes. A promoted idea is
 // refused. The answer's messages give each time in zone.
 func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInput, zone DayZone) (IdeaWritten, error) {
@@ -172,7 +154,7 @@ func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInpu
 	return written, nil
 }
 
-// DeleteIdea removes an idea with its evidence, pin and claims. A promoted
+// DeleteIdea removes an idea with its refs, pin and claims. A promoted
 // idea is refused, naming its initiative. The answer gives each time in zone.
 func (c *Client) DeleteIdea(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {
 	var deleted RecordDeleted

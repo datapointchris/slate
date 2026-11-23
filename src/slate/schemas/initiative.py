@@ -19,6 +19,8 @@ from slate.schemas.record import SummaryText
 from slate.schemas.record_check import CheckRequest
 from slate.schemas.record_check import LastCheck
 from slate.schemas.record_parts import RecordParts
+from slate.schemas.record_ref import RecordRef
+from slate.schemas.record_ref import RefText
 from slate.schemas.worklog import CheckedStep
 from slate.schemas.worklog import RecordStage
 from slate.schemas.write_effects import Written
@@ -65,6 +67,8 @@ class InitiativeWrite(RecordModel):
 
 
 class InitiativeCreate(InitiativeWrite):
+    """`refs` are linked as the caller, each once."""
+
     name: str
     summary: SummaryText
     description: str | None = None
@@ -75,6 +79,7 @@ class InitiativeCreate(InitiativeWrite):
     tags: list[str] = []
     pursuits: list[int] = []
     not_planned_steps: list[NotPlannedStep] = []
+    refs: list[RefText] = []
 
 
 class InitiativeUpdate(InitiativeWrite):
@@ -122,7 +127,8 @@ class Initiative(InPursuits, InitiativeSteps):
     pursuit it is in, in number order, and each of its issues reads them as its own. `flow_id` is
     the flow of the work that created it, or of the idea promoted into it. `last_check` is its
     latest check, and `check_request` someone asking that it be checked next, each null where there
-    is none.
+    is none. `refs` is each key or URL that the initiative names as what it came from, oldest first,
+    an idea's carried across when it was promoted.
     """
 
     id: UUID
@@ -142,6 +148,7 @@ class Initiative(InPursuits, InitiativeSteps):
     created_ts: dt.datetime
     closed_ts: dt.datetime | None = None
     tags: list[str] = []
+    refs: list[RecordRef] = []
     issue_count: int = 0
     open_count: int = 0
     completed_count: int = 0

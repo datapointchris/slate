@@ -54,11 +54,13 @@ class Hanging:
 
 # Pursuits were held as directions, and each kept its id when a migration copied it across. The
 # writes made then stay in the audit trail under the old tables' names: a pursuit's own in
-# `directions`, and each placement in `record_directions`, which hangs off both records.
+# `directions`, and each placement in `record_directions`, which hangs off both records. An idea's
+# refs were held as evidence in `idea_evidence`, which hangs off the idea by its id.
 FORMER_KIND_TABLES = {models.Pursuit.__tablename__: 'directions'}
 FORMER_LINKS = (
     (models.Record.__tablename__, Hanging('record_directions', 'record_number', key_is_int=True)),
     ('directions', Hanging('record_directions', 'direction_id', key_is_int=False)),
+    (models.Idea.__tablename__, Hanging('idea_evidence', 'idea_id', key_is_int=False)),
 )
 
 

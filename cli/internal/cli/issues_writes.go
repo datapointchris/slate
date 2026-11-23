@@ -200,6 +200,7 @@ func newIssuesCreateCommand() *cobra.Command {
 		session        string
 		dependsOn      []string
 		paths          []string
+		refs           []string
 		deferredUntil  string
 		autofix        bool
 	)
@@ -233,13 +234,17 @@ func newIssuesCreateCommand() *cobra.Command {
 			"settles. A title reading like an open record's files anyway, with a warning\n" +
 			"naming it.\n" +
 			"\n" +
-			"--parent, --discovered-from, --depends-on, --path, --deferred-until and\n" +
+			"--ref names a key or URL that the issue came from, such as an inbox row's\n" +
+			"capture/<id>, and `issues list --ref` finds it by its prefix.\n" +
+			"\n" +
+			"--parent, --discovered-from, --depends-on, --path, --ref, --deferred-until and\n" +
 			"--autofix are never asked for. A new issue that depends on its own parent is\n" +
 			"refused, since neither could ever start.",
 		Example: "  slate issues create\n" +
 			"  slate issues create --title \"Routing drops /issues\" --type bug --repo webapp --priority high\n" +
 			"  slate issues create --title \"Pick a rank scheme\" --type decision --label needs-design\n" +
-			"  slate issues create --title \"TestSync fails one CI run in five\" --type bug --status incoming --discovered-from 412 --description \"$(cat log.md)\"",
+			"  slate issues create --title \"TestSync fails one CI run in five\" --type bug --status incoming --discovered-from 412 --description \"$(cat log.md)\"\n" +
+			"  slate issues create --title \"Capture keeps the focused pane\" --status incoming --ref capture/01a1b689-a5d6-7852-b675-6acbd13ece24",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead, scopeRecordsPlan),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -251,6 +256,9 @@ func newIssuesCreateCommand() *cobra.Command {
 				if err := parseDay("deferred-until", deferredUntil); err != nil {
 					return err
 				}
+			}
+			if err := refuseBlankRef(refs); err != nil {
+				return err
 			}
 			answers := flagAnswers(cmd, "title", "type", "priority", "repo", "initiative", "label", "tag", "description", "acceptance")
 			missing := missingFlags(answers, "title")
@@ -284,6 +292,7 @@ func newIssuesCreateCommand() *cobra.Command {
 			}
 			in := api.IssueCreateInput{
 				Title: answers.Get("title"), Labels: answers.All("label"), Tags: answers.All("tag"), DependsOn: dependsOn, Paths: paths,
+				Refs: refs,
 			}
 			optional := map[string]**string{
 				"type": &in.Type, "repo": &in.Repo, "initiative": &in.Initiative,
@@ -326,7 +335,10 @@ func newIssuesCreateCommand() *cobra.Command {
 			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, summary); err != nil {
 				return err
 			}
-			return honoredTagWrite(&in.Tags, issue.Number, issue.Tags)
+			if err := honoredTagWrite(&in.Tags, issue.Number, issue.Tags); err != nil {
+				return err
+			}
+			return honoredRefWrite(refs, issue.Number, issue.Refs)
 		},
 	}
 	f := cmd.Flags()
@@ -348,6 +360,7 @@ func newIssuesCreateCommand() *cobra.Command {
 	addActingSessionFlag(f, &session, agentSessionHelp+", whose worklog's issue --discovered-from defaults to")
 	f.StringArrayVar(&dependsOn, "depends-on", nil, "Issue this waits on (repeatable)")
 	f.StringArrayVar(&paths, "path", nil, issuePathHelp)
+	f.StringArrayVar(&refs, "ref", nil, refSetHelp)
 	f.StringVar(&deferredUntil, "deferred-until", "", "Day before which it is not ready, as YYYY-MM-DD")
 	f.BoolVar(&autofix, "autofix", false, autofixSetHelp)
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)

@@ -1,12 +1,14 @@
 # slate
 
 A work tracker built for coding agents. Ideas hold the work that nobody has
-taken on, with their priority and evidence, until promotion makes each an
-initiative. Issues carry their dependencies, labels and the initiative they
-ship toward. Ideas, initiatives and issues carry tags from a short closed list,
-and an issue reads its initiative's tags as its own. Ideas and initiatives join
-pursuits, the few conditions that the work should bring about and hold, each
-able to name the command that measures it, and an issue reads its initiative's.
+taken on, with their priority and the refs that they rest on, until promotion
+makes each an initiative. Issues carry their dependencies, labels and the
+initiative they ship toward. Ideas, initiatives and issues carry tags from a
+short closed list, and an issue reads its initiative's tags as its own. Each
+also carries refs, the keys or URLs that it came from, and a read by prefix
+finds every record naming a key. Ideas and initiatives join pursuits, the few
+conditions that the work should bring about and hold, each able to name the
+command that measures it, and an issue reads its initiative's.
 Any record keeps versioned documents, such as its design and plan, and comments
 on the record or on one line of a document.
 `slate next` lists every kind of open work in the order to take it, each with

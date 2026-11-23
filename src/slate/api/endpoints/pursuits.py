@@ -20,7 +20,7 @@ from slate.services.pursuits import pursuit_detail
 from slate.services.pursuits import pursuit_view
 from slate.services.pursuits import pursuit_views
 from slate.services.pursuits import validate_status
-from slate.services.record_refs import resolve_pursuit
+from slate.services.record_lookup import resolve_pursuit
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects

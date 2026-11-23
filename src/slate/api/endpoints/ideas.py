@@ -1,4 +1,4 @@
-"""Ideas: work nobody has taken on, with its priority and evidence, until promotion makes it an initiative."""
+"""Ideas: work nobody has taken on, with its priority and refs, until promotion makes it an initiative."""
 
 import datetime as dt
 from typing import Annotated
@@ -7,6 +7,7 @@ import structlog
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
+from fastapi import Query
 from fastapi import status
 from sqlalchemy import case
 from sqlalchemy import delete as sql_delete
@@ -19,8 +20,8 @@ from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
+from slate.schemas.record_ref import REF_PREFIX_FILTER
 from slate.services.claims import end_with_record
-from slate.services.idea_views import IDEA_LOAD_OPTIONS
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
 from slate.services.idea_views import idea_views
@@ -31,13 +32,16 @@ from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_record_parts_deleted
 from slate.services.record_groupings import GroupingsQuery
 from slate.services.record_groupings import narrowed_to_groupings
+from slate.services.record_lookup import resolve_idea
 from slate.services.record_pins import carry_pin
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_pursuits import pursuits_of
 from slate.services.record_pursuits import resolve_pursuits
 from slate.services.record_pursuits import set_record_pursuits
-from slate.services.record_refs import resolve_idea
+from slate.services.record_refs import carry_refs
+from slate.services.record_refs import link_refs
+from slate.services.record_refs import narrowed_to_ref_prefix
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import own_tags
 from slate.services.record_tags import resolve_tags
@@ -62,17 +66,23 @@ IdeaFromPath = Annotated[models.Idea, Depends(path_idea)]
 
 
 @router.get('', response_model=list[schemas.Idea], status_code=status.HTTP_200_OK)
-def read_many(session: DbSession, groupings: GroupingsQuery, limit: RowLimit = None):
+def read_many(
+    session: DbSession,
+    groupings: GroupingsQuery,
+    ref: str | None = Query(None, description=REF_PREFIX_FILTER),
+    limit: RowLimit = None,
+):
     """Every idea, promoted or not, most urgent first. Priority 0 is no priority and sorts last."""
     urgency = case((models.Idea.priority == 0, NO_PRIORITY_URGENCY), else_=models.Idea.priority)
-    query = select(models.Idea).options(*IDEA_LOAD_OPTIONS).order_by(urgency.asc(), models.Idea.number.asc())
+    query = select(models.Idea).order_by(urgency.asc(), models.Idea.number.asc())
     query = narrowed_to_groupings(query, Kind.IDEA, groupings, session)
+    query = narrowed_to_ref_prefix(query, Kind.IDEA, ref)
     return idea_views(session, session.scalars(apply_row_limit(query, limit)).all())
 
 
 @router.post('', response_model=schemas.IdeaWritten, status_code=status.HTTP_201_CREATED)
-def create(idea: schemas.IdeaCreate, session: DbSession, effects: Effects):
-    """Record an idea last in the queue, warning about each open record whose title reads like it."""
+def create(idea: schemas.IdeaCreate, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Record an idea last in the queue with its refs, warning about each open record whose title reads like it."""
     tags = resolve_tags(session, idea.tags)
     pursuits = resolve_pursuits(session, idea.pursuits)
     db_obj = models.Idea(title=idea.title, description=idea.description, priority=idea.priority)
@@ -81,6 +91,7 @@ def create(idea: schemas.IdeaCreate, session: DbSession, effects: Effects):
     name_record(db_obj.number)
     set_record_tags(session, db_obj.number, tags)
     set_record_pursuits(session, db_obj.number, pursuits)
+    link_refs(session, db_obj.number, idea.refs, None, caller_actor(caller), effects)
     warn_likely_duplicates(session, db_obj.number, db_obj.title, None, effects)
     session.commit()
     session.refresh(db_obj)
@@ -141,7 +152,7 @@ def update(idea: IdeaFromPath, changes: schemas.IdeaUpdate, session: DbSession, 
 
 @router.delete('/{id}', response_model=schemas.RecordDeleted, status_code=status.HTTP_200_OK)
 def delete(idea: IdeaFromPath, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Delete the idea's record, which takes the idea, its evidence, pin, claims, worklogs, documents and comments with it.
+    """Delete the idea's record, which takes the idea, its refs, pin, claims, worklogs, documents and comments with it.
 
     A promoted idea is refused with 409, because its initiative names it as where that work came from.
     """
@@ -159,21 +170,20 @@ def delete(idea: IdeaFromPath, session: DbSession, caller: CurrentCaller, effect
     return effects.answer(schemas.RecordDeleted, deleted=deleted)
 
 
-@router.post('/{id}/evidence', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
-def link_evidence(idea: IdeaFromPath, link: schemas.IdeaEvidenceLink, session: DbSession, effects: Effects):
-    """Link each ref as evidence. A ref already linked keeps its note and linker, and the answer warns."""
-    linked = {evidence.ref for evidence in idea.evidence}
-    for ref in dict.fromkeys(link.refs):
-        if ref in linked:
-            effects.warn(
-                WriteEffectCode.EVIDENCE_ALREADY_LINKED, f'#{idea.number} already links {ref!r}, so it is left as it was.', idea.number
-            )
-            continue
-        idea.evidence.append(models.IdeaEvidence(ref=ref, note=link.note, linked_by=link.linked_by))
+@router.post('/{id}/refs', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
+def link(idea: IdeaFromPath, request: schemas.RecordRefsLink, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Link each ref. A ref already linked keeps its note and linker, and the answer warns."""
+    link_refs(session, idea.number, request.refs, request.note, request.linked_by or caller_actor(caller), effects)
     idea.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
     session.refresh(idea)
     return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
+
+
+@router.post('/{id}/evidence', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK, deprecated=True)
+def link_evidence(idea: IdeaFromPath, request: schemas.RecordRefsLink, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """`POST /ideas/{id}/refs`, under the path that `slate ideas link` sent before refs."""
+    return link(idea, request, session, caller, effects)
 
 
 @router.post('/{id}/promote', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
@@ -182,6 +192,7 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
 
     The summary is required, because an idea has none. Each other field the request leaves out
     takes the idea's own: its title as the name, its description, its priority, its tags, its pursuits.
+    The initiative carries each of the idea's refs as it was linked, and the idea keeps them too.
     An idea marks no step it will not run, so the initiative plans every step but those the request
     names. The answer is the idea, which then shows the initiative. The idea's claim ends as `promoted`,
     because its work is the initiative's now.
@@ -214,6 +225,7 @@ def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession
         initiative.number,
     )
     carry_pin(idea, initiative, effects)
+    carry_refs(session, idea.number, initiative.number, effects)
     now = dt.datetime.now(dt.UTC)
     end_with_record(session, idea.number, 'promoted', now, caller_actor(caller), effects)
     idea.updated_ts = now

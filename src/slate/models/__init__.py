@@ -10,7 +10,6 @@ from slate.models.document import DocumentVersion
 from slate.models.focus import Focus
 from slate.models.focus import FocusShare
 from slate.models.idea import Idea
-from slate.models.idea import IdeaEvidence
 from slate.models.initiative import Initiative
 from slate.models.initiative import InitiativeDependency
 from slate.models.initiative import InitiativeStatus
@@ -31,6 +30,8 @@ from slate.models.record_change import AuditTrailTable
 from slate.models.record_change import RecordChange
 from slate.models.record_check import CheckVerdict
 from slate.models.record_check import RecordCheck
+from slate.models.record_ref import RecordRef
+from slate.models.retired_idea_evidence_table import idea_evidence as retired_idea_evidence
 from slate.models.tag import RecordTag
 from slate.models.tag import Tag
 from slate.models.worklog import Worklog
@@ -60,7 +61,6 @@ __all__ = [
     'Focus',
     'FocusShare',
     'Idea',
-    'IdeaEvidence',
     'Initiative',
     'InitiativeDependency',
     'InitiativeStatus',
@@ -79,6 +79,7 @@ __all__ = [
     'RecordCheck',
     'RecordKind',
     'RecordPursuit',
+    'RecordRef',
     'RecordTag',
     'Tag',
     'Worklog',
@@ -87,4 +88,5 @@ __all__ = [
     'WorklogOutcome',
     'WorklogSpan',
     'WorklogStep',
+    'retired_idea_evidence',
 ]

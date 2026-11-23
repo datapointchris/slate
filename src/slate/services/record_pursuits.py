@@ -27,8 +27,8 @@ from slate import schemas
 from slate.models.pursuit import TERMINAL_PURSUIT_STATUSES
 from slate.models.record import Kind
 from slate.services.names_near import names_near
-from slate.services.record_refs import find_pursuit
-from slate.services.record_refs import pursuit_names
+from slate.services.record_lookup import find_pursuit
+from slate.services.record_lookup import pursuit_names
 from slate.services.record_summaries import record_summaries
 
 

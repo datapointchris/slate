@@ -18,9 +18,9 @@ from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.issue_readiness import PINNED
 from slate.services.issue_readiness import UNPINNED
+from slate.services.record_lookup import record_number
 from slate.services.record_pursuits import resolve_pursuits
 from slate.services.record_pursuits import set_record_pursuits
-from slate.services.record_refs import record_number
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
 from slate.services.steps_not_planned import set_steps_not_planned

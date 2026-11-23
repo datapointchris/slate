@@ -25,7 +25,7 @@ from slate.services.comment_views import comment_views
 from slate.services.documents import resolve_document
 from slate.services.documents import resolve_version
 from slate.services.documents import session_worklog
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects

@@ -28,7 +28,7 @@ from slate.services.document_views import document_view
 from slate.services.documents import resolve_document
 from slate.services.documents import resolve_version
 from slate.services.documents import write_version
-from slate.services.record_refs import resolve_record
+from slate.services.record_lookup import resolve_record
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects

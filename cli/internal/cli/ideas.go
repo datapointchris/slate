@@ -25,17 +25,17 @@ var promoteStatuses = []string{"active", "someday"}
 func newIdeasCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "ideas",
-		Short: "Keep the work nobody has taken on, with its priority and evidence",
+		Short: "Keep the work nobody has taken on, with its priority and refs",
 		Long: "An idea is work nobody has taken on yet. It carries its own priority, like any\n" +
-			"record, and links the evidence it rests on by key or URL. slate stores each\n" +
-			"ref as given and never follows it, so a key from any system works.\n" +
+			"record, and links what it rests on by key or URL. slate stores each ref as\n" +
+			"given and never follows it, so a key from any system works.\n" +
 			"\n" +
 			"An idea is never work, so it has no status. `promote` creates the initiative\n" +
 			"that is the work. The initiative names the idea, and the idea then shows the\n" +
 			"initiative and its progress. An idea shares its number sequence with\n" +
 			"initiatives and issues.",
 		Example: "  slate ideas create --title \"Scheduled review rounds\" --priority high  keep it for later\n" +
-			"  slate ideas link 1860 https://example.com/thread/9                    link the evidence it rests on\n" +
+			"  slate ideas link 1860 https://example.com/thread/9                    link what it rests on\n" +
 			"  slate ideas list                                                      every idea, most urgent first\n" +
 			"  slate ideas promote 1860 --summary \"Rounds run on a schedule\"         take it on as an initiative",
 	})
@@ -48,7 +48,9 @@ func newIdeasCommand() *cobra.Command {
 	cmd.AddCommand(inGroup(groupChanging,
 		newIdeasCreateCommand(),
 		goclikit.WithRecoveryHints(newIdeasEditCommand(), ideaHints...),
-		goclikit.WithRecoveryHints(newIdeasLinkCommand(), ideaHints...),
+		goclikit.WithRecoveryHints(newRefsLinkCommand("idea",
+			"  slate ideas link 1860 capture/01a1b689-a5d6-7852-b675-6acbd13ece24\n"+
+				"  slate ideas link 1860 https://example.com/thread/9 --note \"Where it came up\""), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasPromoteCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasReorderCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasPinCommand(), ideaHints...),
@@ -65,7 +67,7 @@ func newIdeasDeleteCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "delete <idea> [--yes]",
-		Short: "Delete an idea with its evidence, pin and claims",
+		Short: "Delete an idea with its refs, pin and claims",
 		Long: "Every claim it has had goes with it, live or ended, with a warning when\n" +
 			"another holder's live claim was one. It prints each claim and worklog it\n" +
 			"took. An idea already promoted is refused, naming its initiative, because\n" +
@@ -83,8 +85,8 @@ func newIdeasDeleteCommand() *cobra.Command {
 				return handleArgumentAPIError(err)
 			}
 			if !yes {
-				question := fmt.Sprintf("Delete idea #%d %q and its %d evidence %s?",
-					idea.Number, idea.Title, len(idea.Evidence), plural(len(idea.Evidence), "link", "links"))
+				question := fmt.Sprintf("Delete idea #%d %q and its %d %s?",
+					idea.Number, idea.Title, len(idea.Refs), plural(len(idea.Refs), "ref", "refs"))
 				ok, err := confirm(cmd, question)
 				if err != nil {
 					return err
@@ -118,13 +120,14 @@ func newIdeasListCommand() *cobra.Command {
 		asJSON  bool
 		tag     string
 		pursuit string
+		ref     string
 		limit   int
 	)
 	cmd := &cobra.Command{
 		Use:         "list",
 		Short:       "List every idea, promoted or not, most urgent first",
 		Long:        "Priority none sorts after every level. INITIATIVE is the one an idea was promoted into.",
-		Example:     "  slate ideas list\n  slate ideas list --tag security\n  slate ideas list --json",
+		Example:     "  slate ideas list\n  slate ideas list --tag security\n  slate ideas list --ref capture/\n  slate ideas list --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -132,11 +135,14 @@ func newIdeasListCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			ideas, err := client.ListIdeas(cmd.Context(), api.IdeaFilter{Tag: tag, Pursuit: pursuit}, limitFlag(cmd))
+			ideas, err := client.ListIdeas(cmd.Context(), api.IdeaFilter{Tag: tag, Pursuit: pursuit, Ref: ref}, limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
 			if err := honoredGroupings(tag, pursuit, ideas, ideaGrouped); err != nil {
+				return err
+			}
+			if err := honoredRefFilter(ref, ideas, ideaRefs); err != nil {
 				return err
 			}
 			if asJSON {
@@ -149,6 +155,7 @@ func newIdeasListCommand() *cobra.Command {
 	addLimitFlag(cmd, &limit)
 	cmd.Flags().StringVar(&tag, "tag", "", tagFilterHelp)
 	cmd.Flags().StringVar(&pursuit, "pursuit", "", pursuitFilterHelp)
+	cmd.Flags().StringVar(&ref, "ref", "", refFilterHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output ideas as JSON to stdout")
 	return cmd
 }
@@ -160,7 +167,7 @@ func newIdeasShowCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:         "show <idea>",
-		Short:       "Show an idea with its evidence, its claims, the initiative it became, and its changes",
+		Short:       "Show an idea with its refs, its claims, the initiative it became, and its changes",
 		Example:     "  slate ideas show 1860\n  slate ideas show 1860 --json",
 		Args:        cobra.ExactArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
@@ -206,20 +213,25 @@ func newIdeasCreateCommand() *cobra.Command {
 		priority    string
 		tags        []string
 		pursuits    []string
+		refs        []string
 		asJSON      bool
 	)
 	cmd := &cobra.Command{
-		Use:         "create --title <title> [flags]",
-		Short:       "Record an idea",
-		Example:     "  slate ideas create --title \"Run review rounds on a schedule\" --priority high --tag agents",
+		Use:   "create --title <title> [flags]",
+		Short: "Record an idea",
+		Example: "  slate ideas create --title \"Run review rounds on a schedule\" --priority high --tag agents\n" +
+			"  slate ideas create --title \"Run review rounds on a schedule\" --ref capture/01a1b689-a5d6-7852-b675-6acbd13ece24",
 		Args:        cobra.NoArgs,
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if strings.TrimSpace(title) == "" {
 				return goclikit.UsageError(errors.New("--title is required"))
 			}
+			if err := refuseBlankRef(refs); err != nil {
+				return err
+			}
 			f := cmd.Flags()
-			in := api.IdeaCreateInput{Title: title, Description: valuedStrFlag(f, "description", &description), Tags: tags}
+			in := api.IdeaCreateInput{Title: title, Description: valuedStrFlag(f, "description", &description), Tags: tags, Refs: refs}
 			if f.Changed("priority") {
 				value, err := parsePriority(priority)
 				if err != nil {
@@ -244,7 +256,10 @@ func newIdeasCreateCommand() *cobra.Command {
 			if err := honoredTagWrite(&in.Tags, written.Idea.Number, written.Idea.Tags); err != nil {
 				return err
 			}
-			return honoredPursuitWrite(&in.Pursuits, written.Idea.Number, written.Idea.Pursuits)
+			if err := honoredPursuitWrite(&in.Pursuits, written.Idea.Number, written.Idea.Pursuits); err != nil {
+				return err
+			}
+			return honoredRefWrite(refs, written.Idea.Number, written.Idea.Refs)
 		},
 	}
 	cmd.Flags().StringVar(&title, "title", "", "What the idea is, in a line (required)")
@@ -252,6 +267,7 @@ func newIdeasCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default none)")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, tagSetHelp)
 	cmd.Flags().StringArrayVar(&pursuits, "pursuit", nil, pursuitSetHelp)
+	cmd.Flags().StringArrayVar(&refs, "ref", nil, refSetHelp)
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd
 }
@@ -329,54 +345,6 @@ func newIdeasEditCommand() *cobra.Command {
 	return cmd
 }
 
-func newIdeasLinkCommand() *cobra.Command {
-	var (
-		note     string
-		linkedBy string
-		asJSON   bool
-	)
-	cmd := &cobra.Command{
-		Use:   "link <idea> <ref>...",
-		Short: "Link evidence to an idea, by key or URL",
-		Long: "Each ref is a key the system holding the evidence gave it, such as an inbox\n" +
-			"row's, or an http or https URL. slate stores it as given and never follows it.\n" +
-			"A ref the idea already links is left as it was, with a warning on stderr.\n" +
-			"--note is kept on every ref this call links.\n" +
-			"\n" +
-			"--linked-by defaults to who is running slate: the Claude Code session, the\n" +
-			"worker $" + actorWorkerEnv + " names, or user@host.",
-		Example: "  slate ideas link 1860 inbox:4102 inbox:4117\n" +
-			"  slate ideas link 1860 https://example.com/thread/9 --note \"Where it came up\"",
-		Args:        cobra.MinimumNArgs(2),
-		Annotations: personOnly(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if strings.TrimSpace(linkedBy) == "" {
-				return goclikit.UsageError(errors.New("--linked-by cannot be empty — a link names who made it"))
-			}
-			refs := args[1:]
-			if i := slices.IndexFunc(refs, func(ref string) bool { return strings.TrimSpace(ref) == "" }); i >= 0 {
-				return goclikit.UsageError(fmt.Errorf("ref %d is blank — every ref names its evidence", i+1))
-			}
-			in := api.IdeaEvidenceInput{Refs: refs, Note: valuedStrFlag(cmd.Flags(), "note", &note), LinkedBy: &linkedBy}
-			client, err := newAPIClient(cmd)
-			if err != nil {
-				return handleAPIError(err)
-			}
-			written, err := client.LinkIdeaEvidence(cmd.Context(), args[0], in)
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
-			idea := written.Idea
-			summary := fmt.Sprintf("Idea #%d %q links %d %s", idea.Number, idea.Title, len(idea.Evidence), plural(len(idea.Evidence), "ref", "refs"))
-			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
-		},
-	}
-	cmd.Flags().StringVar(&note, "note", "", "What the evidence shows")
-	cmd.Flags().StringVar(&linkedBy, "linked-by", actorIdentity(), "Who linked it")
-	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
-	return cmd
-}
-
 func newIdeasPromoteCommand() *cobra.Command {
 	var (
 		summary     string
@@ -399,7 +367,8 @@ func newIdeasPromoteCommand() *cobra.Command {
 			"priority, its tags, its pursuits. --tag \"\" or --pursuit \"\" promotes it\n" +
 			"with none. The idea's claim ends as promoted, printed under the line too, since\n" +
 			"its work is the initiative's now. An idea already promoted is refused, naming\n" +
-			"its initiative. --status someday creates it set aside. --not-planned names\n" +
+			"its initiative. The initiative carries the idea's refs, and the idea keeps\n" +
+			"them too. --status someday creates it set aside. --not-planned names\n" +
 			"each step the initiative will not run, so `slate next` never offers it; an\n" +
 			"idea marks none, so left out the initiative plans every step.",
 		Example: "  slate ideas promote 1860 --summary \"Review rounds run on a schedule\"\n" +
@@ -504,13 +473,13 @@ func printIdeasTable(out io.Writer, ideas []api.Idea) {
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "IDEA\tPRIORITY\tEVIDENCE\tINITIATIVE\tTITLE")
+	_, _ = fmt.Fprintln(tw, "IDEA\tPRIORITY\tREFS\tINITIATIVE\tTITLE")
 	for _, idea := range ideas {
 		initiative := "—"
 		if idea.Initiative != nil {
 			initiative = "#" + strconv.Itoa(idea.Initiative.Number)
 		}
-		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%d\t%s\t%s\n", idea.Number, priorityName(idea.Priority), len(idea.Evidence), initiative, idea.Title)
+		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%d\t%s\t%s\n", idea.Number, priorityName(idea.Priority), len(idea.Refs), initiative, idea.Title)
 	}
 	_ = tw.Flush()
 }
@@ -536,15 +505,6 @@ func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 	if description := strValue(idea.Description); description != "" {
 		_, _ = fmt.Fprintf(out, "\nDescription:\n%s\n", indent(description, "  "))
 	}
-	if len(idea.Evidence) > 0 {
-		_, _ = fmt.Fprintf(out, "\nEvidence (%d):\n", len(idea.Evidence))
-		for _, evidence := range idea.Evidence {
-			line := "  " + evidence.Ref
-			if note := strValue(evidence.Note); note != "" {
-				line += "  " + note
-			}
-			_, _ = fmt.Fprintln(out, line)
-		}
-	}
+	printRefs(out, idea.Refs)
 	printRecordParts(out, idea.RecordParts, now)
 }

@@ -97,6 +97,9 @@ func newIssuesCommand() *cobra.Command {
 	add(issueGroupFile,
 		goclikit.WithRecoveryHints(newIssuesCreateCommand(), joinedHints(issueHints, initiativeHints)...),
 		goclikit.WithRecoveryHints(newIssuesEditCommand(), joinedHints(issueHints, initiativeHints)...),
+		goclikit.WithRecoveryHints(newRefsLinkCommand("issue",
+			"  slate issues link 412 capture/01a1b689-a5d6-7852-b675-6acbd13ece24\n"+
+				"  slate issues link 412 https://example.com/thread/9 --note \"Where it came up\""), issueHints...),
 		goclikit.WithRecoveryHints(newIssuesDeleteCommand(), issueHints...),
 	)
 	add(issueGroupLifecycle,
@@ -128,6 +131,7 @@ type issueFilterFlags struct {
 	priority    string
 	closedBy    string
 	search      string
+	ref         string
 	blocked     bool
 	autofixable bool
 }
@@ -148,6 +152,7 @@ func (v *issueFilterFlags) register(cmd *cobra.Command) {
 	withFlagValues(cmd, "priority", api.IssuePriorityNames...)
 	f.StringVar(&v.closedBy, "closed-by", "", "Only issues whose closer starts with this, such as claude-code/")
 	f.StringVar(&v.search, "search", "", "Only issues whose title or description holds every one of these words, or whose number one names")
+	f.StringVar(&v.ref, "ref", "", refFilterHelp)
 	f.BoolVar(&v.blocked, "blocked", false, "Only issues waiting on an unclosed dependency (--blocked=false for the rest)")
 	f.BoolVar(&v.autofixable, "autofixable", false, autofixableFilterHelp)
 }
@@ -178,6 +183,7 @@ func (v *issueFilterFlags) filter(cmd *cobra.Command) (api.IssueFilter, error) {
 		Parent:     v.parent,
 		ClosedBy:   v.closedBy,
 		Search:     v.search,
+		Ref:        v.ref,
 	}
 	if f.Changed("priority") {
 		priority, err := parsePriority(v.priority)
@@ -270,7 +276,9 @@ func newIssuesListCommand() *cobra.Command {
 			"completed to read a week's finished work.\n" +
 			"\n" +
 			"--closed-by matches the start of who closed an issue, so claude-code/ is\n" +
-			"every attended Claude Code session. docs/issues.md lists the kinds.",
+			"every attended Claude Code session. docs/issues.md lists the kinds. --ref\n" +
+			"matches the start of a ref an issue carries, so capture/ is every issue\n" +
+			"filed from an inbox capture.",
 		Example: "  slate issues list\n" +
 			"  slate issues list --repo webapp\n" +
 			"  slate issues list --search routing --repo webapp --status all\n" +
@@ -280,7 +288,8 @@ func newIssuesListCommand() *cobra.Command {
 			"  slate issues list --label needs-design --priority high\n" +
 			"  slate issues list --status completed --since 2026-10-01 --json\n" +
 			"  slate issues list --status completed --since 7d\n" +
-			"  slate issues list --status completed --closed-by claude-code/",
+			"  slate issues list --status completed --closed-by claude-code/\n" +
+			"  slate issues list --status all --ref capture/",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -304,6 +313,9 @@ func newIssuesListCommand() *cobra.Command {
 				return err
 			}
 			if err := honoredGroupings(filter.Tag, filter.Pursuit, issues, issueGrouped); err != nil {
+				return err
+			}
+			if err := honoredRefFilter(filter.Ref, issues, issueRefs); err != nil {
 				return err
 			}
 			if !cmd.Flags().Changed("status") {
@@ -633,6 +645,7 @@ func printIssueDetail(out io.Writer, issue api.IssueDetail, now time.Time) {
 		records(fmt.Sprintf("Initiative #%d waits on", issue.Initiative.Number), issue.InitiativeWaitsOn)
 	}
 	records("Initiatives waiting on it", issue.WaitingInitiatives)
+	printRefs(out, issue.Refs)
 
 	printRecordParts(out, issue.RecordParts, now)
 }

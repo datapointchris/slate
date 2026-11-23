@@ -18,9 +18,9 @@ from slate import models
 from slate import schemas
 from slate.models.pursuit import TERMINAL_PURSUIT_STATUSES
 from slate.models.record import Kind
+from slate.services.record_lookup import record_number
 from slate.services.record_parts import record_parts
 from slate.services.record_pursuits import members_of
-from slate.services.record_refs import record_number
 from slate.services.vocabulary import validate_lookup
 
 

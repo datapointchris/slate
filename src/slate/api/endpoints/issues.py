@@ -31,6 +31,7 @@ from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.schemas.ready_filter import AUTOFIXABLE_FILTER
+from slate.schemas.record_ref import REF_PREFIX_FILTER
 from slate.services.claims import end_with_record
 from slate.services.issue_filters import apply_label_filter
 from slate.services.issue_filters import apply_repo_filter
@@ -49,12 +50,14 @@ from slate.services.record_dependencies import remove_issue_dependency
 from slate.services.record_groupings import GroupingsQuery
 from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_lists import word_matches
+from slate.services.record_lookup import resolve_initiative
+from slate.services.record_lookup import resolve_issue
+from slate.services.record_lookup import resolve_labels
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
-from slate.services.record_refs import resolve_initiative
-from slate.services.record_refs import resolve_issue
-from slate.services.record_refs import resolve_labels
+from slate.services.record_refs import link_refs
+from slate.services.record_refs import narrowed_to_ref_prefix
 from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
@@ -276,6 +279,7 @@ def read_many(
     ),
     blocked: bool | None = Query(None, description='True for issues waiting on an unclosed dependency, false for the rest'),
     autofixable: bool | None = Query(None, description=AUTOFIXABLE_FILTER),
+    ref: str | None = Query(None, description=REF_PREFIX_FILTER),
     limit: RowLimit = None,
 ):
     """List issues, unclosed work first in queue order, closed work after it.
@@ -316,6 +320,7 @@ def read_many(
     query = apply_repo_filter(query, repo)
     query = apply_label_filter(query, label, session)
     query = narrowed_to_groupings(query, Kind.ISSUE, groupings, session)
+    query = narrowed_to_ref_prefix(query, Kind.ISSUE, ref)
     query = apply_time_window(query, models.Issue.closed_ts, window, zone=None)
 
     today, now = calendar_now(zone)
@@ -378,6 +383,7 @@ def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, ca
     session.flush()
     name_record(db_issue.number)
     set_record_tags(session, db_issue.number, tags)
+    link_refs(session, db_issue.number, issue.refs, None, caller_actor(caller), effects)
     # Every edge the new issue brings touches it, so any loop they close runs through it.
     graph = read_wait_graph(session)
     for blocker in depends_on:
@@ -599,6 +605,17 @@ def pin(issue: IssueFromPath, request: schemas.RecordPin, session: DbSession, ca
 def unpin(issue: IssueFromPath, session: DbSession, zone: RequestZone, effects: Effects):
     """Return this issue to the place its priority and rank give it."""
     unpin_record(issue.record, effects)
+    session.commit()
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
+
+
+@router.post('/{id}/refs', response_model=schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def link(
+    issue: IssueFromPath, request: schemas.RecordRefsLink, session: DbSession, caller: CurrentCaller, zone: RequestZone, effects: Effects
+):
+    """Link each ref. A ref already linked keeps its note and linker, and the answer warns."""
+    link_refs(session, issue.number, request.refs, request.note, request.linked_by or caller_actor(caller), effects)
+    issue.updated_ts = dt.datetime.now(dt.UTC)
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
 

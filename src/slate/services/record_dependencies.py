@@ -15,8 +15,8 @@ from fastapi import status
 from sqlalchemy.orm import Session
 
 from slate import models
-from slate.services.record_refs import resolve_issue
-from slate.services.record_refs import resolve_issue_or_initiative
+from slate.services.record_lookup import resolve_issue
+from slate.services.record_lookup import resolve_issue_or_initiative
 from slate.services.wait_cycles import read_wait_graph
 from slate.services.wait_cycles import refuse_wait_loop
 
