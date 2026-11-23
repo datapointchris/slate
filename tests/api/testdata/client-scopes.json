@@ -21,6 +21,9 @@
     "POST /api/v1/focus/end",
     "PUT /api/v1/focus"
   ],
+  "slate.ideas.write": [
+    "POST /api/v1/ideas"
+  ],
   "slate.issues.close": [
     "PATCH /api/v1/issues/{id}"
   ],
@@ -76,6 +79,12 @@
   "slate.records.recheck": [
     "PATCH /api/v1/issues/{id}",
     "POST /api/v1/records/{number}/checks"
+  ],
+  "slate.refs.write": [
+    "POST /api/v1/ideas/{id}/evidence",
+    "POST /api/v1/ideas/{id}/refs",
+    "POST /api/v1/initiatives/{id:path}/refs",
+    "POST /api/v1/issues/{id}/refs"
   ],
   "slate.sessions.write": [
     "PUT /api/v1/sessions/{id}/usage"

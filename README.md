@@ -177,12 +177,15 @@ reaches only the routes its scopes list:
 | `slate.issues.close` | closing an issue not yet closed |
 | `slate.records.plan` | filing an incoming issue, setting an issue's priority, initiative, acceptance and paths, adding and removing what an issue or an initiative waits on, moving an issue, initiative or idea in the queue, and creating and editing initiatives, reading a pursuit to place one in it |
 | `slate.records.recheck` | accepting an incoming issue, completing or canceling one not yet closed with its reason or the issue it duplicates, and rewriting an issue's description, each in an update of its own, and adding a check on an issue or initiative under the service's own client id |
+| `slate.ideas.write` | filing an idea with its refs |
+| `slate.refs.write` | linking refs to an existing issue, initiative or idea, under the service's own client id |
 | `slate.worklogs.write` | starting and linking a worklog under the service's own client id, and joining, editing and finishing one it opened |
 | `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
 
-No scope deletes anything, and none files an idea or edits one. A planning
-job only moves one in the queue.
+No scope deletes anything, and none edits or promotes an idea. A service
+files one with `slate.ideas.write`, and a planning job moves one in the queue.
+A `--ref` given while filing rides the scope that files the record.
 `src/slate/api/client_scopes.py` holds the exact routes.
 
 An issue update from a service passes only where one scope it holds admits
@@ -195,7 +198,9 @@ others. Its `--help` ends with them under `Service scopes:`, so register a
 service client for the scopes of the commands it runs. Where a command's flags
 decide which of those its request needs, a run asks only for that one:
 `slate issues edit` asks for `slate.records.recheck` when the description is
-its only change, and `slate.records.plan` otherwise. A command no scope reaches, such
+its only change, and `slate.records.plan` otherwise. `slate ideas create` adds
+`slate.records.read` only when a `--pursuit` names a pursuit by name, which it
+reads for the number. A command no scope reaches, such
 as `slate labels list`, says so there, and refuses a service before asking.
 `slate auth status` asks a grant for each scope in the table alone. Its text
 lists the scopes that the client holds. `--json` gives each scope's `grant`:

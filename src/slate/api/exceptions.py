@@ -33,6 +33,7 @@ class Refusal(enum.StrEnum):
     SCOPED_UPDATE_FITS_NO_HELD_SCOPE = 'No one scope this client holds admits the whole update, so send what each admits on its own'
     SCOPED_CLIENT_RELEASES_ITS_OWN = 'A service client may only release a claim it holds'
     SCOPED_CLIENT_WRITES_WORKLOGS_AS_ITSELF = 'A service client may only start, finish or link a worklog under its own client id'
+    SCOPED_CLIENT_LINKS_REFS_AS_ITSELF = 'A service client may only link a ref under its own client id'
 
 
 def with_article(noun: str) -> str:

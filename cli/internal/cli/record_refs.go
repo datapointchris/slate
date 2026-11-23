@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -62,14 +61,14 @@ func newRefsLinkCommand(kind, example string) *cobra.Command {
 			"warning on stderr. --note is kept on every ref this call links. `list --ref`\n" +
 			"narrows a list to the records carrying a ref with that prefix.\n" +
 			"\n" +
-			"--linked-by defaults to who is running slate: the Claude Code session, the\n" +
-			"worker $" + actorWorkerEnv + " names, or user@host.",
+			"--linked-by " + narrowedActorHelp,
 		Example:     example,
 		Args:        cobra.MinimumNArgs(2),
-		Annotations: personOnly(),
+		Annotations: scopesForService(scopeRefsWrite),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if strings.TrimSpace(linkedBy) == "" {
-				return goclikit.UsageError(errors.New("--linked-by cannot be empty — a link names who made it"))
+			linkedBy, err := narrowedActor(cmd, "linked-by", linkedBy)
+			if err != nil {
+				return err
 			}
 			refs := args[1:]
 			if err := refuseBlankRef(refs); err != nil {

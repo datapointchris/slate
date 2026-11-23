@@ -33,6 +33,11 @@ const (
 // pursuitCreateStatuses are where a new pursuit may start.
 var pursuitCreateStatuses = []string{"active", "someday"}
 
+// namesPursuitByName reports a --pursuit that pursuitNumbers reads from the API.
+func namesPursuitByName(ref string) bool {
+	return !isItemNumber(strings.TrimPrefix(ref, "#"))
+}
+
 // pursuitNumbers resolves each --pursuit to its number. A number passes as
 // it is, so the API refuses one naming no pursuit. A name is read by the API,
 // which names the near ones where it matches none.

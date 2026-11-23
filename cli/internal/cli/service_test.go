@@ -619,6 +619,19 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"initiatives", "reorder", "Practical help guides", "--before", "398"}, `{}`, nil},
 		{[]string{"ideas", "reorder", "412", "--after", "398"}, `{}`, nil},
 		{
+			[]string{"ideas", "create", "--title", "Run review rounds on a schedule", "--ref", "capture/01a1b689"},
+			`{"idea":{"number":1860,"title":"t","refs":[{"ref":"capture/01a1b689","kind":"key"}]}}`,
+			nil,
+		},
+		{
+			[]string{"ideas", "create", "--title", "Run review rounds on a schedule", "--pursuit", "Data Warehouse"},
+			`{"idea":{"number":1860,"title":"t","pursuits":[{"number":2950,"name":"Data Warehouse"}]}}`,
+			map[string]string{"/api/v1/pursuits/Data Warehouse": pursuit},
+		},
+		{[]string{"ideas", "link", "1860", "capture/01a1b689"}, `{}`, nil},
+		{[]string{"issues", "link", "412", "capture/01a1b689"}, `{}`, nil},
+		{[]string{"initiatives", "link", "Practical help guides", "capture/01a1b689"}, `{}`, nil},
+		{
 			[]string{"issues", "create", "--title", "Left of the guides", "--initiative", "Practical help guides", "--status", "incoming", "--session", "run-pod-session"},
 			`{}`,
 			map[string]string{
@@ -679,9 +692,10 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 				if !reached {
 					t.Errorf("sent %s %s on a token for %v, which the API admits under none of them", request, raw, tokenScopes(r.Header.Get("Authorization")))
 				}
-				// The API refuses a scoped client any actor on a claim or
-				// worklog write but its own id. A join names a session alone.
-				signed := strings.HasPrefix(r.URL.Path, "/api/v1/claims") || strings.HasPrefix(r.URL.Path, "/api/v1/worklogs")
+				// The API refuses a scoped client any actor on a claim,
+				// worklog or ref write but its own id. A join names a session alone.
+				signed := strings.HasPrefix(r.URL.Path, "/api/v1/claims") || strings.HasPrefix(r.URL.Path, "/api/v1/worklogs") ||
+					strings.HasSuffix(r.URL.Path, "/refs") || strings.HasSuffix(r.URL.Path, "/evidence")
 				if r.Method == http.MethodPost && signed && !strings.HasSuffix(r.URL.Path, "/join") {
 					var write struct {
 						Holder     string `json:"holder"`
@@ -741,14 +755,10 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		{[]string{"pursuits", "reopen", "Data Warehouse"}, `{}`},
 		{[]string{"pursuits", "complete", "Data Warehouse"}, `{}`},
 		{[]string{"pursuits", "drop", "Data Warehouse", "--reason", "Folded into another"}, `{}`},
-		{[]string{"ideas", "create", "--title", "Run review rounds on a schedule"}, idea},
 		{[]string{"ideas", "edit", "1860", "--priority", "urgent"}, idea},
-		{[]string{"ideas", "link", "1860", "inbox:4102"}, idea},
 		{[]string{"ideas", "promote", "1860", "--summary", "Review rounds run on a schedule"}, idea},
 		{[]string{"comments", "remove", "57", "--yes"}, `{}`},
 		{[]string{"issues", "delete", "412", "--yes"}, openIssue},
-		{[]string{"issues", "link", "412", "capture/01a1b689"}, openIssue},
-		{[]string{"initiatives", "link", "Practical help guides", "capture/01a1b689"}, `{}`},
 		{[]string{"issues", "pin", "412"}, openIssue},
 		{[]string{"issues", "unpin", "412"}, openIssue},
 		{[]string{"initiatives", "pin", "Practical help guides"}, `{}`},

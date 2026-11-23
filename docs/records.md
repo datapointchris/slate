@@ -223,7 +223,8 @@ as tags do, so `slate show` prints each link among the record's changes. A
   `POST /ideas/{id}/refs` link more, with one `note` and `linked_by` for all.
   `linked_by` left out signs each with the caller. A ref that the record
   already carries keeps its note and linker, and the answer warns
-  `ref_already_linked`.
+  `ref_already_linked`. A service reaches these through `slate.refs.write`,
+  and a `linked_by` naming anyone but its client id is refused.
 - A promotion copies each of the idea's refs onto its initiative as it was
   linked, named as `refs_carried`. The idea keeps them too.
 - Every read of the three kinds carries `refs`, oldest first.

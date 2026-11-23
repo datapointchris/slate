@@ -39,6 +39,9 @@ RECHECK = 'slate.records.recheck'
 WORKLOGS = 'slate.worklogs.write'
 SESSIONS = 'slate.sessions.write'
 OBSERVE = 'slate.worklogs.observe'
+IDEAS = 'slate.ideas.write'
+REFS = 'slate.refs.write'
+CAPTURE_REF = 'capture/01a1b689-a5d6-7852-b675-6acbd13ece24'
 RUN_POD_SESSION = 'run-pod-session'
 CLOSER = 'worker/close-job@service-box'
 SERVICE = 'slate-svc-worker'
@@ -205,6 +208,23 @@ SCOPED_WRITES: dict[tuple[str, str, str], tuple[str, dict[str, Any] | None, int]
         status.HTTP_200_OK,
     ),
     (PLAN, 'POST', f'{API_PREFIX}/ideas/{{id}}/rank'): ('/ideas/{idea}/rank', {'after': '{issue}'}, status.HTTP_200_OK),
+    (IDEAS, 'POST', f'{API_PREFIX}/ideas'): ('/ideas', {'title': 'kept from a capture', 'refs': [CAPTURE_REF]}, status.HTTP_201_CREATED),
+    (REFS, 'POST', f'{API_PREFIX}/issues/{{id}}/refs'): (
+        '/issues/{issue}/refs',
+        {'refs': [CAPTURE_REF], 'linked_by': SERVICE},
+        status.HTTP_200_OK,
+    ),
+    (REFS, 'POST', f'{API_PREFIX}/initiatives/{{id:path}}/refs'): (
+        '/initiatives/{initiative}/refs',
+        {'refs': [CAPTURE_REF]},
+        status.HTTP_200_OK,
+    ),
+    (REFS, 'POST', f'{API_PREFIX}/ideas/{{id}}/refs'): (
+        '/ideas/{idea}/refs',
+        {'refs': [CAPTURE_REF], 'linked_by': SERVICE},
+        status.HTTP_200_OK,
+    ),
+    (REFS, 'POST', f'{API_PREFIX}/ideas/{{id}}/evidence'): ('/ideas/{idea}/evidence', {'refs': [CAPTURE_REF]}, status.HTTP_200_OK),
 }
 
 
@@ -319,6 +339,12 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         (OBSERVE, 'POST', '/worklogs/{worklog}/finish'),
         (OBSERVE, 'POST', '/worklogs/{worklog}/links'),
         (OBSERVE, 'PATCH', '/worklogs/{worklog}'),
+        (IDEAS, 'POST', '/ideas/{idea}/promote'),
+        (IDEAS, 'POST', '/ideas/{idea}/rank'),
+        (IDEAS, 'POST', '/ideas/{idea}/refs'),
+        (IDEAS, 'DELETE', '/ideas/{idea}'),
+        (REFS, 'POST', '/issues'),
+        (REFS, 'POST', '/ideas'),
     ],
     ids=[
         'read-create',
@@ -357,6 +383,12 @@ def test_a_scoped_client_reaches_every_route_its_scope_lists(as_caller, scope, m
         'observe-finish',
         'observe-link',
         'observe-edit',
+        'ideas-promote',
+        'ideas-rank',
+        'ideas-link',
+        'ideas-delete',
+        'refs-issue-create',
+        'refs-idea-create',
     ],
 )
 def test_a_scoped_client_is_refused_off_its_scopes(as_caller, scope, method, url):
