@@ -10,10 +10,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // prefix is where the API serves every resource route on its host; a path
@@ -89,12 +91,41 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 // 2xx JSON body into out. A nil body sends no payload; a nil out discards the
 // response body (for 204 No Content and similar). A non-2xx response becomes an
 // *APIError regardless of out.
+//
+// A request that got no response, such as one whose connection was reset, is
+// sent once more after a second where its method is idempotent. A POST is not,
+// because the server may have acted on it before the connection dropped.
 func (c *Client) send(ctx context.Context, method, path string, body, out any) error {
-	if err := c.exchange(ctx, method, path, body, out); err != nil {
+	err := c.exchange(ctx, method, path, body, out)
+	var unreached *unreachedError
+	if errors.As(err, &unreached) && idempotent[method] {
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Second):
+			err = c.exchange(ctx, method, path, body, out)
+		}
+	}
+	if err != nil {
 		return c.wrap(err)
 	}
 	return nil
 }
+
+var idempotent = map[string]bool{
+	http.MethodGet: true, http.MethodHead: true, http.MethodPut: true, http.MethodDelete: true,
+}
+
+// unreachedError is a request that got no HTTP response.
+type unreachedError struct {
+	baseURL string
+	err     error
+}
+
+func (e *unreachedError) Error() string {
+	return fmt.Sprintf("reach the slate API at %s: %v", e.baseURL, e.err)
+}
+
+func (e *unreachedError) Unwrap() error { return e.err }
 
 func (c *Client) exchange(ctx context.Context, method, path string, body, out any) error {
 	var reader io.Reader
@@ -117,7 +148,7 @@ func (c *Client) exchange(ctx context.Context, method, path string, body, out an
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("reach the slate API at %s: %w", c.baseURL, err)
+		return &unreachedError{baseURL: c.baseURL, err: err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
