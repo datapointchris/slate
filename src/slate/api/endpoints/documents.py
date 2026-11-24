@@ -13,56 +13,66 @@ from fastapi import Path
 from fastapi import Query
 from fastapi import Response
 from fastapi import status
-from sqlalchemy import func
-from sqlalchemy import select
 
-from slate import models
 from slate import schemas
 from slate.api.callers import CurrentCaller
 from slate.api.callers import DbSession
 from slate.api.callers import caller_actor
 from slate.models.document import DOCUMENT_NAME_PATTERN
-from slate.services.document_views import DOCUMENT_LOAD_OPTIONS
-from slate.services.document_views import document_summaries
 from slate.services.document_views import document_view
+from slate.services.document_views import list_documents
 from slate.services.documents import resolve_document
 from slate.services.documents import resolve_version
 from slate.services.documents import write_version
 from slate.services.record_lookup import resolve_record
+from slate.services.row_limit import RECORD_LIMIT_DEFAULT
+from slate.services.row_limit import RecordLimit
 from slate.services.row_limit import RowLimit
-from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
 from slate.tracing.named_work import name_agent_session
 from slate.tracing.named_work import name_record
 
 router = APIRouter()
 
+TOTAL_RECORDS_HEADER = 'X-Total-Records'
+
 DocumentName = Annotated[str, Path(pattern=DOCUMENT_NAME_PATTERN, description='Lowercase words joined by hyphens, unique on its record')]
 
 
-@router.get('', response_model=list[schemas.DocumentSummary], status_code=status.HTTP_200_OK)
+@router.get(
+    '',
+    response_model=list[schemas.ListedDocument],
+    status_code=status.HTTP_200_OK,
+    responses={
+        status.HTTP_200_OK: {
+            'headers': {
+                TOTAL_RECORDS_HEADER: {
+                    'description': 'How many records hold a matching document, so a client tells a short page from the whole',
+                    'schema': {'type': 'integer'},
+                }
+            }
+        }
+    },
+)
 def read_many(
     session: DbSession,
+    response: Response,
     record: Annotated[str | None, Query(description='Only the documents on this record, by number')] = None,
+    record_limit: RecordLimit = RECORD_LIMIT_DEFAULT,
     limit: RowLimit = None,
 ):
-    """Documents with their latest version, the most recently written first."""
-    latest = (
-        select(models.DocumentVersion.document_id, func.max(models.DocumentVersion.written_ts).label('written_ts'))
-        .group_by(models.DocumentVersion.document_id)
-        .subquery()
-    )
-    query = (
-        select(models.Document)
-        .options(*DOCUMENT_LOAD_OPTIONS)
-        .join(latest, latest.c.document_id == models.Document.id)
-        .order_by(latest.c.written_ts.desc(), models.Document.id.desc())
-    )
+    """Every document on the newest `record_limit` records, each with its record and latest version, the most recently written first.
+
+    A record ranks by its latest document write, so the bound never splits a record's documents.
+    `limit` then cuts rows.
+    """
+    number = None
     if record is not None:
         number = resolve_record(session, record).number
         name_record(number)
-        query = query.where(models.Document.record_number == number)
-    return document_summaries(session, session.scalars(apply_row_limit(query, limit)).all())
+    documents, total = list_documents(session, number, record_limit, limit)
+    response.headers[TOTAL_RECORDS_HEADER] = str(total)
+    return documents
 
 
 @router.get('/{record}/{name}', response_model=schemas.Document, status_code=status.HTTP_200_OK)

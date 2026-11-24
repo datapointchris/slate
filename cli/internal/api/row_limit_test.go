@@ -11,7 +11,7 @@ func intptr(n int) *int { return &n }
 
 func TestApplyLimit_SendsThePositiveCap(t *testing.T) {
 	client, query := recordQuery(t, `[]`)
-	if _, err := client.ListDocuments(context.Background(), "", intptr(5)); err != nil {
+	if _, err := client.ListDocuments(context.Background(), DocumentFilter{}, intptr(5)); err != nil {
 		t.Fatalf("ListDocuments: %v", err)
 	}
 	if *query != "limit=5" {
@@ -21,7 +21,7 @@ func TestApplyLimit_SendsThePositiveCap(t *testing.T) {
 
 func TestApplyLimit_OmitsAnAbsentCap(t *testing.T) {
 	client, query := recordQuery(t, `[]`)
-	if _, err := client.ListDocuments(context.Background(), "", nil); err != nil {
+	if _, err := client.ListDocuments(context.Background(), DocumentFilter{}, nil); err != nil {
 		t.Fatalf("ListDocuments: %v", err)
 	}
 	if *query != "" {
@@ -34,7 +34,7 @@ func TestApplyLimit_OmitsAnAbsentCap(t *testing.T) {
 // only an absent limit does that.
 func TestApplyLimit_SendsAnExplicitZero(t *testing.T) {
 	client, query := recordQuery(t, `[]`)
-	if _, err := client.ListDocuments(context.Background(), "", intptr(0)); err != nil {
+	if _, err := client.ListDocuments(context.Background(), DocumentFilter{}, intptr(0)); err != nil {
 		t.Fatalf("ListDocuments: %v", err)
 	}
 	if *query != "limit=0" {
@@ -56,7 +56,7 @@ func TestApplyLimit_RidesEveryListRead(t *testing.T) {
 			return err
 		},
 		"ListDocuments": func(c *Client) error {
-			_, err := c.ListDocuments(ctx, "12", intptr(3))
+			_, err := c.ListDocuments(ctx, DocumentFilter{Record: "12"}, intptr(3))
 			return err
 		},
 		"ListIssues": func(c *Client) error {

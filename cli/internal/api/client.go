@@ -87,28 +87,40 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 	return c.send(ctx, http.MethodGet, path, nil, out)
 }
 
+// getWithHeader is get, and also returns the response's header, for a read
+// that answers a count beside its body.
+func (c *Client) getWithHeader(ctx context.Context, path string, out any) (http.Header, error) {
+	return c.request(ctx, http.MethodGet, path, nil, out)
+}
+
 // send issues an HTTP request to path with an optional JSON body, and decodes a
 // 2xx JSON body into out. A nil body sends no payload; a nil out discards the
 // response body (for 204 No Content and similar). A non-2xx response becomes an
 // *APIError regardless of out.
+func (c *Client) send(ctx context.Context, method, path string, body, out any) error {
+	_, err := c.request(ctx, method, path, body, out)
+	return err
+}
+
+// request is send, returning the 2xx response's header.
 //
 // A request that got no response, such as one whose connection was reset, is
 // sent once more after a second where its method is idempotent. A POST is not,
 // because the server may have acted on it before the connection dropped.
-func (c *Client) send(ctx context.Context, method, path string, body, out any) error {
-	err := c.exchange(ctx, method, path, body, out)
+func (c *Client) request(ctx context.Context, method, path string, body, out any) (http.Header, error) {
+	header, err := c.exchange(ctx, method, path, body, out)
 	var unreached *unreachedError
 	if errors.As(err, &unreached) && idempotent[method] {
 		select {
 		case <-ctx.Done():
 		case <-time.After(time.Second):
-			err = c.exchange(ctx, method, path, body, out)
+			header, err = c.exchange(ctx, method, path, body, out)
 		}
 	}
 	if err != nil {
-		return c.wrap(err)
+		return nil, c.wrap(err)
 	}
-	return nil
+	return header, nil
 }
 
 var idempotent = map[string]bool{
@@ -127,19 +139,19 @@ func (e *unreachedError) Error() string {
 
 func (e *unreachedError) Unwrap() error { return e.err }
 
-func (c *Client) exchange(ctx context.Context, method, path string, body, out any) error {
+func (c *Client) exchange(ctx context.Context, method, path string, body, out any) (http.Header, error) {
 	var reader io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("encode request body: %w", err)
+			return nil, fmt.Errorf("encode request body: %w", err)
 		}
 		reader = bytes.NewReader(encoded)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+prefix+path, reader)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
@@ -148,21 +160,21 @@ func (c *Client) exchange(ctx context.Context, method, path string, body, out an
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return &unreachedError{baseURL: c.baseURL, err: err}
+		return nil, &unreachedError{baseURL: c.baseURL, err: err}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return decodeAPIError(resp)
+		return nil, decodeAPIError(resp)
 	}
 	if out == nil {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		return nil
+		return resp.Header, nil
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("decode API response: %w", err)
+		return nil, fmt.Errorf("decode API response: %w", err)
 	}
-	return nil
+	return resp.Header, nil
 }
 
 // decodeAPIError builds an *APIError from a non-2xx response, best-effort

@@ -35,6 +35,52 @@ func TestComments_AddSendsTheTextAfterTheRecordAndTheSessionWritingIt(t *testing
 	}
 }
 
+// `slate documents list -n 1` gets one row of three records. The row cap cut
+// them, so the note naming --records would advise a flag that shows no more.
+func TestDocumentsList_RecordsSendsTheBoundAndSaysOnStderrHowManyRecordsWentUnshownUnlessARowCapCutThem(t *testing.T) {
+	var query string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Total-Records", "3")
+		_, _ = w.Write([]byte(`[{"record_number":412,"name":"plan","address":"412/plan","kind":"plan","latest":{"version":1},` +
+			`"comment_count":0,"record":{"number":412,"kind":"issue","title":"Retry the upload","status":"open"}}]`))
+	}))
+	t.Cleanup(server.Close)
+	asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
+
+	for _, run := range []struct {
+		args        []string
+		query, note string
+	}{
+		{[]string{"documents", "list", "--records", "1"}, "record_limit=1", "1 of 3 records shown: --records 3 shows the rest"},
+		{[]string{"documents", "list", "--records", "1", "--json"}, "record_limit=1", "1 of 3 records shown: --records 3 shows the rest"},
+		{[]string{"documents", "list", "-n", "1"}, "limit=1", ""},
+	} {
+		args := run.args
+		root := NewRootCommand()
+		var out, errs bytes.Buffer
+		root.SetOut(&out)
+		root.SetErr(&errs)
+		root.SetArgs(args)
+		if err := root.Execute(); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if query != run.query {
+			t.Errorf("%v sent %q, want %s", args, query, run.query)
+		}
+		if strings.TrimSpace(errs.String()) != run.note {
+			t.Errorf("%v stderr = %q, want %q", args, errs.String(), run.note)
+		}
+		if args[len(args)-1] == "--json" {
+			var rows []map[string]json.RawMessage
+			if err := json.Unmarshal(out.Bytes(), &rows); err != nil || len(rows) != 1 || rows[0]["record"] == nil {
+				t.Errorf("--json printed %s (%v), want a bare array naming each document's record", out.String(), err)
+			}
+		}
+	}
+}
+
 func TestDocumentsShow_PrintsALineCommentUnderItsLineAndOneWhoseLineChangedAfter(t *testing.T) {
 	two, now := 2, time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
 	comment := func(id int, line int, text string, shown *int) api.PlacedComment {

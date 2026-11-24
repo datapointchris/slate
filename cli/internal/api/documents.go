@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -85,19 +86,55 @@ func documentPath(record, name string) string {
 	return "/documents/" + url.PathEscape(record) + "/" + url.PathEscape(name)
 }
 
-// ListDocuments returns documents with their latest version, the most recently
-// written first. A record narrows them to that record's.
-func (c *Client) ListDocuments(ctx context.Context, record string, limit *int) ([]DocumentSummary, error) {
+// ListedDocument is a document as a list carries it, naming its record.
+type ListedDocument struct {
+	DocumentSummary
+	Record RecordSummary `json:"record"`
+}
+
+// DocumentFilter narrows a document list. Record names one record. RecordLimit
+// keeps the documents on that many records, the newest written first, and nil
+// leaves the API's default.
+type DocumentFilter struct {
+	Record      string
+	RecordLimit *int
+}
+
+// DocumentList is one read of the document list. TotalRecords counts every
+// record holding a matching document. It is nil where the API sent no count,
+// which an API older than the record bound does.
+type DocumentList struct {
+	Documents    []ListedDocument
+	TotalRecords *int
+}
+
+// totalRecordsHeader carries a document list's count of records.
+const totalRecordsHeader = "X-Total-Records"
+
+// ListDocuments returns documents with their record and latest version, the
+// most recently written first.
+func (c *Client) ListDocuments(ctx context.Context, filter DocumentFilter, limit *int) (DocumentList, error) {
 	query := url.Values{}
-	if record != "" {
-		query.Set("record", record)
+	if filter.Record != "" {
+		query.Set("record", filter.Record)
+	}
+	if filter.RecordLimit != nil {
+		query.Set("record_limit", strconv.Itoa(*filter.RecordLimit))
 	}
 	applyLimit(query, limit)
-	var documents []DocumentSummary
-	if err := c.get(ctx, withQuery("/documents", query), &documents); err != nil {
-		return nil, err
+	var list DocumentList
+	header, err := c.getWithHeader(ctx, withQuery("/documents", query), &list.Documents)
+	if err != nil {
+		return DocumentList{}, err
 	}
-	return documents, nil
+	if raw := header.Get(totalRecordsHeader); raw != "" {
+		total, err := strconv.Atoi(raw)
+		if err != nil {
+			return DocumentList{}, fmt.Errorf("read the API's %s %q: %w", totalRecordsHeader, raw, err)
+		}
+		list.TotalRecords = &total
+	}
+	return list, nil
 }
 
 // GetDocument returns one version of a document, the latest when version is

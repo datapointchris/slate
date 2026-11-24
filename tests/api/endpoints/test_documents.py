@@ -1,6 +1,9 @@
+import datetime as dt
+
 import pytest
 from fastapi import status
 
+from slate import models
 from tests.conftest import TEST_PERSON
 from tests.session_database import insert_test_data_transactional
 from tests.util import show_status_and_response
@@ -76,6 +79,49 @@ def test_a_line_comment_follows_its_line_into_a_later_version_and_sits_on_none_o
 
     unchanged = ok(client.put(f'/documents/{record}/plan', json={'body': revised}))
     assert ([each['code'] for each in unchanged['warnings']], len(unchanged['document']['versions'])) == (['document_unchanged'], 2)
+
+
+def test_a_list_names_each_documents_record_and_bounds_by_record_so_none_is_half_listed(client):
+    issue = bug(client)
+    initiative = next(row for row in ok(client.get('/initiatives')) if row['name'] == 'Ship the issue tracker')['number']
+    ok(client.put(f'/documents/{initiative}/design', json={'kind': 'design', 'body': PLAN}), status.HTTP_201_CREATED)
+    ok(client.put(f'/documents/{issue}/plan', json={'kind': 'plan', 'body': PLAN}), status.HTTP_201_CREATED)
+    ok(client.put(f'/documents/{initiative}/plan', json={'kind': 'plan', 'body': PLAN}), status.HTTP_201_CREATED)
+
+    listed = ok(client.get('/documents'))
+    assert [(row['address'], row['record']['kind'], row['record']['title']) for row in listed] == [
+        (f'{initiative}/plan', 'initiative', 'Ship the issue tracker'),
+        (f'{issue}/plan', 'issue', 'Ready bug with high priority'),
+        (f'{initiative}/design', 'initiative', 'Ship the issue tracker'),
+    ]
+    newest = client.get('/documents', params={'record_limit': 1})
+    assert ([row['address'] for row in ok(newest)], newest.headers['X-Total-Records']) == (
+        [f'{initiative}/plan', f'{initiative}/design'],
+        '2',
+    )
+    refused = client.get('/documents', params={'record_limit': 501})
+    assert '500' in ok(refused, status.HTTP_422_UNPROCESSABLE_CONTENT)['message']
+    assert [(document['address'], 'record' in document) for document in ok(client.get(f'/issues/{issue}'))['documents']] == [
+        (f'{issue}/plan', False)
+    ]
+
+
+def test_a_list_naming_no_record_stops_at_fifty_records(txn_api_logged_in):
+    client, session = txn_api_logged_in
+    start = dt.datetime(2026, 11, 1, tzinfo=dt.UTC)
+    ideas = [models.Idea(title=f'idea {n}') for n in range(51)]
+    session.add_all(ideas)
+    session.flush()
+    for n, idea in enumerate(ideas):
+        document = models.Document(record_number=idea.number, name='research', kind='research')
+        session.add(
+            models.DocumentVersion(document=document, version=1, body='x', written_by='w', written_ts=start + dt.timedelta(minutes=n))
+        )
+    session.flush()
+
+    listed = client.get('/documents')
+    assert (len({row['record_number'] for row in ok(listed)}), listed.headers['X-Total-Records']) == (50, '51')
+    assert ideas[0].number not in {row['record_number'] for row in listed.json()}
 
 
 def test_slate_documents_write_design_kind_plan_is_refused_so_record_design_is_always_a_design(client):

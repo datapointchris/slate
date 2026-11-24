@@ -24,6 +24,7 @@ from slate import schemas
 from slate.services.comment_views import COMMENT_ORDER
 from slate.services.comment_views import comment_view
 from slate.services.record_summaries import record_summaries
+from slate.services.row_limit import apply_row_limit
 from slate.services.worklog_names import worklog_names
 
 DOCUMENT_LOAD_OPTIONS = (selectinload(models.Document.versions),)
@@ -107,6 +108,41 @@ def document_summaries(session: Session, documents: Sequence[models.Document]) -
         )
         for document in documents
     ]
+
+
+def list_documents(session: Session, record: int | None, record_limit: int, limit: int | None) -> tuple[list[schemas.ListedDocument], int]:
+    """Every document on the newest `record_limit` records, the most recently written first, and how many records hold one.
+
+    A record ranks by its latest document write, so the bound never splits a record's documents.
+    `limit` then cuts rows. A named `record` narrows both the documents and the count to it.
+    """
+    latest = (
+        select(models.DocumentVersion.document_id, func.max(models.DocumentVersion.written_ts).label('written_ts'))
+        .group_by(models.DocumentVersion.document_id)
+        .subquery()
+    )
+    on_record = [] if record is None else [models.Document.record_number == record]
+    records = (
+        select(models.Document.record_number)
+        .join(latest, latest.c.document_id == models.Document.id)
+        .where(*on_record)
+        .group_by(models.Document.record_number)
+    )
+    total = session.scalar(select(func.count()).select_from(records.subquery())) or 0
+    newest = records.order_by(func.max(latest.c.written_ts).desc(), models.Document.record_number.desc()).limit(record_limit)
+    query = (
+        select(models.Document)
+        .options(*DOCUMENT_LOAD_OPTIONS)
+        .join(latest, latest.c.document_id == models.Document.id)
+        .where(models.Document.record_number.in_(newest.scalar_subquery()))
+        .order_by(latest.c.written_ts.desc(), models.Document.id.desc())
+    )
+    documents = session.scalars(apply_row_limit(query, limit)).all()
+    named = record_summaries(session, (document.record_number for document in documents))
+    listed = [
+        schemas.ListedDocument(**dict(summary), record=named[summary.record_number]) for summary in document_summaries(session, documents)
+    ]
+    return listed, total
 
 
 def record_documents(session: Session, number: int) -> list[schemas.DocumentSummary]:
