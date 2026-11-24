@@ -33,6 +33,19 @@ CappedRowLimit = Annotated[
     Query(ge=0, description='Return at most this many rows. 0 returns none.'),
 ]
 
+# A list whose rows group under records bounds records rather than rows, so a cut
+# never splits a group. The route defaults it to RECORD_LIMIT_DEFAULT.
+RECORD_LIMIT_DEFAULT = 50
+RECORD_LIMIT_MAX = 500
+RecordLimit = Annotated[
+    int,
+    Query(
+        ge=0,
+        le=RECORD_LIMIT_MAX,
+        description=f'Return every row on at most this many records, the newest first. 0 returns none; at most {RECORD_LIMIT_MAX}.',
+    ),
+]
+
 
 def apply_row_limit(query: Select, limit: int | None) -> Select:
     """Cap the query at `limit` rows, or leave it alone when there is no cap.

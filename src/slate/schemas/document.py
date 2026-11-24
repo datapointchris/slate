@@ -44,6 +44,12 @@ class DocumentSummary(RecordModel):
     comment_count: int
 
 
+class ListedDocument(DocumentSummary):
+    """A document as `GET /documents` lists it, naming its record, so a list groups documents with no read per record."""
+
+    record: RecordSummary
+
+
 class DocumentVersionRef(RecordModel):
     """A version a worklog wrote, named by its document's address."""
 

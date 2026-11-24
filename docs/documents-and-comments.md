@@ -38,6 +38,28 @@ final newline ends the last line rather than starting another. A version's
 read answers them as `lines`, and the CLI prints those. So the number that a
 reader sees is the one `POST /comments` takes.
 
+## The list bounds records rather than rows, so no record is half listed
+
+`GET /documents` answers each document with its latest version and its
+`record`: the record's number, kind, title and status. A client groups the
+list under its records with no read per record. A record's own read lists its
+documents without `record`, since the record is the read.
+
+The list puts the most recently written document first, so one record's
+documents interleave with another's. A row cap would cut through a record and
+drop its older documents. So `record_limit` bounds the list instead. It ranks
+each record by its latest document write, and keeps every document on the
+newest that many. It defaults to 50 and stops at 500. `limit` still cuts rows
+after it.
+
+`X-Total-Records` counts every record holding a matching document. A client
+tells a short page from the whole by it. `slate documents list
+--records <n>` sends the bound, and says on stderr where records went unshown.
+
+- *Rejected:* an envelope holding the rows and the total. Readers decode the
+  body as a bare array, and an envelope would break each one on the next
+  deploy.
+
 ## A version and a comment name their writer from the token, and where from by reference
 
 Each version and each comment carries:

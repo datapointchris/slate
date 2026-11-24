@@ -27,6 +27,7 @@ from slate.schemas.document import DocumentVersionRef
 from slate.schemas.document import DocumentVersionSummary
 from slate.schemas.document import DocumentWrite
 from slate.schemas.document import DocumentWritten
+from slate.schemas.document import ListedDocument
 from slate.schemas.focus import Focus
 from slate.schemas.focus import FocusEnd
 from slate.schemas.focus import FocusSet
@@ -197,6 +198,7 @@ __all__ = [
     'DocumentVersionSummary',
     'DocumentWrite',
     'DocumentWritten',
+    'ListedDocument',
     'Focus',
     'FocusEnd',
     'FocusSet',
