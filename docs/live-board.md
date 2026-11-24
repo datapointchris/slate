@@ -246,6 +246,45 @@ read with the cursor's row, so a folded issue names its counts once the cursor h
 - *Rejected:* the pull requests as lines of the issue's panel. A panel line is not a row, so
   nothing could open one.
 
+## Each kind lands on one tab, so `t` goes to the tab that draws the record whole
+
+Every line names what it is about, as gotermboard's entities. `t` goes from a line to the tab
+declaring that kind, and `esc` comes back to the line it left. `*` locks every tab to the lines
+naming one thing. gotermboard asks which tab where two declare a kind, so each kind is declared on
+one tab, once, in `cli/internal/cli/tui_entities.go`. The record kinds are spelled as slate spells
+them and named by number, since they share one sequence. A worklog is named by its name, and a pull
+request by its link.
+
+| Kind | Lands on | A line naming it |
+| --- | --- | --- |
+| initiative | initiatives | its row on the initiatives tab |
+| issue | initiatives, under its initiative | its row on the initiatives tab |
+| idea | ideas | its row on the ideas tab |
+| pursuit | no tab yet | each initiative and idea in it, and its group under `v` pursuit |
+| worklog | no tab yet | each pull request and session row it holds |
+| pull request | `prs tui --pr`, outside | its row under an issue |
+
+**A jump to an initiative draws it, whatever the scope.** The per-tier scope opens on five a tier,
+and the sixth sits in a group that draws only under a filter, where gotermboard's seek finds no
+line. So the sought initiative, or the one holding the sought issue, counts as shown until the
+reader leaves the tab.
+
+**The status widens only where a read lacks the record.** Every status reads 2.5 times the bytes of
+the active ones in the same time, so a board reading it on every poll pays that for nothing. Where
+the last read lacks the record, the jump widens to every status at once. A tab that has not read
+yet learns that from its first read, which reads every status after it only where its answer
+lacks the record. The status narrows back once the reader leaves for good. A chained jump that `esc`
+can still return along keeps it wide, so `esc` finds the row it left.
+
+**`*` narrows by what each line names, and nothing more.** A lock on a pursuit keeps the
+initiatives and the ideas in it, past the scope included, and each issue under a kept initiative.
+
+**`t` on a pull request opens `prs tui --pr` only on a web link with `prs` on `PATH`.** Otherwise
+the footer says which is missing and nothing opens, as `enter` on the same row does.
+
+- *Rejected:* reading every status whenever the tab had not read. A jump from another tab to an
+  active initiative would then draw the completed ones too.
+
 ## Keys that write run what the slate verb runs, one at a time
 
 `M` moves an issue to the initiative typed, as `slate issues edit --initiative` does. `P` pins

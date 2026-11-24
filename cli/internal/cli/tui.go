@@ -87,6 +87,10 @@ func newTUICommand() *cobra.Command {
 			"after the last. enter opens an idea's read: its placements, its refs and its\n" +
 			"description. tui-ideas.schema.json in slate's cli/internal/cli holds the shape\n" +
 			"--json prints of it.\n\n" +
+			"t on a row goes to the tab that draws its initiative, issue or idea whole, even one\n" +
+			"the scope or the status leaves out, and esc comes back. t on a pull request opens\n" +
+			"`prs tui` on it. * locks every tab to the lines naming what the row names, such as\n" +
+			"one pursuit, and lifts the lock.\n\n" +
 			"The next run opens on the tab last moved to, unless --view names one. Each tab\n" +
 			"keeps its p panel, f summaries, v grouping, and the groups and rows folded and\n" +
 			"opened, in $XDG_STATE_HOME/slate/tui-display.json. A run --grouping names keeps none.\n\n" +
@@ -138,11 +142,7 @@ func newTUICommand() *cobra.Command {
 					return newInitiativesBoard(client, initiativeStatus, scope, grouping)
 				})
 			}
-			tabs, err := gotermboard.NewTabs([]gotermboard.Tab{
-				{Name: tabInitiatives, Board: newInitiativesBoard(client, initiativeStatus, scope, grouping)},
-				{Name: tabRepos, Board: newReposBoard(client)},
-				{Name: tabIdeas, Board: newIdeasBoard(client)},
-			}, gotermstyle.PaletteFor(os.Stdout), view)
+			tabs, err := openTabs(tuiTabList(client, newInitiativesBoard(client, initiativeStatus, scope, grouping)), view)
 			if err != nil {
 				return err
 			}
@@ -166,6 +166,25 @@ func newTUICommand() *cobra.Command {
 	cmd.Flags().StringVar(&initiativeStatus, "status", "", "One of: "+strings.Join(api.InitiativeStatuses, ", ")+" (default active)")
 	withFlagValues(cmd, "status", api.InitiativeStatuses...)
 	return cmd
+}
+
+// tuiTabList is every tab, in tuiTabs' order, the initiatives tab on the board its flags built.
+func tuiTabList(client *api.Client, initiatives *initiativesBoard) []gotermboard.Tab {
+	return []gotermboard.Tab{
+		{Name: tabInitiatives, Board: initiatives},
+		{Name: tabRepos, Board: newReposBoard(client)},
+		{Name: tabIdeas, Board: newIdeasBoard(client)},
+	}
+}
+
+// openTabs is the program of tabs, opening on view, where t on a pull request opens prs.
+func openTabs(tabs []gotermboard.Tab, view string) (*gotermboard.Tabs, error) {
+	program, err := gotermboard.NewTabs(tabs, gotermstyle.PaletteFor(os.Stdout), view)
+	if err != nil {
+		return nil, err
+	}
+	program.OpensOutside(prsOnPullRequest)
+	return program, nil
 }
 
 // printOpeningTab reads the one tab --view names, and builds no other.

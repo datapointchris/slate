@@ -139,12 +139,8 @@ const usageExit = 2
 // status where it wrote nothing.
 func (b *initiativesBoard) openInPrs(m *gotermboard.Model, link string) tea.Cmd {
 	name := pullRequestName(link)
-	if !webLink(link) {
-		m.Say(fmt.Sprintf("%s is not a web link, so nothing opened it", link))
-		return nil
-	}
-	if _, err := exec.LookPath("prs"); err != nil {
-		m.Say(fmt.Sprintf("prs is not on PATH, so o opens %s in the browser", name))
+	if why := prsCannotOpen(link); why != "" {
+		m.Say(why)
 		return nil
 	}
 	// prs holds the terminal until the user quits it, so the handover has no deadline.
