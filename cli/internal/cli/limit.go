@@ -77,6 +77,15 @@ func noteCappedRows(cmd *cobra.Command, shown int, total int) {
 	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\n%d of %d shown: -n %d shows the rest\n", shown, total, total)
 }
 
+// noteUnshownRecords is noteCappedRows for a list the API bounds by record, which
+// --records widens.
+func noteUnshownRecords(cmd *cobra.Command, shown int, total int) {
+	if shown == 0 || shown >= total {
+		return
+	}
+	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\n%d of %d records shown: --records %d shows the rest\n", shown, total, total)
+}
+
 // limitFlag returns a *int for the --limit flag, or nil when it was not set (so
 // the client omits the query param and the API returns everything).
 //

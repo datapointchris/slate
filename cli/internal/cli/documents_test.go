@@ -35,6 +35,42 @@ func TestComments_AddSendsTheTextAfterTheRecordAndTheSessionWritingIt(t *testing
 	}
 }
 
+func TestDocumentsList_RecordsSendsTheBoundAndSaysOnStderrHowManyRecordsWentUnshown(t *testing.T) {
+	var query string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Total-Records", "3")
+		_, _ = w.Write([]byte(`[{"record_number":412,"name":"plan","address":"412/plan","kind":"plan","latest":{"version":1},` +
+			`"comment_count":0,"record":{"number":412,"kind":"issue","title":"Retry the upload","status":"open"}}]`))
+	}))
+	t.Cleanup(server.Close)
+	asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
+
+	for _, args := range [][]string{{"documents", "list", "--records", "1"}, {"documents", "list", "--records", "1", "--json"}} {
+		root := NewRootCommand()
+		var out, errs bytes.Buffer
+		root.SetOut(&out)
+		root.SetErr(&errs)
+		root.SetArgs(args)
+		if err := root.Execute(); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if query != "record_limit=1" {
+			t.Errorf("%v sent %q, want record_limit=1", args, query)
+		}
+		if !strings.Contains(errs.String(), "1 of 3 records shown: --records 3 shows the rest") {
+			t.Errorf("%v stderr = %q, want the records shown against the total", args, errs.String())
+		}
+		if args[len(args)-1] == "--json" {
+			var rows []map[string]json.RawMessage
+			if err := json.Unmarshal(out.Bytes(), &rows); err != nil || len(rows) != 1 || rows[0]["record"] == nil {
+				t.Errorf("--json printed %s (%v), want a bare array naming each document's record", out.String(), err)
+			}
+		}
+	}
+}
+
 func TestDocumentsShow_PrintsALineCommentUnderItsLineAndOneWhoseLineChangedAfter(t *testing.T) {
 	two, now := 2, time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
 	comment := func(id int, line int, text string, shown *int) api.PlacedComment {

@@ -55,44 +55,72 @@ func newDocumentsCommand() *cobra.Command {
 
 func newDocumentsListCommand() *cobra.Command {
 	var (
-		asJSON bool
-		limit  int
+		asJSON  bool
+		limit   int
+		records int
 	)
 	cmd := &cobra.Command{
 		Use:   "list [<record>]",
 		Short: "List documents with their latest version, the most recently written first",
-		Long:  "With a record, only that record's documents. COMMENTS counts the line comments on every version.",
+		Long: "With a record, only that record's documents. Without one, every document on the\n" +
+			"newest 50 records, each ranked by its latest document write, so a record's\n" +
+			"documents are listed whole or not at all. --records reads more, at most 500, and\n" +
+			"stderr says when records went unshown. --limit then cuts rows.\n" +
+			"\n" +
+			"COMMENTS counts the line comments on every version. --json names each\n" +
+			"document's record.",
 		Example: "  slate documents list 412\n" +
-			"  slate documents list --limit 10 --json",
+			"  slate documents list --records 500 --json",
 		Args:        cobra.MaximumNArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			record := ""
+			var filter api.DocumentFilter
 			if len(args) == 1 {
-				record = args[0]
+				filter.Record = args[0]
+			}
+			if cmd.Flags().Changed("records") {
+				if records < 0 {
+					return goclikit.UsageError(fmt.Errorf("invalid --records %d: a record count is zero or more", records))
+				}
+				filter.RecordLimit = &records
 			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			documents, err := client.ListDocuments(cmd.Context(), record, limitFlag(cmd))
+			list, err := client.ListDocuments(cmd.Context(), filter, limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if asJSON {
-				return encodeJSON(cmd.OutOrStdout(), documents)
-			}
-			if len(documents) == 0 {
+			switch {
+			case asJSON:
+				err = encodeJSON(cmd.OutOrStdout(), list.Documents)
+			case len(list.Documents) == 0:
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No documents.")
-				return nil
+			default:
+				summaries := make([]api.DocumentSummary, len(list.Documents))
+				for i, document := range list.Documents {
+					summaries[i] = document.DocumentSummary
+				}
+				printDocumentsTable(cmd.OutOrStdout(), summaries, time.Now(), "")
 			}
-			printDocumentsTable(cmd.OutOrStdout(), documents, time.Now(), "")
-			return nil
+			noteUnshownRecords(cmd, countRecords(list.Documents), list.TotalRecords)
+			return err
 		},
 	}
 	addLimitFlag(cmd, &limit)
+	cmd.Flags().IntVar(&records, "records", 0, "Every document on at most this many records, the newest written first (default 50, at most 500)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output documents as JSON to stdout")
 	return cmd
+}
+
+// countRecords counts the distinct records holding the documents.
+func countRecords(documents []api.ListedDocument) int {
+	records := map[int]bool{}
+	for _, document := range documents {
+		records[document.RecordNumber] = true
+	}
+	return len(records)
 }
 
 func newDocumentsShowCommand() *cobra.Command {
