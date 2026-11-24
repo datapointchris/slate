@@ -38,7 +38,7 @@ final newline ends the last line rather than starting another. A version's
 read answers them as `lines`, and the CLI prints those. So the number that a
 reader sees is the one `POST /comments` takes.
 
-## The list bounds records rather than rows, so no record is half listed
+## The list bounds records rather than rows, so the bound never half lists a record
 
 `GET /documents` answers each document with its latest version and its
 `record`: the record's number, kind, title and status. A client groups the
@@ -49,12 +49,14 @@ The list puts the most recently written document first, so one record's
 documents interleave with another's. A row cap would cut through a record and
 drop its older documents. So `record_limit` bounds the list instead. It ranks
 each record by its latest document write, and keeps every document on the
-newest that many. It defaults to 50 and stops at 500. `limit` still cuts rows
-after it.
+newest that many. `RECORD_LIMIT_DEFAULT` and `RECORD_LIMIT_MAX` in
+`services/row_limit.py` set its default and its maximum. `limit` still cuts
+rows after it, and can cut a record short.
 
 `X-Total-Records` counts every record holding a matching document. A client
 tells a short page from the whole by it. `slate documents list
 --records <n>` sends the bound, and says on stderr where records went unshown.
+The list has no cursor, so a record past the maximum is read only by naming it.
 
 - *Rejected:* an envelope holding the rows and the total. Readers decode the
   body as a bare array, and an envelope would break each one on the next
