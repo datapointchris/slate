@@ -101,7 +101,9 @@ def test_a_list_names_each_documents_record_and_bounds_by_record_so_none_is_half
     )
     refused = client.get('/documents', params={'record_limit': 501})
     assert '500' in ok(refused, status.HTTP_422_UNPROCESSABLE_CONTENT)['message']
-    assert [sorted(document) for document in ok(client.get(f'/issues/{issue}'))['documents']] == [sorted(listed[1].keys() - {'record'})]
+    assert [(document['address'], 'record' in document) for document in ok(client.get(f'/issues/{issue}'))['documents']] == [
+        (f'{issue}/plan', False)
+    ]
 
 
 def test_a_list_naming_no_record_stops_at_fifty_records(txn_api_logged_in):
