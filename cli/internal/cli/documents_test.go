@@ -35,7 +35,9 @@ func TestComments_AddSendsTheTextAfterTheRecordAndTheSessionWritingIt(t *testing
 	}
 }
 
-func TestDocumentsList_RecordsSendsTheBoundAndSaysOnStderrHowManyRecordsWentUnshown(t *testing.T) {
+// `slate documents list -n 1` gets one row of three records. The row cap cut
+// them, so the note naming --records would advise a flag that shows no more.
+func TestDocumentsList_RecordsSendsTheBoundAndSaysOnStderrHowManyRecordsWentUnshownUnlessARowCapCutThem(t *testing.T) {
 	var query string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query = r.URL.RawQuery
@@ -47,7 +49,15 @@ func TestDocumentsList_RecordsSendsTheBoundAndSaysOnStderrHowManyRecordsWentUnsh
 	t.Cleanup(server.Close)
 	asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
 
-	for _, args := range [][]string{{"documents", "list", "--records", "1"}, {"documents", "list", "--records", "1", "--json"}} {
+	for _, run := range []struct {
+		args        []string
+		query, note string
+	}{
+		{[]string{"documents", "list", "--records", "1"}, "record_limit=1", "1 of 3 records shown: --records 3 shows the rest"},
+		{[]string{"documents", "list", "--records", "1", "--json"}, "record_limit=1", "1 of 3 records shown: --records 3 shows the rest"},
+		{[]string{"documents", "list", "-n", "1"}, "limit=1", ""},
+	} {
+		args := run.args
 		root := NewRootCommand()
 		var out, errs bytes.Buffer
 		root.SetOut(&out)
@@ -56,11 +66,11 @@ func TestDocumentsList_RecordsSendsTheBoundAndSaysOnStderrHowManyRecordsWentUnsh
 		if err := root.Execute(); err != nil {
 			t.Fatalf("%v: %v", args, err)
 		}
-		if query != "record_limit=1" {
-			t.Errorf("%v sent %q, want record_limit=1", args, query)
+		if query != run.query {
+			t.Errorf("%v sent %q, want %s", args, query, run.query)
 		}
-		if !strings.Contains(errs.String(), "1 of 3 records shown: --records 3 shows the rest") {
-			t.Errorf("%v stderr = %q, want the records shown against the total", args, errs.String())
+		if strings.TrimSpace(errs.String()) != run.note {
+			t.Errorf("%v stderr = %q, want %q", args, errs.String(), run.note)
 		}
 		if args[len(args)-1] == "--json" {
 			var rows []map[string]json.RawMessage

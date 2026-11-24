@@ -94,17 +94,18 @@ type ListedDocument struct {
 
 // DocumentFilter narrows a document list. Record names one record. RecordLimit
 // keeps the documents on that many records, the newest written first, and nil
-// leaves the API's default of 50.
+// leaves the API's default.
 type DocumentFilter struct {
 	Record      string
 	RecordLimit *int
 }
 
 // DocumentList is one read of the document list. TotalRecords counts every
-// record holding a matching document, and is zero where the API sent no count.
+// record holding a matching document. It is nil where the API sent no count,
+// which an API older than the record bound does.
 type DocumentList struct {
 	Documents    []ListedDocument
-	TotalRecords int
+	TotalRecords *int
 }
 
 // totalRecordsHeader carries a document list's count of records.
@@ -126,10 +127,12 @@ func (c *Client) ListDocuments(ctx context.Context, filter DocumentFilter, limit
 	if err != nil {
 		return DocumentList{}, err
 	}
-	if total := header.Get(totalRecordsHeader); total != "" {
-		if list.TotalRecords, err = strconv.Atoi(total); err != nil {
-			return DocumentList{}, fmt.Errorf("read the API's %s %q: %w", totalRecordsHeader, total, err)
+	if raw := header.Get(totalRecordsHeader); raw != "" {
+		total, err := strconv.Atoi(raw)
+		if err != nil {
+			return DocumentList{}, fmt.Errorf("read the API's %s %q: %w", totalRecordsHeader, raw, err)
 		}
+		list.TotalRecords = &total
 	}
 	return list, nil
 }

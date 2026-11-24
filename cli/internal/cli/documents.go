@@ -63,14 +63,15 @@ func newDocumentsListCommand() *cobra.Command {
 		Use:   "list [<record>]",
 		Short: "List documents with their latest version, the most recently written first",
 		Long: "With a record, only that record's documents. Without one, every document on the\n" +
-			"newest 50 records, each ranked by its latest document write, so a record's\n" +
-			"documents are listed whole or not at all. --records reads more, at most 500, and\n" +
-			"stderr says when records went unshown. --limit then cuts rows.\n" +
+			"API's default number of records, the newest written first. Each record ranks by\n" +
+			"its latest document write, so the bound never lists part of a record. --records\n" +
+			"reads more, up to the API's maximum, and stderr says when records went unshown.\n" +
+			"--limit then cuts rows, which can cut a record short, and prints no such note.\n" +
 			"\n" +
 			"COMMENTS counts the line comments on every version. --json names each\n" +
 			"document's record.",
 		Example: "  slate documents list 412\n" +
-			"  slate documents list --records 500 --json",
+			"  slate documents list --records 100 --json",
 		Args:        cobra.MaximumNArgs(1),
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -79,16 +80,14 @@ func newDocumentsListCommand() *cobra.Command {
 				filter.Record = args[0]
 			}
 			if cmd.Flags().Changed("records") {
-				if records < 0 {
-					return goclikit.UsageError(fmt.Errorf("invalid --records %d: a record count is zero or more", records))
-				}
 				filter.RecordLimit = &records
 			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			list, err := client.ListDocuments(cmd.Context(), filter, limitFlag(cmd))
+			rowCap := limitFlag(cmd)
+			list, err := client.ListDocuments(cmd.Context(), filter, rowCap)
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
@@ -104,12 +103,16 @@ func newDocumentsListCommand() *cobra.Command {
 				}
 				printDocumentsTable(cmd.OutOrStdout(), summaries, time.Now(), "")
 			}
-			noteUnshownRecords(cmd, countRecords(list.Documents), list.TotalRecords)
+			// A row cap can cut a record short, so only an uncapped list counts its records exactly.
+			if list.TotalRecords != nil && rowCap == nil {
+				noteUnshownRecords(cmd, countRecords(list.Documents), *list.TotalRecords)
+			}
 			return err
 		},
 	}
 	addLimitFlag(cmd, &limit)
-	cmd.Flags().IntVar(&records, "records", 0, "Every document on at most this many records, the newest written first (default 50, at most 500)")
+	cmd.Flags().Var(limitValue{target: &records}, "records",
+		"Every document on at most this many records, the newest written first (default and maximum: the API's)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output documents as JSON to stdout")
 	return cmd
 }

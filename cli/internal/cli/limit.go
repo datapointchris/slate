@@ -12,7 +12,7 @@ import (
 // thing everywhere in the binary: a caller who has read it once on `issues list`
 // has read it everywhere, and a divergence between two commands is invisible in
 // help because both rows still read the same.
-const limitUsage = "Maximum number of rows to return (default: every row)"
+const limitUsage = "Maximum number of rows to return (default: no row cap)"
 
 // limitValue parses --limit and refuses a negative, which is the floor a row
 // count owes. pflag has no minimum, so the parser is this Set method: without
@@ -78,16 +78,17 @@ func noteCappedRows(cmd *cobra.Command, shown int, total int) {
 }
 
 // noteUnshownRecords is noteCappedRows for a list the API bounds by record, which
-// --records widens.
+// --records widens. It speaks for --records 0 too, since that shows no record of
+// the total.
 func noteUnshownRecords(cmd *cobra.Command, shown int, total int) {
-	if shown == 0 || shown >= total {
+	if shown >= total {
 		return
 	}
 	_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\n%d of %d records shown: --records %d shows the rest\n", shown, total, total)
 }
 
-// limitFlag returns a *int for the --limit flag, or nil when it was not set (so
-// the client omits the query param and the API returns everything).
+// limitFlag returns a *int for the --limit flag, or nil when it was not set, so
+// the client sends no row cap.
 //
 // A limit is a row count and 0 is a count a caller can mean, so --limit 0 is a
 // pointer to zero that reaches the server as `limit=0` and answers with
