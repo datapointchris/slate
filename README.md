@@ -184,7 +184,7 @@ reaches only the routes its scopes list:
 | `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
 
-No scope deletes anything, and none edits or promotes an idea. A service
+No scope deletes anything, and none edits, promotes or folds an idea. A service
 files one with `slate.ideas.write`, and a planning job moves one in the queue.
 A `--ref` given while filing rides the scope that files the record.
 `src/slate/api/client_scopes.py` holds the exact routes.

@@ -1,14 +1,16 @@
 """Records of every kind in one list, narrowed by the words each one's title or description holds.
 
 A word that is a number, as `N` or `#N`, also matches the record with that number, and that
-record lists first. Every kind is listed whatever its status, because the record a reader
-remembers may be the one that closed. A promoted idea lists among the closed, since its work is
-its initiative's. A pursuit has no priority, so it lists at none.
+record lists first. A number a fold retired matches the record it leads to. Every kind is listed
+whatever its status, because the record a reader remembers may be the one that closed. A promoted
+idea lists among the closed, since its work is its initiative's. A pursuit has no priority, so it
+lists at none.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 from typing import Any
 
 from sqlalchemy import ColumnElement
@@ -31,16 +33,19 @@ from slate.services.record_lookup import record_number
 from slate.services.row_limit import apply_row_limit
 
 
-def word_matches(word: str, number: InstrumentedAttribute[int], searched: tuple[InstrumentedAttribute[Any], ...]) -> ColumnElement[bool]:
-    """Whether any `searched` column holds `word`, or `word` is `N` or `#N` and `number` is N."""
+def word_matches(
+    word: str, number: InstrumentedAttribute[int], searched: tuple[InstrumentedAttribute[Any], ...], led_to: Mapping[int, int]
+) -> ColumnElement[bool]:
+    """Whether any `searched` column holds `word`, or `word` is `N` or `#N` and `number` is N or the number N leads to."""
     named = record_number(word)
     if named is None:
         return or_(*(column.icontains(word, autoescape=True) for column in searched))
     digits = word.removeprefix('#')
-    return or_(number == named, *(column.icontains(digits, autoescape=True) for column in searched))
+    numbers = [named] if named not in led_to else [named, led_to[named]]
+    return or_(number.in_(numbers), *(column.icontains(digits, autoescape=True) for column in searched))
 
 
-def kind_query(kind: Kind, words: list[str]) -> Select[int, str, str, str | None, int, dt.datetime, bool]:
+def kind_query(kind: Kind, words: list[str], led_to: Mapping[int, int]) -> Select[int, str, str, str | None, int, dt.datetime, bool]:
     """Each record of `kind` that every word matches, in any order, and whether it is closed."""
     searched: tuple[InstrumentedAttribute[Any], ...]
     number: InstrumentedAttribute[int]
@@ -78,7 +83,7 @@ def kind_query(kind: Kind, words: list[str]) -> Select[int, str, str, str | None
             searched = (title, models.Pursuit.summary, models.Pursuit.description)
             query = select(number, literal(kind.value), title, models.Pursuit.status, literal(0), models.Pursuit.created_ts, ~is_open(kind))
     for word in words:
-        query = query.where(word_matches(word, number, searched))
+        query = query.where(word_matches(word, number, searched, led_to))
     return query
 
 
@@ -86,7 +91,10 @@ def listed_records(session: Session, search: str | None, kinds: list[Kind], limi
     """A record a word names by number first, then the unclosed, then the most urgent, then the newest."""
     words = (search or '').split()
     named = [found for word in words if (found := record_number(word)) is not None]
-    listed = union_all(*(kind_query(kind, words) for kind in kinds)).subquery()
+    redirects = select(models.RecordRedirect.number, models.RecordRedirect.to_number).where(models.RecordRedirect.number.in_(named))
+    led_to: dict[int, int] = {retired: target for retired, target in session.execute(redirects)}
+    named.extend(led_to.values())
+    listed = union_all(*(kind_query(kind, words, led_to) for kind in kinds)).subquery()
     number, kind, title, record_status, priority, created_ts, closed = listed.c
     query = select(number, kind, title, record_status, priority, created_ts).order_by(
         ~number.in_(named),

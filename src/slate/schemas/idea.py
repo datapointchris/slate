@@ -17,8 +17,10 @@ from slate.schemas.issue import IssuePaths
 from slate.schemas.issue import IssueRef
 from slate.schemas.not_null import NotNull
 from slate.schemas.pursuit import InPursuits
+from slate.schemas.record import Actor
 from slate.schemas.record import Priority
 from slate.schemas.record import RecordModel
+from slate.schemas.record import RecordRef as RecordNumber
 from slate.schemas.record import SummaryText
 from slate.schemas.record_parts import RecordParts
 from slate.schemas.record_ref import RecordRef
@@ -61,6 +63,20 @@ FIELDS_OF_KIND: dict[PromotedKind, frozenset[str]] = {
 }
 # The fields a promotion to either kind takes.
 SHARED_FIELDS = frozenset({'description', 'priority', 'tags'})
+
+
+class IdeaFold(RecordModel):
+    """A fold: the record `into` names takes every row of the idea, and the idea's number leads there.
+
+    `holder` names whose claim on the idea moves, as a hold names it. That claim moves to the
+    target, or ends as released where `holder` holds the target too. Left out, it is the caller's
+    actor.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
+
+    into: RecordNumber
+    holder: Actor | None = None
 
 
 class IdeaPromote(RecordModel):

@@ -1,5 +1,6 @@
 import threading
 from collections.abc import AsyncGenerator
+from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -20,12 +21,15 @@ from fastapi.utils import is_body_allowed_for_status_code
 from opentelemetry.sdk.trace import TracerProvider
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
+from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Match
 
 from slate.api import API_PREFIX
 from slate.api.callers import get_current_caller
+from slate.api.callers import mark_request_on_session
 from slate.api.endpoints import checks
 from slate.api.endpoints import claims
 from slate.api.endpoints import comments
@@ -46,6 +50,7 @@ from slate.api.endpoints import vocabulary
 from slate.api.endpoints import worklogs
 from slate.api.protected_resource import add_protected_resource_route
 from slate.api.request_logging import RequestLoggingMiddleware
+from slate.api.retired_record_refusal import refusal_behind_a_fold
 from slate.config import Settings
 from slate.config import get_settings
 from slate.database.session import get_db_engine
@@ -159,12 +164,27 @@ async def request_validation_exception_handler(request, exc):
     return error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, validation_message(errors), errors=errors)
 
 
-async def database_error_handler(request, exc):
-    """A request Postgres cannot serve answers 503. Every other database error raises on to `unhandled_exception_handler`."""
-    if not postgres_unavailable(exc):
-        raise exc
-    logger.error('api_postgres_unavailable', path=request.url.path, error=str(exc), error_type=type(exc.orig).__name__)
-    return error_response(status.HTTP_503_SERVICE_UNAVAILABLE, 'Postgres is unavailable')
+def database_error_handler(settings: Settings) -> Callable[[Request, Exception], Awaitable[Response]]:
+    """The handler for a database error, which reads `settings`' Postgres where a fold explains the error.
+
+    A request Postgres cannot serve answers 503. A write whose record a fold retired while it waited
+    answers 409 naming where the record's rows went, as a write through the redirect does. Every
+    other database error raises on to `unhandled_exception_handler`.
+    """
+
+    async def handle(request: Request, exc: Exception) -> Response:
+        if not isinstance(exc, DBAPIError):
+            raise exc
+        refusal = await run_in_threadpool(refusal_behind_a_fold, settings, exc)
+        if refusal is not None:
+            logger.warning('api_write_behind_a_fold', path=request.url.path, detail=refusal)
+            return error_response(status.HTTP_409_CONFLICT, refusal)
+        if not postgres_unavailable(exc):
+            raise exc
+        logger.error('api_postgres_unavailable', path=request.url.path, error=str(exc), error_type=type(exc.orig).__name__)
+        return error_response(status.HTTP_503_SERVICE_UNAVAILABLE, 'Postgres is unavailable')
+
+    return handle
 
 
 async def unhandled_exception_handler(request, exc):
@@ -225,10 +245,10 @@ def create_api(settings: Settings, tracer_provider: TracerProvider | None = None
     )
     api.add_middleware(RequestLoggingMiddleware)
 
-    caller = [Depends(get_current_caller)]
+    every_route = [Depends(mark_request_on_session), Depends(get_current_caller)]
     v1 = APIRouter(prefix=API_PREFIX)
     for prefix, router in RESOURCE_ROUTERS:
-        v1.include_router(router, prefix=prefix, dependencies=caller)
+        v1.include_router(router, prefix=prefix, dependencies=every_route)
     api.include_router(v1)
     api.state.route_templates = route_templates(RESOURCE_ROUTERS)
     add_probe_routes(api, settings)
@@ -237,7 +257,7 @@ def create_api(settings: Settings, tracer_provider: TracerProvider | None = None
 
     api.add_exception_handler(HTTPException, http_exception_handler)
     api.add_exception_handler(RequestValidationError, request_validation_exception_handler)
-    api.add_exception_handler(DBAPIError, database_error_handler)
+    api.add_exception_handler(DBAPIError, database_error_handler(settings))
     api.add_exception_handler(Exception, unhandled_exception_handler)
     instrument_api(api, tracer_provider)
     return api

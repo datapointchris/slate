@@ -83,6 +83,75 @@ own, and reads it back as `idea`. Promoting such an idea again answers 409
 naming that initiative. A claim on it goes through with an `idea_promoted`
 warning naming the initiative, because the work lives there.
 
+## Folding an idea moves every row on it to the work that covers it, and its number leads there
+
+An idea that existing work already covers is folded into that work rather than
+promoted. `POST /ideas/{id}/fold` takes `into`, the number of an idea,
+initiative or issue, and `holder`, whose claim on the idea moves with it. The
+holder defaults to the caller. `slate ideas fold <idea> --into <record>` sends
+it, and no service scope reaches it.
+
+One transaction does the whole fold:
+
+1. **It locks both `records` rows `FOR UPDATE`, lower number first.** Two folds
+   over the same pair then queue rather than deadlock.
+2. **It refuses with 409** a record that is not an idea, a pursuit as `into`,
+   the idea as its own `into`, and another holder's live claim on either
+   record. It refuses an idea that an initiative's `idea_id` names, as the
+   delete does, because that initiative names it as where its work came from.
+   A closed `into` is taken, because the idea's work may already have shipped
+   there.
+3. **It settles the claims.** A claim whose lease ran out ends as `expired`.
+   The holder's claim on the idea moves to the record. Where the holder holds
+   the record too, the idea's claim ends as `released` instead.
+4. **It moves the rows.** Worklogs are numbered on after the record's last, and
+   each old name is kept in `worklog_redirects`. Claims with their waits,
+   comments and checks move as they are. A document whose name the record
+   already holds moves as `<name>-from-<idea>`, and its line comments follow
+   through the `ON UPDATE CASCADE` key on `comments`. Each document's old
+   number and name are kept in `document_redirects`, mapped to its `id`, so a
+   later fold that moves it again leaves no chain. Refs, tags and pursuits
+   move where the record lacks them. An issue holds no pursuits, so a fold into
+   one drops the idea's.
+5. **It retargets every redirect that led to the idea**, so a retired number
+   always leads one step.
+6. **It deletes the idea's `ideas` and `records` rows** and keeps the number in
+   `record_redirects`, with the idea's `id`, title, priority, flow and
+   `created_ts`.
+
+The answer is the record's own write: `idea`, `initiative` or `issue`, as its
+kind's routes answer. Its side effects name each move:
+
+| Code | When |
+| --- | --- |
+| `expired_claim_ended` | a claim on either record had run out; it ends as `expired` |
+| `claim_moved` | the holder's claim on the idea moved to the record |
+| `claim_ended` | the holder held both, so its claim on the idea ends as `released` |
+| `worklog_moved` | each worklog, with its old and new names |
+| `claims_moved`, `comments_moved`, `checks_moved` | the count of each that moved, and the waits on the claims |
+| `document_moved` | each document, with its new address and why it was renamed |
+| `refs_moved`, `tags_moved`, `pursuits_moved` | the count of each the record did not already carry |
+| `redirect_retargeted` | a number that led to the idea now leads to the record |
+| `record_redirected` | the idea's number now leads to the record |
+
+It warns `pursuits_dropped` for each pursuit a fold into an issue drops. It warns
+`pin_dropped` where the idea was pinned, because the record keeps its own place
+in the queue.
+
+An edit, pin or promotion of the idea takes the idea's `records` row
+`FOR NO KEY UPDATE` before it reads the idea, so it waits while a fold holds
+that row. Once the fold commits, the row is gone, and the write reads the
+number again and answers the same 409 a write through the redirect gets. A
+comment or another insert that names the idea's number fails its foreign key
+on the deleted row, and the API answers that with the 409 too. `records.md`
+says how a retired number reads. It also says what a delete does to the
+numbers folded into the deleted record.
+
+- *Rejected:* keeping the idea as a stub that points at the record, as Stack
+  Overflow keeps a merged question. Every list and the queue would then have to
+  skip the stub. A redirect row is read only where a number misses.
+  `merged-and-moved-ids-prior-art.md` gives what other trackers do.
+
 ## Deleting an idea takes its refs, and an idea that names its initiative is refused
 
 An idea has no status to close it, so an idea recorded by mistake leaves the

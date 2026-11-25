@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/datapointchris/goclikit"
@@ -271,5 +272,13 @@ func printRecordParts(out io.Writer, parts api.RecordParts, now time.Time) {
 	if len(parts.Comments) > 0 {
 		_, _ = fmt.Fprintf(out, "\nComments (%d):\n", len(parts.Comments))
 		printComments(out, parts.Comments, now)
+	}
+	if len(parts.RedirectedFrom) > 0 {
+		_, _ = fmt.Fprintf(out, "\nNumbers leading here (%d):\n", len(parts.RedirectedFrom))
+		tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+		for _, from := range parts.RedirectedFrom {
+			_, _ = fmt.Fprintf(tw, "  #%d\t%s %s\t%s\n", from.Number, from.Reason, localDay(from.RedirectedTS), from.FormerTitle)
+		}
+		_ = tw.Flush()
 	}
 }

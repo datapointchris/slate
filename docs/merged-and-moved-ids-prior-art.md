@@ -1,7 +1,7 @@
 # Prior art for a record that changes kind, merges into another, or answers to an old number
 
 A promoted idea becomes its initiative or issue under its own number, and an idea that
-existing work covers must fold into that work. A fold leaves a number that has to keep leading
+existing work covers folds into that work. A fold leaves a number that keeps leading
 somewhere. This page
 holds what other trackers and CRMs do when a record changes type, merges into another, or moves to
 a new id, and what slate takes from each. [ideas.md](ideas.md) and [records.md](records.md) describe
@@ -26,7 +26,7 @@ the records themselves.
   the target.
 - **HubSpot** answers a request for a merged record's old id with the merged record. The
   survivor's `hs_merged_object_ids` property holds each old id.
-- **slate's fold must follow these three.** Every row on the folded idea's number moves to the
+- **slate's fold follows these three.** Every row on the folded idea's number moves to the
   record that carries the work. The idea's number is kept in a redirect, as Jira's
   `moved_issue_key` keeps an old key. The survivor's read lists every number that leads to it, as
   HubSpot's `hs_merged_object_ids` does. That list is where a wrong fold shows.
@@ -38,7 +38,7 @@ the records themselves.
 - **Jira's REST API never answered a moved key with a redirect.** Scripts broke where browsers did
   not.
 - **HubSpot answers an old id with the survivor under a 200.**
-- **slate must answer with the target under a 200, under the target's own number.** A kind's route
+- **slate answers with the target under a 200, under the target's own number.** A kind's route
   that a 308 sent elsewhere would answer another kind's schema. slate's callers, the CLI and an
   importer that copies records into a warehouse, decode one schema per route. A changed number in the answer tells a
   caller that a redirect was followed. `GET /records/{number}` also names it in `redirected_from`.

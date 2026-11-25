@@ -11,7 +11,9 @@ row comes after.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import NoReturn
 from uuid import UUID
 
 import structlog
@@ -51,26 +53,70 @@ def in_place_of(promoted: PromotedIdea | None) -> dict[str, object]:
     return {'record': promoted.record, 'id': promoted.id, 'created_ts': promoted.created_ts}
 
 
+def idea_number(session: Session, ref: str) -> int:
+    """The number `ref` names as an idea's, by number or by the idea's UUID, whatever kind holds it now.
+
+    A number no record holds goes through `resolve_idea`, which answers 404, or 409 where a fold
+    retired the number, since only a write asks for an idea this way.
+    """
+    number = record_number(ref)
+    if number is None and (idea_id := parse_uuid(ref)) is not None:
+        number = number_holding_id(session, idea_id)
+    if number is None or session.get(models.Record, number) is None:
+        number = resolve_idea(session, ref).number
+    return number
+
+
 def lock_idea(session: Session, ref: str) -> models.Idea:
     """The idea `ref` names, with its `records` row locked `FOR UPDATE` until the transaction ends.
 
     Two promotions of one idea then run one after the other. The second reads the kind the first
     committed, and answers 409 as a number that another kind holds does.
     """
-    number = record_number(ref)
-    if number is None and (idea_id := parse_uuid(ref)) is not None:
-        number = number_holding_id(session, idea_id)
-    if number is None:
-        number = resolve_idea(session, ref).number
+    number = idea_number(session, ref)
     locked = select(models.Record).where(models.Record.number == number).with_for_update().execution_options(populate_existing=True)
     record = session.scalar(locked)
     if record is None:
-        raise NotFoundException('idea', ref, logger)
+        resolved_again(session, lambda: resolve_idea(session, ref), 'idea', ref)
     if record.kind != Kind.IDEA:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=f'#{number} is {with_article(record.kind)}; only an idea is promoted'
         )
     return session.scalars(select(models.Idea).where(models.Idea.number == number)).one()
+
+
+def idea_held_for_write(session: Session, ref: str, number: int) -> models.Idea:
+    """The idea at `number`, read again once its `records` row is held `FOR NO KEY UPDATE` until the transaction ends.
+
+    A fold or a promotion holds the row `FOR UPDATE`, so a write to the idea waits behind it rather
+    than changing a row that the fold then deletes.
+    """
+    session.scalar(select(models.Record.number).where(models.Record.number == number).with_for_update(key_share=True))
+    idea = session.scalar(select(models.Idea).where(models.Idea.number == number).execution_options(populate_existing=True))
+    if idea is None:
+        resolved_again(session, lambda: resolve_idea(session, ref), 'idea', ref)
+    return idea
+
+
+def resolved_again(session: Session, resolve: Callable[[], object], resource: str, ref: str) -> NoReturn:
+    """Answer for a row that a lock found gone: the redirect's 409 where a fold retired its number, else 404.
+
+    The wait ended when the fold or promotion holding the row committed, so a fresh read sees what
+    it left.
+    """
+    session.expire_all()
+    resolve()
+    raise NotFoundException(resource, ref, logger)
+
+
+def refuse_named_by_initiative(idea: models.Idea) -> None:
+    """Refuse to remove an idea that an initiative names in `idea_id` as where that initiative's work came from."""
+    if idea.initiative is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f'#{idea.number} was promoted to initiative #{idea.initiative.number} {idea.initiative.name!r}, '
+            'which names it as where that work came from, so it stays.',
+        )
 
 
 def turn_idea_into(session: Session, idea: models.Idea, kind: Kind, promoted_by: str, now: dt.datetime) -> PromotedIdea:

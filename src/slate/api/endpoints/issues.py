@@ -279,7 +279,7 @@ def read_many(
     if closed_by:
         query = query.where(models.Issue.closed_by.startswith(closed_by, autoescape=True))
     for word in (search or '').split():
-        query = query.where(word_matches(word, models.Issue.number, (models.Issue.title, models.Issue.description)))
+        query = query.where(word_matches(word, models.Issue.number, (models.Issue.title, models.Issue.description), {}))
     query = apply_repo_filter(query, repo)
     query = apply_label_filter(query, label, session)
     query = narrowed_to_groupings(query, Kind.ISSUE, groupings, session)

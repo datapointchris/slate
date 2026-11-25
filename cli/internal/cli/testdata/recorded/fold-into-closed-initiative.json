@@ -1,0 +1,109 @@
+{
+  "side_effects": [
+    {
+      "code": "worklog_moved",
+      "message": "Moved worklog 4086.1 to #2356 as 2356.6.",
+      "record": 2356
+    },
+    {
+      "code": "claims_moved",
+      "message": "Moved 1 claim to #2356.",
+      "record": 2356
+    },
+    {
+      "code": "comments_moved",
+      "message": "Moved 1 comment to #2356.",
+      "record": 2356
+    },
+    {
+      "code": "record_redirected",
+      "message": "#4086 now leads to #2356.",
+      "record": 2356
+    }
+  ],
+  "warnings": [],
+  "initiative": {
+    "steps": [
+      {
+        "step": "shape",
+        "worklog": "2356.1",
+        "ended_ts": "2026-11-21T20:51:42.949110Z",
+        "session": "8224de10-0c78-4b70-8e3e-ceb02f8435aa"
+      },
+      {
+        "step": "design",
+        "worklog": "2356.2",
+        "ended_ts": "2026-11-21T22:20:43.786159Z",
+        "session": "8224de10-0c78-4b70-8e3e-ceb02f8435aa"
+      },
+      {
+        "step": "preflight",
+        "worklog": "2356.3",
+        "ended_ts": "2026-11-21T22:41:54.729143Z",
+        "session": "8224de10-0c78-4b70-8e3e-ceb02f8435aa"
+      },
+      {
+        "step": "build",
+        "worklog": "2356.4",
+        "ended_ts": "2026-11-22T03:25:44.393080Z",
+        "session": "8224de10-0c78-4b70-8e3e-ceb02f8435aa"
+      },
+      {
+        "step": "retro",
+        "worklog": "2356.5",
+        "ended_ts": "2026-11-22T03:28:44.434283Z",
+        "session": "8224de10-0c78-4b70-8e3e-ceb02f8435aa"
+      }
+    ],
+    "stage": "retro",
+    "not_planned_steps": [],
+    "pursuits": [
+      {
+        "number": 2983,
+        "name": "Neutral pursuit 1"
+      },
+      {
+        "number": 2989,
+        "name": "Neutral pursuit 2"
+      }
+    ],
+    "id": "01a1b283-9531-714b-adfc-f1891748c626",
+    "number": 2356,
+    "name": "Neutral name 1",
+    "summary": "Neutral summary 1.",
+    "description": "Neutral description 1.",
+    "status": "completed",
+    "status_reason": null,
+    "priority": 4,
+    "rank": 2288.0,
+    "pinned_ts": null,
+    "pinned_by": null,
+    "pinned_session": null,
+    "flow_id": "b9a0ed2ba94d4028b8b33c4b8e94b46d",
+    "autofix": false,
+    "created_ts": "2026-11-06T20:18:50.269892Z",
+    "closed_ts": "2026-11-22T03:30:12.112467Z",
+    "tags": [
+      "tag-1",
+      "tag-2"
+    ],
+    "refs": [],
+    "issue_count": 11,
+    "open_count": 0,
+    "completed_count": 11,
+    "canceled_count": 0,
+    "repos": [
+      "repo-1",
+      "repo-2",
+      "repo-3",
+      "repo-4",
+      "repo-5"
+    ],
+    "claim": null,
+    "last_check": null,
+    "check_request": null,
+    "idea": null,
+    "depends_on": [],
+    "waiting_initiatives": []
+  }
+}

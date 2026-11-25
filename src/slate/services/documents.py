@@ -30,6 +30,12 @@ def find_document(session: Session, number: int, name: str) -> models.Document |
     return session.scalar(select(models.Document).where(models.Document.record_number == number, models.Document.name == name))
 
 
+def document_moved_off(session: Session, retired: int, name: str) -> models.Document | None:
+    """The document that number `retired` held as `name` before a fold moved it, wherever later folds took it."""
+    moved = select(models.Document).join(models.DocumentRedirect, models.DocumentRedirect.document_id == models.Document.id)
+    return session.scalar(moved.where(models.DocumentRedirect.record_number == retired, models.DocumentRedirect.name == name))
+
+
 def resolve_document(session: Session, number: int, name: str) -> models.Document:
     """The record's document named `name`, or 404 naming the documents the record holds."""
     document = find_document(session, number, name)

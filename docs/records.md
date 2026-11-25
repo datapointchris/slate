@@ -62,6 +62,55 @@ worklog is not a record, so its `--json` is `{kind: "worklog", name, record}`,
 named by the name it is read back with, and `slate search --kind` does not
 take `worklog`.
 
+## A retired number answers the record it leads to for a client that asks, and refuses a write
+
+A fold retires an idea's number into `record_redirects`, with the number it
+leads to, `reason` `folded`, and the idea's `id`, title, priority, flow and
+`created_ts`. `ideas.md` describes the fold.
+
+- **A read follows the redirect only under `Slate-Follow-Redirects: true`.**
+  With it, `GET /records/4086` answers the redirect's target under that
+  record's own number. A kind's route does the same where the target is that
+  kind, by number or by the idea's old `id`.
+- **A read without the header answers 404 naming the redirect:**
+  `record 4086 not found: #4086 was folded into initiative #2356 on
+  2026-11-24`. A CLI released before folds reads a record, then deletes or
+  transitions it by the `id` that read answered. Following for it would act
+  on #2356 when #4086 was typed, so the answer changes shape only for a client
+  that asks.
+- **A kind's route of another kind answers that 404 with or without the
+  header:** `idea 4086 not found: #4086 was folded into initiative #2356 on
+  2026-11-24`.
+- **A write answers 409 naming the record to write to:** `#4086 was folded into
+  initiative #2356 on 2026-11-24; run it against #2356`. A write through an old
+  number is never sent on, because its sender chose that record and may not
+  mean the other. The date reads in the request's `timezone`. A write to the
+  idea that waited on its row while the fold ran gets the same 409.
+- **Every record's read lists the numbers that lead to it** in
+  `redirected_from`, as `[{number, reason, former_kind, former_title,
+  redirected_ts, sentence}]`, oldest first. `sentence` is the line the 404 and
+  the 409 carry. A wrong fold shows there.
+- **A document read through the old number answers the one the fold moved**,
+  wherever later folds moved it. `document_redirects` keeps each moved
+  document's old number and name, mapped to the document's `id`. Where the old
+  number held no document of that name, the read answers the target's own.
+- **A search for the old number lists the record it leads to.**
+- **The record's changes include the folded idea's own rows**, under its old
+  `id`.
+- **A worklog's old name answers the worklog, reads and writes alike.**
+  `GET /worklogs/4086.1` answers `2356.6`. The name is a second name for the
+  same worklog, so no caller reaches another one through it.
+
+A number that nobody ever held still answers `record <n> not found`.
+
+The CLI sends the header on every request. `slate show 4086` opens on
+`#4086 was folded into initiative #2356 on 2026-11-24.` before the record,
+which lists `Numbers leading here`. `slate show 4086.1` opens on
+`Worklog 4086.1 is now 2356.6.`. A CLI write through the old number prints the
+API's 409 as its `error:` line and exits 1. The CLI sends each write by the
+number typed rather than by the `id` a read answered first, because that read
+may have followed the redirect to another record.
+
 ## A record's changes are every write to it and to the rows hanging off it
 
 `GET /records/{number}/changes` answers the record's rows of `audit_trail`,
@@ -139,7 +188,8 @@ the newest. An idea has no status, so it sorts with the unclosed. A pursuit
 has no priority, so it sorts as none among its peers. `kind`
 narrows the list to one kind. `slate search <words>` prints it. `slate issues
 list --search <words>` asks `GET /issues?search=` instead, beside every issue
-filter, and matches a number the same way.
+filter, and matches a number the same way. A number that a fold retired
+matches the record it leads to.
 
 ## Tags are a short closed list ideas, initiatives and issues carry, and an issue reads its initiative's
 
@@ -453,6 +503,7 @@ Its side effects name what went with it and each other record it changed:
 | `child_detached` | an issue's child loses its parent |
 | `dependency_removed` | an issue that depended on the deleted record, or an initiative that waited on it, no longer does |
 | `issue_detached` | an initiative's issue is left in no initiative |
+| `redirect_deleted` | a number was folded into the record; it goes with it and answers 404 |
 
 It warns `deleted_anothers_claim` when another holder's live claim was on the
 record.

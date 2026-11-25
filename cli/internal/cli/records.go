@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -69,12 +70,18 @@ func newShowCommand() *cobra.Command {
 				if asJSON {
 					return encodeJSON(out, worklogShown{Kind: recordKindWorklog, Name: worklog.Name, Record: worklog})
 				}
+				if worklog.Name != name {
+					_, _ = fmt.Fprintf(out, "Worklog %s is now %s.\n", name, worklog.Name)
+				}
 				printWorklogDetail(out, worklog, now)
 				return nil
 			}
 			record, err := client.GetRecord(cmd.Context(), args[0], issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
+			}
+			if line := leadsToLine(args[0], record); line != "" && !asJSON {
+				_, _ = fmt.Fprintln(out, line)
 			}
 			changes, err := readChanges(cmd, client, record.Number, changeCount, asJSON)
 			if err != nil {
@@ -123,6 +130,20 @@ func newShowCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the kind, the number and the record as JSON to stdout")
 	addChangesFlag(cmd, &changeCount)
 	return goclikit.WithRecoveryHints(cmd, searchHint, worklogHints[0])
+}
+
+// leadsToLine says which retired number a read followed to the record, or
+// nothing where the number asked for is the record's own.
+func leadsToLine(asked string, record api.Record) string {
+	number, err := strconv.Atoi(strings.TrimPrefix(asked, "#"))
+	if err != nil || number == record.Number {
+		return ""
+	}
+	from := api.RedirectOf(record.Parts().RedirectedFrom, number)
+	if from == nil || from.Sentence == "" {
+		return fmt.Sprintf("#%d leads to #%d.", number, record.Number)
+	}
+	return from.Sentence + "."
 }
 
 // recordKindWorklog is the kind `slate show --json` names for a worklog, which

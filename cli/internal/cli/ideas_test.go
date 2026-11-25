@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/datapointchris/slate/cli/internal/api"
@@ -106,6 +107,78 @@ func TestIdeasPromote_SendsOnlyItsKindsFieldsAndReadsTheNumberFromTheAnswer(t *t
 				got := record["number"]
 				if got != want {
 					t.Errorf("%s names #%v, want #%v", member, got, want)
+				}
+			}
+		})
+	}
+}
+
+// `slate ideas fold` names the idea, the record it went into and every row that
+// moved, from the API's own answers to folding a real idea on a copy of
+// slate's data. A refusal prints the API's sentence, and an API from before
+// the fold says it has none rather than that the idea is missing.
+func TestIdeasFold_NamesWhatMovedOrWhatRefusedIt(t *testing.T) {
+	recorded := func(name string) string {
+		raw, err := os.ReadFile(filepath.Join("testdata", "recorded", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(raw)
+	}
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		out    []string
+		err    string
+	}{
+		{
+			"into a closed initiative", http.StatusOK, recorded("fold-into-closed-initiative.json"),
+			[]string{
+				"Folded idea #4086 \"Neutral title 1\" into initiative #2356 \"Neutral name 1\", which is completed.\n",
+				"  Moved worklog 4086.1 to #2356 as 2356.6.\n  Moved 1 claim to #2356.\n  Moved 1 comment to #2356.\n  #4086 now leads to #2356.\n",
+			},
+			"",
+		},
+		{
+			"refused for another session's claim", http.StatusConflict, recorded("fold-refused-for-claim.json"), nil,
+			"claude-code/copy-check-second holds #2926 until 2026-11-25 05:19 UTC; it ends or releases its claim first",
+		},
+		{
+			"by an API from before the fold", http.StatusNotFound, `{"error":"Not Found","message":"no route answers /api/v1/ideas/4086/fold"}`, nil,
+			"this API has no fold",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var sent map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodGet {
+					_, _ = w.Write([]byte(`{"id":"019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5d","number":4086,"title":"Neutral title 1"}`))
+					return
+				}
+				request, _ := io.ReadAll(r.Body)
+				_ = json.Unmarshal(request, &sent)
+				w.WriteHeader(c.status)
+				_, _ = w.Write([]byte(c.body))
+			}))
+			t.Cleanup(server.Close)
+			handToken(t, server.URL, "handed-access-token")
+
+			out, err := runTreeOut(t, "ideas", "fold", "4086", "--into", "2356", "--holder", "claude-code/s")
+			if want := map[string]any{"into": "2356", "holder": "claude-code/s"}; !reflect.DeepEqual(sent, want) {
+				t.Errorf("sent %v, want %v", sent, want)
+			}
+			if c.err != "" {
+				if err == nil || !strings.HasPrefix(err.Error(), c.err) || exitCodeFor(err) != 1 {
+					t.Errorf("fold = %v, exit %d; want %q, exit 1", err, exitCodeFor(err), c.err)
+				}
+				return
+			}
+			for _, want := range c.out {
+				if err != nil || !strings.Contains(out, want) {
+					t.Errorf("fold printed %q, %v; want %q", out, err, want)
 				}
 			}
 		})

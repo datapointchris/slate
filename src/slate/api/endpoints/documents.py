@@ -21,9 +21,11 @@ from slate.api.callers import caller_actor
 from slate.models.document import DOCUMENT_NAME_PATTERN
 from slate.services.document_views import document_view
 from slate.services.document_views import list_documents
+from slate.services.documents import document_moved_off
 from slate.services.documents import resolve_document
 from slate.services.documents import resolve_version
 from slate.services.documents import write_version
+from slate.services.record_lookup import redirect_named
 from slate.services.record_lookup import resolve_record
 from slate.services.row_limit import RECORD_LIMIT_DEFAULT
 from slate.services.row_limit import RecordLimit
@@ -85,11 +87,15 @@ def read_one(
     """One version of the document, with every version listed and every line comment placed on this one.
 
     A line comment written on another version sits on the line its own became here, or on no line
-    when this version changed or removed it.
+    when this version changed or removed it. Through a number a fold retired, it answers the
+    document that number held as `name`, wherever later folds moved it, and the target's own
+    `<name>` where the number held none.
     """
     number = resolve_record(session, record).number
     name_record(number)
-    document = resolve_document(session, number, name)
+    redirect = redirect_named(session, record)
+    moved = document_moved_off(session, redirect.number, name) if redirect is not None else None
+    document = moved or resolve_document(session, number, name)
     return document_view(session, document, resolve_version(document, version))
 
 

@@ -204,6 +204,33 @@ func (c *Client) PromoteIdeaToIssue(ctx context.Context, ref string, in IdeaProm
 	return written, nil
 }
 
+// IdeaFoldInput is the body for POST /ideas/{id}/fold. Holder names whose
+// claim on the idea moves to the target, or ends where it holds the target too.
+type IdeaFoldInput struct {
+	Into   string `json:"into"`
+	Holder string `json:"holder,omitempty"`
+}
+
+// FoldWritten is a fold's answer: the target in its own kind's envelope, so
+// exactly one of Idea, Initiative and Issue is set.
+type FoldWritten struct {
+	Idea       *Idea        `json:"idea,omitempty"`
+	Initiative *Initiative  `json:"initiative,omitempty"`
+	Issue      *IssueDetail `json:"issue,omitempty"`
+	WriteEffects
+}
+
+// FoldIdea folds an idea into the idea, initiative or issue that covers its
+// work, moving every row there and leading the idea's number there. The
+// answer's messages give each time in zone.
+func (c *Client) FoldIdea(ctx context.Context, ref string, in IdeaFoldInput, zone DayZone) (FoldWritten, error) {
+	var written FoldWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(ideaPath(ref)+"/fold", zoneQuery(zone)), in, &written); err != nil {
+		return FoldWritten{}, err
+	}
+	return written, nil
+}
+
 // DeleteIdea removes an idea with its refs, pin and claims. A promoted
 // idea is refused, naming its initiative. The answer gives each time in zone.
 func (c *Client) DeleteIdea(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {

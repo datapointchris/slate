@@ -1,12 +1,17 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/datapointchris/goselfupdate/autoupdate"
 
 	"github.com/datapointchris/slate/cli/internal/api"
 )
@@ -63,4 +68,69 @@ func TestShowReadsEachKindByItsNumber(t *testing.T) {
 	if _, hasNumber := envelope["number"]; envelope["name"] != "412.2" || hasNumber {
 		t.Errorf("slate show 412.2 --json names it %v and carries number %v; want name 412.2 and no number", envelope["name"], envelope["number"])
 	}
+}
+
+// A folded idea's number and worklog names answer the record its rows went to,
+// so `slate show` says which redirect it followed rather than showing #2356
+// under the #4086 asked for. The API follows only for a client that asks, so
+// the fake answers the redirect only when the request carries the header. A
+// write through the old number is refused naming the record to write to.
+func TestShowNamesTheRedirectItFollowed(t *testing.T) {
+	refused := `{"error":"Conflict","message":"#4086 was folded into initiative #2356 on 2026-11-24; run it against #2356"}`
+	answers := map[string]struct {
+		status int
+		body   string
+	}{
+		"GET /api/v1/records/4086": {http.StatusOK, `{"kind":"initiative","number":2356,"record":{"id":"01a1b283-9531-714b-adfc-f1891748c626","number":2356,"name":"Neutral name 1","status":"completed","created_ts":"2026-11-06T20:18:50Z",` +
+			`"redirected_from":[{"number":4086,"reason":"folded","former_kind":"idea","former_title":"Neutral title 1","redirected_ts":"2026-11-24T12:00:00Z",` +
+			`"sentence":"#4086 was folded into initiative #2356 on 2026-11-24"}]}}`},
+		"GET /api/v1/worklogs/4086.1": {http.StatusOK, `{"name":"2356.6","record_number":2356,"sequence":6,"record":{"number":2356,"kind":"initiative","title":"Neutral name 1"},"opened_by":"claude-code/s","started_ts":"2026-11-20T00:00:00Z","state":"finished","stage":"shape"}`},
+		"DELETE /api/v1/ideas/4086":   {http.StatusConflict, refused},
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		answer, ok := answers[r.Method+" "+r.URL.Path]
+		if !ok {
+			answer.status, answer.body = http.StatusOK, `[]`
+		}
+		if r.URL.Path == "/api/v1/records/4086" && r.Header.Get(api.FollowRedirectsHeader) != "true" {
+			answer.status, answer.body = http.StatusNotFound, `{"error":"Not Found","message":"record 4086 not found"}`
+		}
+		w.WriteHeader(answer.status)
+		_, _ = w.Write([]byte(answer.body))
+	}))
+	t.Cleanup(server.Close)
+	handToken(t, server.URL, "handed-access-token")
+
+	out, err := runTreeOut(t, "show", "4086")
+	for _, want := range []string{
+		"#4086 was folded into initiative #2356 on 2026-11-24.\n",
+		"Numbers leading here (1):\n  #4086  folded 2026-11-24  Neutral title 1",
+	} {
+		if err != nil || !strings.Contains(out, want) {
+			t.Errorf("slate show 4086 = %q, %v; want it to print %q", out, err, want)
+		}
+	}
+	if out, err := runTreeOut(t, "show", "4086.1"); err != nil || !strings.HasPrefix(out, "Worklog 4086.1 is now 2356.6.\n") {
+		t.Errorf("slate show 4086.1 = %q, %v; want it to open on the worklog's new name", out, err)
+	}
+	_, err = runTreeOut(t, "ideas", "delete", "4086", "--yes")
+	if want := "#4086 was folded into initiative #2356 on 2026-11-24; run it against #2356"; err == nil || err.Error() != want || exitCodeFor(err) != 1 {
+		t.Errorf("slate ideas delete 4086 = %v, exit %d; want %q, exit 1", err, exitCodeFor(err), want)
+	}
+}
+
+// runTreeOut drives the real tree through run, as Execute does, and returns
+// what it printed to stdout beside the error Execute prints as `error:`.
+func runTreeOut(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	original := os.Args
+	os.Args = append([]string{"slate"}, args...)
+	t.Cleanup(func() { os.Args = original })
+	root := NewRootCommand()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(io.Discard)
+	err := run(root, autoupdate.Config{Suppress: true})
+	return out.String(), err
 }
