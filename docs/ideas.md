@@ -97,8 +97,10 @@ One transaction does the whole fold:
    over the same pair then queue rather than deadlock.
 2. **It refuses with 409** a record that is not an idea, a pursuit as `into`,
    the idea as its own `into`, and another holder's live claim on either
-   record. A closed `into` is taken, because the idea's work may already have
-   shipped there.
+   record. It refuses an idea that an initiative's `idea_id` names, as the
+   delete does, because that initiative names it as where its work came from.
+   A closed `into` is taken, because the idea's work may already have shipped
+   there.
 3. **It settles the claims.** A claim whose lease ran out ends as `expired`.
    The holder's claim on the idea moves to the record. Where the holder holds
    the record too, the idea's claim ends as `released` instead.
@@ -134,10 +136,14 @@ It warns `pursuits_dropped` for each pursuit a fold into an issue drops. It warn
 `pin_dropped` where the idea was pinned, because the record keeps its own place
 in the queue.
 
-A write that resolved the idea before the fold began, and reached the database
-after it committed, fails its foreign key on the deleted `records` row. The API
-answers that with the same 409 a write through the redirect gets.
-`records.md` says how a retired number reads.
+An edit, pin or promotion of the idea takes the idea's `records` row
+`FOR NO KEY UPDATE` before it reads the idea, so it waits while a fold holds
+that row. Once the fold commits, the row is gone, and the write reads the
+number again and answers the same 409 a write through the redirect gets. A
+comment or another insert that names the idea's number fails its foreign key
+on the deleted row, and the API answers that with the 409 too. `records.md`
+says how a retired number reads. It also says what a delete does to the
+numbers folded into the deleted record.
 
 - *Rejected:* keeping the idea as a stub that points at the record, as Stack
   Overflow keeps a merged question. Every list and the queue would then have to

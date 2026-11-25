@@ -1,6 +1,6 @@
 """A retired record number, leading to the record that took its rows, so the number still resolves.
 
-A fold ends an idea into the work that covers it: its rows move to the target, its `records` row
+A fold retires an idea into the work that covers it: its rows move to the target, its `records` row
 goes, and this row leads its number there. The number came from the sequence and is never handed
 out again, so it keys the redirect. `former_*` keep what a reader of the old number needs once the
 idea's row is gone. A fold retargets every redirect that led to the folded idea, so a redirect
@@ -28,8 +28,8 @@ from sqlalchemy.orm import mapped_column
 
 from slate.database.base import Base
 
-# Why the number leads elsewhere: `folded` into work that covers it, or `promoted` into the initiative
-# that an idea became before a promotion kept the idea's number.
+# Why the number leads elsewhere: `folded`, which a fold writes, or `promoted`, for an idea whose
+# initiative was created under a number of its own.
 RedirectReason = Literal['folded', 'promoted']
 REDIRECT_REASONS: list[str] = list(get_args(RedirectReason))
 FOLDED: RedirectReason = 'folded'
@@ -39,7 +39,7 @@ class RecordRedirect(Base):
     __tablename__ = 'record_redirects'
     number: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
     to_number: Mapped[int] = mapped_column(BigInteger, ForeignKey('records.number', ondelete='CASCADE'), nullable=False)
-    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[RedirectReason] = mapped_column(Text, nullable=False)
     former_kind: Mapped[str] = mapped_column(Text, ForeignKey('record_kinds.name'), nullable=False)
     # The kind row's id, so a lookup by the idea's UUID follows the redirect too.
     former_id: Mapped[UUID] = mapped_column(Uuid, nullable=False, unique=True)

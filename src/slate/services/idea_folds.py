@@ -7,8 +7,10 @@ its number, and its `id`, to the target. Each worklog moves under the target's n
 target's last, and a `worklog_redirects` row keeps its old name. A fold has no undo: a wrong one
 shows in the target's `redirected_from`, and the audit trail keeps the idea's row whole.
 
-`fold_rows_into` moves the rows and writes the redirect, apart from the claims and the answer, so
-a migration folding pairs made before the promotion kept the number runs the same steps.
+`fold_rows_into` moves the rows and writes the redirect. It leaves the locks, the claims and the
+answer to its caller. `CARRIED_BY_FOLD` names how it carries each table keyed on a record's number,
+and importing this module fails while that list and the schema's tables differ, because a table
+the fold leaves out loses its rows to the idea's delete.
 """
 
 from __future__ import annotations
@@ -31,8 +33,8 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from slate import models
-from slate.api.exceptions import NotFoundException
 from slate.api.exceptions import with_article
+from slate.database.base import Base
 from slate.models.record import Kind
 from slate.models.record_redirect import RedirectReason
 from slate.schemas.pursuit import PursuitSummary
@@ -40,6 +42,9 @@ from slate.services.claim_views import unended_claims
 from slate.services.claims import ClaimRefused
 from slate.services.claims import end_claim
 from slate.services.idea_promotion import idea_number
+from slate.services.idea_promotion import refuse_named_by_initiative
+from slate.services.idea_promotion import resolved_again
+from slate.services.record_lookup import resolve_idea
 from slate.services.record_lookup import resolve_record
 from slate.services.record_pursuits import pursuits_of
 from slate.services.write_effects import WriteEffectCode
@@ -49,6 +54,38 @@ logger = structlog.get_logger()
 
 # The kinds whose records hold pursuits of their own. An issue reads its initiative's.
 HOLD_PURSUITS = frozenset({Kind.IDEA, Kind.INITIATIVE})
+
+# How `fold_rows_into` carries each table whose one-column foreign key names `records.number`.
+CARRIED_BY_FOLD = {
+    models.Worklog.__tablename__: "moved, numbered after the target's last, each old name kept",
+    models.Claim.__tablename__: 'moved, with their waits',
+    models.Comment.__tablename__: 'moved, a line comment with its document',
+    models.RecordCheck.__tablename__: 'moved',
+    models.Document.__tablename__: 'moved, renamed where the target holds the name',
+    models.RecordRef.__tablename__: 'moved where the target lacks them',
+    models.RecordTag.__tablename__: 'moved where the target lacks them',
+    models.RecordPursuit.__tablename__: 'moved where the target holds pursuits and lacks them',
+    models.RecordRedirect.__tablename__: 'retargeted at the target',
+    models.InitiativeDependency.__tablename__: 'none, because an initiative never waits on an idea',
+}
+
+
+def tables_keyed_on_a_number() -> set[str]:
+    """Each table whose one-column foreign key names `records.number`, so a fold deleting the idea's row would take its rows."""
+    number = models.Record.__table__.c.number
+    return {
+        table.name
+        for table in Base.metadata.tables.values()
+        for constraint in table.foreign_key_constraints
+        if len(constraint.elements) == 1 and constraint.elements[0].column is number
+    }
+
+
+if (keyed := tables_keyed_on_a_number()) != CARRIED_BY_FOLD.keys():
+    raise RuntimeError(
+        f'CARRIED_BY_FOLD names {sorted(CARRIED_BY_FOLD)}, and the tables keyed on a record number are {sorted(keyed)}. '
+        'Say how fold_rows_into carries each one there.'
+    )
 
 
 @dataclass
@@ -75,8 +112,9 @@ def lock_fold(session: Session, idea_ref: str, into_ref: int | str) -> tuple[mod
     """The idea `idea_ref` names and the record `into_ref` names, each `records` row locked `FOR UPDATE`.
 
     The lower number is locked first, so two folds crossing the same pair wait rather than deadlock.
-    A non-idea, a pursuit target and the idea itself each answer 409, and so does a number a fold
-    already retired, through the redirect it follows in a write.
+    A non-idea, a pursuit target, the idea itself and an idea that an initiative names in `idea_id`
+    each answer 409, and so does a number a fold already retired, through the redirect it follows
+    in a write.
     """
     number = idea_number(session, idea_ref)
     target_number = resolve_record(session, into_ref).number
@@ -86,12 +124,12 @@ def lock_fold(session: Session, idea_ref: str, into_ref: int | str) -> tuple[mod
         locked[each] = session.scalar(query)
     record = locked[number]
     if record is None:
-        raise NotFoundException('idea', idea_ref, logger)
+        resolved_again(session, lambda: resolve_idea(session, idea_ref), 'idea', idea_ref)
     if record.kind != Kind.IDEA:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} is {with_article(record.kind)}; only an idea folds')
     target = locked[target_number]
     if target is None:
-        raise NotFoundException('record', str(into_ref), logger)
+        resolved_again(session, lambda: resolve_record(session, into_ref), 'record', str(into_ref))
     if target.kind == Kind.PURSUIT:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -99,7 +137,9 @@ def lock_fold(session: Session, idea_ref: str, into_ref: int | str) -> tuple[mod
         )
     if target_number == number:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='an idea cannot fold into itself')
-    return session.scalars(select(models.Idea).where(models.Idea.number == number)).one(), target
+    idea = session.scalars(select(models.Idea).where(models.Idea.number == number)).one()
+    refuse_named_by_initiative(idea)
+    return idea, target
 
 
 def settle_claims(session: Session, idea: int, target: int, holder: str, now: dt.datetime, effects: WriteEffects) -> None:

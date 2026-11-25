@@ -68,8 +68,9 @@ SHARED_FIELDS = frozenset({'description', 'priority', 'tags'})
 class IdeaFold(RecordModel):
     """A fold: the record `into` names takes every row of the idea, and the idea's number leads there.
 
-    `holder` is the caller's claim holder, as a hold names it. Its claim on the idea moves to the
-    target, or ends as released where it holds the target too. Left out, it is the caller's actor.
+    `holder` names whose claim on the idea moves, as a hold names it. That claim moves to the
+    target, or ends as released where `holder` holds the target too. Left out, it is the caller's
+    actor.
     """
 
     model_config = ConfigDict(from_attributes=True, extra='forbid')

@@ -88,7 +88,7 @@ class WriteEffectCode(enum.StrEnum):
     PURSUITS_DROPPED = 'pursuits_dropped'
 
     # Side effects of folding an idea into the record that covers it: each row moved there, the
-    # caller's claim moving with them, each redirect that led to the idea now leading there, and
+    # holder's claim moving with them, each redirect that led to the idea now leading there, and
     # the idea's number leading there. A warning that the idea's pin went with its record.
     WORKLOG_MOVED = 'worklog_moved'
     CLAIM_MOVED = 'claim_moved'
@@ -102,6 +102,9 @@ class WriteEffectCode(enum.StrEnum):
     REDIRECT_RETARGETED = 'redirect_retargeted'
     RECORD_REDIRECTED = 'record_redirected'
     PIN_DROPPED = 'pin_dropped'
+
+    # A side effect of deleting a record that numbers were folded into: each such number goes with it.
+    REDIRECT_DELETED = 'redirect_deleted'
 
     # A warning on creating a record whose title reads like an open record's.
     POSSIBLE_DUPLICATE = 'possible_duplicate'

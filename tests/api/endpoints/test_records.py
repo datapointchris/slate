@@ -36,7 +36,7 @@ def test_the_record_read_answers_each_kind_with_its_claim_history(client):
     ]
     assert [(claim['holder'], claim['ending']) for claim in read[idea]['record']['claims']] == [('agent-a', 'released')]
     assert read[initiative]['record']['claims'] == []
-    ok(client.get('/records/999999'), status.HTTP_404_NOT_FOUND)
+    assert ok(client.get('/records/999999'), status.HTTP_404_NOT_FOUND)['message'] == 'record 999999 not found'
 
 
 def test_the_changes_read_every_write_to_an_issue_and_its_rows_with_imported_history_beside(

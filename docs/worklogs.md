@@ -14,8 +14,9 @@ the name wherever it takes a worklog: `GET /worklogs/1991.2`. `slate show
 
 A fold moves an idea's worklogs to another record and numbers them on after
 that record's last. Each old name stays in `worklog_redirects` and answers the
-worklog under its new name, so `4086.1` reads as `2356.6`. A worklog folded
-twice keeps every old name, each leading straight to it.
+worklog under its new name, so `4086.1` reads as `2356.6`. A write through an
+old name reaches the worklog too, because both names name one worklog. A
+worklog folded twice keeps every old name, each leading straight to it.
 
 A worklog is a row of `worklogs` on a record number, like a claim. Its spans
 are rows of `worklog_spans`, and its links rows of `worklog_links`.

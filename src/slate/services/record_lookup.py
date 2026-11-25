@@ -5,10 +5,12 @@ to its UUID, an initiative or a pursuit to its UUID or its name, and a label to 
 what it was given inside the request that was going to reach the database anyway.
 
 A number or an idea's UUID that a fold retired answers as the record its rows went to, through
-`record_redirects`, in a read of any kind or of the target's kind. A write through one answers 409
-naming the target, because the caller named a record that no longer exists, and a write applied
-to the target would reach a record the caller never named. HubSpot answers a merged record's old
-id with the survivor the same way.
+`record_redirects`, in a read of any kind or of the target's kind. HubSpot answers a merged
+record's old id with the survivor the same way. Only a request that asks follows the redirect.
+A client from before the fold reads a record and then writes by the `id` the read answered, so
+following for it would point that write at the target. Every other read answers 404 naming where
+the number leads. A write through a retired number answers 409 naming the target, because the
+caller named a record that no longer exists.
 """
 
 from uuid import UUID
@@ -32,14 +34,16 @@ from slate.services.names_near import names_near
 logger = structlog.get_logger()
 
 # What `mark_request` records on the session before any route resolves a record: whether the
-# request writes, and the zone its reader reads a redirect's day in.
+# request writes, whether it asks to follow a redirect, and the zone its reader reads a redirect's day in.
 REQUEST_WRITES = 'slate.request_writes'
+REQUEST_FOLLOWS = 'slate.request_follows'
 REQUEST_ZONE = 'slate.request_zone'
 
 
-def mark_request(session: Session, writes: bool, zone: str) -> None:
-    """Record whether the request on `session` writes, so a redirect followed in it refuses a write and answers a read."""
+def mark_request(session: Session, writes: bool, follows: bool, zone: str) -> None:
+    """Record how a redirect met on `session` answers: a write is refused, and a read follows it only where it asked."""
     session.info[REQUEST_WRITES] = writes
+    session.info[REQUEST_FOLLOWS] = follows
     session.info[REQUEST_ZONE] = zone
 
 
@@ -113,10 +117,10 @@ def redirect_sentence(session: Session, redirect: models.RecordRedirect, target_
 
 
 def follow(session: Session, redirect: models.RecordRedirect, resource: str, ref: object, kind: Kind | None) -> models.Record:
-    """The record `redirect` leads to, which a read answers where it asked for any kind, or for the target's.
+    """The record `redirect` leads to, which a read that asked to follow answers where it asked for any kind, or for the target's.
 
     A write through the redirect answers 409 naming the target, so the caller repeats it there. A read
-    asking for another kind answers 404 naming where the number leads.
+    that did not ask, or that asked for another kind, answers 404 naming where the number leads.
     """
     target = session.get(models.Record, redirect.to_number)
     if target is None:
@@ -125,7 +129,7 @@ def follow(session: Session, redirect: models.RecordRedirect, resource: str, ref
     if session.info.get(REQUEST_WRITES):
         logger.info('write_through_redirect_refused', number=redirect.number, to_number=redirect.to_number)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'{sentence}; run it against #{redirect.to_number}')
-    if kind is not None and target.kind != kind:
+    if not session.info.get(REQUEST_FOLLOWS) or (kind is not None and target.kind != kind):
         raise NotFoundException(resource, str(ref), logger, led_to=sentence)
     return target
 

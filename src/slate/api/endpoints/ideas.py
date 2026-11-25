@@ -34,7 +34,9 @@ from slate.services.idea_folds import lock_fold
 from slate.services.idea_folds import name_folded_rows
 from slate.services.idea_folds import settle_claims
 from slate.services.idea_promotion import PromotedIdea
+from slate.services.idea_promotion import idea_held_for_write
 from slate.services.idea_promotion import lock_idea
+from slate.services.idea_promotion import refuse_named_by_initiative
 from slate.services.idea_promotion import turn_idea_into
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
@@ -50,6 +52,7 @@ from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_record_parts_deleted
 from slate.services.record_groupings import GroupingsQuery
 from slate.services.record_groupings import narrowed_to_groupings
+from slate.services.record_lookup import REQUEST_WRITES
 from slate.services.record_lookup import resolve_idea
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
@@ -73,7 +76,10 @@ router = APIRouter()
 
 
 def path_idea(id: str, session: DbSession) -> models.Idea:
+    """The idea the path names. A write holds its `records` row, so it waits behind a fold or a promotion and meets what that left."""
     idea = resolve_idea(session, id)
+    if session.info.get(REQUEST_WRITES):
+        idea = idea_held_for_write(session, id, idea.number)
     name_record(idea.number)
     return idea
 
@@ -174,12 +180,7 @@ def delete(idea: IdeaFromPath, session: DbSession, caller: CurrentCaller, effect
 
     A promoted idea is refused with 409, because its initiative names it as where that work came from.
     """
-    if idea.initiative is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'#{idea.number} was promoted to initiative #{idea.initiative.number} {idea.initiative.name!r}, '
-            'which names it as where that work came from, so it stays.',
-        )
+    refuse_named_by_initiative(idea)
     deleted = record_summaries(session, [idea.number])[idea.number]
     name_record_parts_deleted(session, idea.number, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
     session.execute(sql_delete(models.Record).where(models.Record.number == idea.number))
@@ -287,7 +288,7 @@ FoldWritten = schemas.IdeaWritten | schemas.InitiativeWritten | schemas.IssueWri
 
 @router.post('/{id}/fold', response_model=FoldWritten, status_code=status.HTTP_200_OK)
 def fold(id: str, request: schemas.IdeaFold, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects) -> FoldWritten:
-    """End the idea into the idea, initiative or issue `into` names, which covers its work, in one transaction.
+    """Fold the idea into the idea, initiative or issue `into` names, which covers its work, in one transaction.
 
     Every row on the idea's number moves to the target: worklogs, renumbered after the target's
     last, claims and their waits, comments, checks, documents with their line comments, and refs,
@@ -297,10 +298,11 @@ def fold(id: str, request: schemas.IdeaFold, session: DbSession, zone: RequestZo
     place in the queue, so the idea's pin is dropped with a warning. A closed target is accepted,
     because the idea's work may already have shipped there.
 
-    Another session's live claim on either record answers 409 naming its holder. The caller's claim
-    on the idea moves to the target, or ends as released where `holder` holds the target too. A
-    non-idea, a pursuit, the idea itself and a number a fold already retired each answer 409. The
-    answer is the target's own kind's envelope, naming each row moved in `side_effects`.
+    Another session's live claim on either record answers 409 naming its holder. `holder`'s claim
+    on the idea moves to the target, or ends as released where `holder` holds the target too. Left
+    out, `holder` is the caller. A non-idea, a pursuit, the idea itself, an idea that an initiative
+    names in `idea_id` and a number a fold already retired each answer 409. The answer is the
+    target's own kind's envelope, naming each row moved in `side_effects`.
     """
     idea, target = lock_fold(session, id, request.into)
     idea_number, target_number = idea.number, target.number

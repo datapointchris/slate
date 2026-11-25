@@ -76,6 +76,14 @@ def name_record_parts_deleted(session: Session, number: int, deleted_by: str, no
     name_worklogs_deleted(session, number, effects)
     name_documents_and_comments_deleted(session, number, effects)
     name_checks_deleted(session, number, effects)
+    name_redirects_deleted(session, number, effects)
+
+
+def name_redirects_deleted(session: Session, number: int, effects: WriteEffects) -> None:
+    """Name each retired number that led to the record, which goes with it and answers 404 again."""
+    query = select(models.RecordRedirect.number).where(models.RecordRedirect.to_number == number).order_by(models.RecordRedirect.number)
+    for retired in session.scalars(query):
+        effects.did(WriteEffectCode.REDIRECT_DELETED, f'#{retired} led to #{number}, and answers 404 now.', number)
 
 
 def name_issue_delete(session: Session, issue: models.Issue, deleted_by: str, now: dt.datetime, effects: WriteEffects) -> None:

@@ -28,6 +28,8 @@ from slate.services.record_lookup import mark_request
 
 # The methods that read and never write, as RFC 9110 calls them safe.
 SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
+# Sent as `true`, it reads a retired number as the record that number leads to.
+FOLLOW_REDIRECTS_HEADER = 'Slate-Follow-Redirects'
 
 logger = structlog.get_logger()
 
@@ -54,18 +56,21 @@ def get_current_caller(
 
 
 def mark_request_on_session(request: Request, session: Annotated[Session, Depends(get_sqlalchemy_session)]) -> None:
-    """Say on the session whether the request writes, before any route resolves a record, so a write through a retired number is refused.
+    """Say on the session how a retired number answers, before any route resolves a record.
 
-    The zone is the one the request names in `timezone`, which every CLI write sends, so a refusal
-    dates the redirect on the reader's calendar. A zone that names none falls back to UTC here, and
-    the route's own validation still refuses it.
+    A write through one is refused. A read follows one only where the request sends
+    `FOLLOW_REDIRECTS_HEADER: true`, as the CLI does from the release that reads where a number
+    leads. The zone is the one the request names in `timezone`, so a refusal dates the redirect on
+    the reader's calendar. A request naming none, or naming a zone that does not exist, is dated in
+    UTC here, and the route's own validation still refuses a zone that does not exist.
     """
     zone = request.query_params.get('timezone') or CALENDAR_FALLBACK_ZONE
     try:
         ZoneInfo(zone)
     except ZoneInfoNotFoundError, ValueError:
         zone = CALENDAR_FALLBACK_ZONE
-    mark_request(session, request.method not in SAFE_METHODS, zone)
+    follows = request.headers.get(FOLLOW_REDIRECTS_HEADER, '').lower() == 'true'
+    mark_request(session, request.method not in SAFE_METHODS, follows, zone)
 
 
 def caller_actor(caller: OIDCIdentity | ScopedClient) -> str:

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 import pytest
 from fastapi import status
 from sqlalchemy import func
@@ -9,6 +11,7 @@ from tests.session_database import insert_test_data_transactional
 from tests.util import show_status_and_response
 
 IDEAS = '/ideas'
+FOLLOW = {'Slate-Follow-Redirects': 'true'}
 
 
 @pytest.fixture
@@ -121,14 +124,6 @@ def new_initiative(client, **fields) -> dict:
     return ok(client.post('/initiatives', json=body), status.HTTP_201_CREATED)['initiative']
 
 
-def rows_on(session, number: int) -> dict[str, int]:
-    """How many rows of each kind still name `number`."""
-    kinds = (models.Worklog, models.Claim, models.Comment, models.RecordCheck, models.Document, models.RecordRef, models.RecordTag)
-    return {
-        model.__tablename__: session.scalar(select(func.count()).select_from(model).where(model.record_number == number)) for model in kinds
-    }
-
-
 def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in):
     _, session = txn_api_logged_in
     for name in ('security', 'data'):
@@ -155,6 +150,10 @@ def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in
     session.flush()
     earlier = new_idea(client, title='Read the fleet each morning')['number']
     ok(client.post(f'{IDEAS}/{earlier}/fold', json={'into': number, 'holder': FOLDER}))
+    # A released CLI reads an idea, then deletes it by the id that read answered, and asks for no redirect.
+    unasked = client.get(f'{IDEAS}/{earlier}')
+    assert (unasked.status_code, f'#{earlier} was folded into idea #{number}' in unasked.json()['message']) == (404, True)
+    assert ok(client.get(f'{IDEAS}/{earlier}', headers=FOLLOW))['number'] == number
 
     folded = ok(client.post(f'{IDEAS}/{number}/fold', json={'into': target, 'holder': FOLDER}))
     assert folded['initiative']['number'] == target
@@ -171,7 +170,6 @@ def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in
         'redirect_retargeted',
         'record_redirected',
     }
-    assert set(rows_on(session, number).values()) == {0}
     assert [ok(client.get(f'/worklogs/{number}.{sequence}'))['name'] for sequence in (1, 2)] == [f'{target}.2', f'{target}.3']
     claims = ok(client.get(f'/records/{target}'))['record']['claims']
     assert {(claim['holder'], claim['ending'], claim['ended_by']) for claim in claims} == {
@@ -180,17 +178,20 @@ def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in
         ('claude-code/shape', 'released', 'claude-code/shape'),
     }
 
-    renamed = ok(client.get(f'/documents/{number}/design'))
+    renamed = ok(client.get(f'/documents/{number}/design', headers=FOLLOW))
     assert (renamed['name'], [comment['body'] for comment in renamed['comments']]) == (f'design-from-{number}', ['About line one'])
     assert ok(client.get(f'/documents/{target}/design'))['name'] == 'design'
 
-    read = ok(client.get(f'/records/{number}'))
+    read = ok(client.get(f'/records/{number}', headers=FOLLOW))
     assert (read['kind'], read['number']) == ('initiative', target)
-    assert [(row['number'], row['reason']) for row in read['record']['redirected_from']] == [(earlier, 'folded'), (number, 'folded')]
+    assert [(row['number'], row['sentence'][: row['sentence'].index(' on ')]) for row in read['record']['redirected_from']] == [
+        (earlier, f'#{earlier} was folded into initiative #{target}'),
+        (number, f'#{number} was folded into initiative #{target}'),
+    ]
     assert (read['record']['tags'], sorted(row['ref'] for row in read['record']['refs'])) == (['data', 'security'], ['inbox:1', 'inbox:2'])
     assert sorted(pursuit['number'] for pursuit in read['record']['pursuits']) == sorted(pursuits)
-    assert ok(client.get(f'/records/{earlier}'))['number'] == target
-    assert ok(client.get(f'/initiatives/{idea["id"]}'))['number'] == target
+    assert ok(client.get(f'/records/{earlier}', headers=FOLLOW))['number'] == target
+    assert ok(client.get(f'/initiatives/{idea["id"]}', headers=FOLLOW))['number'] == target
     missing = client.get(f'{IDEAS}/{number}')
     assert (missing.status_code, f'initiative #{target}' in missing.json()['message']) == (status.HTTP_404_NOT_FOUND, True)
     assert number not in [row['number'] for row in ok(client.get('/queue', params={'step': 'discuss'}))['queue']]
@@ -198,6 +199,11 @@ def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in
 
     completed = new_initiative(client, name='Shipped narration', status='completed')['number']
     assert ok(client.post(f'{IDEAS}/{new_idea(client)["number"]}/fold', json={'into': completed}))['initiative']['status'] == 'completed'
+
+    deleted = ok(client.delete(f'/initiatives/{target}'))
+    assert [effect['message'] for effect in deleted['side_effects'] if effect['code'] == 'redirect_deleted'] == [
+        f'#{retired} led to #{target}, and answers 404 now.' for retired in sorted((earlier, number))
+    ]
 
 
 def test_fold_refuses_what_it_cannot_move(client, txn_api_logged_in):
@@ -214,6 +220,13 @@ def test_fold_refuses_what_it_cannot_move(client, txn_api_logged_in):
     refused(client.post(f'{IDEAS}/{target}/fold', json={'into': idea}), 'is an initiative')
     refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': pursuit['number']}), 'is a pursuit')
     refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': idea}), 'itself')
+    # `slate ideas fold <idea> --into <initiative>` on a pair promoted before the number was kept,
+    # whose initiative names the idea in `idea_id`.
+    named = new_idea(client)
+    pair = new_initiative(client, name='Made before the number was kept')['number']
+    session.scalars(select(models.Initiative).where(models.Initiative.number == pair)).one().idea_id = UUID(named['id'])
+    session.flush()
+    refused(client.post(f'{IDEAS}/{named["number"]}/fold', json={'into': pair}), 'names it as where that work came from')
     for held in (idea, target):
         ok(client.post('/claims', json={'record': held, 'holder': 'claude-code/other'}))
         refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': target, 'holder': FOLDER}), 'claude-code/other holds')

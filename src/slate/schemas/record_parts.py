@@ -10,12 +10,18 @@ from slate.schemas.record import RecordModel
 
 
 class RedirectedFrom(RecordModel):
-    """A retired number that leads to this record, why, what the idea holding it was called, and since when."""
+    """A retired number that leads to this record, why, what held it, and since when.
+
+    `sentence` says it whole, as `#4086 was folded into initiative #2356 on 2026-11-24`, dated in
+    the request's `timezone`, as a refusal through the number says it.
+    """
 
     number: int
     reason: RedirectReason
+    former_kind: str
     former_title: str
     redirected_ts: dt.datetime
+    sentence: str
 
 
 class RecordParts(RecordModel):
