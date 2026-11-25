@@ -27,6 +27,33 @@ type RecordParts struct {
 	Claims    []Claim           `json:"claims"`
 	Comments  []Comment         `json:"comments"`
 	Documents []DocumentSummary `json:"documents"`
+	// RedirectedFrom is each retired number leading to the record, oldest
+	// first. An API one release behind sends none.
+	RedirectedFrom []RedirectedFrom `json:"redirected_from"`
+}
+
+// RedirectedFrom is a retired number that leads to a record: why, what the idea
+// holding it was called, and since when. A read through it answers the record
+// it leads to, so the record's number differs from the one asked for.
+type RedirectedFrom struct {
+	Number       int       `json:"number"`
+	Reason       string    `json:"reason"`
+	FormerTitle  string    `json:"former_title"`
+	RedirectedTS time.Time `json:"redirected_ts"`
+}
+
+// RedirectReasonFolded is the reason a fold gives a retired number.
+const RedirectReasonFolded = "folded"
+
+// RedirectOf is the redirect in from that led asked to the record, or nil
+// where asked is the record's own number.
+func RedirectOf(from []RedirectedFrom, asked int) *RedirectedFrom {
+	for i := range from {
+		if from[i].Number == asked {
+			return &from[i]
+		}
+	}
+	return nil
 }
 
 // Record is the read of any record by its number. Kind says which of Idea,
@@ -38,6 +65,22 @@ type Record struct {
 	Initiative *InitiativeDetail
 	Issue      *IssueDetail
 	Pursuit    *PursuitDetail
+}
+
+// Parts is what every kind's read carries beside its own fields, from
+// whichever kind holds the record.
+func (r Record) Parts() RecordParts {
+	switch {
+	case r.Idea != nil:
+		return r.Idea.RecordParts
+	case r.Initiative != nil:
+		return r.Initiative.RecordParts
+	case r.Issue != nil:
+		return r.Issue.RecordParts
+	case r.Pursuit != nil:
+		return r.Pursuit.RecordParts
+	}
+	return RecordParts{}
 }
 
 // UnmarshalJSON decodes `record` into the read its `kind` names, so a caller

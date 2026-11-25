@@ -549,27 +549,29 @@ func newInitiativesDeleteCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			initiative, err := client.GetInitiative(cmd.Context(), args[0])
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
 			if !yes {
-				question := fmt.Sprintf("Delete initiative #%d %q? Its %d %s will belong to none.",
-					initiative.Number, initiative.Name, initiative.IssueCount, plural(initiative.IssueCount, "issue", "issues"))
-				ok, err := confirm(cmd, question)
+				initiative, err := client.GetInitiative(cmd.Context(), args[0])
 				if err != nil {
-					return err
+					return handleArgumentAPIError(err)
 				}
-				if !ok {
-					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
-					return nil
+				if !answeredAnother(args[0], initiative.Number) {
+					question := fmt.Sprintf("Delete initiative #%d %q? Its %d %s will belong to none.",
+						initiative.Number, initiative.Name, initiative.IssueCount, plural(initiative.IssueCount, "issue", "issues"))
+					ok, err := confirm(cmd, question)
+					if err != nil {
+						return err
+					}
+					if !ok {
+						_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
+						return nil
+					}
 				}
 			}
-			deleted, err := client.DeleteInitiative(cmd.Context(), initiative.ID, issueZone())
+			deleted, err := client.DeleteInitiative(cmd.Context(), args[0], issueZone())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			summary := fmt.Sprintf("Deleted initiative #%d %q", initiative.Number, initiative.Name)
+			summary := fmt.Sprintf("Deleted initiative #%d %q", deleted.Deleted.Number, deleted.Deleted.Title)
 			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, summary)
 		},
 	}

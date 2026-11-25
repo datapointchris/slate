@@ -32,12 +32,14 @@ func newIdeasCommand() *cobra.Command {
 			"given and never follows it, so a key from any system works.\n" +
 			"\n" +
 			"An idea is never work, so it has no status. `promote` turns it into the\n" +
-			"initiative or issue that is the work, under the same number. An idea shares\n" +
-			"its number sequence with initiatives and issues.",
+			"initiative or issue that is the work, under the same number. `fold` ends it\n" +
+			"into work that already covers it, and its number then leads there. An idea\n" +
+			"shares its number sequence with initiatives and issues.",
 		Example: "  slate ideas create --title \"Scheduled review rounds\" --priority high  keep it for later\n" +
 			"  slate ideas link 1860 https://example.com/thread/9                    link what it rests on\n" +
 			"  slate ideas list                                                      every idea, most urgent first\n" +
-			"  slate ideas promote 1860 --summary \"Rounds run on a schedule\"         take it on as an initiative",
+			"  slate ideas promote 1860 --summary \"Rounds run on a schedule\"         take it on as an initiative\n" +
+			"  slate ideas fold 1860 --into 1501                                     end it into work that covers it",
 	})
 	goclikit.WithRecoveryHints(cmd, ideaHints...)
 	splitReadingFromChanging(cmd)
@@ -52,6 +54,7 @@ func newIdeasCommand() *cobra.Command {
 			"  slate ideas link 1860 capture/01a1b689-a5d6-7852-b675-6acbd13ece24\n"+
 				"  slate ideas link 1860 https://example.com/thread/9 --note \"Where it came up\""), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasPromoteCommand(), ideaHints...),
+		goclikit.WithRecoveryHints(newIdeasFoldCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasReorderCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasPinCommand(), ideaHints...),
 		goclikit.WithRecoveryHints(newIdeasUnpinCommand(), ideaHints...),
@@ -80,27 +83,29 @@ func newIdeasDeleteCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			idea, err := client.GetIdea(cmd.Context(), args[0])
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
 			if !yes {
-				question := fmt.Sprintf("Delete idea #%d %q and its %d %s?",
-					idea.Number, idea.Title, len(idea.Refs), plural(len(idea.Refs), "ref", "refs"))
-				ok, err := confirm(cmd, question)
+				idea, err := client.GetIdea(cmd.Context(), args[0])
 				if err != nil {
-					return err
+					return handleArgumentAPIError(err)
 				}
-				if !ok {
-					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
-					return nil
+				if !answeredAnother(args[0], idea.Number) {
+					question := fmt.Sprintf("Delete idea #%d %q and its %d %s?",
+						idea.Number, idea.Title, len(idea.Refs), plural(len(idea.Refs), "ref", "refs"))
+					ok, err := confirm(cmd, question)
+					if err != nil {
+						return err
+					}
+					if !ok {
+						_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
+						return nil
+					}
 				}
 			}
-			deleted, err := client.DeleteIdea(cmd.Context(), idea.ID, issueZone())
+			deleted, err := client.DeleteIdea(cmd.Context(), args[0], issueZone())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			summary := fmt.Sprintf("Deleted idea #%d %q", idea.Number, idea.Title)
+			summary := fmt.Sprintf("Deleted idea #%d %q", deleted.Deleted.Number, deleted.Deleted.Title)
 			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, summary)
 		},
 	}
@@ -564,6 +569,112 @@ func promoteToIssue(cmd *cobra.Command, ref string, in api.IdeaPromoteInput, asJ
 		return err
 	}
 	return honoredTagWrite(in.Tags, issue.Number, issue.Tags)
+}
+
+func newIdeasFoldCommand() *cobra.Command {
+	var (
+		into   string
+		holder string
+		asJSON bool
+	)
+	cmd := &cobra.Command{
+		Use:   "fold <idea> --into <record>",
+		Short: "Fold an idea into the idea, initiative or issue that covers its work",
+		Long: "Moves every row of the idea to the record --into names: its worklogs,\n" +
+			"renumbered after that record's last, its claims, comments, checks and\n" +
+			"documents, and its refs, tags and pursuits where the record lacks them. A\n" +
+			"document whose name the record holds moves as <name>-from-<idea>. The idea's\n" +
+			"number, and each worklog's old name, then lead there: `slate show` follows\n" +
+			"them, and a write through them is refused, naming the record to write to.\n" +
+			"\n" +
+			"The record keeps its own number, fields and place in the queue, so the idea's\n" +
+			"pin is dropped with a warning. A closed record is taken, because the idea's\n" +
+			"work may already have shipped there. A fold has no undo.\n" +
+			"\n" +
+			"Another session's live claim on either record refuses the fold. Your claim on\n" +
+			"the idea moves to the record, or ends as released where you hold the record\n" +
+			"too.",
+		Example:     "  slate ideas fold 4086 --into 2356",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(into) == "" {
+				return goclikit.UsageError(errors.New("--into is required: the idea, initiative or issue that covers the idea's work"))
+			}
+			holder, err := narrowedActor(cmd, "holder", holder)
+			if err != nil {
+				return err
+			}
+			client, err := newAPIClient(cmd)
+			if err != nil {
+				return handleAPIError(err)
+			}
+			idea, err := client.GetIdea(cmd.Context(), args[0])
+			if err != nil {
+				return handleArgumentAPIError(err)
+			}
+			written, err := client.FoldIdea(cmd.Context(), args[0], api.IdeaFoldInput{Into: into, Holder: holder}, issueZone())
+			if err != nil {
+				if noRouteFor(err) {
+					return errors.New("this API has no fold: it answered that no route serves POST /ideas/{id}/fold. " +
+						"The fold arrives with a later API release, so nothing was folded")
+				}
+				return handleArgumentAPIError(err)
+			}
+			summary, err := foldedLine(idea.Number, idea.Title, written)
+			if err != nil {
+				return fmt.Errorf("%w; `slate show %s` reads what the fold made", err, into)
+			}
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, summary)
+		},
+	}
+	cmd.Flags().StringVar(&into, "into", "", "The idea, initiative or issue that covers the idea's work, by number")
+	cmd.Flags().StringVar(&holder, "holder", actorIdentity(), "Whose claim on the idea moves with it")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
+	return cmd
+}
+
+// noRouteFor reports whether the API answered that it serves no such route,
+// as an API from before a route was added does.
+func noRouteFor(err error) bool {
+	var apiErr *api.APIError
+	return errors.As(err, &apiErr) && apiErr.NotFound() &&
+		(apiErr.Message == "Not Found" || strings.HasPrefix(apiErr.Message, "no route answers "))
+}
+
+// foldedLine names the idea a fold ended and the record it went into, and
+// that record's status where it is closed.
+func foldedLine(number int, title string, written api.FoldWritten) (string, error) {
+	var kind, name, closed string
+	var target int
+	switch {
+	case written.Initiative != nil:
+		kind, target, name = "initiative", written.Initiative.Number, written.Initiative.Name
+		if slices.Contains(api.InitiativeStatusesClosed, written.Initiative.Status) {
+			closed = written.Initiative.Status
+		}
+	case written.Issue != nil:
+		kind, target, name = "issue", written.Issue.Number, written.Issue.Title
+		if isClosedIssue(written.Issue.Issue) {
+			closed = written.Issue.Status
+		}
+	case written.Idea != nil:
+		kind, target, name = "idea", written.Idea.Number, written.Idea.Title
+	default:
+		return "", errors.New("the API's answer named no idea, initiative or issue")
+	}
+	line := fmt.Sprintf("Folded idea #%d %q into %s #%d %q", number, title, kind, target, name)
+	if closed != "" {
+		line += ", which is " + closed
+	}
+	return line + ".", nil
+}
+
+// answeredAnother reports whether a read of ref answered another record, as a
+// read through a number a fold retired does.
+func answeredAnother(ref string, number int) bool {
+	asked, err := strconv.Atoi(strings.TrimPrefix(ref, "#"))
+	return err == nil && asked != number
 }
 
 func ideaLine(verb string, idea api.Idea) string {
