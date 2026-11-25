@@ -11,6 +11,7 @@ from pydantic import Field
 from slate.schemas.claim import ClaimWait
 from slate.schemas.idea import Idea
 from slate.schemas.initiative import Initiative
+from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.issue import Issue
 from slate.schemas.pursuit import PursuitSummary
 from slate.schemas.ready_filter import ReadyFilter
@@ -109,7 +110,7 @@ class QueueBoardRow(QueueRowBase):
     """One row of the queue with only what a board draws of it, and no record body.
 
     `own_priority` is the record's own, beside the `priority` it sorts at. `initiative` is an
-    issue's initiative, and `pursuits` that initiative's for an issue, else the record's own.
+    issue's initiative, as an issue's read names it, and `pursuits` that initiative's for an issue, else the record's own.
     `repos` is an issue's repo, or each repo an initiative's issues name. `open_count` is an
     initiative's unclosed issues. `expires_ts` and `waiting` are those of the claim holding a
     claimed row, which is the initiative's where `held_through` is set.
@@ -117,7 +118,7 @@ class QueueBoardRow(QueueRowBase):
 
     kind: Literal['issue', 'initiative', 'idea']
     own_priority: int
-    initiative: int | None = None
+    initiative: InitiativeSummary | None = None
     repos: list[str] = []
     pursuits: list[PursuitSummary] = []
     open_count: int | None = None

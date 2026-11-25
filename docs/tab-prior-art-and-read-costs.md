@@ -39,6 +39,10 @@ Each figure is one read against a queue of about 900 open records and about 1,65
 | `GET /focus` | about 5 KB | under 0.5 s |
 | `GET /focus/usage` | about 4 KB a day for 16 pursuits, read at 2 days | under 0.5 s at 2 days |
 
+Measured in-process on a Postgres seeded with 958 queued and 62 claimed rows, `GET /queue`
+answers about 4 MB in about 0.4 s. `GET /queue/board` answers the same rows in about 560 KB and
+about 0.2 s.
+
 - **A queue row carries its whole record.** Dropping every description still leaves about 1.5 MB,
   because each row holds the record's refs, claim, last check and steps. The tab draws a few
   hundred bytes of each row. [api-memory.md](api-memory.md) names `GET /queue` among the reads that grow

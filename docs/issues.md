@@ -105,8 +105,8 @@ carries only what a board draws, and no `record`:
 - `kind`, `number`, `title`, `step`, `priority`, `pinned`, `placed_by` and
   `raised_by`, as `GET /queue` spells them
 - `own_priority`, the record's own, beside the `priority` by which it sorts
-- an issue's `initiative`, and `repos`: an issue's repo, or each repo that an
-  initiative's issues name
+- an issue's `initiative`, in the shape an issue's read gives it, and `repos`:
+  an issue's repo, or each repo that an initiative's issues name
 - `pursuits`: an issue's initiative's, else the record's own
 - an initiative's `open_count`, and an issue's `overlaps`
 - on a claimed row, `holder`, `held_through`, and the claim's `expires_ts` and
@@ -115,11 +115,10 @@ carries only what a board draws, and no `record`:
 
 It takes no filter and no `limit`, because a board counts, searches and cuts
 the rows itself. Open work closes, so the open queue does not grow with use.
-`queued_issues`, `initiative_row_step` and `QueuePlacement` choose and place the
-rows of both reads, so the order has one owner. The board reads only light
-columns and builds no `issue_views`, `initiative_views` or `idea_views` row. Its
-queries do not grow with the rows, and a test pins their count, as the
-initiative board's test does.
+`services/work_queue.py` chooses each row of both reads, says where it sits and
+what put it there, and places it, so the order has one owner. The board reads
+only light columns and builds no `issue_views`, `initiative_views` or
+`idea_views` row. Its queries do not grow with the rows.
 
 `POST /claims/next` holds the head of the `build` rows under the same filters,
 and the initiative's holder can also take its own plan's issues. `queued_issues`

@@ -25,9 +25,8 @@ reads are `GET /issues?status=all`, `GET /initiatives/progress`, `GET /issues` a
 Each answers several MiB of JSON and builds many times that in rows and models first.
 
 **A view polling the queue reads `GET /queue/board`, not `GET /queue`.** The board answers the
-same rows without their records. On a database loaded to production's size, it answers about a
-tenth of the bytes and grows resident memory by under a third as much. Half of what it still
-grows is the readiness pass that both reads share.
+same rows without their records. The readiness pass that both reads share sets the floor of what
+it grows.
 
 ## Two arenas and a fixed mmap threshold hold it level
 

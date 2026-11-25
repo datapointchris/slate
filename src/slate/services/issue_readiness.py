@@ -166,6 +166,10 @@ class IssueReadiness:
         """A closed issue stands alone at its own priority, which the queue never reads."""
         return self.queue_key.get(issue_id) or slot_key(urgency(priority), rank, number)
 
+    def issue_placed_by(self, issue: models.Issue) -> PlacedBy:
+        """An issue this pass never read, such as one filed and claimed since, stands alone as `issue_sort_key` places it."""
+        return self.placed_by.get(issue.id, 'own')
+
     def record_sort_key(self, number: int, priority: int, rank: float) -> QueueKey:
         """An idea or an initiative the queue holds no slot for, such as a held someday one, stands alone at its own priority."""
         return self.slot_key_by_number.get(number) or slot_key(urgency(priority), rank, number)

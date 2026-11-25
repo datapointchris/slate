@@ -25,9 +25,9 @@ build is listed under that holder too, naming the initiative as `held_through`. 
 queued, because it waits on a person whoever coordinates. Readiness ignores the initiative's claim,
 so a worker's own claim and every other reader of readiness see the issue as ready.
 
-`queued_issues` and `initiative_row_step` say which records are rows, and `QueuePlacement` places
-them, for `GET /queue` here and for `GET /queue/board` in `services/queue_board.py`. So both reads
-list the same rows in the same order.
+`queued_issues`, `open_initiative_rows`, `initiative_row_step` and `open_ideas` say which records
+are rows. `issue_spot` and `record_spot` say where each sits and what put it there, and
+`QueuePlacement` places it, so every queue read lists the same rows in the same order.
 """
 
 from __future__ import annotations
@@ -40,6 +40,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
+from typing import NamedTuple
+from typing import TypedDict
 
 from sqlalchemy import or_
 from sqlalchemy import select
@@ -56,6 +58,7 @@ from slate.models.worklog import WORKLOG_STEPS
 from slate.schemas.queue import IdeaRow
 from slate.schemas.queue import InitiativeRow
 from slate.schemas.queue import IssueRow
+from slate.schemas.queue import PlacedBy
 from slate.schemas.queue import QueueRowBase
 from slate.schemas.queue import Step
 from slate.schemas.ready_filter import ReadyFilter
@@ -64,6 +67,7 @@ from slate.services.claim_views import live_claims_on_every_record
 from slate.services.held_plans import held_plans
 from slate.services.held_plans import holding_claim
 from slate.services.idea_views import idea_views
+from slate.services.initiative_views import IssueCounts
 from slate.services.initiative_views import initiative_views
 from slate.services.initiative_views import issue_count_columns
 from slate.services.issue_filters import apply_label_filter
@@ -121,26 +125,70 @@ def initiative_row_step(
     return step if queued_alone or number in held else None
 
 
+class QueueRowFields(TypedDict):
+    step: Step
+    priority: int
+    pinned: bool
+    placed_by: PlacedBy
+    raised_by: int | None
+
+
+class QueueSpot(NamedTuple):
+    """Where a record sits in the queue, the step taking it means, and what put it there."""
+
+    key: QueueKey
+    step: Step
+    priority: int
+    placed_by: PlacedBy
+    raised_by: int | None = None
+
+    def row_fields(self) -> QueueRowFields:
+        """What every queue read's row carries from its spot."""
+        return QueueRowFields(
+            step=self.step, priority=self.priority, pinned=self.key.pin == PINNED, placed_by=self.placed_by, raised_by=self.raised_by
+        )
+
+
+def issue_spot(readiness: IssueReadiness, issue: models.Issue) -> QueueSpot:
+    """An issue sits at its effective priority where readiness placed it, else alone at its own."""
+    return QueueSpot(
+        key=readiness.sort_key(issue),
+        step=issue_step(issue.type),
+        priority=readiness.effective_priority.get(issue.id, issue.priority),
+        placed_by=readiness.issue_placed_by(issue),
+        raised_by=readiness.raised_by.get(issue.id),
+    )
+
+
+def record_spot(readiness: IssueReadiness, number: int, priority: int, rank: float, step: Step) -> QueueSpot:
+    """An initiative or an idea sits at its own priority, in the slot readiness holds for it."""
+    key = readiness.record_sort_key(number, priority, rank)
+    return QueueSpot(key=key, step=step, priority=priority, placed_by=slot_placed_by(key))
+
+
+def idea_spot(readiness: IssueReadiness, idea: models.Idea) -> QueueSpot:
+    return record_spot(readiness, idea.number, idea.priority, idea.rank, 'discuss')
+
+
 @dataclass
 class QueuePlacement[PlacedRow: QueueRowBase]:
-    """The one placement step of every queue read: a row goes under the claim holding it, else into the queue at its key."""
+    """The one placement step of every queue read: a row goes under the claim holding it, else into the queue at its spot."""
 
     held: Mapping[int, models.Claim]
     plans: Mapping[int, models.Claim]
     queued: list[tuple[QueueKey, PlacedRow]] = field(default_factory=list)
     claimed: list[tuple[str, QueueKey, PlacedRow]] = field(default_factory=list)
 
-    def place(self, key: QueueKey, row: PlacedRow) -> models.Claim | None:
-        """Place `row` at `key`, and answer the claim holding it, or None where it is queued."""
-        row.pinned = key.pin == PINNED
+    def place(self, spot: QueueSpot, row: PlacedRow) -> models.Claim | None:
+        """Place `row` at `spot`, and answer the claim holding it, or None where it is queued."""
         claim = holding_claim(row.number, row.step, self.held, self.plans)
         if claim is None:
-            self.queued.append((key, row))
+            self.queued.append((spot.key, row))
             return None
         if claim.record_number != row.number:
             row.held_through = claim.record_number
         row.holder = claim.holder
-        self.claimed.append((claim.holder, key, row))
+        self.claimed.append((claim.holder, spot.key, row))
         return claim
 
     def queue_rows(self) -> list[PlacedRow]:
@@ -189,8 +237,7 @@ def queued_issues(
 ) -> list[models.Issue]:
     """The ready issues at `step`, and the unclosed ones `held` names, narrowed by `filters`, in queue order.
 
-    `within` replaces the first two with these numbers, ready or not. `GET /queue` lists them, and
-    `POST /claims/next` holds the first of them at step `build`. `options` say what each issue loads.
+    `within` replaces the first two with these numbers, ready or not. `options` say what each issue loads.
     """
     query = select(models.Issue).options(*options)
     if within is not None:
@@ -261,52 +308,33 @@ def queue_as_measured(
         issues = queued_issues(session, readiness, filters, filters.step, held, None if work is None else work.unblocks)
         overlaps = held_overlaps(session, issues, now)
         for issue, view in zip(issues, issue_views(session, issues, zone, readiness), strict=True):
+            spot = issue_spot(readiness, issue)
             issue_row = IssueRow(
+                **spot.row_fields(),
                 number=issue.number,
                 title=issue.title,
-                step=issue_step(issue.type),
-                priority=view.effective_priority,
-                placed_by=readiness.placed_by[issue.id],
-                raised_by=readiness.raised_by.get(issue.id),
                 overlaps=path_overlaps(overlaps.get(issue.number, [])),
                 unblocks=[] if work is None else work.unblocks.get(issue.number, []),
                 record=view,
             )
-            placement.place(readiness.sort_key(issue), issue_row)
+            placement.place(spot, issue_row)
 
     if reads_other_kinds and filters.step not in ('discuss', 'decide') and (work is None or work.kind == Kind.INITIATIVE):
         for initiative_view in open_initiatives(session, initiative, filters):
             step = initiative_row_step(initiative_view.number, initiative_view, initiative_view.open_count, readiness, held)
             if step is None or not wanted(filters, step):
                 continue
-            key = readiness.record_sort_key(initiative_view.number, initiative_view.priority, initiative_view.rank)
+            spot = record_spot(readiness, initiative_view.number, initiative_view.priority, initiative_view.rank, step)
             initiative_row = InitiativeRow(
-                number=initiative_view.number,
-                title=initiative_view.name,
-                step=step,
-                priority=initiative_view.priority,
-                placed_by=slot_placed_by(key),
-                record=initiative_view,
+                **spot.row_fields(), number=initiative_view.number, title=initiative_view.name, record=initiative_view
             )
-            placement.place(key, initiative_row)
+            placement.place(spot, initiative_row)
 
     if reads_other_kinds and initiative is None and wanted(filters, 'discuss'):
-        query = select(models.Idea).where(is_open(Kind.IDEA))
-        query = narrowed_to_groupings(query, Kind.IDEA, filters, session)
-        if work is not None:
-            query = query.where(models.Idea.number == work.number)
-        ideas = session.scalars(query).all()
+        ideas = open_ideas(session, filters, None if work is None else work.number)
         for idea, idea_view in zip(ideas, idea_views(session, ideas), strict=True):
-            key = readiness.record_sort_key(idea.number, idea.priority, idea.rank)
-            idea_row = IdeaRow(
-                number=idea_view.number,
-                title=idea_view.title,
-                step='discuss',
-                priority=idea_view.priority,
-                placed_by=slot_placed_by(key),
-                record=idea_view,
-            )
-            placement.place(key, idea_row)
+            spot = idea_spot(readiness, idea)
+            placement.place(spot, IdeaRow(**spot.row_fields(), number=idea_view.number, title=idea_view.title, record=idea_view))
 
     queue = placement.queue_rows()
     return schemas.Queue(queue=queue if limit is None else queue[:limit], claimed=placement.claimed_rows())
@@ -314,8 +342,8 @@ def queue_as_measured(
 
 def open_initiative_rows(
     session: Session, only: models.Initiative | None, groupings: RecordGroupings, *options: ORMOption
-) -> list[tuple[models.Initiative, Sequence[Any]]]:
-    """Active initiatives, and someday ones too since a claim may hold one, each with a row of `issue_count_columns()`.
+) -> list[tuple[models.Initiative, IssueCounts]]:
+    """Active initiatives, and someday ones too since a claim may hold one, each with its issues counted.
 
     `only` narrows to one, and `groupings` to those in each grouping it names. `options` say what each initiative loads.
     """
@@ -329,8 +357,16 @@ def open_initiative_rows(
     if only is not None:
         query = query.where(models.Initiative.id == only.id)
     query = narrowed_to_groupings(query, Kind.INITIATIVE, groupings, session)
-    return [(row[0], row[1:]) for row in session.execute(query).all()]
+    return [(row[0], IssueCounts.of(row)) for row in session.execute(query).all()]
 
 
 def open_initiatives(session: Session, only: models.Initiative | None, groupings: RecordGroupings) -> list[schemas.Initiative]:
     return initiative_views(session, open_initiative_rows(session, only, groupings))
+
+
+def open_ideas(session: Session, groupings: RecordGroupings, only: int | None = None, *options: ORMOption) -> Sequence[models.Idea]:
+    """Every open idea, each a queue row at `discuss`. `groupings` and `only` narrow them, and `options` say what each loads."""
+    query = narrowed_to_groupings(select(models.Idea).options(*options).where(is_open(Kind.IDEA)), Kind.IDEA, groupings, session)
+    if only is not None:
+        query = query.where(models.Idea.number == only)
+    return session.scalars(query).all()

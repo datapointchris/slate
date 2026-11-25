@@ -5,7 +5,9 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Sequence
 from typing import Any
+from typing import NamedTuple
 
+from sqlalchemy import Row
 from sqlalchemy import distinct
 from sqlalchemy import func
 from sqlalchemy import select
@@ -40,9 +42,24 @@ def issue_count_columns():
     )
 
 
+class IssueCounts(NamedTuple):
+    """An initiative's issues counted by `issue_count_columns()`, read by label. `repos` is None where it has no issue with a repo."""
+
+    issue_count: int
+    open_count: int
+    completed_count: int
+    canceled_count: int
+    repos: list[str] | None
+
+    @classmethod
+    def of(cls, row: Row[Any]) -> IssueCounts:
+        """The counts in a row selecting `issue_count_columns()`, beside whatever else it selects."""
+        return cls(**{name: row._mapping[name] for name in cls._fields})
+
+
 def initiative_view(
     initiative: models.Initiative,
-    counts: Sequence[Any],
+    counts: IssueCounts,
     claim: schemas.Claim | None,
     depends_on: list[schemas.RecordSummary],
     waiting: list[schemas.RecordSummary],
@@ -53,8 +70,6 @@ def initiative_view(
     last_check: schemas.LastCheck | None,
     check_request: schemas.CheckRequest | None,
 ) -> schemas.Initiative:
-    """`counts` is a row of `issue_count_columns()`."""
-    issue_count, open_count, completed_count, canceled_count, repos = counts
     return schemas.Initiative(
         id=initiative.id,
         number=initiative.number,
@@ -75,11 +90,11 @@ def initiative_view(
         tags=tags,
         refs=refs,
         pursuits=pursuits,
-        issue_count=issue_count,
-        open_count=open_count,
-        completed_count=completed_count,
-        canceled_count=canceled_count,
-        repos=sorted(repos) if repos else [],
+        issue_count=counts.issue_count,
+        open_count=counts.open_count,
+        completed_count=counts.completed_count,
+        canceled_count=counts.canceled_count,
+        repos=sorted(counts.repos or []),
         claim=claim,
         last_check=last_check,
         check_request=check_request,
@@ -89,8 +104,8 @@ def initiative_view(
     )
 
 
-def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, Sequence[Any]]]) -> list[schemas.Initiative]:
-    """Each initiative beside its row of `issue_count_columns()`, with its claim and its waits either way."""
+def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, IssueCounts]]) -> list[schemas.Initiative]:
+    """Each initiative beside its issues' counts, with its claim and its waits either way."""
     claims = unended_claim_views(session, [initiative.number for initiative, _ in rows], dt.datetime.now(dt.UTC))
     depends_on = waited_on(session, [initiative.id for initiative, _ in rows])
     waiting = waiting_initiatives(session, [initiative.number for initiative, _ in rows])
@@ -120,7 +135,7 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
 
 def counted(session: Session, initiative: models.Initiative) -> schemas.Initiative:
     counts = session.execute(select(*issue_count_columns()).where(models.Issue.initiative_id == initiative.id)).one()
-    return initiative_views(session, [(initiative, counts)])[0]
+    return initiative_views(session, [(initiative, IssueCounts.of(counts))])[0]
 
 
 def counted_initiatives(session: Session, initiatives: Sequence[models.Initiative]) -> list[schemas.Initiative]:
@@ -131,7 +146,7 @@ def counted_initiatives(session: Session, initiatives: Sequence[models.Initiativ
         .where(models.Initiative.id.in_([initiative.id for initiative in initiatives]))
         .group_by(models.Initiative.id)
     )
-    counts = {row[0]: row[1:] for row in session.execute(query).all()}
+    counts = {row.id: IssueCounts.of(row) for row in session.execute(query).all()}
     return initiative_views(session, [(initiative, counts[initiative.id]) for initiative in initiatives])
 
 
