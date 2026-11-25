@@ -14,11 +14,10 @@ import (
 
 // queuePlace is a row's neighbors in the order its group draws them, for the reorder keys.
 type queuePlace struct {
-	kind     string
-	number   int
-	priority int
-	above    *queueStep
-	below    *queueStep
+	kind   string
+	number int
+	above  *queueStep
+	below  *queueStep
 }
 
 // queueStep is a move past the row drawn beside another. Passes is what the queue holds
@@ -30,10 +29,9 @@ type queueStep struct {
 
 // queueNeighbor is a record a row moves among. Hidden says the scope keeps it off the screen.
 type queueNeighbor struct {
-	number   int
-	title    string
-	priority int
-	hidden   bool
+	number int
+	title  string
+	hidden bool
 }
 
 // placeInOrder records each row's neighbors among the rows drawn, in drawn order, with what
@@ -196,9 +194,6 @@ func (b *initiativesBoard) reorder(pursuit int) func(*gotermboard.Model) tea.Cmd
 			return nil
 		case place.kind == "initiative" && b.sort != 0:
 			m.Say(fmt.Sprintf("sorted by %s, the rows beside %d are not in the queue's order, so s back to priority reorders it", boardSorts[b.sort].label, place.number))
-			return nil
-		case place.kind == "initiative" && step.to.priority != place.priority:
-			m.Say(fmt.Sprintf("%d is %s and %d is %s, and the queue reorders only within a priority", place.number, priorityName(place.priority), step.to.number, priorityName(step.to.priority)))
 			return nil
 		}
 		var reasons []string

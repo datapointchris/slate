@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,39 +22,63 @@ import (
 	"github.com/datapointchris/slate/cli/internal/api"
 )
 
-// queueStandIn stands in for slate's queue board, focus, record and rank routes, and the
+// queueStandIn stands in for slate's queue board, focus, record, rank and pin routes, and the
 // initiatives board. The queue holds pinned initiative 3148, high initiative 1482 with its issues
 // 1192 and 1193 inside it, high initiative 1963 and high idea 4100, then 54 ideas at no priority,
 // 5050 among them past the first 50. Initiative 4271 is claimed and waits on a read of its plan.
+// Each queued row carries the moves the API would answer for it, and a pin written to a record
+// shows on its row and its read.
 type queueStandIn struct {
 	mu         sync.Mutex
 	boardReads int
 	writes     []string
+	pinned     map[int]bool
 }
 
 const (
 	queueStandInHolder = "claude-code/cda42040-8d12-4c30-9d5f-f1d9325ef5af"
 	queueStandInPast   = 5050
+	// queueStandInInside is the refusal the API answers for 1192 moved ahead.
+	queueStandInInside = "#1192 sits inside initiative #1482 'Lock every gate in the garden', so it moves only among that initiative's issues."
 )
 
-func queueStandInBoard() api.QueueBoard {
+func queueStandInBoard(pinned map[int]bool) api.QueueBoard {
 	safe := api.PursuitSummary{Number: 2990, Name: "Keep the garden safe"}
 	gates := &api.InitiativeSummary{Number: 1482, Name: "Lock every gate in the garden", Status: "active", Priority: 2}
 	slot := func(number int) *int { return &number }
+	beside := func(number int, passes ...int) api.QueueMove { return api.QueueMove{Beside: &number, Passes: passes} }
+	refused := func(why string) api.QueueMove { return api.QueueMove{Passes: []int{}, Refused: why} }
+	moves := func(ahead, behind api.QueueMove) *api.QueueRowMoves {
+		return &api.QueueRowMoves{Ahead: ahead, Behind: behind}
+	}
+	acrossThePin := refused("#3148 is pinned and #1482 is not, so a move cannot place one beside the other.")
+	acrossAPriority := refused("A move orders records only within one priority.")
 	queue := []api.QueueBoardRow{
-		{Kind: "initiative", Number: 3148, Title: "Every change to the watering schedule runs beside the old one first", Step: "shape", Priority: 4, OwnPriority: 4, Pinned: true, PlacedBy: "pin", Slot: slot(3148)},
-		{Kind: "initiative", Number: 1482, Title: gates.Name, Step: "design", Priority: 2, OwnPriority: 2, PlacedBy: "own", Repos: []string{"gates", "shed", "fence"}, Pursuits: []api.PursuitSummary{safe}, OpenCount: new(2), Slot: slot(1482)},
-		{Kind: "issue", Number: 1192, Title: "Decide whether the side gate takes a key or a code", Step: "decide", Priority: 2, PlacedBy: "initiative", Initiative: gates, Repos: []string{"gates"}, Pursuits: []api.PursuitSummary{safe}, Slot: slot(1482)},
-		{Kind: "issue", Number: 1193, Title: "Fit the padlock on the back gate", Step: "build", Priority: 2, PlacedBy: "initiative", Initiative: gates, Repos: []string{"gates"}, Pursuits: []api.PursuitSummary{safe}, Slot: slot(1482)},
-		{Kind: "initiative", Number: 1963, Title: "Sort the shed into labeled bins", Step: "design", Priority: 2, OwnPriority: 2, PlacedBy: "own", Repos: []string{"shed"}, Slot: slot(1963)},
-		{Kind: "idea", Number: 4100, Title: "Compost the kitchen scraps", Step: "discuss", Priority: 2, OwnPriority: 2, PlacedBy: "own", Slot: slot(4100)},
+		{Kind: "initiative", Number: 3148, Title: "Every change to the watering schedule runs beside the old one first", Step: "shape", Priority: 4, OwnPriority: 4, PlacedBy: "own", Slot: slot(3148), Moves: moves(refused("#3148 is first in the queue."), acrossThePin)},
+		{Kind: "initiative", Number: 1482, Title: gates.Name, Step: "design", Priority: 2, OwnPriority: 2, PlacedBy: "own", Repos: []string{"gates", "shed", "fence"}, Pursuits: []api.PursuitSummary{safe}, OpenCount: new(2), Slot: slot(1482), Moves: moves(acrossThePin, beside(1963, 1963))},
+		{Kind: "issue", Number: 1192, Title: "Decide whether the side gate takes a key or a code", Step: "decide", Priority: 2, PlacedBy: "initiative", Initiative: gates, Repos: []string{"gates"}, Pursuits: []api.PursuitSummary{safe}, Slot: slot(1482), Moves: moves(refused(queueStandInInside), beside(1193, 1193))},
+		{Kind: "issue", Number: 1193, Title: "Fit the padlock on the back gate", Step: "build", Priority: 2, PlacedBy: "initiative", Initiative: gates, Repos: []string{"gates"}, Pursuits: []api.PursuitSummary{safe}, Slot: slot(1482), Moves: moves(beside(1192, 1192), refused("#1193 moves only among initiative #1482's issues."))},
+		{Kind: "initiative", Number: 1963, Title: "Sort the shed into labeled bins", Step: "design", Priority: 2, OwnPriority: 2, PlacedBy: "own", Repos: []string{"shed"}, Slot: slot(1963), Moves: moves(beside(1482, 1193, 1192, 1482), beside(4100, 4100))},
+		{Kind: "idea", Number: 4100, Title: "Compost the kitchen scraps", Step: "discuss", Priority: 2, OwnPriority: 2, PlacedBy: "own", Slot: slot(4100), Moves: moves(beside(1963, 1963), acrossAPriority)},
 	}
 	for number := 5001; number <= 5054; number++ {
 		title := "An idea for later " + strconv.Itoa(number)
 		if number == queueStandInPast {
 			title = "Paint the fence"
 		}
-		queue = append(queue, api.QueueBoardRow{Kind: "idea", Number: number, Title: title, Step: "discuss", PlacedBy: "own", Slot: slot(number)})
+		ahead, behind := beside(number-1, number-1), beside(number+1, number+1)
+		switch number {
+		case 5001:
+			ahead = acrossAPriority
+		case 5054:
+			behind = refused("#5054 is last in the queue.")
+		}
+		queue = append(queue, api.QueueBoardRow{Kind: "idea", Number: number, Title: title, Step: "discuss", PlacedBy: "own", Slot: slot(number), Moves: moves(ahead, behind)})
+	}
+	for at := range queue {
+		if pinned[queue[at].Number] {
+			queue[at].Pinned, queue[at].PlacedBy = true, api.PlacedByPin
+		}
 	}
 	waited := time.Now().Add(-time.Hour)
 	claimed := []api.QueueBoardRow{{
@@ -66,30 +92,40 @@ func queueStandInBoard() api.QueueBoard {
 func (s *queueStandIn) serve(w http.ResponseWriter, r *http.Request) {
 	var answer any
 	path := r.URL.Path
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	switch {
-	case r.Method == http.MethodPost:
+	case r.Method == http.MethodPost || r.Method == http.MethodDelete:
 		body, _ := io.ReadAll(r.Body)
-		s.mu.Lock()
-		s.writes = append(s.writes, path+" "+strings.TrimSpace(string(body)))
-		s.mu.Unlock()
+		write := strings.TrimSpace(path + " " + strings.TrimSpace(string(body)))
+		if r.Method == http.MethodDelete {
+			write = "DELETE " + write
+		}
+		s.writes = append(s.writes, write)
+		if pinned, isPin := strings.CutSuffix(path, "/pin"); isPin {
+			number, _ := strconv.Atoi(pinned[strings.LastIndex(pinned, "/")+1:])
+			s.pinned[number] = r.Method == http.MethodPost
+		}
 		answer = map[string]any{"side_effects": []any{}, "warnings": []any{}}
 	case path == "/api/v1/queue/board":
-		s.mu.Lock()
 		s.boardReads++
-		s.mu.Unlock()
-		answer = queueStandInBoard()
+		answer = queueStandInBoard(s.pinned)
 	case path == "/api/v1/focus":
 		answer = api.FocusStanding{Pursuits: []api.PursuitStanding{{PursuitFigures: api.PursuitFigures{Number: 2990, Factor: new(0.88)}, Name: "Keep the garden safe", Status: "active"}}}
 	case strings.HasPrefix(path, "/api/v1/records/"):
 		number, _ := strconv.Atoi(strings.TrimPrefix(path, "/api/v1/records/"))
 		kind := api.RecordKindIdea
-		for _, row := range queueStandInBoard().Queue {
+		for _, row := range queueStandInBoard(s.pinned).Queue {
 			if row.Number == number {
 				kind = row.Kind
 			}
 		}
+		var pinnedTS *time.Time
+		if s.pinned[number] {
+			pinnedTS = new(time.Now().Add(-time.Hour))
+		}
 		answer = map[string]any{"kind": kind, "number": number, "record": map[string]any{
-			"number": number, "rank": 183, "pinned_ts": nil, "description": fmt.Sprintf("The whole of record %d.", number),
+			"number": number, "rank": 183, "pinned_ts": pinnedTS, "description": fmt.Sprintf("The whole of record %d.", number),
 		}}
 	case path == "/api/v1/initiatives/board":
 		answer = sevenHighAndTwoLow()
@@ -121,8 +157,8 @@ func press(model *gotermboard.Model, key string) {
 	settle(model, cmd)
 }
 
-func TestTheQueueTabDrawsTheClaimedApartSaysWhyEachRowSitsThereAndMovesByTheAPIsRules(t *testing.T) {
-	stand := &queueStandIn{}
+func TestTheQueueTabDrawsTheClaimedApartSaysWhyEachRowSitsThereAndMovesWhereTheBoardSays(t *testing.T) {
+	stand := &queueStandIn{pinned: map[int]bool{3148: true}}
 	server := httptest.NewServer(http.HandlerFunc(stand.serve))
 	t.Cleanup(server.Close)
 	client := api.New(server.URL, server.Client())
@@ -185,14 +221,17 @@ func TestTheQueueTabDrawsTheClaimedApartSaysWhyEachRowSitsThereAndMovesByTheAPIs
 
 	atRecord(1192)
 	press(model, "<")
-	if screen = model.View().Content; !strings.Contains(screen, "1192 sits inside initiative 1482 Lock every gate in the garden, so it moves only among that initiative's issues, and none sits above it") {
-		t.Errorf("< on an initiative's first issue should say it moves only among that initiative's issues:\n%s", screen)
+	if _, writes := stand.counts(); len(writes) != 0 {
+		t.Errorf("< where the board answers a refusal should write nothing, wrote %q", writes)
 	}
-
+	if screen = model.View().Content; !strings.Contains(screen, queueStandInInside) {
+		t.Errorf("the footer should say why the API refuses the move:\n%s", screen)
+	}
+	press(model, ">")
 	atRecord(4100)
 	press(model, "<")
-	if _, writes := stand.counts(); len(writes) != 1 || writes[0] != `/api/v1/ideas/4100/rank {"before":"1963"}` {
-		t.Errorf("< on idea 4100 should rank it ahead of 1963 through the idea's rank, wrote %q", writes)
+	if _, writes := stand.counts(); !slices.Equal(writes, []string{`/api/v1/issues/1192/rank {"after":"1193"}`, `/api/v1/ideas/4100/rank {"before":"1963"}`}) {
+		t.Errorf("> on 1192 and < on 4100 should each rank the record beside the one the board names, wrote %q", writes)
 	}
 
 	for _, key := range strings.Split("/Paint", "") {
@@ -206,8 +245,30 @@ func TestTheQueueTabDrawsTheClaimedApartSaysWhyEachRowSitsThereAndMovesByTheAPIs
 	}
 	press(model, "esc")
 	press(model, "esc")
-	if _, writes := stand.counts(); len(writes) != 1 {
+	if _, writes := stand.counts(); len(writes) != 2 {
 		t.Errorf("the move past a hidden row should write nothing until answered, wrote %q", writes)
+	}
+
+	// P on 4100 pins it, and the cursor leaves before the pin lands. Back on 4100, P waits for a
+	// read of 4100 newer than the pin, so it unpins rather than pinning again.
+	atRecord(4100)
+	_, pinning := model.Update(tea.KeyPressMsg{Code: 'P', Text: "P"})
+	atRecord(1963)
+	settle(model, pinning)
+	board.board.Refresh(ctx)
+	board.records.Refresh(ctx)
+	model.Rebuild()
+	model.MoveCursorTo(queueRowKey(4100))
+	model.Update(tea.WindowSizeMsg{Width: 220, Height: 80})
+	press(model, "P")
+	if _, writes := stand.counts(); len(writes) != 3 {
+		t.Errorf("P back on 4100 should write nothing until 4100 is read again, wrote %q", writes)
+	}
+	board.records.Refresh(ctx)
+	model.Rebuild()
+	press(model, "P")
+	if _, writes := stand.counts(); len(writes) != 4 || writes[3] != "DELETE /api/v1/ideas/4100/pin" {
+		t.Errorf("P on 4100 once read again should unpin it, wrote %q", writes)
 	}
 
 	initiatives := newInitiativesBoard(client, writer, "", boardScope{kind: scopeEveryInitiative}, "")
@@ -218,10 +279,10 @@ func TestTheQueueTabDrawsTheClaimedApartSaysWhyEachRowSitsThereAndMovesByTheAPIs
 	if _, cmd := initiativesModel.Update(tea.KeyPressMsg{Code: 'P', Text: "P"}); cmd == nil {
 		t.Fatalf("P on initiative 1 should start its pin:\n%s", initiativesModel.View().Content)
 	}
-	atRecord(1193)
-	press(model, "<")
-	if screen = model.View().Content; !strings.Contains(screen, "pinning 1 is still under way, so nothing else was written") {
-		t.Errorf("a move on the queue tab should wait on the pin the initiatives tab started:\n%s", screen)
+	atRecord(1192)
+	press(model, ">")
+	if _, writes := stand.counts(); len(writes) != 4 {
+		t.Errorf("a move on the queue tab should wait on the pin the initiatives tab started, wrote %q", writes)
 	}
 
 	asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
@@ -236,5 +297,22 @@ func TestTheQueueTabDrawsTheClaimedApartSaysWhyEachRowSitsThereAndMovesByTheAPIs
 	}
 	if len(printed.Board.Queue) != 60 || len(printed.Board.Claimed) != 1 || printed.CursorRecord == nil || printed.CursorRecord.Number != 3148 {
 		t.Errorf("--json should print every row and the first row's record:\n%s", out)
+	}
+	text, err := os.ReadFile("tui-queue.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Definitions map[string]struct {
+			Properties map[string]struct {
+				Enum []string `json:"enum"`
+			} `json:"properties"`
+		} `json:"definitions"`
+	}
+	if err := json.Unmarshal(text, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if names := schema.Definitions["row"].Properties["placed_by"].Enum; !slices.Equal(names, api.PlacedByNames) {
+		t.Errorf("the schema's placed_by = %v, the API's are %v", names, api.PlacedByNames)
 	}
 }

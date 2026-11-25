@@ -167,12 +167,11 @@ func newTUICommand() *cobra.Command {
 			"apart below, each row naming its holder and what its claim waits on. The panel\n" +
 			"names what set the row's place and the record that did, its pin, its rank, each\n" +
 			"of its pursuits' factors against the focus in force, and its description. P pins\n" +
-			"or unpins the row, and < and > move it by the API's move rules. A row raised by\n" +
-			"what waits on it moves only among the rows that waiter raised, and an issue in an\n" +
-			"initiative moves only among that initiative's issues. Any other row moves past the\n" +
-			"next row of its own priority and pin, with that row's issues. Where none qualifies,\n" +
-			"the footer says why and nothing is written. A move asks first where it passes a\n" +
-			"row hidden by the scope. The queue and initiatives tabs share one writer, so one\n" +
+			"or unpins the row. < and > make the move that the board answers for the row, which\n" +
+			"the API works out by its rank write's own rules: past the place above or below,\n" +
+			"with every row sorting in that place. Where the API would refuse the move, the\n" +
+			"footer gives its reason and nothing is written. A move asks first where it passes\n" +
+			"a row hidden by the scope. The queue and initiatives tabs share one writer, so one\n" +
 			"write runs at a time across both. tui-queue.schema.json in slate's\n" +
 			"cli/internal/cli holds the shape --json prints of it.\n\n" +
 			"repos is every repo the issues name on the same columns, then how long its oldest\n" +

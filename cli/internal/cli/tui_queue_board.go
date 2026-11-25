@@ -79,13 +79,14 @@ func (s queueScope) label() string {
 }
 
 // queueRecord is what the panel draws of a row's record beyond the board's row: its description,
-// its rank and its own pin.
+// its rank and its own pin. readAt is when its read started.
 type queueRecord struct {
 	Kind        string     `json:"kind"`
 	Number      int        `json:"number"`
 	Description *string    `json:"description"`
 	Rank        *float64   `json:"rank"`
 	PinnedTS    *time.Time `json:"pinned_ts"`
+	readAt      time.Time
 }
 
 // queueRecordOf is the part of a read by number that the panel draws.
@@ -120,11 +121,13 @@ type queueBoard struct {
 	records         *gotermboard.Source[map[int]queueRecord]
 	cursor          atomic.Pointer[int]
 	lastRecordFault atomic.Pointer[queueRecordFault]
-	// scope, markdown and lines belong to the program's goroutine, with the keys and Frame. lines
-	// is each line's row as the last Frame drew it, which CursorOn and the keys look the cursor up in.
-	scope    queueScope
-	markdown *markdown.Renderer
-	lines    map[string]queueLine
+	// scope, markdown, lines and writeEndedAt belong to the program's goroutine, with the keys and
+	// Frame. lines is each line's row as the last Frame drew it, which CursorOn and the keys look
+	// the cursor up in. writeEndedAt is when the last write on either writing tab ended.
+	scope        queueScope
+	markdown     *markdown.Renderer
+	lines        map[string]queueLine
+	writeEndedAt time.Time
 	// boardFailure, focusFailure and recordFailure are each read's last failure, for --once and
 	// --json to exit on.
 	boardFailure, focusFailure, recordFailure error
@@ -165,6 +168,7 @@ func (b *queueBoard) readCursorRecord(ctx context.Context) (map[int]queueRecord,
 	if number == nil {
 		return held, "", nil
 	}
+	started := time.Now()
 	record, err := b.client.GetRecord(ctx, strconv.Itoa(*number), issueZone())
 	b.recordFailure = err
 	if err != nil {
@@ -174,8 +178,25 @@ func (b *queueBoard) readCursorRecord(ctx context.Context) (map[int]queueRecord,
 	b.lastRecordFault.Store(nil)
 	next := make(map[int]queueRecord, len(held)+1)
 	maps.Copy(next, held)
-	next[*number] = queueRecordOf(record)
+	read := queueRecordOf(record)
+	read.readAt = started
+	next[*number] = read
 	return next, "", nil
+}
+
+// heldRecord is the row's record where its read started after the last write ended and its own
+// pin agrees with the board's row. A record that fails either test may hold a pin since changed,
+// so it counts as unread until a fresh read lands.
+func (b *queueBoard) heldRecord(row api.QueueBoardRow) (queueRecord, bool) {
+	record, held := b.records.Value()[row.Number]
+	if !held || record.readAt.Before(b.writeEndedAt) {
+		return queueRecord{}, false
+	}
+	ownPin := record.PinnedTS != nil
+	if (ownPin && !row.Pinned) || (!ownPin && row.PlacedBy == api.PlacedByPin) {
+		return queueRecord{}, false
+	}
+	return record, true
 }
 
 // Sources is gotermboard.Board's.
@@ -196,7 +217,7 @@ func (b *queueBoard) CursorOn(key string) {
 	}
 	number := line.row.Number
 	b.cursor.Store(&number)
-	if _, held := b.records.Value()[number]; !held {
+	if _, held := b.heldRecord(line.row); !held {
 		b.records.Force()
 	}
 }
@@ -216,9 +237,11 @@ func (b *queueBoard) readOnce(ctx context.Context) error {
 }
 
 // Receive is gotermboard.ReceivingBoard's. A write on either writing tab changes the queue, so its
-// end reads the board and the cursor's record again.
+// end reads the board and the cursor's record again, and every record read before it counts as
+// unread.
 func (b *queueBoard) Receive(m *gotermboard.Model, msg tea.Msg) tea.Cmd {
 	if b.writer.ended(m, msg) {
+		b.writeEndedAt = time.Now()
 		b.board.Force()
 		b.records.Force()
 	}
@@ -267,16 +290,17 @@ func (b *queueBoard) pin(m *gotermboard.Model) tea.Cmd {
 		return nil
 	}
 	row := line.row
-	record, read := b.records.Value()[row.Number]
+	record, read := b.heldRecord(row)
 	if !read {
+		b.records.Force()
 		m.Say(fmt.Sprintf("%d's pin is still being read, so press P again once its panel shows it", row.Number))
 		return nil
 	}
 	return b.writer.pin(m, placedRecord{kind: row.Kind, number: row.Number, title: row.Title}, record.PinnedTS != nil, nil)
 }
 
-// reorder is < and >: it moves the row past its neighbor in the queue by the API's move rules,
-// says why where they move it nowhere, and asks first where the move passes rows hidden by the scope.
+// reorder is < and >: it makes the move that the board answers for the row, says the API's
+// refusal where there is none, and asks first where the move passes rows hidden by the scope.
 func (b *queueBoard) reorder(ahead bool) func(*gotermboard.Model) tea.Cmd {
 	return func(m *gotermboard.Model) tea.Cmd {
 		line, ok := b.lines[m.Cursor()]
@@ -463,7 +487,7 @@ func shortHolder(holder string) string {
 // because the factor places nothing. Then its claim, each held issue whose paths meet its own,
 // and its description, read by number.
 func (b *queueBoard) queuePanel(read api.QueueBoard, row api.QueueBoardRow, width int, now time.Time) []gotermboard.Line {
-	record, recordRead := b.records.Value()[row.Number]
+	record, recordRead := b.heldRecord(row)
 	lines := []gotermboard.Line{
 		heading(fmt.Sprintf("%d · %s · %s · %s", row.Number, row.Kind, row.Step, priorityName(row.Priority))),
 		{gotermboard.C("placed by  ", dimCode), gotermboard.C(placedBySentence(read, row), "")},
@@ -525,15 +549,15 @@ func recordName(read api.QueueBoard, number int) string {
 func placedBySentence(read api.QueueBoard, row api.QueueBoardRow) string {
 	own := "its own priority is " + priorityName(row.OwnPriority)
 	switch {
-	case row.PlacedBy == "own":
+	case row.PlacedBy == api.PlacedByOwn:
 		return "its own priority and rank"
-	case row.PlacedBy == "pin":
+	case row.PlacedBy == api.PlacedByPin:
 		return "its own pin"
-	case row.PlacedBy == "initiative" && row.Initiative != nil:
+	case row.PlacedBy == api.PlacedByInitiative && row.Initiative != nil:
 		return fmt.Sprintf("initiative %s · %s", recordName(read, row.Initiative.Number), own)
-	case row.PlacedBy == "parent" && row.RaisedBy != nil:
+	case row.PlacedBy == api.PlacedByParent && row.RaisedBy != nil:
 		return fmt.Sprintf("its parent %s · %s", recordName(read, *row.RaisedBy), own)
-	case row.PlacedBy == "waiter" && row.RaisedBy != nil:
+	case row.PlacedBy == api.PlacedByWaiter && row.RaisedBy != nil:
 		return fmt.Sprintf("%s, which waits on it · %s", recordName(read, *row.RaisedBy), own)
 	}
 	return orDash(row.PlacedBy)

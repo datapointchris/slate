@@ -88,7 +88,7 @@
       "additionalProperties": false,
       "required": [
         "kind", "number", "title", "step", "priority", "own_priority", "pinned", "placed_by", "raised_by", "holder", "held_through",
-        "initiative", "repos", "pursuits", "open_count", "overlaps", "expires_ts", "waiting", "slot"
+        "initiative", "repos", "pursuits", "open_count", "overlaps", "expires_ts", "waiting", "slot", "moves"
       ],
       "properties": {
         "kind": {"enum": ["idea", "initiative", "issue"]},
@@ -170,9 +170,32 @@
           ]
         },
         "slot": {
-          "description": "The record whose slot holds the row's place: its own, its initiative's, or that of what raised it. Null where an API older than the CLI answered none.",
+          "description": "The record whose slot holds the row's place: its own, its initiative's, or the slot of the issue that raised it, however many hops back. Null where an API older than the CLI answered none.",
           "type": ["integer", "null"]
+        },
+        "moves": {
+          "description": "Where < and > take a queued row, as the API's rank write decides. Null on a claimed row, or where an API older than the CLI answered none.",
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ahead", "behind"],
+              "properties": {"ahead": {"$ref": "#/definitions/move"}, "behind": {"$ref": "#/definitions/move"}}
+            }
+          ]
         }
+      }
+    },
+    "move": {
+      "description": "One move: the record the rank write names, each queued row that ends up on the row's other side, nearest first, or the API's refusal.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["beside", "passes", "refused"],
+      "properties": {
+        "beside": {"type": ["integer", "null"]},
+        "passes": {"type": "array", "items": {"type": "integer"}},
+        "refused": {"description": "Why the write would be refused, in the API's words. Empty or null where it moves.", "type": ["string", "null"]}
       }
     }
   }

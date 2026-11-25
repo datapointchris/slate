@@ -91,12 +91,43 @@ type Queue struct {
 	Claimed []QueueRow `json:"claimed"`
 }
 
+// What set a row's place, one hop back, as the API's placed_by names it.
+const (
+	PlacedByOwn        = "own"
+	PlacedByPin        = "pin"
+	PlacedByInitiative = "initiative"
+	PlacedByParent     = "parent"
+	PlacedByWaiter     = "waiter"
+)
+
+// PlacedByNames is every value of placed_by, in the API's order.
+var PlacedByNames = []string{PlacedByOwn, PlacedByPin, PlacedByInitiative, PlacedByParent, PlacedByWaiter}
+
+// QueueMove is where one move takes a queued row, as the API's rank write
+// decides it. Beside is the record the write names, before it to move ahead and
+// after it to move behind. Passes is each queued row that ends up on the row's
+// other side, nearest first. Refused is why the write would be refused, in the
+// API's words, and Beside is then nil.
+type QueueMove struct {
+	Beside  *int   `json:"beside"`
+	Passes  []int  `json:"passes"`
+	Refused string `json:"refused"`
+}
+
+// QueueRowMoves is a queued row's move ahead of the row above it, and behind
+// the row below it.
+type QueueRowMoves struct {
+	Ahead  QueueMove `json:"ahead"`
+	Behind QueueMove `json:"behind"`
+}
+
 // QueueBoardRow is one row of GET /queue/board: only what a board draws of a
 // record in the queue, and no record body. OwnPriority is the record's own,
 // beside the Priority it sorts at. Initiative is an issue's, and Pursuits that
 // initiative's for an issue, else the record's own. OpenCount is set on an
 // initiative's row alone. ExpiresTS and Waiting are those of the claim holding
-// a claimed row. Slot is the record whose slot holds the row's place, and nil
+// a claimed row. Slot is the record whose slot holds the row's place. Moves is
+// where a move ahead or behind takes a queued row, and nil on a claimed row or
 // where an API older than this CLI answered none.
 type QueueBoardRow struct {
 	Kind        string             `json:"kind"`
@@ -118,6 +149,7 @@ type QueueBoardRow struct {
 	ExpiresTS   *time.Time         `json:"expires_ts"`
 	Waiting     *ClaimWait         `json:"waiting"`
 	Slot        *int               `json:"slot"`
+	Moves       *QueueRowMoves     `json:"moves"`
 }
 
 // QueueBoard is every open row of the queue in GET /queue's order, the

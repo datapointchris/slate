@@ -60,7 +60,7 @@ func newNextCommand() *cobra.Command {
 			"from what the issue blocks, its parent, or its initiative. A pin sorts ahead of\n" +
 			"every priority, and a row it put there says `pinned`: the pinned record, its\n" +
 			"initiative's issues, and what they wait on. --json names what set each row's\n" +
-			"place, one hop back, in placed_by: own, pin, initiative, parent or waiter.\n" +
+			"place, one hop back, in placed_by: " + strings.Join(api.PlacedByNames, ", ") + ".\n" +
 			"raised_by names the parent or waiter, and the queue tab of `slate tui` reads\n" +
 			"both out beside the row.\n" +
 			"\n" +

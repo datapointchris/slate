@@ -37,6 +37,7 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		"record_kinds":               RecordKinds,
 		"document_kinds":             DocumentKinds,
 		"queue_steps":                QueueSteps,
+		"placed_by":                  PlacedByNames,
 		"promote_kinds":              PromoteKinds,
 		"promote_initiative_fields":  PromoteFieldsOfKind[PromotedToInitiative],
 		"promote_issue_fields":       PromoteFieldsOfKind[PromotedToIssue],

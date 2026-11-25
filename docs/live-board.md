@@ -180,28 +180,29 @@ rather than beside the pin and the rank.
 - *Rejected:* a factor on each row. A record in two pursuits would need a rule for which factor
   wins, and slate has none.
 
-**`<` and `>` move a row by the API's own move rules.** `placement` in
-`services/queue_moves.py` ranks a move beside a slot. So each board row carries `slot`, the record
-whose slot holds its place: its own, its initiative's, or that of what raised it. The tab picks
-the neighbor that `placement` would:
+**The board answers each row's moves, and `<` and `>` make them.** `GET /queue/board` gives each
+queued row `moves.ahead` and `moves.behind`. Each names the record that the rank write ranks the
+row beside, and the rows the move passes, or else the write's own refusal. `board_moves` in
+`services/queue_moves.py` works each out with `placement`, the function the rank write runs, so
+the tab offers only what the write does. A move steps past the place above or below, with every
+row sorting in it: an initiative with its issues, or an issue with the rows sorting just ahead of
+it. Nothing is placed beside a raised row, so a move reaching one is placed beside the issue that
+row waits on. A raised row moves only among the rows sorting at its step under the same waiter's
+place. Each row also carries `slot`, the record whose slot holds its place, however many hops
+back `placed_by` stops.
 
-- A row raised by a waiter moves only past the row beside it that the same waiter raised.
-- An issue inside an initiative moves only past the nearest issue of that initiative.
-- Any other row moves past the nearest slot of its own priority and pin, an initiative with its
-  issues. A raised row in the way moves with its waiter, so the move lands beside the waiter's
-  slot.
+Where the API would refuse the move, the footer gives its reason, and nothing is written. A move
+asks first where its `beside` record, or a row it passes, sits past the scope, and names each. An
+idea reorders through `RankIdea`, the write `slate ideas reorder` runs. `P` pins or unpins the
+row's own record. It reads the record's own pin from the cursor's record, because a row's
+`pinned` may come from its initiative or its waiter. A record read before the last write on
+either writing tab ended counts as unread, as does one whose own pin its board row contradicts.
+`P` then waits for a fresh read rather than send the wrong verb. A claimed row takes `P`, and `<`
+and `>` do not apply there, because it holds no place in the order drawn.
 
-Where no neighbor qualifies, the footer says why and names the waiter or the initiative. Nothing
-is written then. A move asks first where its neighbor, or a row it passes, sits past the scope,
-and names each. An idea reorders through `RankIdea`, as `slate reorder` does for each kind. `P`
-pins or unpins the row's own record. It reads the record's own pin from the cursor's record,
-because a row's `pinned` may come from its initiative or its waiter. A claimed row takes `P`,
-and `<` and `>` do not apply there, because it holds no place in the order drawn.
-
-- *Rejected:* working the slot out in the client from `placed_by`. A raised row's waiter is
-  blocked by it, so the waiter draws no row, and the board alone cannot say which slot holds the
-  waiter. An API older than `slot` answers none. The tab then takes the slot from `placed_by`,
-  and steps past a raised row.
+- *Rejected:* the move rules copied into the client. Nothing would hold the copy level with
+  `placement`. After a rule changed in the API, an installed CLI would refuse a move that the API
+  accepts, or land one somewhere the panel did not say.
 
 **The tab declares no kind.** Each row names its record, its initiative and each of its
 pursuits, so `t` lands on the initiatives, ideas or pursuits tab that draws each whole. An API
@@ -611,9 +612,9 @@ One write runs at a time across the initiatives and queue tabs, because both hol
 `rankAndPinWriter`. A key that writes on either tab while a write runs names the write under way
 and writes nothing. The footer of the tab that started a write names it, and every tab holding
 the writer reads everything again when it ends, refused or not. A write that timed out or lost its connection may have landed, so the
-footer says its outcome is unknown rather than that it failed. An initiative moves only within
-its priority and only while sorted by priority, because otherwise the rows beside it are not its
-neighbors in the queue.
+footer says its outcome is unknown rather than that it failed. An initiative moves only while
+sorted by priority, because otherwise the rows beside it are not its neighbors in the queue. The
+API refuses a move across a priority or the pin, and the footer gives its reason.
 
 A write acts at once on the row under the cursor. It asks first where the screen does not show
 everything it changes:
