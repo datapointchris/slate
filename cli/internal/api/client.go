@@ -154,6 +154,7 @@ func (c *Client) exchange(ctx context.Context, method, path string, body, out an
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set(FollowRedirectsHeader, "true")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

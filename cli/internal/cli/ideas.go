@@ -583,17 +583,21 @@ func newIdeasFoldCommand() *cobra.Command {
 		Long: "Moves every row of the idea to the record --into names: its worklogs,\n" +
 			"renumbered after that record's last, its claims, comments, checks and\n" +
 			"documents, and its refs, tags and pursuits where the record lacks them. A\n" +
-			"document whose name the record holds moves as <name>-from-<idea>. The idea's\n" +
-			"number, and each worklog's old name, then lead there: `slate show` follows\n" +
-			"them, and a write through them is refused, naming the record to write to.\n" +
+			"document whose name the record holds moves as <name>-from-<idea>.\n" +
+			"\n" +
+			"The idea's number then leads to the record. `slate show` follows it, and a\n" +
+			"write through it is refused, naming the record to write to. Each worklog's\n" +
+			"old name leads to that worklog under its new name, and a write through it\n" +
+			"reaches the worklog.\n" +
 			"\n" +
 			"The record keeps its own number, fields and place in the queue, so the idea's\n" +
 			"pin is dropped with a warning. A closed record is taken, because the idea's\n" +
 			"work may already have shipped there. A fold has no undo.\n" +
 			"\n" +
-			"Another session's live claim on either record refuses the fold. Your claim on\n" +
-			"the idea moves to the record, or ends as released where you hold the record\n" +
-			"too.",
+			"Another session's live claim on either record refuses the fold, and so does an\n" +
+			"initiative that names the idea as where its work came from. The --holder's\n" +
+			"claim on the idea moves to the record, or ends as released where that holder\n" +
+			"holds the record too. --holder defaults to you.",
 		Example:     "  slate ideas fold 4086 --into 2356",
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
@@ -635,11 +639,12 @@ func newIdeasFoldCommand() *cobra.Command {
 }
 
 // noRouteFor reports whether the API answered that it serves no such route,
-// as an API from before a route was added does.
+// as an API from before a route was added does. Every released API words that
+// 404 as `no route answers <path>` and sends no field to branch on, so the
+// prefix is the one signal an older API gives.
 func noRouteFor(err error) bool {
 	var apiErr *api.APIError
-	return errors.As(err, &apiErr) && apiErr.NotFound() &&
-		(apiErr.Message == "Not Found" || strings.HasPrefix(apiErr.Message, "no route answers "))
+	return errors.As(err, &apiErr) && apiErr.NotFound() && strings.HasPrefix(apiErr.Message, "no route answers ")
 }
 
 // foldedLine names the idea a fold ended and the record it went into, and

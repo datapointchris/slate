@@ -204,9 +204,8 @@ func (c *Client) PromoteIdeaToIssue(ctx context.Context, ref string, in IdeaProm
 	return written, nil
 }
 
-// IdeaFoldInput is the body for POST /ideas/{id}/fold. Holder is the caller's
-// claim holder, whose claim on the idea moves to the target, or ends where it
-// holds the target too.
+// IdeaFoldInput is the body for POST /ideas/{id}/fold. Holder names whose
+// claim on the idea moves to the target, or ends where it holds the target too.
 type IdeaFoldInput struct {
 	Into   string `json:"into"`
 	Holder string `json:"holder,omitempty"`
@@ -221,7 +220,7 @@ type FoldWritten struct {
 	WriteEffects
 }
 
-// FoldIdea ends an idea into the idea, initiative or issue that covers its
+// FoldIdea folds an idea into the idea, initiative or issue that covers its
 // work, moving every row there and leading the idea's number there. The
 // answer's messages give each time in zone.
 func (c *Client) FoldIdea(ctx context.Context, ref string, in IdeaFoldInput, zone DayZone) (FoldWritten, error) {

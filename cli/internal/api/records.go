@@ -28,9 +28,16 @@ type RecordParts struct {
 	Comments  []Comment         `json:"comments"`
 	Documents []DocumentSummary `json:"documents"`
 	// RedirectedFrom is each retired number leading to the record, oldest
-	// first. An API one release behind sends none.
+	// first. An API from before folds sends none.
 	RedirectedFrom []RedirectedFrom `json:"redirected_from"`
 }
+
+// FollowRedirectsHeader, sent as "true", asks the API to answer a read of a
+// retired number with the record it leads to. Without it the read answers 404
+// naming that record, which keeps a client that writes by the id a read
+// answered from writing to the wrong record. Every write the CLI sends goes by
+// the number typed, so it asks on every request.
+const FollowRedirectsHeader = "Slate-Follow-Redirects"
 
 // RedirectedFrom is a retired number that leads to a record: why, what the idea
 // holding it was called, and since when. A read through it answers the record
@@ -38,12 +45,13 @@ type RecordParts struct {
 type RedirectedFrom struct {
 	Number       int       `json:"number"`
 	Reason       string    `json:"reason"`
+	FormerKind   string    `json:"former_kind"`
 	FormerTitle  string    `json:"former_title"`
 	RedirectedTS time.Time `json:"redirected_ts"`
+	// Sentence says it whole, as `#4086 was folded into initiative #2356 on
+	// 2026-11-24`, dated in the zone the read named.
+	Sentence string `json:"sentence"`
 }
-
-// RedirectReasonFolded is the reason a fold gives a retired number.
-const RedirectReasonFolded = "folded"
 
 // RedirectOf is the redirect in from that led asked to the record, or nil
 // where asked is the record's own number.

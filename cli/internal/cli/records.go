@@ -140,14 +140,10 @@ func leadsToLine(asked string, record api.Record) string {
 		return ""
 	}
 	from := api.RedirectOf(record.Parts().RedirectedFrom, number)
-	if from == nil {
+	if from == nil || from.Sentence == "" {
 		return fmt.Sprintf("#%d leads to #%d.", number, record.Number)
 	}
-	how := "was promoted to"
-	if from.Reason == api.RedirectReasonFolded {
-		how = "was folded into"
-	}
-	return fmt.Sprintf("#%d leads to #%d, which idea #%d %s on %s.", number, record.Number, number, how, localDay(from.RedirectedTS))
+	return from.Sentence + "."
 }
 
 // recordKindWorklog is the kind `slate show --json` names for a worklog, which
