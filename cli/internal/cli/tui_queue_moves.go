@@ -16,8 +16,8 @@ type queueMove struct {
 }
 
 // queueMoveFor is where the row at `at` in read's queue moves, ahead of its neighbor or behind
-// it, by the rules that `placement` in the API's services/queue_moves.py holds. shown is how many
-// queued rows the scope draws, so a move past one beyond them asks first.
+// it, by the rules that `placement` in the API's services/queue_moves.py holds. shown counts the
+// queued rows drawn under the scope, so a move past one beyond them asks first.
 //
 //   - A row raised by a waiter moves only past another row raised by that waiter.
 //   - An issue inside an initiative moves only past the nearest issue of that initiative.

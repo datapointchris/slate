@@ -171,10 +171,10 @@ func newTUICommand() *cobra.Command {
 			"what waits on it moves only among the rows that waiter raised, and an issue in an\n" +
 			"initiative moves only among that initiative's issues. Any other row moves past the\n" +
 			"next row of its own priority and pin, with that row's issues. Where none qualifies,\n" +
-			"the footer says why and nothing is written. A move past a row the scope hides asks\n" +
-			"first. The queue and initiatives tabs share one writer, so one write runs at a\n" +
-			"time across both. tui-queue.schema.json in slate's cli/internal/cli holds the\n" +
-			"shape --json prints of it.\n\n" +
+			"the footer says why and nothing is written. A move asks first where it passes a\n" +
+			"row hidden by the scope. The queue and initiatives tabs share one writer, so one\n" +
+			"write runs at a time across both. tui-queue.schema.json in slate's\n" +
+			"cli/internal/cli holds the shape --json prints of it.\n\n" +
 			"repos is every repo the issues name on the same columns, then how long its oldest\n" +
 			"ready issue has waited and its closes in each recent week. Repos with nothing\n" +
 			"open and no close in those weeks fold under quiet. The panel draws a repo's\n" +

@@ -202,7 +202,7 @@ func TestTheQueueTabDrawsTheClaimedApartSaysWhyEachRowSitsThereAndMovesByTheAPIs
 	atRecord(queueStandInPast)
 	press(model, "<")
 	if screen = model.View().Content; !strings.Contains(screen, "5049 An idea for later 5049 is hidden by the scope") {
-		t.Errorf("< past a row the scope hides should ask first, naming it:\n%s", screen)
+		t.Errorf("< past a row hidden by the scope should ask first, naming it:\n%s", screen)
 	}
 	press(model, "esc")
 	press(model, "esc")

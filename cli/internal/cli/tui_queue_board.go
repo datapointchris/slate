@@ -57,7 +57,7 @@ const (
 	queueScopeAll
 )
 
-// shown is how many of rows queued rows the scope draws.
+// shown counts the first queued rows drawn under the scope, of rows in all.
 func (s queueScope) shown(rows int) int {
 	switch s {
 	case queueScopeFew:
@@ -276,7 +276,7 @@ func (b *queueBoard) pin(m *gotermboard.Model) tea.Cmd {
 }
 
 // reorder is < and >: it moves the row past its neighbor in the queue by the API's move rules,
-// says why where they move it nowhere, and asks first where the move passes rows the scope hides.
+// says why where they move it nowhere, and asks first where the move passes rows hidden by the scope.
 func (b *queueBoard) reorder(ahead bool) func(*gotermboard.Model) tea.Cmd {
 	return func(m *gotermboard.Model) tea.Cmd {
 		line, ok := b.lines[m.Cursor()]
