@@ -25,7 +25,6 @@ from slate.models.record import NumberedRecord
 from slate.models.record import record_link
 
 if TYPE_CHECKING:
-    from slate.models.idea import Idea
     from slate.models.issue import Issue
 
 # `someday` holds ideas not yet taken on: its issues wait until the initiative is
@@ -67,14 +66,14 @@ class Initiative(NumberedRecord, Base):
     autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
     created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     closed_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # The idea promoted into this initiative. One idea becomes at most one initiative.
+    # Null on every row, which its check holds: a promotion keeps the idea's number, so no initiative names one.
     idea_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey('ideas.id', ondelete='SET NULL'), nullable=True, unique=True)
 
     issues: Mapped[list[Issue]] = relationship('Issue', back_populates='initiative')
-    idea: Mapped[Idea | None] = relationship('Idea', back_populates='initiative')
 
     __table_args__ = (
         *record_link(RECORD_KIND),
+        CheckConstraint('idea_id IS NULL', name='initiative_idea_id_unset'),
         CheckConstraint("status <> 'dropped' OR status_reason IS NOT NULL", name='initiative_dropped_requires_reason'),
         CheckConstraint('priority BETWEEN 0 AND 4', name='initiative_priority_range'),
         Index('uq_initiatives_name_active', 'name', unique=True, postgresql_where=text("status = 'active'")),

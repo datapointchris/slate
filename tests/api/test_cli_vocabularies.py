@@ -24,6 +24,7 @@ from slate.models.worklog import WORKLOG_STEPS
 from slate.schemas.idea import FIELDS_OF_KIND
 from slate.schemas.idea import IDEA_ENDINGS
 from slate.schemas.idea import SHARED_FIELDS
+from slate.schemas.idea import IdeaStateFilter
 from slate.schemas.idea import PromotedKind
 from slate.schemas.queue import Step
 from slate.services import initiatives
@@ -41,6 +42,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
     table = {
         'claim_states': list(get_args(ClaimStateFilter)),
         'worklog_states': list(get_args(WorklogStateFilter)),
+        'idea_states': list(get_args(IdeaStateFilter)),
         'worklog_steps': WORKLOG_STEPS,
         'worklog_link_kinds': WORKLOG_LINK_KINDS,
         'issue_statuses': [*ISSUE_STATUSES, issues.ALL_STATUSES],

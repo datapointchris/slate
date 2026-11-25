@@ -63,6 +63,9 @@ PromotedKind = Literal['initiative', 'issue']
 IdeaEnding = RedirectReason
 IDEA_ENDINGS: list[str] = list(get_args(IdeaEnding))
 
+# Which ideas a list reads: those still open, those that ended, or both.
+IdeaStateFilter = Literal['open', 'ended', 'all']
+
 # Each kind's own fields on a promotion, each named as that kind's create names it.
 FIELDS_OF_KIND: dict[PromotedKind, frozenset[str]] = {
     'initiative': frozenset({'summary', 'name', 'status', 'autofix', 'pursuits', 'not_planned_steps'}),
@@ -154,8 +157,8 @@ class Idea(InPursuits):
     `claim` is the record's unended claim, live or expired. `rank` places it among the records of
     its priority in the queue. `pursuits` is each pursuit it is in, in number order. `flow_id` is
     the flow of the work that filed it. `initiative` is the initiative `became` names, and null
-    where `became` names an issue or an idea. It stays for CLI releases through `cli/v0.69.0`,
-    which read what an idea became from it.
+    where `became` names an issue or an idea. It stays while a released reader still takes what an
+    idea became from it.
     """
 
     id: UUID

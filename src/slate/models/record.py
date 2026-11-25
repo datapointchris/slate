@@ -86,7 +86,8 @@ class Record(Base):
     check_requested_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The flow of the work that created the record, set once by the write that created it.
     flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
-    # When a person promoted the idea holding this number into the kind it holds now, and who.
+    # When a person promoted an idea into this record, and who: the idea under this number, or for an
+    # initiative created under a number of its own, the idea whose `promoted` redirect leads here.
     promoted_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     promoted_by: Mapped[str | None] = mapped_column(Text, nullable=True)
 

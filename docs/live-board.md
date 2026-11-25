@@ -164,11 +164,11 @@ slate · ideas   21:32:57   3 open · newest first   pursuit all  tag all   read
 
 An idea is work that nobody has taken on, so the tab answers two questions: what was thought of
 lately, and what sits near it. Newest first answers the first. `u` narrows to one pursuit and `#`
-to one tag, each cycling back to `all` after the last, which answers the second. An idea whose
-`became` is set leaves the tab, because its work is the initiative's or issue's that `became`
-names, and the other tabs draw that.
+to one tag, each cycling back to `all` after the last, which answers the second. An idea that
+ended is not on the tab, because its work is the initiative's or issue's that `became` names,
+and the other tabs draw that.
 
-The tab reads `GET /ideas` whole, at the pace of the board's long text, because descriptions are
+The tab reads `GET /ideas` whole in its default `open` state, at the pace of the board's long text, because descriptions are
 most of what an idea weighs. It narrows in the client by each idea's own `pursuits` and `tags`.
 For an idea those lists are the whole membership that the route's `pursuit` and `tag` filters
 test, so the client derives nothing that the read does not carry. The same read gives the

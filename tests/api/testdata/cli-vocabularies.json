@@ -11,6 +11,11 @@
     "ended",
     "all"
   ],
+  "idea_states": [
+    "open",
+    "ended",
+    "all"
+  ],
   "worklog_steps": [
     "shape",
     "design",

@@ -87,10 +87,10 @@ func (b *ideasBoard) ShowEntity(ref gotermboard.EntityRef) bool {
 	return false
 }
 
-// openNewestFirst leaves out each idea that became other work, whose rows are that work's
-// now, and puts the newest first.
-func openNewestFirst(read []api.Idea) []api.Idea {
-	ideas := slices.DeleteFunc(slices.Clone(read), func(idea api.Idea) bool { return idea.Became != nil })
+// newestFirst puts the newest idea first. The tab reads the open ideas alone,
+// which `GET /ideas` lists when the read names no state.
+func newestFirst(read []api.Idea) []api.Idea {
+	ideas := slices.Clone(read)
 	slices.SortStableFunc(ideas, func(a, b api.Idea) int {
 		return cmp.Or(b.CreatedTS.Compare(a.CreatedTS), cmp.Compare(b.Number, a.Number))
 	})
@@ -107,7 +107,7 @@ func (b *ideasBoard) holds(idea api.Idea) bool {
 
 // shown is the open ideas newest first, and those the narrowing leaves.
 func (b *ideasBoard) shown() (open, narrowed []api.Idea) {
-	open = openNewestFirst(b.ideas.Value())
+	open = newestFirst(b.ideas.Value())
 	for _, idea := range open {
 		if b.holds(idea) {
 			narrowed = append(narrowed, idea)

@@ -87,7 +87,8 @@ def test_promoted_pairs_fold_into_their_initiatives(scratch_database, api):
     command.upgrade(config, 'head')
 
     with transactional_api_client(api, caller=lambda: TEST_PERSON, engine=engine) as (client, _):
-        listed = [item for item in client.get('/ideas').json() if item['number'] in (idea, initiative)]
+        ended = client.get('/ideas', params={'state': 'ended', 'tag': 'security'}).json()
+        listed = [item for item in ended if item['number'] in (idea, initiative)]
         assert [(item['number'], item['became'], item['initiative']['number']) for item in listed] == [
             (
                 idea,

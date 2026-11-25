@@ -20,8 +20,8 @@ import (
 	"github.com/datapointchris/slate/cli/internal/api"
 )
 
-// The tab lists the open ideas alone, and `slate ideas list` lists every one,
-// naming in BECAME what each closed idea became.
+// The tab reads the open ideas alone, and `slate ideas list --state all` lists
+// every one, naming in BECAME what each ended idea became.
 func TestTheIdeasTabListsOpenIdeasNewestFirst(t *testing.T) {
 	day := func(n int) time.Time { return time.Date(2026, 11, n, 12, 0, 0, 0, time.UTC) }
 	garden, reading := api.PursuitSummary{Number: 3010, Name: "Grow the garden"}, api.PursuitSummary{Number: 3011, Name: "Read more"}
@@ -48,8 +48,12 @@ func TestTheIdeasTabListsOpenIdeasNewestFirst(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
+		listed := ideas
+		if state := r.URL.Query().Get("state"); state == "" || state == api.IdeaStateOpen {
+			listed = slices.DeleteFunc(slices.Clone(ideas), func(idea api.Idea) bool { return idea.Became != nil })
+		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(ideas)
+		_ = json.NewEncoder(w).Encode(listed)
 	}))
 	t.Cleanup(server.Close)
 
@@ -73,11 +77,11 @@ func TestTheIdeasTabListsOpenIdeasNewestFirst(t *testing.T) {
 	if got := numbers(printed.Rows); !slices.Equal(got, []int{4164, 4089, 3700}) || printed.Open != 3 {
 		t.Errorf("--json lists %v of %d open, want 4164, 4089 and 3700 of 3", got, printed.Open)
 	}
-	listed, err := runService(t, "ideas", "list")
+	listed, err := runService(t, "ideas", "list", "--state", "all")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"BECAME", "initiative #3500", "folded into #3410"} {
+	for _, want := range []string{"initiative #3500", "folded into #3410"} {
 		if !strings.Contains(listed, want) {
 			t.Errorf("ideas list should print %q:\n%s", want, listed)
 		}

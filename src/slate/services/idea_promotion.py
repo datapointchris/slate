@@ -109,16 +109,6 @@ def resolved_again(session: Session, resolve: Callable[[], object], resource: st
     raise NotFoundException(resource, ref, logger)
 
 
-def refuse_named_by_initiative(idea: models.Idea) -> None:
-    """Refuse to remove an idea that an initiative names in `idea_id` as where that initiative's work came from."""
-    if idea.initiative is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'#{idea.number} was promoted to initiative #{idea.initiative.number} {idea.initiative.name!r}, '
-            'which names it as where that work came from, so it stays.',
-        )
-
-
 def turn_idea_into(session: Session, idea: models.Idea, kind: Kind, promoted_by: str, now: dt.datetime) -> PromotedIdea:
     """Delete the idea's row and record its number as `kind`, promoted at `now` by `promoted_by`.
 

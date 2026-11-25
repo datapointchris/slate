@@ -43,7 +43,6 @@ from slate.services.claim_views import unended_claims
 from slate.services.claims import ClaimRefused
 from slate.services.claims import end_claim
 from slate.services.idea_promotion import idea_number
-from slate.services.idea_promotion import refuse_named_by_initiative
 from slate.services.idea_promotion import resolved_again
 from slate.services.record_lookup import resolve_idea
 from slate.services.record_lookup import resolve_record
@@ -113,9 +112,8 @@ def lock_fold(session: Session, idea_ref: str, into_ref: int | str) -> tuple[mod
     """The idea `idea_ref` names and the record `into_ref` names, each `records` row locked `FOR UPDATE`.
 
     The lower number is locked first, so two folds crossing the same pair wait rather than deadlock.
-    A non-idea, a pursuit target, the idea itself and an idea that an initiative names in `idea_id`
-    each answer 409, and so does a number a fold already retired, through the redirect it follows
-    in a write.
+    A non-idea, a pursuit target and the idea itself each answer 409, and so does a number a fold
+    already retired, through the redirect it follows in a write.
     """
     number = idea_number(session, idea_ref)
     target_number = resolve_record(session, into_ref).number
@@ -139,7 +137,6 @@ def lock_fold(session: Session, idea_ref: str, into_ref: int | str) -> tuple[mod
     if target_number == number:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='an idea cannot fold into itself')
     idea = session.scalars(select(models.Idea).where(models.Idea.number == number)).one()
-    refuse_named_by_initiative(idea)
     return idea, target
 
 

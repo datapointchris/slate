@@ -74,17 +74,22 @@ FOLD = (
     WITH ended AS (
         UPDATE claims claim
         SET ended_ts = least(now(), claim.expires_ts),
-            ending = CASE WHEN claim.expires_ts <= now() THEN 'expired' ELSE 'released' END
+            ending = CASE WHEN claim.expires_ts <= now() THEN 'expired' ELSE 'released' END,
+            ended_by = CASE WHEN claim.expires_ts <= now() THEN NULL ELSE :actor END
         FROM promoted_pairs pair
         WHERE claim.record_number = pair.idea AND claim.ended_ts IS NULL
           AND EXISTS (SELECT 1 FROM claims held WHERE held.record_number = pair.initiative AND held.ended_ts IS NULL)
-        RETURNING claim.id, claim.ended_ts, claim.ending
+        RETURNING claim.id, claim.ended_ts, claim.ending, claim.ended_by
     ), waits AS (
-        UPDATE claim_waits wait SET ended_ts = ended.ended_ts
+        UPDATE claim_waits wait SET ended_ts = ended.ended_ts, ended_by = ended.ended_by
         FROM ended WHERE wait.claim_id = ended.id AND wait.ended_ts IS NULL
+    ), worklogs_ended AS (
+        UPDATE worklogs worklog SET ended_ts = ended.ended_ts, outcome = ended.ending, ended_by = ended.ended_by
+        FROM ended WHERE worklog.claim_id = ended.id AND worklog.ended_ts IS NULL
+        RETURNING worklog.id, worklog.ended_ts
     )
-    UPDATE worklogs worklog SET ended_ts = ended.ended_ts, outcome = ended.ending
-    FROM ended WHERE worklog.claim_id = ended.id AND worklog.ended_ts IS NULL
+    UPDATE worklog_spans span SET ended_ts = worklogs_ended.ended_ts
+    FROM worklogs_ended WHERE span.worklog_id = worklogs_ended.id AND span.ended_ts IS NULL
     """,
     # Worklogs, numbered after the initiative's last, each old name kept.
     """
@@ -167,12 +172,23 @@ FOLD = (
         pair.former_flow_id, pair.former_created_ts, pair.promoted_ts, coalesce(pair.promoted_by, :actor)
     FROM promoted_pairs pair
     """,
+    # A promotion keeps the idea's number, so no initiative names an idea from here on.
+    'ALTER TABLE initiatives ADD CONSTRAINT ck_initiatives_initiative_idea_id_unset CHECK (idea_id IS NULL)',
 )
+
+# The release before keeps serving, so its writes on a pair wait here and then meet the fold, never the delete's cascade.
+LOCK_PAIRS = """
+SELECT 1 FROM records record
+WHERE record.number IN (SELECT idea FROM promoted_pairs UNION SELECT initiative FROM promoted_pairs)
+ORDER BY record.number
+FOR UPDATE
+"""
 
 
 def upgrade() -> None:
     connection = op.get_bind()
     connection.execute(sa.text(PAIRS))
+    connection.execute(sa.text(LOCK_PAIRS))
     pairs = connection.execute(sa.text(WHAT_MOVES)).mappings().all()
     for pair in pairs:
         logger.info(

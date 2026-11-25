@@ -24,6 +24,7 @@ from slate import models
 from slate import schemas
 from slate.models.record import Kind
 from slate.models.record_redirect import PROMOTED
+from slate.schemas.idea import IdeaStateFilter
 from slate.schemas.ready_filter import RecordGroupings
 from slate.services.claim_views import unended_claim_views
 from slate.services.idea_promotion import PromotedIdea
@@ -39,6 +40,9 @@ from slate.services.row_limit import apply_row_limit
 
 # Where a listed number reads from: its `ideas` row, its kind row after a promotion, or its redirect.
 REDIRECT = 'redirect'
+
+# An idea folds into an idea, an initiative or an issue, so a retired idea's redirect leads to one of these.
+FOLD_TARGETS = (Kind.IDEA, Kind.INITIATIVE, Kind.ISSUE)
 
 
 def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.Idea]:
@@ -92,30 +96,34 @@ def promoted_in_place(model: type[models.Initiative | models.Issue], kind: Kind)
     )
 
 
-def listed_ideas(session: Session, groupings: RecordGroupings, limit: int | None) -> list[schemas.Idea]:
-    """Every number that is or was an idea, most urgent first, then by number, the first `limit` of them.
-
-    A tag, a pursuit or a ref narrows open ideas and promoted records by their own. A retired number
-    carries none, because its rows moved, so any of them leaves it out.
-    """
-    sources = [
-        narrowed_to_groupings(
-            select(models.Idea.number, literal(Kind.IDEA.value).label('source'), urgency(models.Idea.priority).label('urgency')),
-            Kind.IDEA,
-            groupings,
-            session,
-        ),
-        narrowed_to_groupings(promoted_in_place(models.Initiative, Kind.INITIATIVE), Kind.INITIATIVE, groupings, session),
-        narrowed_to_groupings(promoted_in_place(models.Issue, Kind.ISSUE), Kind.ISSUE, groupings, session),
-    ]
-    if not any(groupings.model_dump().values()):
-        sources.append(
-            select(
-                models.RecordRedirect.number,
-                literal(REDIRECT).label('source'),
-                urgency(models.RecordRedirect.former_priority).label('urgency'),
-            ).where(models.RecordRedirect.former_kind == Kind.IDEA)
+def retired_into(kind: Kind) -> Select:
+    """Each number retired from an idea whose redirect leads to a record of `kind`, with its urgency as an idea."""
+    target = models.KIND_MODELS[kind]
+    return (
+        select(
+            models.RecordRedirect.number, literal(REDIRECT).label('source'), urgency(models.RecordRedirect.former_priority).label('urgency')
         )
+        .join(target, target.number == models.RecordRedirect.to_number)
+        .where(models.RecordRedirect.former_kind == Kind.IDEA)
+    )
+
+
+def listed_ideas(session: Session, groupings: RecordGroupings, state: IdeaStateFilter, limit: int | None) -> list[schemas.Idea]:
+    """The ideas in `state`, most urgent first, then by number, the first `limit` of them.
+
+    A tag, a pursuit or a ref narrows an open idea or a promoted record by its own. A retired
+    number's rows moved to its redirect's target, so it narrows by the target's.
+    """
+    sources = []
+    if state in ('open', 'all'):
+        idea = select(models.Idea.number, literal(Kind.IDEA.value).label('source'), urgency(models.Idea.priority).label('urgency'))
+        sources.append(narrowed_to_groupings(idea, Kind.IDEA, groupings, session))
+    if state in ('ended', 'all'):
+        sources += [
+            narrowed_to_groupings(promoted_in_place(models.Initiative, Kind.INITIATIVE), Kind.INITIATIVE, groupings, session),
+            narrowed_to_groupings(promoted_in_place(models.Issue, Kind.ISSUE), Kind.ISSUE, groupings, session),
+            *(narrowed_to_groupings(retired_into(kind), kind, groupings, session) for kind in FOLD_TARGETS),
+        ]
     items = union_all(*sources).subquery()
     query = select(items.c.number, items.c.source).order_by(items.c.urgency, items.c.number)
     listed = session.execute(apply_row_limit(query, limit)).all()

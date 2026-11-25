@@ -123,6 +123,7 @@ func newIdeasReorderCommand() *cobra.Command {
 func newIdeasListCommand() *cobra.Command {
 	var (
 		asJSON  bool
+		state   string
 		tag     string
 		pursuit string
 		ref     string
@@ -130,25 +131,33 @@ func newIdeasListCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List every idea, promoted or not, most urgent first",
-		Long: "Priority none sorts after every level. Every number that is or was an idea\n" +
-			"is listed once. BECAME names what an idea turned into: the initiative or issue\n" +
-			"it was promoted to, or the record it folded into, and — while it is open.\n" +
-			"--json carries it as became, with how it ended and that record as it stands.\n" +
-			"--tag, --pursuit and --ref leave out folded ideas, whose rows moved.",
-		Example:     "  slate ideas list\n  slate ideas list --tag security\n  slate ideas list --ref capture/\n  slate ideas list --json",
+		Short: "List the open ideas, or those that ended, most urgent first",
+		Long: "Priority none sorts after every level. --state ended lists every number that\n" +
+			"was an idea and ended, and --state all lists both, each number once. BECAME\n" +
+			"names what an idea turned into: the initiative or issue it was promoted to, or\n" +
+			"the record it folded into, and — while it is open. --json carries it as\n" +
+			"became, with how it ended and that record as it stands. --tag, --pursuit and\n" +
+			"--ref narrow an ended idea by the record BECAME names, which holds its rows.",
+		Example: "  slate ideas list\n  slate ideas list --state all\n  slate ideas list --tag security\n" +
+			"  slate ideas list --ref capture/\n  slate ideas list --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if state != "" && !slices.Contains(api.IdeaStates, state) {
+				return goclikit.UsageError(fmt.Errorf("unknown state %q — one of: %s", state, strings.Join(api.IdeaStates, ", ")))
+			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			ideas, err := client.ListIdeas(cmd.Context(), api.IdeaFilter{Tag: tag, Pursuit: pursuit, Ref: ref}, limitFlag(cmd))
+			filter := api.IdeaFilter{State: state, Tag: tag, Pursuit: pursuit, Ref: ref}
+			ideas, err := client.ListIdeas(cmd.Context(), filter, limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredGroupings(groupingFilter{tag, pursuit, ref}, ideas, ideaGrouped); err != nil {
+			// An ended idea's rows moved to the record it became, so only an open one carries the grouping itself.
+			stillOpen := slices.DeleteFunc(slices.Clone(ideas), func(idea api.Idea) bool { return idea.Became != nil })
+			if err := honoredGroupings(groupingFilter{tag, pursuit, ref}, stillOpen, ideaGrouped); err != nil {
 				return err
 			}
 			if asJSON {
@@ -159,6 +168,7 @@ func newIdeasListCommand() *cobra.Command {
 		},
 	}
 	addLimitFlag(cmd, &limit)
+	cmd.Flags().StringVar(&state, "state", "", "One of: "+strings.Join(api.IdeaStates, ", ")+" (default open)")
 	cmd.Flags().StringVar(&tag, "tag", "", tagFilterHelp)
 	cmd.Flags().StringVar(&pursuit, "pursuit", "", pursuitFilterHelp)
 	cmd.Flags().StringVar(&ref, "ref", "", refFilterHelp)
