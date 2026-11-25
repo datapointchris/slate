@@ -44,7 +44,7 @@ A worklog's `outcome` says which ending it reached:
 | `released` | its claim was released |
 | `expired` | its claim's lease ran out, and it ended at the claim's `expires_ts` |
 | `completed`, `canceled`, `dropped` | the record reached that closing status |
-| `promoted` | the idea became its initiative |
+| `promoted` | the idea became an initiative or an issue under its number |
 
 Closing or promoting a record also ends each worklog `start` opened on it.
 Finishing a worklog whose claim still holds goes through with a
@@ -180,9 +180,10 @@ being promoted. A claim that ran out ended nobody's go, and a record dropped or
 canceled abandoned it, so `expired`, `dropped` and `canceled` check nothing.
 
 An initiative's read derives `steps`, each checked step from its latest such
-worklog: the worklog's name, when it ended, and the first session in it. It
-reads the steps of the idea promoted into it too, because an idea is shaped
-before it has an initiative's number. It derives `stage` as well, the furthest
+worklog: the worklog's name, when it ended, and the first session in it. A
+promoted idea keeps its number, so the steps it went through are the
+initiative's own. An initiative that an earlier promotion created under a new
+number reads its idea's steps too, through `idea_id`. It derives `stage` as well, the furthest
 checked step, or `idea` before any. [issues.md](issues.md) covers how the
 initiative reads print them. Nothing is read from a document's text, so a retro
 document checks `retro` only through a worklog of that step.

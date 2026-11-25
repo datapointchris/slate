@@ -4,11 +4,11 @@ from sqlalchemy import func
 from sqlalchemy import select
 
 from slate import models
+from tests.conftest import TEST_PERSON
 from tests.session_database import insert_test_data_transactional
 from tests.util import show_status_and_response
 
 IDEAS = '/ideas'
-INITIATIVES = '/initiatives'
 
 
 @pytest.fixture
@@ -42,29 +42,57 @@ def test_an_idea_with_two_rows_linked_shows_both_as_refs(client):
     }
 
 
-def test_promoting_an_idea_a_session_researched_under_a_claim_creates_its_initiative_and_ends_the_claim(client):
-    idea = new_idea(client, priority=2, description='So no round waits on a person to start it')
-    ok(client.post('/claims', json={'record': idea['number'], 'holder': 'claude-code/research'}))
-    promoted = ok(client.post(f'{IDEAS}/{idea["number"]}/promote', json={'summary': 'It is done.'}))
-    initiative = promoted['idea']['initiative']
+def test_promotion_changes_the_kind_and_keeps_every_row(client, txn_api_logged_in):
+    _, session = txn_api_logged_in
+    ok(client.post('/tags', json={'name': 'security', 'description': 'What an attacker reaches'}), status.HTTP_201_CREATED)
+    idea = new_idea(client, priority=2, tags=['security'], refs=['inbox:4102'])
+    number = idea['number']
+    ok(client.post('/claims', json={'record': number, 'holder': 'claude-code/shape', 'step': 'shape'}))
+    ok(client.post('/comments', json={'record': number, 'body': 'Worth a schedule'}), status.HTTP_201_CREATED)
+    ok(client.post(f'{IDEAS}/{number}/pin', json={}))
+
+    promoted = ok(client.post(f'{IDEAS}/{number}/promote', json={'summary': 'Rounds run on a schedule.'}))
+    initiative = promoted['initiative']
+    assert (initiative['number'], initiative['id'], initiative['name'], initiative['priority']) == (number, idea['id'], idea['title'], 2)
     assert [(effect['code'], effect['record']) for effect in promoted['side_effects']] == [
-        ('initiative_created', initiative['number']),
-        ('claim_ended', idea['number']),
-        ('worklog_ended', idea['number']),
+        ('claim_ended', number),
+        ('worklog_ended', number),
     ]
-    assert promoted['idea']['claim'] is None
-    assert (initiative['name'], initiative['priority'], initiative['status']) == ('Run review rounds on a schedule', 2, 'active')
-    assert initiative['idea'] == {'number': idea['number'], 'kind': 'idea', 'title': idea['title'], 'status': None}
-    assert ok(client.get(f'{INITIATIVES}/{initiative["number"]}'))['idea']['number'] == idea['number']
+    assert promoted['idea']['initiative']['number'] == number
 
-    refused = client.post(f'{IDEAS}/{idea["number"]}/promote', json={'summary': 'It is done.'})
-    assert refused.status_code == status.HTTP_409_CONFLICT, show_status_and_response(refused)
+    read = ok(client.get(f'/records/{number}'))
+    shown = read['record']
+    assert (read['kind'], shown['id'], shown['created_ts']) == ('initiative', idea['id'], idea['created_ts'])
+    assert (shown['tags'], [row['ref'] for row in shown['refs']], shown['pinned_ts'] is not None) == (['security'], ['inbox:4102'], True)
+    assert [comment['body'] for comment in shown['comments']] == ['Worth a schedule']
+    assert ([claim['ending'] for claim in shown['claims']], ok(client.get(f'/worklogs/{number}.1'))['outcome']) == (
+        ['promoted'],
+        'promoted',
+    )
+    record = session.get(models.Record, number)
+    assert (record.promoted_by, record.promoted_ts is not None) == (TEST_PERSON.actor, True)
 
-    held = ok(client.post('/claims', json={'record': idea['number'], 'holder': 'claude-code/a1b2'}))
-    assert [(warning['code'], warning['record']) for warning in held['warnings']] == [('idea_promoted', initiative['number'])]
+    written = {(row['table_name'], row['operation']) for row in ok(client.get(f'/records/{number}/changes'))}
+    assert {('ideas', 'insert'), ('ideas', 'delete'), ('records', 'update'), ('initiatives', 'insert')} <= written
 
 
-def test_deleting_an_idea_takes_its_refs_claims_and_pin_and_a_promoted_idea_is_refused(client, txn_api_logged_in):
+def test_promotion_to_an_issue_drops_pursuits_with_a_warning(client):
+    pursuits = [
+        ok(client.post('/pursuits', json={'name': name, 'summary': 'It holds work'}), status.HTTP_201_CREATED)['pursuit']['number']
+        for name in ('Data Warehouse', 'Personal OS')
+    ]
+    idea = new_idea(client, pursuits=pursuits)
+    fields = {'repo': 'webapp', 'paths': ['src/rounds'], 'type': 'feature', 'acceptance': 'Rounds start on time'}
+    promoted = ok(client.post(f'{IDEAS}/{idea["number"]}/promote', json={'kind': 'issue', **fields}))
+    issue = promoted['issue']
+    assert (issue['number'], issue['id'], issue['status']) == (idea['number'], idea['id'], 'open')
+    assert {field: issue[field] for field in fields} == fields
+    dropped = [(warning['record'], warning['message']) for warning in promoted['warnings'] if warning['code'] == 'pursuits_dropped']
+    assert [(number, f'#{number} ' in message) for number, message in dropped] == [(number, True) for number in pursuits]
+    assert ok(client.get(f'/records/{idea["number"]}'))['kind'] == 'issue'
+
+
+def test_deleting_an_idea_takes_its_refs_claims_and_pin(client, txn_api_logged_in):
     _, session = txn_api_logged_in
     idea = new_idea(client)
     number = idea['number']
@@ -83,10 +111,3 @@ def test_deleting_an_idea_takes_its_refs_claims_and_pin_and_a_promoted_idea_is_r
     assert session.scalar(select(func.count()).select_from(models.RecordRef).where(models.RecordRef.record_number == number)) == 0
     assert session.scalar(select(func.count()).select_from(models.Claim).where(models.Claim.record_number == number)) == 0
     assert session.get(models.Record, number) is None
-
-    promoted = new_idea(client, title='Rank the queue by focus')
-    initiative = ok(client.post(f'{IDEAS}/{promoted["number"]}/promote', json={'summary': 'It is done.'}))['idea']['initiative']
-    refused = client.delete(f'{IDEAS}/{promoted["number"]}')
-    assert refused.status_code == status.HTTP_409_CONFLICT, show_status_and_response(refused)
-    assert f'initiative #{initiative["number"]}' in refused.json()['message']
-    assert ok(client.get(f'{IDEAS}/{promoted["number"]}'))['initiative']['number'] == initiative['number']

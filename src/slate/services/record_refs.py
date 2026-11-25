@@ -1,4 +1,4 @@
-"""Refs on any record: link them, read them, carry an idea's onto its initiative, and narrow a list by prefix.
+"""Refs on any record: link them, read them, and narrow a list by prefix.
 
 An idea, an initiative and an issue each carry refs through `record_refs`, keyed on the record's
 number. slate stores a ref as given and never follows it.
@@ -61,18 +61,6 @@ def link_refs(session: Session, number: int, refs: Iterable[str], note: str | No
     for ref in wanted:
         if ref not in linked:
             effects.warn(WriteEffectCode.REF_ALREADY_LINKED, f'#{number} already carries {ref!r}, so it is left as it was.', number)
-
-
-def carry_refs(session: Session, source: int, target: int, effects: WriteEffects) -> None:
-    """Copy each ref of record `source` onto record `target`, which carries none yet, as it was linked."""
-    rows = session.scalars(select(models.RecordRef).where(models.RecordRef.record_number == source)).all()
-    if not rows:
-        return
-    for row in rows:
-        session.add(models.RecordRef(record_number=target, ref=row.ref, note=row.note, linked_by=row.linked_by, linked_ts=row.linked_ts))
-    session.flush()
-    count = len(rows)
-    effects.did(WriteEffectCode.REFS_CARRIED, f'Carried {count} ref{"" if count == 1 else "s"} from #{source} onto #{target}.', target)
 
 
 def narrowed_to_ref_prefix(query: Select, kind: Kind, prefix: str | None) -> Select:

@@ -1,4 +1,4 @@
-"""Ideas: work nobody has taken on, with its priority and refs, until promotion makes it an initiative."""
+"""Ideas: work nobody has taken on, with its priority and refs, until promotion turns it into an initiative or an issue."""
 
 import datetime as dt
 from typing import Annotated
@@ -22,33 +22,38 @@ from slate.api.exceptions import Refusal
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
 from slate.services.claims import end_with_record
+from slate.services.idea_promotion import lock_idea
+from slate.services.idea_promotion import turn_idea_into
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
 from slate.services.idea_views import idea_views
+from slate.services.idea_views import promoted_idea_view
+from slate.services.initiative_views import counted
 from slate.services.initiatives import new_initiative
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
+from slate.services.issue_views import fresh_issue_detail
+from slate.services.issues import new_issue
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_record_parts_deleted
 from slate.services.record_groupings import GroupingsQuery
 from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_lookup import resolve_idea
-from slate.services.record_pins import carry_pin
+from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
 from slate.services.record_pursuits import pursuits_of
 from slate.services.record_pursuits import resolve_pursuits
 from slate.services.record_pursuits import set_record_pursuits
-from slate.services.record_refs import carry_refs
 from slate.services.record_refs import link_refs
 from slate.services.record_summaries import record_summaries
-from slate.services.record_tags import own_tags
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
 from slate.services.row_limit import RowLimit
 from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
+from slate.services.write_effects import WriteEffects
 from slate.tracing.named_work import name_record
 
 logger = structlog.get_logger()
@@ -106,7 +111,7 @@ def rank(idea: IdeaFromPath, move: schemas.RecordRankMove, session: DbSession, z
 
 @router.post('/{id}/pin', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
 def pin(idea: IdeaFromPath, request: schemas.RecordPin, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Hold this idea ahead of every priority in the queue, a person's choice alone, until unpinned or promoted."""
+    """Hold this idea ahead of every priority in the queue, a person's choice alone, until unpinned. A promotion keeps it on the number."""
     if idea.initiative is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -178,49 +183,104 @@ def link(idea: IdeaFromPath, request: schemas.RecordRefsLink, session: DbSession
     return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
 
 
-@router.post('/{id}/promote', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
-def promote(idea: IdeaFromPath, request: schemas.IdeaPromote, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Create the initiative the idea becomes, naming the idea. A promoted idea is refused with 409.
+@router.post('/{id}/promote', response_model=schemas.InitiativeWrittenWithIdea | schemas.IssueWritten, status_code=status.HTTP_200_OK)
+def promote(
+    id: str, request: schemas.IdeaPromote, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects
+) -> schemas.InitiativeWrittenWithIdea | schemas.IssueWritten:
+    """Turn the idea into an initiative or an issue under its own number and `id`, in one transaction.
 
-    The summary is required, because an idea has none. Each other field the request leaves out
-    takes the idea's own: its title as the name, its description, its priority, its tags, its pursuits.
-    The initiative carries each of the idea's refs as it was linked, and the idea keeps them too.
-    An idea marks no step it will not run, so the initiative plans every step but those the request
-    names. The answer is the idea, which then shows the initiative. The idea's claim ends as `promoted`,
-    because its work is the initiative's now.
+    Every row on the number stays: its comments, documents, refs, tags, checks and waits, and the
+    rank, pin and flow on its record. The new kind's row keeps the idea's `created_ts`, so the
+    record's age counts from the idea. A field the request leaves out keeps what the record holds.
+    The claim and each open worklog end as `promoted`, which closes the shape step, and the answer
+    names each. An issue holds no pursuits, so a promotion to one drops the idea's and warns
+    `pursuits_dropped` for each. A number another kind holds answers 409, and so does an idea that
+    an earlier release promoted into an initiative of its own.
     """
+    idea = lock_idea(session, id)
+    name_record(idea.number)
     if idea.initiative is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f'#{idea.number} was already promoted to initiative #{idea.initiative.number} {idea.initiative.name!r}.',
         )
+    now = dt.datetime.now(dt.UTC)
+    actor = caller_actor(caller)
+    end_with_record(session, idea.number, 'promoted', now, actor, effects)
+    if request.kind == 'issue':
+        return promote_to_issue(session, idea, request, zone, actor, now, effects)
+    return promote_to_initiative(session, idea, request, actor, now, effects)
+
+
+def kept_unless_sent(request: schemas.IdeaPromote, *fields: str) -> dict[str, object]:
+    """Each of `fields` that the request sent. A create sets only the fields it was sent, so the rest keep what the record holds."""
+    return {field: getattr(request, field) for field in fields if getattr(request, field) is not None}
+
+
+def promote_to_initiative(
+    session: DbSession, idea: models.Idea, request: schemas.IdeaPromote, actor: str, now: dt.datetime, effects: WriteEffects
+) -> schemas.InitiativeWrittenWithIdea:
+    promoted = turn_idea_into(session, idea, Kind.INITIATIVE, actor, now)
     initiative = new_initiative(
         session,
-        schemas.InitiativeCreate(
-            name=request.name or idea.title,
-            summary=request.summary,
-            description=request.description if request.description is not None else idea.description,
-            status=request.status,
-            priority=request.priority if request.priority is not None else idea.priority,
-            autofix=request.autofix,
-            tags=request.tags if request.tags is not None else own_tags(session, [idea.number]).get(idea.number, []),
-            pursuits=request.pursuits
-            if request.pursuits is not None
-            else [pursuit.number for pursuit in pursuits_of(session, [idea.number]).get(idea.number, [])],
-            not_planned_steps=request.not_planned_steps,
+        schemas.InitiativeCreate.model_validate(
+            {
+                'name': request.name or promoted.title,
+                'summary': request.summary,
+                'description': promoted.description if request.description is None else request.description,
+                'status': request.status,
+                'priority': promoted.priority if request.priority is None else request.priority,
+                'autofix': request.autofix,
+                'not_planned_steps': request.not_planned_steps,
+                **kept_unless_sent(request, 'tags', 'pursuits'),
+            }
         ),
-        idea=idea,
+        from_idea=promoted,
     )
-    effects.did(
-        WriteEffectCode.INITIATIVE_CREATED,
-        f'Created initiative #{initiative.number} {initiative.name!r} from #{idea.number}.',
-        initiative.number,
-    )
-    carry_pin(idea, initiative, effects)
-    carry_refs(session, idea.number, initiative.number, effects)
-    now = dt.datetime.now(dt.UTC)
-    end_with_record(session, idea.number, 'promoted', now, caller_actor(caller), effects)
-    idea.updated_ts = now
+    if initiative.status != 'active':
+        clear_pin_on_close(initiative, initiative.status, effects)
     session.commit()
-    session.refresh(idea)
-    return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
+    session.refresh(initiative)
+    view = counted(session, initiative)
+    return effects.answer(schemas.InitiativeWrittenWithIdea, initiative=view, idea=promoted_idea_view(promoted, view, now))
+
+
+def promote_to_issue(
+    session: DbSession,
+    idea: models.Idea,
+    request: schemas.IdeaPromote,
+    zone: str,
+    actor: str,
+    now: dt.datetime,
+    effects: WriteEffects,
+) -> schemas.IssueWritten:
+    for pursuit in pursuits_of(session, [idea.number]).get(idea.number, []):
+        effects.warn(
+            WriteEffectCode.PURSUITS_DROPPED,
+            f"Dropped pursuit #{pursuit.number} {pursuit.name}, because an issue takes its initiative's pursuits.",
+            pursuit.number,
+        )
+    set_record_pursuits(session, idea.number, [])
+    promoted = turn_idea_into(session, idea, Kind.ISSUE, actor, now)
+    issue = new_issue(
+        session,
+        schemas.IssueCreate.model_validate(
+            {
+                'title': promoted.title,
+                'description': promoted.description if request.description is None else request.description,
+                'acceptance': request.acceptance,
+                'repo': request.repo,
+                'paths': request.paths,
+                'type': request.type,
+                'priority': promoted.priority if request.priority is None else request.priority,
+                'initiative': request.initiative,
+                'parent': request.parent,
+                **kept_unless_sent(request, 'tags'),
+            }
+        ),
+        actor,
+        effects,
+        from_idea=promoted,
+    )
+    session.commit()
+    return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))

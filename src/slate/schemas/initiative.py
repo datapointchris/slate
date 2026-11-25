@@ -119,7 +119,8 @@ class Initiative(InPursuits, InitiativeSteps):
     The three counts partition `issue_count`. `repos` is derived from every issue
     not canceled, never stored, so it cannot drift from what the work touches.
     `claim` is the initiative's unended claim, live or expired. `idea` is the
-    idea promoted into it. `rank` places it, with its issues, among the
+    idea that an earlier promotion created it from under a new number, and null
+    for an idea promoted in place. `rank` places it, with its issues, among the
     records of its priority in the queue. `depends_on` is each initiative or
     issue it waits on, and `waiting_initiatives` each initiative waiting on it,
     open or closed, by number. `tags` is the
@@ -127,8 +128,7 @@ class Initiative(InPursuits, InitiativeSteps):
     pursuit it is in, in number order, and each of its issues reads them as its own. `flow_id` is
     the flow of the work that created it, or of the idea promoted into it. `last_check` is its
     latest check, and `check_request` someone asking that it be checked next, each null where there
-    is none. `refs` is each key or URL that the initiative names as what it came from, oldest first,
-    an idea's carried across when it was promoted.
+    is none. `refs` is each key or URL that the initiative names as what it came from, oldest first.
     """
 
     id: UUID

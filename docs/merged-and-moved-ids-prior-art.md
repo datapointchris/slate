@@ -1,6 +1,6 @@
 # Prior art for a record that changes kind, merges into another, or answers to an old number
 
-A promoted idea must become its initiative or issue under its own number, and an idea that
+A promoted idea becomes its initiative or issue under its own number, and an idea that
 existing work covers must fold into that work. A fold leaves a number that has to keep leading
 somewhere. This page
 holds what other trackers and CRMs do when a record changes type, merges into another, or moves to
@@ -13,7 +13,7 @@ the records themselves.
   Azure Boards' "Change type" keeps the work item, records the change in its history, and resets
   its state to the new type's first state.
 - **In class table inheritance, a type change moves the row between subtype tables.** slate's
-  promotion must keep the `records` row, with its number, rank, pin and flow. It deletes the
+  promotion keeps the `records` row, with its number, rank, pin and flow. It deletes the
   kind's own row and inserts the new kind's row, in one transaction. Every row keyed on the number
   stays where it is.
 

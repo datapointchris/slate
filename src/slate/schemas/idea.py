@@ -1,14 +1,20 @@
 import datetime as dt
 from typing import Annotated
 from typing import Literal
+from typing import Self
 from uuid import UUID
 
 from pydantic import ConfigDict
 from pydantic import StringConstraints
+from pydantic import model_validator
 
 from slate.schemas.claim import Claim
 from slate.schemas.initiative import Initiative
+from slate.schemas.initiative import InitiativeRef
+from slate.schemas.initiative import InitiativeWritten
 from slate.schemas.initiative import NotPlannedStep
+from slate.schemas.issue import IssuePaths
+from slate.schemas.issue import IssueRef
 from slate.schemas.not_null import NotNull
 from slate.schemas.pursuit import InPursuits
 from slate.schemas.record import Priority
@@ -46,24 +52,52 @@ class IdeaUpdate(RecordModel):
     pursuits: NotNull[list[int]] = None
 
 
-class IdeaPromote(RecordModel):
-    """The initiative a promotion creates. An idea has no summary, so one is required. Each other field left out takes the idea's own.
+PromotedKind = Literal['initiative', 'issue']
 
-    An idea marks no step it will not run, so `not_planned_steps` left out plans every step. A field
-    it does not name is refused rather than dropped, so a client sending one learns it was not applied.
+# Each kind's own fields on a promotion. `description`, `priority` and `tags` apply to both kinds.
+FIELDS_OF_KIND: dict[PromotedKind, frozenset[str]] = {
+    'initiative': frozenset({'summary', 'name', 'status', 'autofix', 'pursuits', 'not_planned_steps'}),
+    'issue': frozenset({'repo', 'paths', 'type', 'acceptance', 'initiative', 'parent'}),
+}
+
+
+class IdeaPromote(RecordModel):
+    """A promotion: `kind`, an initiative by default or an issue, and the fields of that kind.
+
+    An initiative needs `summary`, because an idea has none. A field left out keeps what the record
+    holds: the idea's title as the name, its description, its priority, its tags and its pursuits.
+    An idea marks no step it will not run, so `not_planned_steps` left out plans every step. An issue
+    starts open. The API refuses an unknown field, or one of the other kind, rather than dropping it,
+    so a client sending one learns it was not applied.
     """
 
     model_config = ConfigDict(from_attributes=True, extra='forbid')
 
-    summary: SummaryText
-    name: Title | None = None
+    kind: PromotedKind = 'initiative'
     description: str | None = None
     priority: Priority | None = None
+    tags: list[str] | None = None
+    summary: SummaryText | None = None
+    name: Title | None = None
     status: Literal['active', 'someday'] = 'active'
     autofix: bool = False
-    tags: list[str] | None = None
     pursuits: list[int] | None = None
     not_planned_steps: list[NotPlannedStep] = []
+    repo: str | None = None
+    paths: IssuePaths = []
+    type: str = 'task'
+    acceptance: str | None = None
+    initiative: InitiativeRef | None = None
+    parent: IssueRef | None = None
+
+    @model_validator(mode='after')
+    def fits_its_kind(self) -> Self:
+        for kind, fields in FIELDS_OF_KIND.items():
+            if kind != self.kind and (sent := sorted(self.model_fields_set & fields)):
+                raise ValueError(f'{", ".join(sent)} {"applies" if len(sent) == 1 else "apply"} to an {kind}, not an {self.kind}')
+        if self.kind == 'initiative' and self.summary is None:
+            raise ValueError('summary is required to promote an idea to an initiative, because an idea has none')
+        return self
 
 
 class Idea(InPursuits):
@@ -97,4 +131,13 @@ class IdeaDetail(Idea, RecordParts):
 
 
 class IdeaWritten(Written):
+    idea: Idea
+
+
+class InitiativeWrittenWithIdea(InitiativeWritten):
+    """A promotion's answer while the release before it is live: `idea` is the record as that release answered one.
+
+    That release's CLI decodes `idea`, and its `initiative` names the record itself.
+    """
+
     idea: Idea

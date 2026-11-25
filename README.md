@@ -2,7 +2,7 @@
 
 A work tracker built for coding agents. Ideas hold the work that nobody has
 taken on, with their priority and the refs that they rest on, until promotion
-makes each an initiative. Issues carry their dependencies, labels and the
+makes each an initiative or an issue under the same number. Issues carry their dependencies, labels and the
 initiative they ship toward. Ideas, initiatives and issues carry tags from a
 short closed list, and an issue reads its initiative's tags as its own. Each
 also carries refs, the keys or URLs that it came from, and each list narrows

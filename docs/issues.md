@@ -304,8 +304,8 @@ high    idea 60
 `rank` lives on `records`, so ideas, initiatives and issues share one space.
 It is a float, the way Linear's `sortOrder` is. A new record goes one past the
 last, placed by the `records_rank_at_end` trigger, so a new issue lands at its
-initiative's tail. An initiative promoted from an idea takes the idea's rank,
-so it keeps the place that a reorder gave the idea. A move takes the midpoint of its two new neighbors,
+initiative's tail. A promotion keeps the idea's `records` row, so the
+initiative or issue keeps the place that a reorder gave the idea. A move takes the midpoint of its two new neighbors,
 so it writes one row. When a move would leave a gap smaller than `MIN_GAP` in
 `services/fractional_rank.py`, every rank is renumbered to whole numbers in its
 current order. `number` breaks a rank tie, because it is issued in creation
@@ -359,9 +359,9 @@ high    idea 60
   a person whichever session holds it, so `pinned_session` names the agent session
   that sent it, where one did, beside `pinned_by`.
 - **A pin ends with the record.** Closing an issue, or finishing or shelving an
-  initiative, clears it and answers `pin_cleared`. A promoted idea's work is its
-  initiative's, so the pin moves there and answers `pin_carried`. Reopening
-  restores no pin.
+  initiative, clears it and answers `pin_cleared`. A promotion keeps the pin on
+  the number, and promoting into `someday` clears it as shelving does.
+  Reopening restores no pin.
 - **A record that the queue would not show is refused with 409:** a closed
   issue, an issue in a `someday` initiative, an initiative that is not active,
   and a promoted idea.

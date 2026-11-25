@@ -1,4 +1,4 @@
-"""A ref filed with an issue or an idea is found by its prefix, and a promotion carries it to the initiative."""
+"""A ref filed with an issue or an idea is found by its prefix, and stays on the number a promotion keeps."""
 
 from fastapi import status
 
@@ -28,8 +28,6 @@ def test_a_ref_filed_with_a_record_is_found_by_its_prefix(txn_api_logged_in):
     assert {row['number'] for row in found} == {idea['idea']['number'], other['idea']['number']}
     assert [row['number'] for row in ok(client.get('/ideas', params={'ref': 'capture/idea'}))] == [idea['idea']['number']]
 
-    promoted = ok(client.post(f'/ideas/{idea["idea"]["number"]}/promote', json={'summary': 'The font is kept'}))
-    initiative = promoted['idea']['initiative']
-    assert ('refs_carried', initiative['number']) in [(effect['code'], effect['record']) for effect in promoted['side_effects']]
+    initiative = ok(client.post(f'/ideas/{idea["idea"]["number"]}/promote', json={'summary': 'The font is kept'}))['initiative']
     assert carried(initiative) == carried(idea['idea'])
     assert [row['number'] for row in ok(client.get('/initiatives', params={'ref': 'capture/'}))] == [initiative['number']]

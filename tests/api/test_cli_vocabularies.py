@@ -23,6 +23,7 @@ from slate.models.worklog import WORKLOG_LINK_KINDS
 from slate.models.worklog import WORKLOG_STEPS
 from slate.schemas.queue import Step
 from slate.services import initiatives
+from slate.services.issues import CREATE_STATUSES
 
 VOCABULARIES_DOCUMENT = Path(__file__).parent / 'testdata' / 'cli-vocabularies.json'
 
@@ -38,7 +39,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'worklog_steps': WORKLOG_STEPS,
         'worklog_link_kinds': WORKLOG_LINK_KINDS,
         'issue_statuses': [*ISSUE_STATUSES, issues.ALL_STATUSES],
-        'issue_create_statuses': list(issues.CREATE_STATUSES),
+        'issue_create_statuses': list(CREATE_STATUSES),
         'issue_types': ISSUE_TYPES,
         'priority_names': [PRIORITIES[value] for value in sorted(PRIORITIES)],
         'initiative_statuses': [*INITIATIVE_STATUSES, initiatives.ALL_STATUSES],

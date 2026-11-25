@@ -49,13 +49,3 @@ def clear_pin_on_close(closing: models.Issue | models.Initiative, became: str, e
         return
     effects.did(WriteEffectCode.PIN_CLEARED, f'#{closing.number} lost the pin {closing.pinned_by} set, because it became {became}.')
     clear_pin(closing.record)
-
-
-def carry_pin(idea: models.Idea, initiative: models.Initiative, effects: WriteEffects) -> None:
-    """A promoted idea's work is its initiative's now, so the pin goes with it."""
-    if idea.pinned_ts is None:
-        return
-    source, target = idea.record, initiative.record
-    target.pinned_ts, target.pinned_by, target.pinned_session = source.pinned_ts, source.pinned_by, source.pinned_session
-    clear_pin(source)
-    effects.did(WriteEffectCode.PIN_CARRIED, f'The pin on #{idea.number} moved to #{initiative.number}.')

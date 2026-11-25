@@ -46,9 +46,11 @@ initiative's worklogs on slate's issues.
   initiative's. A child filed in another initiative then counts in both.
   Totals are groupings, never a partition, as an issue's total is also inside
   its initiative's.
-- **An initiative reaches the idea it was promoted from.** Promotion makes the
-  idea the initiative, so the goes at the idea are the same work under its
-  earlier number.
+- **An initiative reaches the idea it was promoted from.** A promotion keeps
+  the number, so the goes at the idea are already the initiative's own. An
+  earlier promotion created the initiative under a new number and named the
+  idea in `idea_id`. The reach follows that link, because the goes at that idea
+  are the same work under its earlier number.
 
 Reach is not membership. An issue is in an initiative when its `initiative_id`
 names it, which is what an initiative's counts by status and the queue read.
