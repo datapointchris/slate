@@ -11,9 +11,7 @@ from pydantic import model_validator
 
 from slate.models.record_redirect import RedirectReason
 from slate.schemas.claim import Claim
-from slate.schemas.initiative import Initiative
 from slate.schemas.initiative import InitiativeRef
-from slate.schemas.initiative import InitiativeWritten
 from slate.schemas.initiative import NotPlannedStep
 from slate.schemas.issue import IssuePaths
 from slate.schemas.issue import IssueRef
@@ -156,9 +154,7 @@ class Idea(InPursuits):
 
     `claim` is the record's unended claim, live or expired. `rank` places it among the records of
     its priority in the queue. `pursuits` is each pursuit it is in, in number order. `flow_id` is
-    the flow of the work that filed it. `initiative` is the initiative `became` names, and null
-    where `became` names an issue or an idea. It stays while a released reader still takes what an
-    idea became from it.
+    the flow of the work that filed it.
     """
 
     id: UUID
@@ -176,7 +172,6 @@ class Idea(InPursuits):
     tags: list[str] = []
     refs: list[RecordRef] = []
     became: Became | None = None
-    initiative: Initiative | None = None
     claim: Claim | None = None
 
 
@@ -185,13 +180,4 @@ class IdeaDetail(Idea, RecordParts):
 
 
 class IdeaWritten(Written):
-    idea: Idea
-
-
-class InitiativeWrittenWithIdea(InitiativeWritten):
-    """A promotion's answer to an initiative, with `idea` in the shape that CLI releases through `cli/v0.66.0` decode.
-
-    `idea.initiative` names the record itself.
-    """
-
     idea: Idea

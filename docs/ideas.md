@@ -61,11 +61,8 @@ the new kind's from then on. Every worklog still open on it ends as `promoted`
 too, each named as `worklog_ended`. Promoting into `someday` clears the pin, as
 shelving an initiative does, and answers `pin_cleared`.
 
-The initiative's answer also carries `idea`, the idea as it was, with
-`idea.became` and `idea.initiative` naming the record itself. CLI releases through `cli/v0.66.0`
-read a promotion's answer from that member. A promoted idea's UUID names the
-new kind's row, so a read or a promotion by that UUID answers as one by its
-number does.
+A promoted idea's UUID names the new kind's row, so a read or a promotion by
+that UUID answers as one by its number does.
 
 `GET /records/{n}/changes` reads every kind row that held the record's `id`, so
 the idea's writes stay in the number's history after it is an initiative or an
@@ -88,7 +85,8 @@ number leads to the initiative, and its shape worklog reads under the
 initiative's number with the old name in `former_names`. Its refs, tags and
 pursuits moved where the initiative lacked them, and went as duplicates where
 the promotion had copied them. The check `ck_initiatives_initiative_idea_id_unset`
-holds `idea_id` null since, and `idea` on an initiative read is always null.
+holds `idea_id` null since. The models leave the column unmapped, so the API
+neither reads nor writes it, and a later migration drops it.
 
 ## `GET /ideas` lists the open ideas, and `state` adds every number that ended, saying what it became
 
@@ -117,10 +115,6 @@ A pair's initiative never was an idea, so its own number is not listed. A
 `tag`, `pursuit` or `ref` filter narrows an open idea or a promoted record by
 its own. A retired number's rows moved to its redirect's target, so it narrows
 by the target's, through the same `narrowed_to_groupings` every list uses.
-
-`initiative` stays on each item while a released reader still takes what an
-idea became from it. It is the initiative that `became` names, and null where
-`became` names an issue or an idea.
 
 `slate ideas list --state` sends `state`, and its default is `open`. `BECAME`
 prints from `how`: `initiative #3500` for a promotion, `folded into #3410` for

@@ -17,10 +17,9 @@ import (
 )
 
 // A script runs `slate ideas promote --json` and reads the promoted number from
-// the answer: from `initiative` or `issue`, and from `idea.initiative` where it
-// was written for a CLI through cli/v0.66.0. Each recorded answer is the API's
-// own, from promoting a real idea on a copy of slate's data, with its text
-// scrubbed. An answer holding no initiative fails rather than naming #0.
+// the answer's `initiative` or `issue`. Each recorded answer is the API's own,
+// from promoting a real idea on a copy of slate's data, with its text scrubbed.
+// An answer holding no initiative fails rather than naming #0.
 func TestIdeasPromote_SendsOnlyItsKindsFieldsAndReadsTheNumberFromTheAnswer(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -36,7 +35,7 @@ func TestIdeasPromote_SendsOnlyItsKindsFieldsAndReadsTheNumberFromTheAnswer(t *t
 			"",
 			[]string{"ideas", "promote", "4224", "--summary", "It runs.", "--json"},
 			map[string]any{"kind": "initiative", "summary": "It runs."},
-			map[string]float64{"initiative": 4224, "idea": 4224},
+			map[string]float64{"initiative": 4224},
 		},
 		{
 			"an issue",
@@ -101,9 +100,6 @@ func TestIdeasPromote_SendsOnlyItsKindsFieldsAndReadsTheNumberFromTheAnswer(t *t
 			}
 			for member, want := range c.numbers {
 				record, _ := printed[member].(map[string]any)
-				if member == "idea" {
-					record, _ = record["initiative"].(map[string]any)
-				}
 				got := record["number"]
 				if got != want {
 					t.Errorf("%s names #%v, want #%v", member, got, want)

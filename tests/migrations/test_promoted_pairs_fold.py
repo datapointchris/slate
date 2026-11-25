@@ -89,7 +89,7 @@ def test_promoted_pairs_fold_into_their_initiatives(scratch_database, api):
     with transactional_api_client(api, caller=lambda: TEST_PERSON, engine=engine) as (client, _):
         ended = client.get('/ideas', params={'state': 'ended', 'tag': 'security'}).json()
         listed = [item for item in ended if item['number'] in (idea, initiative)]
-        assert [(item['number'], item['became'], item['initiative']['number']) for item in listed] == [
+        assert [(item['number'], item['became']) for item in listed] == [
             (
                 idea,
                 {
@@ -100,7 +100,6 @@ def test_promoted_pairs_fold_into_their_initiatives(scratch_database, api):
                     'title': 'Rounds run on a schedule',
                     'status': 'active',
                 },
-                initiative,
             )
         ]
         assert client.get(f'/worklogs/{initiative}.1').json()['former_names'] == [f'{idea}.1']

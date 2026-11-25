@@ -23,90 +23,6 @@
       "title": "Neutral title 2",
       "status": "completed"
     },
-    "initiative": {
-      "id": "01a1dab6-611a-720b-8667-06a58716b4ad",
-      "number": 3176,
-      "name": "Neutral title 2",
-      "summary": "Neutral summary 1.",
-      "description": "Neutral description 1.",
-      "status": "completed",
-      "status_reason": null,
-      "priority": 2,
-      "rank": 3100,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "698dc4de24fc44b6b2754f3511bd43c4",
-      "autofix": false,
-      "created_ts": "2026-11-14T15:39:07.877274Z",
-      "closed_ts": "2026-11-15T00:26:36.508043Z",
-      "tags": [
-        "tag-1"
-      ],
-      "refs": [],
-      "pursuits": [
-        {
-          "number": 2988,
-          "name": "Neutral title 3"
-        },
-        {
-          "number": 3010,
-          "name": "Neutral title 4"
-        }
-      ],
-      "issue_count": 20,
-      "open_count": 0,
-      "completed_count": 19,
-      "canceled_count": 1,
-      "repos": [
-        "repo-1",
-        "repo-2",
-        "repo-3",
-        "repo-4",
-        "repo-5",
-        "repo-6"
-      ],
-      "claim": null,
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "3176.5",
-          "ended_ts": "2026-11-14T15:39:07.946588Z",
-          "session": "1a4e34f0-3a98-4a90-a10a-136a392708ea"
-        },
-        {
-          "step": "design",
-          "worklog": "3176.1",
-          "ended_ts": "2026-11-14T16:09:50.376531Z",
-          "session": "1a4e34f0-3a98-4a90-a10a-136a392708ea"
-        },
-        {
-          "step": "preflight",
-          "worklog": "3176.2",
-          "ended_ts": "2026-11-14T16:31:47.340014Z",
-          "session": "1a4e34f0-3a98-4a90-a10a-136a392708ea"
-        },
-        {
-          "step": "build",
-          "worklog": "3176.3",
-          "ended_ts": "2026-11-15T00:22:45.02564Z",
-          "session": "1a4e34f0-3a98-4a90-a10a-136a392708ea"
-        },
-        {
-          "step": "retro",
-          "worklog": "3176.4",
-          "ended_ts": "2026-11-15T00:26:23.674185Z",
-          "session": "1a4e34f0-3a98-4a90-a10a-136a392708ea"
-        }
-      ],
-      "stage": "retro",
-      "not_planned_steps": []
-    },
     "claim": null
   },
   {
@@ -132,68 +48,6 @@
       "at": "2026-11-18T00:31:13.517663Z",
       "title": "Neutral title 6",
       "status": "completed"
-    },
-    "initiative": {
-      "id": "01a1ec10-9aa7-7171-8d05-ebc234088ebb",
-      "number": 3683,
-      "name": "Neutral title 6",
-      "summary": "Neutral summary 2.",
-      "description": "Neutral description 2.",
-      "status": "completed",
-      "status_reason": null,
-      "priority": 2,
-      "rank": 3599,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "0b95cd356ebbd580cd4bb3619b9bc038",
-      "autofix": false,
-      "created_ts": "2026-11-18T00:31:13.517663Z",
-      "closed_ts": "2026-11-19T06:24:02.982793Z",
-      "tags": [],
-      "refs": [],
-      "pursuits": [],
-      "issue_count": 10,
-      "open_count": 0,
-      "completed_count": 10,
-      "canceled_count": 0,
-      "repos": [
-        "repo-1",
-        "repo-2",
-        "repo-3",
-        "repo-4"
-      ],
-      "claim": null,
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "preflight",
-          "worklog": "3683.2",
-          "ended_ts": "2026-11-18T18:54:06.258778Z",
-          "session": "42122be5-55bb-40c0-8fd0-a7c1275353c3"
-        },
-        {
-          "step": "build",
-          "worklog": "3683.3",
-          "ended_ts": "2026-11-19T06:19:21.856708Z",
-          "session": "42122be5-55bb-40c0-8fd0-a7c1275353c3"
-        },
-        {
-          "step": "retro",
-          "worklog": "3683.4",
-          "ended_ts": "2026-11-19T06:23:50.425915Z",
-          "session": "42122be5-55bb-40c0-8fd0-a7c1275353c3"
-        }
-      ],
-      "stage": "retro",
-      "not_planned_steps": [
-        "shape",
-        "design"
-      ]
     },
     "claim": null
   },
@@ -224,7 +78,6 @@
       }
     ],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -251,46 +104,6 @@
       "title": "Neutral title 8",
       "status": "completed"
     },
-    "initiative": {
-      "id": "01a1f9d3-7cfd-7654-8e33-1ab1e965fbb0",
-      "number": 3970,
-      "name": "Neutral title 8",
-      "summary": "Neutral summary 3.",
-      "description": "Neutral description 4.",
-      "status": "completed",
-      "status_reason": null,
-      "priority": 1,
-      "rank": 3601,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "d2e4472c8521409a4c85fe4e159c090b",
-      "autofix": false,
-      "created_ts": "2026-11-20T16:39:09.032464Z",
-      "closed_ts": "2026-11-20T16:55:58.804061Z",
-      "tags": [],
-      "refs": [],
-      "pursuits": [],
-      "issue_count": 1,
-      "open_count": 0,
-      "completed_count": 1,
-      "canceled_count": 0,
-      "repos": [
-        "repo-2"
-      ],
-      "claim": null,
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [],
-      "stage": "idea",
-      "not_planned_steps": [
-        "shape",
-        "design"
-      ]
-    },
     "claim": null
   },
   {
@@ -315,7 +128,6 @@
     ],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -337,7 +149,6 @@
     "pursuits": [],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -362,7 +173,6 @@
     ],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -388,89 +198,6 @@
       "at": "2026-11-24T21:05:59.675036Z",
       "title": "Neutral title 15",
       "status": "active"
-    },
-    "initiative": {
-      "id": "01a20f61-39aa-709f-9f90-082308f1e220",
-      "number": 4318,
-      "name": "Neutral title 15",
-      "summary": "Neutral summary 4.",
-      "description": "Neutral description 8.",
-      "status": "active",
-      "status_reason": null,
-      "priority": 3,
-      "rank": 4182,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "51dbba484d85703035034e5f406069ff",
-      "autofix": false,
-      "created_ts": "2026-11-24T21:05:59.675036Z",
-      "closed_ts": null,
-      "tags": [
-        "tag-4"
-      ],
-      "refs": [],
-      "pursuits": [
-        {
-          "number": 2988,
-          "name": "Neutral title 3"
-        }
-      ],
-      "issue_count": 10,
-      "open_count": 7,
-      "completed_count": 3,
-      "canceled_count": 0,
-      "repos": [
-        "repo-1",
-        "repo-7",
-        "repo-2",
-        "repo-4",
-        "repo-5"
-      ],
-      "claim": {
-        "id": 1574,
-        "record_number": 4318,
-        "holder": "claude-code/13cb8a46-1923-4bbb-bc8c-050458aa2a7a",
-        "session": "13cb8a46-1923-4bbb-bc8c-050458aa2a7a",
-        "host": "Neutral host 1",
-        "directory": "Neutral directory 1",
-        "started_ts": "2026-11-24T22:52:59.44017Z",
-        "expires_ts": "2026-12-01T23:34:21.182171Z",
-        "ended_ts": null,
-        "ending": null,
-        "ended_by": null,
-        "flow_id": "4cfa839c00169e25e39bb9e0ceb3d5a0",
-        "state": "live",
-        "worklog": "4318.4",
-        "waiting": null
-      },
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "4318.1",
-          "ended_ts": "2026-11-24T21:11:24.367148Z",
-          "session": "13cb8a46-1923-4bbb-bc8c-050458aa2a7a"
-        },
-        {
-          "step": "design",
-          "worklog": "4318.2",
-          "ended_ts": "2026-11-24T22:52:37.456453Z",
-          "session": "13cb8a46-1923-4bbb-bc8c-050458aa2a7a"
-        },
-        {
-          "step": "preflight",
-          "worklog": "4318.3",
-          "ended_ts": "2026-11-24T23:55:34.670975Z",
-          "session": "13cb8a46-1923-4bbb-bc8c-050458aa2a7a"
-        }
-      ],
-      "stage": "preflight",
-      "not_planned_steps": []
     },
     "claim": null
   },
@@ -498,7 +225,6 @@
     ],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -518,7 +244,6 @@
     "pursuits": [],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -545,106 +270,6 @@
       "title": "Neutral title 20",
       "status": "completed"
     },
-    "initiative": {
-      "id": "01a1ddbe-3678-74b6-b549-1eee4582964c",
-      "number": 3352,
-      "name": "Neutral title 20",
-      "summary": "Neutral summary 5.",
-      "description": "Neutral description 11.",
-      "status": "completed",
-      "status_reason": null,
-      "priority": 2,
-      "rank": 3130,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "78c01fb51fe54aa682899db87474bd1a",
-      "autofix": false,
-      "created_ts": "2026-11-15T05:46:32.903364Z",
-      "closed_ts": "2026-11-22T19:54:27.860839Z",
-      "tags": [
-        "tag-1",
-        "tag-4",
-        "tag-2"
-      ],
-      "refs": [
-        {
-          "ref": "key/2",
-          "kind": "key",
-          "note": null,
-          "linked_by": "claude-code/a501f5d5-66e9-4bc5-bb2f-75d010a2d8b1",
-          "linked_ts": "2026-11-14T18:49:00.526683Z"
-        },
-        {
-          "ref": "key/3",
-          "kind": "key",
-          "note": null,
-          "linked_by": "claude-code/c96d7aa4-1a5d-4b52-83df-bdc32e636e05",
-          "linked_ts": "2026-11-15T05:46:12.002144Z"
-        }
-      ],
-      "pursuits": [
-        {
-          "number": 2989,
-          "name": "Neutral title 21"
-        }
-      ],
-      "issue_count": 18,
-      "open_count": 0,
-      "completed_count": 18,
-      "canceled_count": 0,
-      "repos": [
-        "repo-7",
-        "repo-8",
-        "repo-9",
-        "repo-2",
-        "repo-3"
-      ],
-      "claim": null,
-      "last_check": {
-        "verdict": "holds",
-        "checked_ts": "2026-11-22T19:33:27.256389Z",
-        "checked_by": "a-person"
-      },
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "3352.1",
-          "ended_ts": "2026-11-15T06:26:41.450955Z",
-          "session": "c2aa6ccf-8ca5-4241-ac5a-4b45df75a768"
-        },
-        {
-          "step": "design",
-          "worklog": "3352.2",
-          "ended_ts": "2026-11-15T06:54:15.426784Z",
-          "session": "c2aa6ccf-8ca5-4241-ac5a-4b45df75a768"
-        },
-        {
-          "step": "preflight",
-          "worklog": "3352.3",
-          "ended_ts": "2026-11-15T07:56:05.309258Z",
-          "session": "c2aa6ccf-8ca5-4241-ac5a-4b45df75a768"
-        },
-        {
-          "step": "build",
-          "worklog": "3352.4",
-          "ended_ts": "2026-11-15T21:11:29.396203Z",
-          "session": "c2aa6ccf-8ca5-4241-ac5a-4b45df75a768"
-        },
-        {
-          "step": "retro",
-          "worklog": "3352.6",
-          "ended_ts": "2026-11-22T19:54:18.359776Z",
-          "session": "624c854e-894e-416f-859d-e209994861fd"
-        }
-      ],
-      "stage": "retro",
-      "not_planned_steps": []
-    },
     "claim": null
   },
   {
@@ -670,90 +295,6 @@
       "at": "2026-11-15T07:54:38.258336Z",
       "title": "Neutral title 23",
       "status": "active"
-    },
-    "initiative": {
-      "id": "01a1de33-7b53-766c-8e76-512d061f3135",
-      "number": 3396,
-      "name": "Neutral title 23",
-      "summary": "Neutral summary 6.",
-      "description": "Neutral description 12.",
-      "status": "active",
-      "status_reason": null,
-      "priority": 4,
-      "rank": 3313,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "998048f50f8842b78c2d76c389b04e92",
-      "autofix": false,
-      "created_ts": "2026-11-15T07:54:38.258336Z",
-      "closed_ts": null,
-      "tags": [
-        "tag-1",
-        "tag-2"
-      ],
-      "refs": [
-        {
-          "ref": "key/4",
-          "kind": "key",
-          "note": null,
-          "linked_by": "claude-code/99f51767-731a-4e88-9ed6-2c6efbe52711",
-          "linked_ts": "2026-11-15T07:29:16.857115Z"
-        }
-      ],
-      "pursuits": [
-        {
-          "number": 2989,
-          "name": "Neutral title 21"
-        }
-      ],
-      "issue_count": 8,
-      "open_count": 3,
-      "completed_count": 5,
-      "canceled_count": 0,
-      "repos": [
-        "repo-1",
-        "repo-9",
-        "repo-2",
-        "repo-6"
-      ],
-      "claim": {
-        "id": 1594,
-        "record_number": 3396,
-        "holder": "claude-code/ae18b674-705d-4bdd-9c15-0f239623d190",
-        "session": "ae18b674-705d-4bdd-9c15-0f239623d190",
-        "host": "Neutral host 1",
-        "directory": "Neutral directory 2",
-        "started_ts": "2026-11-25T01:18:45.189051Z",
-        "expires_ts": "2026-12-02T01:26:54.011127Z",
-        "ended_ts": null,
-        "ending": null,
-        "ended_by": null,
-        "flow_id": "fb2db4f5add4cad5388d1c86eee49b1c",
-        "state": "live",
-        "worklog": "3396.2",
-        "waiting": {
-          "waiting_on": "Neutral waiting on 1",
-          "started_ts": "2026-11-25T01:26:54.23439Z",
-          "ended_ts": null,
-          "ended_by": null
-        }
-      },
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "3396.1",
-          "ended_ts": "2026-11-25T01:18:34.254036Z",
-          "session": "ae18b674-705d-4bdd-9c15-0f239623d190"
-        }
-      ],
-      "stage": "shape",
-      "not_planned_steps": []
     },
     "claim": null
   },
@@ -794,7 +335,6 @@
       }
     ],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -834,7 +374,6 @@
       }
     ],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -862,7 +401,6 @@
       }
     ],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -904,56 +442,6 @@
       "title": "Neutral title 27",
       "status": "active"
     },
-    "initiative": {
-      "id": "01a2068e-a346-73e5-9373-85a287772275",
-      "number": 4224,
-      "name": "Neutral title 27",
-      "summary": "Neutral summary 7.",
-      "description": "Neutral description 16.",
-      "status": "active",
-      "status_reason": null,
-      "priority": 4,
-      "rank": 4137,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "016a3bf1b0177b7bf1583889ed22f1d1",
-      "autofix": false,
-      "created_ts": "2026-11-23T03:59:00.924877Z",
-      "closed_ts": null,
-      "tags": [],
-      "refs": [
-        {
-          "ref": "key/7",
-          "kind": "key",
-          "note": null,
-          "linked_by": "a-person",
-          "linked_ts": "2026-11-23T03:59:00.924877Z"
-        },
-        {
-          "ref": "key/6",
-          "kind": "key",
-          "note": null,
-          "linked_by": "a-person",
-          "linked_ts": "2026-11-23T03:59:00.924877Z"
-        }
-      ],
-      "pursuits": [],
-      "issue_count": 0,
-      "open_count": 0,
-      "completed_count": 0,
-      "canceled_count": 0,
-      "repos": [],
-      "claim": null,
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [],
-      "stage": "idea",
-      "not_planned_steps": []
-    },
     "claim": null
   },
   {
@@ -979,95 +467,6 @@
       "at": "2026-11-24T20:04:14.717764Z",
       "title": "Neutral title 29",
       "status": "active"
-    },
-    "initiative": {
-      "id": "01a20f28-b127-7691-836c-7b6a4e42628d",
-      "number": 4302,
-      "name": "Neutral title 29",
-      "summary": "Neutral summary 8.",
-      "description": "Neutral description 17.",
-      "status": "active",
-      "status_reason": null,
-      "priority": 4,
-      "rank": 4210,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "86d6ec66dc5c57d2868859a4d24b46d3",
-      "autofix": false,
-      "created_ts": "2026-11-24T20:04:14.717764Z",
-      "closed_ts": null,
-      "tags": [
-        "tag-2"
-      ],
-      "refs": [],
-      "pursuits": [
-        {
-          "number": 2989,
-          "name": "Neutral title 21"
-        },
-        {
-          "number": 2993,
-          "name": "Neutral title 30"
-        }
-      ],
-      "issue_count": 19,
-      "open_count": 6,
-      "completed_count": 9,
-      "canceled_count": 4,
-      "repos": [
-        "repo-1",
-        "repo-10",
-        "repo-2",
-        "repo-11",
-        "repo-12",
-        "repo-13",
-        "repo-5"
-      ],
-      "claim": {
-        "id": 1563,
-        "record_number": 4302,
-        "holder": "claude-code/9601d9ae-d65f-48b2-a4a8-5a089a4ba580",
-        "session": "9601d9ae-d65f-48b2-a4a8-5a089a4ba580",
-        "host": "Neutral host 1",
-        "directory": "Neutral directory 1",
-        "started_ts": "2026-11-24T21:15:40.498846Z",
-        "expires_ts": "2026-12-01T21:59:33.733233Z",
-        "ended_ts": null,
-        "ending": null,
-        "ended_by": null,
-        "flow_id": "cc0d47e463003507a0ccdc63ba5a7ac3",
-        "state": "live",
-        "worklog": "4302.3",
-        "waiting": null
-      },
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "4302.4",
-          "ended_ts": "2026-11-24T20:04:14.772736Z",
-          "session": "9601d9ae-d65f-48b2-a4a8-5a089a4ba580"
-        },
-        {
-          "step": "design",
-          "worklog": "4302.1",
-          "ended_ts": "2026-11-24T21:15:33.070768Z",
-          "session": "9601d9ae-d65f-48b2-a4a8-5a089a4ba580"
-        },
-        {
-          "step": "preflight",
-          "worklog": "4302.2",
-          "ended_ts": "2026-11-24T22:06:36.876471Z",
-          "session": "9601d9ae-d65f-48b2-a4a8-5a089a4ba580"
-        }
-      ],
-      "stage": "preflight",
-      "not_planned_steps": []
     },
     "claim": null
   },
@@ -1095,93 +494,6 @@
       "title": "Neutral title 32",
       "status": "completed"
     },
-    "initiative": {
-      "id": "01a1de23-e9a5-74d5-bc6c-1df05b660093",
-      "number": 3390,
-      "name": "Neutral title 32",
-      "summary": "Neutral summary 9.",
-      "description": "Neutral description 18.",
-      "status": "completed",
-      "status_reason": null,
-      "priority": 4,
-      "rank": 3311,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "176a64f7b11744c58553ec85caa6ddcb",
-      "autofix": false,
-      "created_ts": "2026-11-15T07:37:37.916214Z",
-      "closed_ts": "2026-11-17T22:03:18.006106Z",
-      "tags": [
-        "tag-1"
-      ],
-      "refs": [],
-      "pursuits": [
-        {
-          "number": 2988,
-          "name": "Neutral title 3"
-        }
-      ],
-      "issue_count": 31,
-      "open_count": 0,
-      "completed_count": 29,
-      "canceled_count": 2,
-      "repos": [
-        "repo-1",
-        "repo-9",
-        "repo-2",
-        "repo-14",
-        "repo-4",
-        "repo-6"
-      ],
-      "claim": null,
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [
-        {
-          "number": 1648,
-          "kind": "initiative",
-          "title": "Neutral title 33",
-          "status": "someday"
-        }
-      ],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "3390.3",
-          "ended_ts": "2026-11-15T19:31:51.376451Z",
-          "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1"
-        },
-        {
-          "step": "design",
-          "worklog": "3390.4",
-          "ended_ts": "2026-11-15T19:50:22.404562Z",
-          "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1"
-        },
-        {
-          "step": "preflight",
-          "worklog": "3390.5",
-          "ended_ts": "2026-11-15T22:06:04.01434Z",
-          "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1"
-        },
-        {
-          "step": "build",
-          "worklog": "3390.6",
-          "ended_ts": "2026-11-17T22:03:17.164303Z",
-          "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1"
-        },
-        {
-          "step": "retro",
-          "worklog": "3390.7",
-          "ended_ts": "2026-11-17T22:08:46.923675Z",
-          "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1"
-        }
-      ],
-      "stage": "retro",
-      "not_planned_steps": []
-    },
     "claim": null
   },
   {
@@ -1203,7 +515,6 @@
     "pursuits": [],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -1229,64 +540,6 @@
       "at": "2026-11-15T20:18:40.777585Z",
       "title": "Neutral title 36",
       "status": "active"
-    },
-    "initiative": {
-      "id": "01a1e0dc-ac5c-77cf-8cd0-05427630ca1d",
-      "number": 3479,
-      "name": "Neutral title 36",
-      "summary": "Neutral summary 10.",
-      "description": "Neutral description 20.",
-      "status": "active",
-      "status_reason": null,
-      "priority": 2,
-      "rank": 54,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "8ce2fea0d5204cb8969e9be792636f96",
-      "autofix": false,
-      "created_ts": "2026-11-15T20:18:40.777585Z",
-      "closed_ts": null,
-      "tags": [
-        "tag-4"
-      ],
-      "refs": [],
-      "pursuits": [
-        {
-          "number": 2983,
-          "name": "Neutral title 16"
-        }
-      ],
-      "issue_count": 12,
-      "open_count": 12,
-      "completed_count": 0,
-      "canceled_count": 0,
-      "repos": [
-        "repo-7",
-        "repo-2",
-        "repo-3",
-        "repo-5"
-      ],
-      "claim": null,
-      "last_check": {
-        "verdict": "holds",
-        "checked_ts": "2026-11-21T22:50:31.684523Z",
-        "checked_by": "a-person"
-      },
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "3479.1",
-          "ended_ts": "2026-11-15T20:18:40.874432Z",
-          "session": "c2aa6ccf-8ca5-4241-ac5a-4b45df75a768"
-        }
-      ],
-      "stage": "shape",
-      "not_planned_steps": []
     },
     "claim": null
   },
@@ -1314,82 +567,6 @@
       "title": "Neutral title 38",
       "status": "completed"
     },
-    "initiative": {
-      "id": "01a1e556-8ae9-72d4-8118-bf812b05bc9c",
-      "number": 3563,
-      "name": "Neutral title 38",
-      "summary": "Neutral summary 11.",
-      "description": "Neutral description 21.",
-      "status": "completed",
-      "status_reason": null,
-      "priority": 2,
-      "rank": 3481,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "20244a35815247efaea36397e49d10e4",
-      "autofix": false,
-      "created_ts": "2026-11-16T17:10:16.524626Z",
-      "closed_ts": "2026-11-17T06:03:54.176803Z",
-      "tags": [
-        "tag-6"
-      ],
-      "refs": [],
-      "pursuits": [
-        {
-          "number": 2986,
-          "name": "Neutral title 39"
-        }
-      ],
-      "issue_count": 6,
-      "open_count": 0,
-      "completed_count": 6,
-      "canceled_count": 0,
-      "repos": [
-        "repo-2",
-        "repo-4"
-      ],
-      "claim": null,
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "3563.5",
-          "ended_ts": "2026-11-16T17:10:16.566397Z",
-          "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1"
-        },
-        {
-          "step": "design",
-          "worklog": "3563.1",
-          "ended_ts": "2026-11-16T18:11:37.789903Z",
-          "session": "e9d18b80-adb2-49cc-95bd-9b876b2fd5db"
-        },
-        {
-          "step": "preflight",
-          "worklog": "3563.2",
-          "ended_ts": "2026-11-16T18:30:48.117029Z",
-          "session": "e9d18b80-adb2-49cc-95bd-9b876b2fd5db"
-        },
-        {
-          "step": "build",
-          "worklog": "3563.3",
-          "ended_ts": "2026-11-17T06:03:54.176803Z",
-          "session": "e9d18b80-adb2-49cc-95bd-9b876b2fd5db"
-        },
-        {
-          "step": "retro",
-          "worklog": "3563.4",
-          "ended_ts": "2026-11-17T06:08:17.948221Z",
-          "session": "e9d18b80-adb2-49cc-95bd-9b876b2fd5db"
-        }
-      ],
-      "stage": "retro",
-      "not_planned_steps": []
-    },
     "claim": null
   },
   {
@@ -1409,7 +586,6 @@
     "pursuits": [],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -1436,7 +612,6 @@
       "title": "Neutral title 42",
       "status": "open"
     },
-    "initiative": null,
     "claim": null
   },
   {
@@ -1456,7 +631,6 @@
     "pursuits": [],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -1476,7 +650,6 @@
     "pursuits": [],
     "refs": [],
     "became": null,
-    "initiative": null,
     "claim": null
   },
   {
@@ -1502,93 +675,6 @@
       "at": "2026-11-24T15:39:49.100613Z",
       "title": "Neutral title 46",
       "status": "active"
-    },
-    "initiative": {
-      "id": "01a20e36-9a37-77ca-80fd-4a8ebbec634d",
-      "number": 4271,
-      "name": "Neutral title 46",
-      "summary": "Neutral summary 12.",
-      "description": "Neutral description 25.",
-      "status": "active",
-      "status_reason": null,
-      "priority": 2,
-      "rank": 4077,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "7314660aafd4f4483b6118936f85c434",
-      "autofix": false,
-      "created_ts": "2026-11-24T15:39:49.100613Z",
-      "closed_ts": null,
-      "tags": [
-        "tag-3",
-        "tag-2"
-      ],
-      "refs": [],
-      "pursuits": [
-        {
-          "number": 2989,
-          "name": "Neutral title 21"
-        }
-      ],
-      "issue_count": 7,
-      "open_count": 2,
-      "completed_count": 4,
-      "canceled_count": 1,
-      "repos": [
-        "repo-1",
-        "repo-2",
-        "repo-3",
-        "repo-4"
-      ],
-      "claim": {
-        "id": 1549,
-        "record_number": 4271,
-        "holder": "claude-code/cda42040-8d12-4c30-9d5f-f1d9325ef5af",
-        "session": "cda42040-8d12-4c30-9d5f-f1d9325ef5af",
-        "host": "Neutral host 1",
-        "directory": "Neutral directory 3",
-        "started_ts": "2026-11-24T18:46:32.634941Z",
-        "expires_ts": "2026-12-01T19:42:43.717355Z",
-        "ended_ts": null,
-        "ending": null,
-        "ended_by": null,
-        "flow_id": "a0bf8db31161a9d09687df58bbdafa17",
-        "state": "live",
-        "worklog": "4271.3",
-        "waiting": null
-      },
-      "last_check": {
-        "verdict": "holds",
-        "checked_ts": "2026-11-24T16:02:26.056427Z",
-        "checked_by": "a-person"
-      },
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "4271.4",
-          "ended_ts": "2026-11-24T15:39:49.188663Z",
-          "session": "cda42040-8d12-4c30-9d5f-f1d9325ef5af"
-        },
-        {
-          "step": "design",
-          "worklog": "4271.1",
-          "ended_ts": "2026-11-24T18:46:20.191231Z",
-          "session": "cda42040-8d12-4c30-9d5f-f1d9325ef5af"
-        },
-        {
-          "step": "preflight",
-          "worklog": "4271.2",
-          "ended_ts": "2026-11-24T19:52:50.541426Z",
-          "session": "cda42040-8d12-4c30-9d5f-f1d9325ef5af"
-        }
-      ],
-      "stage": "preflight",
-      "not_planned_steps": []
     },
     "claim": null
   },
@@ -1616,86 +702,6 @@
       "title": "Neutral title 48",
       "status": "completed"
     },
-    "initiative": {
-      "id": "01a205a3-c5c8-7458-bba5-def5a409685e",
-      "number": 4203,
-      "name": "Neutral title 48",
-      "summary": "Neutral summary 13.",
-      "description": "Neutral description 26.",
-      "status": "completed",
-      "status_reason": null,
-      "priority": 4,
-      "rank": 4110,
-      "pinned_ts": null,
-      "pinned_by": null,
-      "pinned_session": null,
-      "flow_id": "7ff64efdbf8e97ebc28cb5540a95c80d",
-      "autofix": false,
-      "created_ts": "2026-11-22T23:42:28.687211Z",
-      "closed_ts": "2026-11-23T04:51:38.299042Z",
-      "tags": [
-        "tag-7",
-        "tag-5"
-      ],
-      "refs": [],
-      "pursuits": [
-        {
-          "number": 2994,
-          "name": "Neutral title 9"
-        }
-      ],
-      "issue_count": 8,
-      "open_count": 0,
-      "completed_count": 8,
-      "canceled_count": 0,
-      "repos": [
-        "repo-10",
-        "repo-9",
-        "repo-3",
-        "repo-4",
-        "repo-6"
-      ],
-      "claim": null,
-      "last_check": null,
-      "check_request": null,
-      "idea": null,
-      "depends_on": [],
-      "waiting_initiatives": [],
-      "steps": [
-        {
-          "step": "shape",
-          "worklog": "4203.5",
-          "ended_ts": "2026-11-22T23:42:28.845753Z",
-          "session": "b4b8ea3b-09d0-4bf9-9cef-a2689345f212"
-        },
-        {
-          "step": "design",
-          "worklog": "4203.1",
-          "ended_ts": "2026-11-23T01:20:17.213924Z",
-          "session": "b4b8ea3b-09d0-4bf9-9cef-a2689345f212"
-        },
-        {
-          "step": "preflight",
-          "worklog": "4203.2",
-          "ended_ts": "2026-11-23T01:44:52.196251Z",
-          "session": "b4b8ea3b-09d0-4bf9-9cef-a2689345f212"
-        },
-        {
-          "step": "build",
-          "worklog": "4203.3",
-          "ended_ts": "2026-11-23T04:45:08.549406Z",
-          "session": "b4b8ea3b-09d0-4bf9-9cef-a2689345f212"
-        },
-        {
-          "step": "retro",
-          "worklog": "4203.4",
-          "ended_ts": "2026-11-23T04:49:28.943903Z",
-          "session": "b4b8ea3b-09d0-4bf9-9cef-a2689345f212"
-        }
-      ],
-      "stage": "retro",
-      "not_planned_steps": []
-    },
     "claim": null
   },
   {
@@ -1722,7 +728,6 @@
       "title": "Neutral title 49",
       "status": "open"
     },
-    "initiative": null,
     "claim": null
   }
 ]

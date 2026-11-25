@@ -102,7 +102,6 @@
     "claim": null,
     "last_check": null,
     "check_request": null,
-    "idea": null,
     "depends_on": [],
     "waiting_initiatives": []
   }

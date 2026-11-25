@@ -8,6 +8,7 @@ from uuid import uuid7
 from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
 from sqlalchemy import CheckConstraint
+from sqlalchemy import Column
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
 from sqlalchemy import Index
@@ -66,18 +67,20 @@ class Initiative(NumberedRecord, Base):
     autofix: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
     created_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     closed_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # Null on every row, which its check holds: a promotion keeps the idea's number, so no initiative names one.
-    idea_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey('ideas.id', ondelete='SET NULL'), nullable=True, unique=True)
 
     issues: Mapped[list[Issue]] = relationship('Issue', back_populates='initiative')
 
+    # `idea_id` is declared for `alembic check` and left out of the mapper, so the ORM neither selects
+    # nor inserts it. The migration that drops it then runs while this release still serves.
     __table_args__ = (
         *record_link(RECORD_KIND),
+        Column('idea_id', Uuid, ForeignKey('ideas.id', ondelete='SET NULL'), nullable=True, unique=True),
         CheckConstraint('idea_id IS NULL', name='initiative_idea_id_unset'),
         CheckConstraint("status <> 'dropped' OR status_reason IS NOT NULL", name='initiative_dropped_requires_reason'),
         CheckConstraint('priority BETWEEN 0 AND 4', name='initiative_priority_range'),
         Index('uq_initiatives_name_active', 'name', unique=True, postgresql_where=text("status = 'active'")),
     )
+    __mapper_args__ = {'exclude_properties': ['idea_id']}
 
     def __repr__(self):
         return f'Initiative(id={self.id!r}, name={self.name!r}, status={self.status!r})'

@@ -10,8 +10,6 @@ import (
 // Idea is a number that is or was an idea. Became is nil for an open idea, and
 // otherwise says how it ended and names the record that carries its work.
 // Rank is nil for a number a fold retired, which holds no place in the queue.
-// Initiative is the initiative Became names, and nil where Became names an
-// issue or an idea. Became is the field to read.
 type Idea struct {
 	ID            string     `json:"id"`
 	Number        int        `json:"number"`
@@ -28,10 +26,9 @@ type Idea struct {
 	Tags          []string   `json:"tags"`
 	// InPursuits holds each pursuit the idea is in.
 	InPursuits
-	Refs       []RecordRef `json:"refs"`
-	Became     *Became     `json:"became"`
-	Initiative *Initiative `json:"initiative"`
-	Claim      *Claim      `json:"claim"`
+	Refs   []RecordRef `json:"refs"`
+	Became *Became     `json:"became"`
+	Claim  *Claim      `json:"claim"`
 }
 
 // How an idea ended, as Became.How names it.
@@ -211,21 +208,13 @@ func (c *Client) UpdateIdea(ctx context.Context, ref string, in IdeaUpdateInput,
 	return written, nil
 }
 
-// PromotedInitiativeWritten is a promotion's answer to an initiative. Idea is
-// the idea naming the initiative it became, in the shape that CLI releases
-// through cli/v0.66.0 read from a promotion.
-type PromotedInitiativeWritten struct {
-	InitiativeWritten
-	Idea *Idea `json:"idea,omitempty"`
-}
-
 // PromoteIdea turns an idea into an initiative under its own number. A number
 // another kind holds is refused. The answer's messages give each time in zone.
-func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInput, zone DayZone) (PromotedInitiativeWritten, error) {
+func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInput, zone DayZone) (InitiativeWritten, error) {
 	in.Kind = PromotedToInitiative
-	var written PromotedInitiativeWritten
+	var written InitiativeWritten
 	if err := c.send(ctx, http.MethodPost, withQuery(ideaPath(ref)+"/promote", zoneQuery(zone)), in, &written); err != nil {
-		return PromotedInitiativeWritten{}, err
+		return InitiativeWritten{}, err
 	}
 	return written, nil
 }
@@ -269,8 +258,9 @@ func (c *Client) FoldIdea(ctx context.Context, ref string, in IdeaFoldInput, zon
 	return written, nil
 }
 
-// DeleteIdea removes an idea with its refs, pin and claims. A promoted
-// idea is refused, naming its initiative. The answer gives each time in zone.
+// DeleteIdea removes an idea with its refs, pin and claims. A promoted idea's
+// number is not found as an idea, and the refusal names the kind it holds. The
+// answer gives each time in zone.
 func (c *Client) DeleteIdea(ctx context.Context, ref string, zone DayZone) (RecordDeleted, error) {
 	var deleted RecordDeleted
 	if err := c.send(ctx, http.MethodDelete, withQuery(ideaPath(ref), zoneQuery(zone)), nil, &deleted); err != nil {
