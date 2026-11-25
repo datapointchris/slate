@@ -54,7 +54,10 @@ type FocusWritten struct {
 	WriteEffects
 }
 
-// FocusWindow is the span usage is counted over, ending at the read.
+// FocusWindow is the span usage is counted over: from the later of the
+// focus's start and the API's USAGE_WINDOW before Until. GET /focus ends it at
+// the read. A day of GET /focus/usage ends it at that day's midnight, or where
+// the focus stopped holding on its last day.
 type FocusWindow struct {
 	Since time.Time `json:"since"`
 	Until time.Time `json:"until"`

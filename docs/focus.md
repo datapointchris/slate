@@ -17,6 +17,7 @@ that tools such as Jellyfish and LinearB report.
 | --- | --- | --- |
 | `GET /focus` | the focus in force and each pursuit's standing | `slate.records.read` |
 | `GET /focus/history` | every focus, the latest set first | `slate.records.read` |
+| `GET /focus/usage` | each day of a focus, with each pursuit's figures at the day's end | `slate.records.read` |
 | `PUT /focus` | sets a focus from now | `slate.focus.write` |
 | `POST /focus/end` | ends the focus in force, with a reason | `slate.focus.write` |
 
@@ -141,3 +142,48 @@ where it drew output in the window, with its `status`, and with `share` and
 
 `services/focus_standing.py` computes the read, and `services/focuses.py`
 holds the writes.
+
+## Usage by day reads each day's window as the standing reads its own
+
+`GET /focus/usage?focus=<id>&timezone=<zone>` reads the focus `focus` names,
+else the one in force. With neither, it reads the last `USAGE_DAYS` in
+`services/focus_usage_by_day.py`, with every `share` and `factor` null. It
+answers one entry per day of the focus, oldest first, up to its last
+`USAGE_DAYS`. `since`
+and `until` bound the days answered. `pursuits` names each pursuit that any day
+lists, with its status now.
+
+- **A day's figures are the standing's figures over that day's window.** The
+  window ends at the day's midnight in `timezone`, else UTC. It opens at the
+  later of the focus's start and `USAGE_WINDOW` before that end, as
+  `usage_window` opens the standing's. The window is a span of instants, so
+  one across a change of clocks holds `USAGE_WINDOW` of elapsed time rather
+  than that many local days.
+- **The last day ends where the focus stopped holding.** That is the read for
+  the focus in force, so its last day equals `GET /focus` on every figure the
+  two share. Otherwise it is the earlier of the focus's `ended_ts` and the
+  midnight after its `until_date`, which `held_until` in
+  `services/focuses.py` reads. A focus that lapsed reads the same days after
+  the next set stamps its `ended_ts`.
+- **`split_output_tokens_on_day` is the output written that day while the
+  focus held.** So output written before the focus began counts on no day. A
+  day with no output still has an entry: each pursuit's usage over its window,
+  with that day's output 0.
+- **Each day lists the pursuits as `GET /focus` would list them now.** It lists
+  every pursuit active now, and any other whose work drew output in the day's
+  window, with `share` and `factor` null. Each record reaches the pursuits it
+  reaches now, and an earlier focus's unnamed shares fill from the pursuits
+  active now. So an earlier day can differ from what `GET /focus` answered on
+  that day.
+
+One query reads every day's output. Each window's and each day's bounds are
+breakpoints, and Postgres's `width_bucket` sums each worklog's output between
+neighboring breakpoints. A window adds the stretches between its bounds.
+`GET /focus` reads through the same query with its window's two bounds. So a
+worklog's total in a window is the same integer for both reads, and the split
+matches the standing's to the last bit.
+
+*Rejected:* a query per day. Each day's window would read the same messages
+again. *Rejected:* summing by the hour. A window that opens `USAGE_WINDOW`
+before the read opens inside an hour, and a zone such as Asia/Kolkata starts
+its days on the half hour.

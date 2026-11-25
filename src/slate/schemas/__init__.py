@@ -34,9 +34,14 @@ from slate.schemas.focus import FocusSet
 from slate.schemas.focus import FocusShare
 from slate.schemas.focus import FocusShareSet
 from slate.schemas.focus import FocusStanding
+from slate.schemas.focus import FocusUsage
+from slate.schemas.focus import FocusUsageDay
+from slate.schemas.focus import FocusUsagePursuit
 from slate.schemas.focus import FocusWindow
 from slate.schemas.focus import FocusWritten
+from slate.schemas.focus import PursuitFigures
 from slate.schemas.focus import PursuitStanding
+from slate.schemas.focus import PursuitUsageOnDay
 from slate.schemas.focus import UnattributedUsage
 from slate.schemas.idea import Became
 from slate.schemas.idea import Idea
@@ -191,7 +196,9 @@ __all__ = [
     'Pursuit',
     'PursuitCreate',
     'PursuitDetail',
+    'PursuitFigures',
     'PursuitStanding',
+    'PursuitUsageOnDay',
     'PursuitSummary',
     'PursuitUpdate',
     'PursuitWritten',
@@ -209,6 +216,9 @@ __all__ = [
     'FocusShare',
     'FocusShareSet',
     'FocusStanding',
+    'FocusUsage',
+    'FocusUsageDay',
+    'FocusUsagePursuit',
     'FocusWindow',
     'FocusWritten',
     'Became',

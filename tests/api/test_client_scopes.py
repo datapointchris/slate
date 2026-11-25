@@ -65,6 +65,7 @@ SCOPED_URLS = {
     f'{API_PREFIX}/documents/{{record}}/{{name}}': '/documents/{issue}/plan',
     f'{API_PREFIX}/focus': '/focus',
     f'{API_PREFIX}/focus/history': '/focus/history',
+    f'{API_PREFIX}/focus/usage': '/focus/usage',
     f'{API_PREFIX}/ideas': '/ideas',
     f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
     f'{API_PREFIX}/issues': '/issues?status=all',
