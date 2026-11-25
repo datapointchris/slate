@@ -39,6 +39,7 @@ from slate.schemas.focus import FocusUsageDay
 from slate.schemas.focus import FocusUsagePursuit
 from slate.schemas.focus import FocusWindow
 from slate.schemas.focus import FocusWritten
+from slate.schemas.focus import PursuitFigures
 from slate.schemas.focus import PursuitStanding
 from slate.schemas.focus import PursuitUsageOnDay
 from slate.schemas.focus import UnattributedUsage
@@ -194,6 +195,7 @@ __all__ = [
     'Pursuit',
     'PursuitCreate',
     'PursuitDetail',
+    'PursuitFigures',
     'PursuitStanding',
     'PursuitUsageOnDay',
     'PursuitSummary',

@@ -222,3 +222,22 @@ def test_a_focus_older_than_thirty_days_answers_its_last_thirty_and_each_window_
     unfocused = ok(client.get('/focus/usage', params=zone))
     assert (unfocused['focus'], len(unfocused['days']), {row['share'] for row in unfocused['days'][-1]['pursuits']}) == (None, 30, {None})
     assert standing_figures(unfocused['days'][-1]['pursuits']) == standing_figures(ok(client.get('/focus', params=zone))['pursuits'])
+
+
+def test_a_lapsed_focus_reads_the_same_days_before_and_after_the_next_set_ends_it(txn_api_logged_in, monkeypatch):
+    """The focus lapses after 06-03, and a set on 06-20 ends it as lapsed, stamping ended_ts on 06-20."""
+    client, session = txn_api_logged_in
+    clock = Clock(monkeypatch, utc('2026-06-01T12:00'))
+    a, b = a_pursuit(client, 'Warehouse'), a_pursuit(client, 'Security')
+    in_b = an_initiative(client, 'Lock the loader', [b])
+    body = {'statement': 'Warehouse first', 'until_date': '2026-06-03', 'shares': [{'pursuit': a, 'share': 0.8}]}
+    lapsed = ok(client.put('/focus', json=body))['focus']
+    wrote(client, session, in_b, {utc('2026-06-02T10:00'): 30, utc('2026-06-10T10:00'): 70})
+    clock.now = utc('2026-06-20T12:00')
+
+    before = ok(client.get('/focus/usage', params={'focus': lapsed['id']}))
+    ok(client.put('/focus', json={'statement': 'Then security', 'until_date': '2026-06-30'}))
+    after = ok(client.get('/focus/usage', params={'focus': lapsed['id']}))
+    assert ([day['day'] for day in after['days']], after['until']) == (['2026-06-01', '2026-06-02', '2026-06-03'], '2026-06-04T00:00:00Z')
+    assert after['days'] == before['days']
+    assert by_pursuit(after['days'][-1], 'split_output_tokens') == {a: 0, b: 30}

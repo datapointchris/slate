@@ -79,15 +79,16 @@ class FocusWindow(BaseModel):
     """The window usage is counted over.
 
     It opens at the later of the focus's start and `USAGE_WINDOW` in `services/focus_standing.py`
-    before `until`. The standing's window ends at the read, and a day's at that day's end.
+    before `until`. The standing's window ends at the read. A usage day's ends at that day's
+    midnight, or where the focus stopped holding on its last day.
     """
 
     since: dt.datetime
     until: dt.datetime
 
 
-class PursuitStanding(BaseModel):
-    """Where one pursuit stands against its share of the work.
+class PursuitFigures(BaseModel):
+    """One pursuit's share, output, usage and factor over one window.
 
     `split_output_tokens` is the pursuit's part of the output of every worklog in the window whose
     record reaches it, each worklog's split evenly across the pursuits it reaches, so it may hold a
@@ -98,20 +99,26 @@ class PursuitStanding(BaseModel):
     the focus named it, rather than the pursuit taking its part of what the named shares left.
     `factor` is `2 ** (-usage / share)`: 0.5 at its share, toward 1 under it and toward 0 over it,
     and 0 where its share is 0. It is null where `share` is.
-
-    `touched_ts` is the latest `touched_ts` of any initiative in the pursuit, as the live board reads
-    it. Null where the pursuit holds no initiative.
     """
 
     number: int
-    name: str
-    status: str
     share: float | None
     share_named: bool
     split_output_tokens: float
     worklog_count: int
     usage: float
     factor: float | None
+
+
+class PursuitStanding(PursuitFigures):
+    """Where one pursuit stands against its share of the work, with its name and status now.
+
+    `touched_ts` is the latest `touched_ts` of any initiative in the pursuit, as the live board reads
+    it. Null where the pursuit holds no initiative.
+    """
+
+    name: str
+    status: str
     touched_ts: dt.datetime | None
 
 
@@ -146,21 +153,13 @@ class FocusUsagePursuit(PursuitSummary):
     status: str
 
 
-class PursuitUsageOnDay(BaseModel):
-    """One pursuit's figures on one day of a focus.
+class PursuitUsageOnDay(PursuitFigures):
+    """One pursuit's figures over one day's window.
 
     `split_output_tokens_on_day` is its part of the output written that day while the focus held.
-    Every other field is a `PursuitStanding` figure over the day's `window`.
     """
 
-    number: int
     split_output_tokens_on_day: float
-    share: float | None
-    share_named: bool
-    split_output_tokens: float
-    worklog_count: int
-    usage: float
-    factor: float | None
 
 
 class FocusUsageDay(BaseModel):

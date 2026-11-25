@@ -11,6 +11,7 @@ import datetime as dt
 from collections import Counter
 from collections.abc import Sequence
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
 import structlog
 from fastapi import HTTPException
@@ -26,6 +27,7 @@ from slate.models.focus import REPLACED
 from slate.models.focus import SET_ENDINGS
 from slate.services.record_pursuits import resolve_pursuits
 from slate.services.row_limit import apply_row_limit
+from slate.services.time_window import day_starts
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -38,21 +40,30 @@ FOCUS_LOCK = 'slate.focus'
 SHARE_SUM_TOLERANCE = Decimal('1e-9')
 
 
-def in_force(focus: models.Focus, today: dt.date) -> bool:
-    """Whether nothing ended the focus and its last day has not passed."""
-    return focus.ended_ts is None and focus.until_date >= today
+def held_until(focus: models.Focus, zone: str) -> dt.datetime:
+    """The instant the focus stops holding: the earlier of its end and the midnight after its `until_date` in `zone`.
+
+    A set or an end stamps `ended_ts` on a focus that had already lapsed, so the midnight still bounds it.
+    """
+    lapses = day_starts(focus.until_date + dt.timedelta(days=1), ZoneInfo(zone))
+    return lapses if focus.ended_ts is None else min(focus.ended_ts.astimezone(dt.UTC), lapses)
+
+
+def in_force(focus: models.Focus, now: dt.datetime, zone: str) -> bool:
+    """Whether the focus still holds at `now`, as `held_until` reads it in `zone`."""
+    return held_until(focus, zone) > now
 
 
 def unended_focus(session: Session) -> models.Focus | None:
     return session.scalars(select(models.Focus).where(models.Focus.ended_ts.is_(None))).one_or_none()
 
 
-def focus_in_force(session: Session, today: dt.date) -> models.Focus | None:
+def focus_in_force(session: Session, now: dt.datetime, zone: str) -> models.Focus | None:
     focus = unended_focus(session)
-    return focus if focus is not None and in_force(focus, today) else None
+    return focus if focus is not None and in_force(focus, now, zone) else None
 
 
-def focus_view(focus: models.Focus, today: dt.date) -> schemas.Focus:
+def focus_view(focus: models.Focus, now: dt.datetime, zone: str) -> schemas.Focus:
     shares = sorted(focus.shares, key=lambda share: share.pursuit.number)
     return schemas.Focus(
         id=focus.id,
@@ -62,7 +73,7 @@ def focus_view(focus: models.Focus, today: dt.date) -> schemas.Focus:
         ended_ts=focus.ended_ts,
         ended_reason=focus.ended_reason,
         set_by=focus.set_by,
-        active=in_force(focus, today),
+        active=in_force(focus, now, zone),
         shares=[
             schemas.FocusShare(
                 pursuit=schemas.PursuitSummary(number=share.pursuit.number, name=share.pursuit.name), share=float(share.share)
@@ -125,11 +136,11 @@ def set_focus(
     shares = named_shares(session, body.shares)
     session.execute(select(func.pg_advisory_xact_lock(func.hashtext(FOCUS_LOCK))))
     current = unended_focus(session)
-    if current is not None and in_force(current, today) and holds_the_same(current, body, shares):
+    if current is not None and in_force(current, now, effects.zone) and holds_the_same(current, body, shares):
         effects.warn(WriteEffectCode.FOCUS_UNCHANGED, f'Focus {current.id} already holds this statement, until_date and shares.')
         return current
     if current is not None:
-        if in_force(current, today):
+        if in_force(current, now, effects.zone):
             end(current, REPLACED, now)
             effects.did(WriteEffectCode.FOCUS_REPLACED, f'Ended focus {current.id}, set {effects.moment(current.started_ts)}, as replaced.')
         else:
@@ -156,7 +167,7 @@ def warn_of_shares_left_over(session: Session, shares: Sequence[tuple[models.Pur
         )
 
 
-def end_focus(session: Session, reason: str, now: dt.datetime, today: dt.date, effects: WriteEffects) -> models.Focus | None:
+def end_focus(session: Session, reason: str, now: dt.datetime, effects: WriteEffects) -> models.Focus | None:
     """End the unended focus with `reason`, or warn that there is none.
 
     A reason may not be one a set writes, so `ended_reason` tells a set's end from a person's.
@@ -168,7 +179,7 @@ def end_focus(session: Session, reason: str, now: dt.datetime, today: dt.date, e
     if current is None:
         effects.warn(WriteEffectCode.NO_FOCUS_TO_END, 'No focus is in force, so nothing ended.')
         return None
-    if not in_force(current, today):
+    if not in_force(current, now, effects.zone):
         effects.warn(WriteEffectCode.FOCUS_LAPSED, lapsed_since(current))
     end(current, reason, now)
     logger.info('focus_ended', focus=current.id)

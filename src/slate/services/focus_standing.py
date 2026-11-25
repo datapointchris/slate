@@ -2,14 +2,15 @@
 
 Nothing here is stored. Each read derives every figure from the focus, the pursuits, the worklogs
 and their messages, so a reader takes slate's numbers rather than working them out again.
+`services/focus_usage_by_day.py` reads each day of a focus through the same functions.
 
 - **Shares fill to 1.** A share the focus named for an active pursuit is taken as given. The active
   pursuits it left unnamed split the rest of 1 evenly. A named pursuit that is no longer active
   leaves, and its part goes to the unnamed ones.
-- **Usage is output tokens.** The window opens at the later of the focus's start and `USAGE_WINDOW`
-  before the read. Each worklog's output in it splits evenly across the pursuits its record
-  reaches: an idea's or an initiative's own, an issue's initiative's. A pursuit's `usage` is its
-  part of the output every pursuit drew.
+- **Usage is output tokens.** `usage_window` opens the window at the later of the focus's start and
+  `USAGE_WINDOW` before its end, which is the read here. Each worklog's output in it splits evenly
+  across the pursuits its record reaches: an idea's or an initiative's own, an issue's
+  initiative's. A pursuit's `usage` is its part of the output every pursuit drew.
 - **The factor is `2 ** (-usage / share)`.** It reads 0.5 at the share, toward 1 under it and
   toward 0 over it. A share of 0 reads 0, because any work at all is over it.
 - **The last touch** is the latest on any initiative in the pursuit, as `last_touched` reads one
@@ -19,19 +20,23 @@ and their messages, so a reader takes slate's numbers rather than working them o
 from __future__ import annotations
 
 import datetime as dt
+from bisect import bisect_left
+from bisect import bisect_right
 from collections import defaultdict
 from collections.abc import Collection
 from collections.abc import Mapping
 from collections.abc import Sequence
-from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
 from decimal import Decimal
 from uuid import UUID
 
+from sqlalchemy import DateTime
+from sqlalchemy import Row
+from sqlalchemy import bindparam
 from sqlalchemy import func
-from sqlalchemy import or_
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import defer
 from sqlalchemy.orm import load_only
@@ -50,6 +55,17 @@ from slate.services.work_totals import in_worklog_spans
 from slate.services.work_totals import message_rows
 
 USAGE_WINDOW = dt.timedelta(days=30)
+
+
+def usage_window(started: dt.datetime | None, until: dt.datetime) -> schemas.FocusWindow:
+    """The window usage is counted over, ending at `until`: from the later of the focus's start and `USAGE_WINDOW` before.
+
+    `started` is None where no focus is read. Both bounds are UTC, so the window holds
+    `USAGE_WINDOW` of elapsed time across a change of clocks.
+    """
+    until = until.astimezone(dt.UTC)
+    opens = until - USAGE_WINDOW
+    return schemas.FocusWindow(since=opens if started is None else max(started.astimezone(dt.UTC), opens), until=until)
 
 
 @dataclass
@@ -103,25 +119,84 @@ def split_output(outputs: Mapping[int, WorklogOutput], reached: Mapping[int, lis
     return drawn
 
 
-def drawn_output(session: Session, window: TimeWindow) -> DrawnOutput:
-    """Each worklog's output in the window, split evenly across the pursuits its record reaches."""
-    output = func.coalesce(func.sum(models.MessageTokens.output_tokens), 0).label('output')
-    query = in_worklog_spans(select(models.WorklogSpan.worklog_id, models.Worklog.record_number, output)).join(
-        models.Worklog, models.Worklog.id == models.WorklogSpan.worklog_id
-    )
-    rows = session.execute(
-        counted_messages(query, None, window).group_by(models.WorklogSpan.worklog_id, models.Worklog.record_number)
+def output_by_stretch(session: Session, breakpoints: Sequence[dt.datetime]) -> Sequence[Row]:
+    """Each worklog's output between each pair of neighboring breakpoints, which must be sorted.
+
+    A row's `stretch` is `width_bucket`'s number. Stretch n is what was written from
+    `breakpoints[n - 1]` up to `breakpoints[n]`. A worklog with no message in a stretch has no row
+    for it.
+    """
+    thresholds = bindparam('thresholds', list(breakpoints), type_=ARRAY(DateTime(timezone=True)))
+    placed = in_worklog_spans(
+        select(
+            models.WorklogSpan.worklog_id,
+            models.Worklog.record_number,
+            func.width_bucket(models.MessageTokens.written_ts, thresholds).label('stretch'),
+            models.MessageTokens.output_tokens,
+        )
+    ).join(models.Worklog, models.Worklog.id == models.WorklogSpan.worklog_id)
+    counted = counted_messages(placed, None, TimeWindow(since=breakpoints[0], until=breakpoints[-1])).subquery()
+    return session.execute(
+        select(counted.c.worklog_id, counted.c.record_number, counted.c.stretch, func.sum(counted.c.output_tokens).label('output'))
+        .group_by(counted.c.worklog_id, counted.c.record_number, counted.c.stretch)
+        .order_by(counted.c.worklog_id, counted.c.stretch)
     ).all()
-    reached = pursuits_reached(session, {row.record_number for row in rows})
-    return split_output({row.worklog_id: WorklogOutput(row.record_number, row.output) for row in rows}, reached)
 
 
-def filled_shares(focus: models.Focus | None, active: Sequence[models.Pursuit]) -> dict[int, tuple[Decimal, bool]]:
+class OutputByStretch:
+    """Output by worklog and stretch, read once, then summed and split over any window between two breakpoints.
+
+    Each worklog keeps its stretches in order and its running output across them, so a window's
+    total is two bisections and a subtraction rather than a pass over every stretch. That total is
+    the same integer that a query over the window alone sums.
+    """
+
+    def __init__(self, session: Session, breakpoints: Sequence[dt.datetime]):
+        rows = output_by_stretch(session, breakpoints) if len(breakpoints) > 1 else []
+        self.position = {instant: index for index, instant in enumerate(breakpoints)}
+        self.records: dict[int, int] = {}
+        self.stretches: dict[int, list[int]] = defaultdict(list)
+        self.running: dict[int, list[int]] = defaultdict(lambda: [0])
+        for row in rows:
+            self.records[row.worklog_id] = row.record_number
+            self.stretches[row.worklog_id].append(row.stretch)
+            running = self.running[row.worklog_id]
+            running.append(running[-1] + row.output)
+        self.reached = pursuits_reached(session, set(self.records.values()))
+
+    def drawn(self, since: dt.datetime, until: dt.datetime) -> DrawnOutput:
+        """Each worklog's output from `since` up to `until`, split across the pursuits its record reaches. Both are breakpoints."""
+        first, last = self.position[since] + 1, self.position[until]
+        outputs = {}
+        for worklog_id, stretches in self.stretches.items():
+            start, stop = bisect_left(stretches, first), bisect_right(stretches, last)
+            if stop > start:
+                running = self.running[worklog_id]
+                outputs[worklog_id] = WorklogOutput(self.records[worklog_id], running[stop] - running[start])
+        return split_output(outputs, self.reached)
+
+
+def drawn_output(session: Session, window: schemas.FocusWindow) -> DrawnOutput:
+    """Each worklog's output in the window, split evenly across the pursuits its record reaches."""
+    return OutputByStretch(session, [window.since, window.until]).drawn(window.since, window.until)
+
+
+def listed(pursuit: models.Pursuit, drawing: Collection[int]) -> bool:
+    """Whether a read lists the pursuit: it is active, or `drawing`, the pursuits that drew output in the window, holds it."""
+    return pursuit.status == 'active' or pursuit.number in drawing
+
+
+def pursuits_listed(session: Session, drawing: Collection[int]) -> list[models.Pursuit]:
+    """Each pursuit that `listed` keeps, in number order."""
+    return [pursuit for pursuit in session.scalars(select(models.Pursuit).order_by(models.Pursuit.number)) if listed(pursuit, drawing)]
+
+
+def filled_shares(focus: models.Focus | None, pursuits: Sequence[models.Pursuit]) -> dict[int, tuple[Decimal, bool]]:
     """Each active pursuit's share by number, and whether the focus named it. Empty where no focus is in force."""
     if focus is None:
         return {}
     named = {share.pursuit.number: share.share for share in focus.shares if share.pursuit.status == 'active'}
-    unnamed = [pursuit.number for pursuit in active if pursuit.number not in named]
+    unnamed = [pursuit.number for pursuit in pursuits if pursuit.status == 'active' and pursuit.number not in named]
     rest = max(Decimal(1) - sum(named.values(), Decimal(0)), Decimal(0))
     shares = {number: (share, True) for number, share in named.items()}
     shares |= {number: (rest / len(unnamed), False) for number in unnamed}
@@ -132,24 +207,9 @@ def factor(usage: float, share: Decimal) -> float:
     return 0.0 if share == 0 else 2 ** (-usage / float(share))
 
 
-@dataclass(frozen=True)
-class PursuitFigures:
-    """One pursuit's share, output, usage and factor over one window, as `schemas.PursuitStanding` gives them."""
-
-    share: float | None
-    share_named: bool
-    split_output_tokens: float
-    worklog_count: int
-    usage: float
-    factor: float | None
-
-
-def listed(pursuits: Sequence[models.Pursuit], drawn: DrawnOutput) -> list[models.Pursuit]:
-    """The active pursuits, and every other one that drew output in the window."""
-    return [pursuit for pursuit in pursuits if pursuit.status == 'active' or pursuit.number in drawn.output]
-
-
-def pursuit_figures(drawn: DrawnOutput, numbers: Collection[int], shares: Mapping[int, tuple[Decimal, bool]]) -> dict[int, PursuitFigures]:
+def pursuit_figures(
+    drawn: DrawnOutput, numbers: Collection[int], shares: Mapping[int, tuple[Decimal, bool]]
+) -> dict[int, schemas.PursuitFigures]:
     """Each pursuit's figures over the window `drawn` covers, by its number."""
     attributed = sum(drawn.output.values())
     figures = {}
@@ -157,7 +217,8 @@ def pursuit_figures(drawn: DrawnOutput, numbers: Collection[int], shares: Mappin
         output = drawn.output.get(number, 0.0)
         usage = output / attributed if attributed else 0.0
         share, named = shares.get(number, (None, False))
-        figures[number] = PursuitFigures(
+        figures[number] = schemas.PursuitFigures(
+            number=number,
             share=None if share is None else float(share),
             share_named=named,
             split_output_tokens=output,
@@ -184,43 +245,29 @@ def pursuits_touched(session: Session, pursuit_ids: Collection[UUID]) -> dict[UU
     return latest
 
 
-def furthest_under_first(row: schemas.PursuitStanding | schemas.PursuitUsageOnDay) -> tuple:
+def furthest_under_first(row: schemas.PursuitFigures) -> tuple:
     return (row.factor is None, -(row.factor or 0), row.split_output_tokens, row.number)
 
 
-def pursuits_drawing(session: Session, numbers: Collection[int]) -> Sequence[models.Pursuit]:
-    """Every active pursuit and every pursuit `numbers` names, in number order."""
-    return session.scalars(
-        select(models.Pursuit)
-        .where(or_(models.Pursuit.status == 'active', models.Pursuit.number.in_(list(numbers))))
-        .order_by(models.Pursuit.number)
-    ).all()
-
-
-def focus_standing(session: Session, now: dt.datetime, today: dt.date) -> schemas.FocusStanding:
-    """The focus in force on `today`, and each pursuit's standing against it over the window ending `now`."""
-    focus = focus_in_force(session, today)
-    since = now - USAGE_WINDOW if focus is None else max(focus.started_ts, now - USAGE_WINDOW)
-    window = TimeWindow(since=since, until=now)
+def focus_standing(session: Session, now: dt.datetime, zone: str) -> schemas.FocusStanding:
+    """The focus in force at `now`, and each pursuit's standing against it over the window ending `now`."""
+    focus = focus_in_force(session, now, zone)
+    window = usage_window(None if focus is None else focus.started_ts, now)
     drawn = drawn_output(session, window)
-    pursuits = pursuits_drawing(session, drawn.output)
-    shares = filled_shares(focus, [pursuit for pursuit in pursuits if pursuit.status == 'active'])
+    pursuits = pursuits_listed(session, drawn.output)
+    shares = filled_shares(focus, pursuits)
     touched = pursuits_touched(session, [pursuit.id for pursuit in pursuits])
     figures = pursuit_figures(drawn, [pursuit.number for pursuit in pursuits], shares)
     rows = [
         schemas.PursuitStanding(
-            number=pursuit.number,
-            name=pursuit.name,
-            status=pursuit.status,
-            touched_ts=touched.get(pursuit.id),
-            **asdict(figures[pursuit.number]),
+            **figures[pursuit.number].model_dump(), name=pursuit.name, status=pursuit.status, touched_ts=touched.get(pursuit.id)
         )
         for pursuit in pursuits
     ]
-    outside = sum(row.output for row in message_rows(session, None, window) if row.outside)
+    outside = sum(row.output for row in message_rows(session, None, TimeWindow(since=window.since, until=window.until)) if row.outside)
     return schemas.FocusStanding(
-        focus=None if focus is None else focus_view(focus, today),
-        window=schemas.FocusWindow(since=since, until=now),
+        focus=None if focus is None else focus_view(focus, now, zone),
+        window=window,
         pursuits=sorted(rows, key=furthest_under_first),
         unattributed=schemas.UnattributedUsage(
             output_tokens=drawn.unattributed_output,
