@@ -274,6 +274,8 @@ def test_each_row_names_what_placed_it_one_hop_back(client):
 
 
 def test_each_board_row_says_where_the_rank_write_moves_it_and_the_write_lands_it_there(client):
+    """A waiter's two blockers each wait on a ready issue, so those two draw side by side and move past each other."""
+
     def depends(waiter: int, waited_on: int) -> None:
         ok(client.post(f'/issues/{waiter}/dependencies', json={'depends_on': waited_on}), status.HTTP_201_CREATED)
 
