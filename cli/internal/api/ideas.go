@@ -62,20 +62,36 @@ type IdeaUpdateInput struct {
 	Pursuits    *[]int    `json:"pursuits,omitempty"`
 }
 
-// IdeaPromoteInput shapes the initiative a promotion creates. An idea has no
-// summary, so Summary is required. Each nil field takes the idea's own, and an
-// empty Status takes active.
+// The kinds an idea is promoted to, as IdeaPromoteInput.Kind names them.
+const (
+	PromotedToInitiative = "initiative"
+	PromotedToIssue      = "issue"
+)
+
+// IdeaPromoteInput is what an idea becomes under its own number: Kind, an
+// initiative when empty, and the fields of that kind. The API refuses a field
+// of the other kind. An initiative needs Summary, because an idea has none.
+// Each nil field keeps what the record holds, and an empty Status takes active.
 type IdeaPromoteInput struct {
-	Summary     string    `json:"summary"`
-	Name        *string   `json:"name,omitempty"`
+	Kind        string    `json:"kind,omitempty"`
 	Description *string   `json:"description,omitempty"`
 	Priority    *int      `json:"priority,omitempty"`
-	Status      string    `json:"status,omitempty"`
-	Autofix     *bool     `json:"autofix,omitempty"`
 	Tags        *[]string `json:"tags,omitempty"`
-	Pursuits    *[]int    `json:"pursuits,omitempty"`
+
+	Summary  string  `json:"summary,omitempty"`
+	Name     *string `json:"name,omitempty"`
+	Status   string  `json:"status,omitempty"`
+	Autofix  *bool   `json:"autofix,omitempty"`
+	Pursuits *[]int  `json:"pursuits,omitempty"`
 	// NotPlannedSteps left empty plans every step, because an idea marks none.
 	NotPlannedSteps []string `json:"not_planned_steps,omitempty"`
+
+	Repo       *string  `json:"repo,omitempty"`
+	Paths      []string `json:"paths,omitempty"`
+	Type       *string  `json:"type,omitempty"`
+	Acceptance *string  `json:"acceptance,omitempty"`
+	Initiative *string  `json:"initiative,omitempty"`
+	Parent     *string  `json:"parent,omitempty"`
 }
 
 func ideaPath(ref string) string {
@@ -141,12 +157,25 @@ func (c *Client) UpdateIdea(ctx context.Context, ref string, in IdeaUpdateInput,
 	return written, nil
 }
 
-// PromoteIdea creates the initiative an idea becomes. A promoted idea is
-// refused. The answer's messages give each time in zone.
-func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInput, zone DayZone) (IdeaWritten, error) {
-	var written IdeaWritten
+// PromoteIdea turns an idea into an initiative under its own number. A number
+// another kind holds is refused. The answer's messages give each time in zone.
+func (c *Client) PromoteIdea(ctx context.Context, ref string, in IdeaPromoteInput, zone DayZone) (InitiativeWritten, error) {
+	in.Kind = ""
+	var written InitiativeWritten
 	if err := c.send(ctx, http.MethodPost, withQuery(ideaPath(ref)+"/promote", zoneQuery(zone)), in, &written); err != nil {
-		return IdeaWritten{}, err
+		return InitiativeWritten{}, err
+	}
+	return written, nil
+}
+
+// PromoteIdeaToIssue turns an idea into an issue under its own number, which
+// starts open and drops the idea's pursuits. The answer's messages give each
+// time in zone.
+func (c *Client) PromoteIdeaToIssue(ctx context.Context, ref string, in IdeaPromoteInput, zone DayZone) (IssueWritten, error) {
+	in.Kind = PromotedToIssue
+	var written IssueWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(ideaPath(ref)+"/promote", zoneQuery(zone)), in, &written); err != nil {
+		return IssueWritten{}, err
 	}
 	return written, nil
 }

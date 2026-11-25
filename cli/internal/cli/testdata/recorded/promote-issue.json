@@ -1,0 +1,93 @@
+{
+  "side_effects": [
+    {
+      "code": "claim_ended",
+      "message": "Ended claude-code/13cb8a46-copy-check's claim on #4245, because #4245 is promoted.",
+      "record": 4245
+    },
+    {
+      "code": "worklog_ended",
+      "message": "Ended worklog 4245.1 as promoted.",
+      "record": 4245
+    }
+  ],
+  "warnings": [
+    {
+      "code": "pursuits_dropped",
+      "message": "Dropped pursuit #2991 Neutral name 1, because an issue takes its initiative's pursuits.",
+      "record": 2991
+    }
+  ],
+  "issue": {
+    "claims": [
+      {
+        "id": 1591,
+        "record_number": 4245,
+        "holder": "claude-code/13cb8a46-copy-check",
+        "session": null,
+        "host": null,
+        "directory": null,
+        "started_ts": "2026-11-25T00:14:37.225385Z",
+        "expires_ts": "2026-11-25T04:14:37.225385Z",
+        "ended_ts": "2026-11-25T00:14:37.379949Z",
+        "ending": "promoted",
+        "ended_by": "copy-check",
+        "flow_id": "5b653b982fa59c5c55032456233e8baa",
+        "state": "ended",
+        "worklog": "4245.1",
+        "waiting": null
+      }
+    ],
+    "comments": [],
+    "documents": [],
+    "pursuits": [],
+    "id": "01a20a06-2309-7074-9ee7-620758349a70",
+    "number": 4245,
+    "title": "Neutral title 1",
+    "description": "Neutral description 1.",
+    "acceptance": "Neutral acceptance 1.",
+    "repo": "docs",
+    "paths": [
+      "docs"
+    ],
+    "type": "task",
+    "status": "open",
+    "status_reason": null,
+    "priority": 0,
+    "effective_priority": 0,
+    "rank": 4157.0,
+    "pinned_ts": null,
+    "pinned_by": null,
+    "pinned_session": null,
+    "flow_id": "4d72bbef557ba672dd86250b0e86cbc2",
+    "deferred_until_date": null,
+    "claim": null,
+    "last_check": null,
+    "check_request": null,
+    "autofix": false,
+    "initiative": null,
+    "parent": null,
+    "discovered_from": null,
+    "duplicate_of": null,
+    "labels": [],
+    "tags": [],
+    "effective_tags": [],
+    "refs": [],
+    "depends_on": [],
+    "blocks": [],
+    "initiative_waits_on": [],
+    "waiting_initiatives": [],
+    "blocked_by": [],
+    "child_count": 0,
+    "open_child_count": 0,
+    "comment_count": 0,
+    "is_blocked": false,
+    "is_ready": true,
+    "is_autofixable": false,
+    "created_ts": "2026-11-23T20:08:24.048789Z",
+    "updated_ts": "2026-11-25T00:14:37.377594Z",
+    "closed_ts": null,
+    "closed_by": null,
+    "children": []
+  }
+}

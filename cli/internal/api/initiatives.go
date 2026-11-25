@@ -42,7 +42,7 @@ type InitiativeSteps struct {
 // canceled issues and keeping completed ones. DependsOn is each initiative or
 // issue it waits on, and WaitingInitiatives each initiative waiting on it,
 // open or closed. Refs are each key or URL it names as what it came from,
-// oldest first, an idea's carried across when it was promoted.
+// oldest first.
 type Initiative struct {
 	ID            string      `json:"id"`
 	Number        int         `json:"number"`
