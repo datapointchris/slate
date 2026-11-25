@@ -114,10 +114,14 @@ def focus_usage_by_day(session: Session, now: dt.datetime, zone: str, focus_id: 
             )
         )
     named = {row.number for day in answered for row in day.pursuits}
+    days_in_focus = None
+    if focus is not None and days:
+        days_in_focus = (days[-1].day - focus.started_ts.astimezone(ZoneInfo(zone)).date()).days + 1
     return schemas.FocusUsage(
         focus=None if focus is None else focus_view(focus, now, zone),
         since=days[0].output_since if days else stopped,
         until=days[-1].window.until if days else stopped,
+        days_in_focus=days_in_focus,
         pursuits=[
             schemas.FocusUsagePursuit(number=pursuit.number, name=pursuit.name, status=pursuit.status)
             for pursuit in pursuits

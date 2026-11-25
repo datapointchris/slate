@@ -74,6 +74,7 @@ def focus_view(focus: models.Focus, now: dt.datetime, zone: str) -> schemas.Focu
         ended_reason=focus.ended_reason,
         set_by=focus.set_by,
         active=in_force(focus, now, zone),
+        held_until=held_until(focus, zone),
         shares=[
             schemas.FocusShare(
                 pursuit=schemas.PursuitSummary(number=share.pursuit.number, name=share.pursuit.name), share=float(share.share)

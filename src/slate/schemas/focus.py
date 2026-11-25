@@ -55,7 +55,9 @@ class Focus(BaseModel):
     """A focus as it was set, and whether it is in force.
 
     `active` is derived on read: nothing ended it, and its `until_date` is today or later in the
-    request's `timezone`. `shares` holds the shares it named, in pursuit number order.
+    request's `timezone`. `held_until` is the instant it stops holding: the earlier of `ended_ts`
+    and the midnight after `until_date` in that zone. `shares` holds the shares it named, in
+    pursuit number order.
     """
 
     id: int
@@ -66,6 +68,7 @@ class Focus(BaseModel):
     ended_reason: str | None = None
     set_by: str
     active: bool
+    held_until: dt.datetime
     shares: list[FocusShare] = []
 
 
@@ -181,8 +184,10 @@ class FocusUsage(BaseModel):
 
     `focus` is null where the read named none and none is in force, and the days are then the last
     `USAGE_DAYS` in `services/focus_usage_by_day.py`, with null shares. A focus longer than that
-    answers its last `USAGE_DAYS`. `since` and `until` bound the days answered, inside the focus.
-    `pursuits` names each pursuit that any day lists, in number order.
+    answers its last `USAGE_DAYS`. `days_in_focus` counts every day of the focus up to its last
+    one answered, so it exceeds the days answered where the read is cut, and is null with no
+    focus. `since` and `until` bound the days answered, inside the focus. `pursuits` names each
+    pursuit that any day lists, in number order.
 
     Each day's figures read the pursuits active now, and place each record in its pursuits as they
     stand now. So only the last day of the focus in force is sure to equal `GET /focus`.
@@ -191,5 +196,6 @@ class FocusUsage(BaseModel):
     focus: Focus | None
     since: dt.datetime
     until: dt.datetime
+    days_in_focus: int | None
     pursuits: list[FocusUsagePursuit]
     days: list[FocusUsageDay]

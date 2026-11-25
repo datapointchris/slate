@@ -209,7 +209,12 @@ def test_a_focus_older_than_thirty_days_answers_its_last_thirty_and_each_window_
     wrote(client, session, in_b, {before_one: 13, after_one: 17, clock.now - dt.timedelta(hours=1): 5})
 
     usage = ok(client.get('/focus/usage', params=zone))
-    assert (len(usage['days']), usage['days'][0]['day'], usage['days'][-1]['day']) == (30, '2026-10-22', '2026-11-20')
+    assert (len(usage['days']), usage['days_in_focus'], usage['days'][0]['day'], usage['days'][-1]['day']) == (
+        30,
+        81,
+        '2026-10-22',
+        '2026-11-20',
+    )
     after_the_change = {day['day']: day for day in usage['days']}['2026-11-05']
     since, until = (dt.datetime.fromisoformat(after_the_change['window'][bound]) for bound in ('since', 'until'))
     assert (since, until - since) == (dt.datetime(2026, 10, 7, 1, tzinfo=new_york), dt.timedelta(hours=720))
@@ -220,7 +225,8 @@ def test_a_focus_older_than_thirty_days_answers_its_last_thirty_and_each_window_
 
     ok(client.post('/focus/end', params=zone, json={'reason': 'Warehouse landed'}))
     unfocused = ok(client.get('/focus/usage', params=zone))
-    assert (unfocused['focus'], len(unfocused['days']), {row['share'] for row in unfocused['days'][-1]['pursuits']}) == (None, 30, {None})
+    unfocused_shares = {row['share'] for row in unfocused['days'][-1]['pursuits']}
+    assert (unfocused['focus'], unfocused['days_in_focus'], len(unfocused['days']), unfocused_shares) == (None, None, 30, {None})
     assert standing_figures(unfocused['days'][-1]['pursuits']) == standing_figures(ok(client.get('/focus', params=zone))['pursuits'])
 
 
@@ -240,4 +246,5 @@ def test_a_lapsed_focus_reads_the_same_days_before_and_after_the_next_set_ends_i
     after = ok(client.get('/focus/usage', params={'focus': lapsed['id']}))
     assert ([day['day'] for day in after['days']], after['until']) == (['2026-06-01', '2026-06-02', '2026-06-03'], '2026-06-04T00:00:00Z')
     assert after['days'] == before['days']
+    assert [usage['focus']['held_until'] for usage in (before, after)] == ['2026-06-04T00:00:00Z'] * 2
     assert by_pursuit(after['days'][-1], 'split_output_tokens') == {a: 0, b: 30}
