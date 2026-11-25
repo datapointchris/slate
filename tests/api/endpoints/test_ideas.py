@@ -111,3 +111,118 @@ def test_deleting_an_idea_takes_its_refs_claims_and_pin(client, txn_api_logged_i
     assert session.scalar(select(func.count()).select_from(models.RecordRef).where(models.RecordRef.record_number == number)) == 0
     assert session.scalar(select(func.count()).select_from(models.Claim).where(models.Claim.record_number == number)) == 0
     assert session.get(models.Record, number) is None
+
+
+FOLDER = 'claude-code/fold'
+
+
+def new_initiative(client, **fields) -> dict:
+    body = {'name': 'Narrate the fleet from its tables', 'summary': 'One agent writes each narration.', **fields}
+    return ok(client.post('/initiatives', json=body), status.HTTP_201_CREATED)['initiative']
+
+
+def rows_on(session, number: int) -> dict[str, int]:
+    """How many rows of each kind still name `number`."""
+    kinds = (models.Worklog, models.Claim, models.Comment, models.RecordCheck, models.Document, models.RecordRef, models.RecordTag)
+    return {
+        model.__tablename__: session.scalar(select(func.count()).select_from(model).where(model.record_number == number)) for model in kinds
+    }
+
+
+def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in):
+    _, session = txn_api_logged_in
+    for name in ('security', 'data'):
+        ok(client.post('/tags', json={'name': name, 'description': f'Work on {name}'}), status.HTTP_201_CREATED)
+    pursuits = [
+        ok(client.post('/pursuits', json={'name': name, 'summary': 'It holds work'}), status.HTTP_201_CREATED)['pursuit']['number']
+        for name in ('Data Warehouse', 'Personal OS')
+    ]
+    target = new_initiative(client, tags=['security'], pursuits=pursuits[:1], refs=['inbox:1'])['number']
+    ok(client.post('/claims', json={'record': target, 'holder': FOLDER, 'step': 'design'}))
+    ok(client.put(f'/documents/{target}/design', json={'kind': 'design', 'body': 'The target design\n'}), status.HTTP_201_CREATED)
+
+    idea = new_idea(client, tags=['security', 'data'], pursuits=pursuits, refs=['inbox:1', 'inbox:2'])
+    number = idea['number']
+    ok(client.post('/claims', json={'record': number, 'holder': 'claude-code/shape', 'step': 'shape'}))
+    ok(client.post(f'/claims/{number}/release', json={'released_by': 'claude-code/shape'}))
+    ok(client.post('/claims', json={'record': number, 'holder': FOLDER}))
+    ok(client.post(f'/claims/{number}/wait', json={'holder': FOLDER, 'waiting_on': 'a review'}))
+    ok(client.post('/comments', json={'record': number, 'body': 'Worth a narration'}), status.HTTP_201_CREATED)
+    ok(client.put(f'/documents/{number}/design', json={'kind': 'design', 'body': 'Line one\nLine two\n'}), status.HTTP_201_CREATED)
+    line = {'record': number, 'document': 'design', 'line': 1, 'body': 'About line one'}
+    ok(client.post('/comments', json=line), status.HTTP_201_CREATED)
+    session.add(models.RecordCheck(record_number=number, checked_by='a-check', verdict='holds', evidence='It still holds'))
+    session.flush()
+    earlier = new_idea(client, title='Read the fleet each morning')['number']
+    ok(client.post(f'{IDEAS}/{earlier}/fold', json={'into': number, 'holder': FOLDER}))
+
+    folded = ok(client.post(f'{IDEAS}/{number}/fold', json={'into': target, 'holder': FOLDER}))
+    assert folded['initiative']['number'] == target
+    assert {effect['code'] for effect in folded['side_effects']} >= {
+        'claim_ended',
+        'worklog_moved',
+        'claims_moved',
+        'comments_moved',
+        'checks_moved',
+        'document_moved',
+        'refs_moved',
+        'tags_moved',
+        'pursuits_moved',
+        'redirect_retargeted',
+        'record_redirected',
+    }
+    assert set(rows_on(session, number).values()) == {0}
+    assert [ok(client.get(f'/worklogs/{number}.{sequence}'))['name'] for sequence in (1, 2)] == [f'{target}.2', f'{target}.3']
+    claims = ok(client.get(f'/records/{target}'))['record']['claims']
+    assert {(claim['holder'], claim['ending'], claim['ended_by']) for claim in claims} == {
+        (FOLDER, None, None),
+        (FOLDER, 'released', FOLDER),
+        ('claude-code/shape', 'released', 'claude-code/shape'),
+    }
+
+    renamed = ok(client.get(f'/documents/{number}/design'))
+    assert (renamed['name'], [comment['body'] for comment in renamed['comments']]) == (f'design-from-{number}', ['About line one'])
+    assert ok(client.get(f'/documents/{target}/design'))['name'] == 'design'
+
+    read = ok(client.get(f'/records/{number}'))
+    assert (read['kind'], read['number']) == ('initiative', target)
+    assert [(row['number'], row['reason']) for row in read['record']['redirected_from']] == [(earlier, 'folded'), (number, 'folded')]
+    assert (read['record']['tags'], sorted(row['ref'] for row in read['record']['refs'])) == (['data', 'security'], ['inbox:1', 'inbox:2'])
+    assert sorted(pursuit['number'] for pursuit in read['record']['pursuits']) == sorted(pursuits)
+    assert ok(client.get(f'/records/{earlier}'))['number'] == target
+    assert ok(client.get(f'/initiatives/{idea["id"]}'))['number'] == target
+    missing = client.get(f'{IDEAS}/{number}')
+    assert (missing.status_code, f'initiative #{target}' in missing.json()['message']) == (status.HTTP_404_NOT_FOUND, True)
+    assert number not in [row['number'] for row in ok(client.get('/queue', params={'step': 'discuss'}))['queue']]
+    assert ('ideas', 'delete') in {(row['table_name'], row['operation']) for row in ok(client.get(f'/records/{target}/changes'))}
+
+    completed = new_initiative(client, name='Shipped narration', status='completed')['number']
+    assert ok(client.post(f'{IDEAS}/{new_idea(client)["number"]}/fold', json={'into': completed}))['initiative']['status'] == 'completed'
+
+
+def test_fold_refuses_what_it_cannot_move(client, txn_api_logged_in):
+    _, session = txn_api_logged_in
+    idea = new_idea(client)['number']
+    target = new_initiative(client)['number']
+    pursuit = ok(client.post('/pursuits', json={'name': 'Data Warehouse', 'summary': 'It holds work'}), status.HTTP_201_CREATED)['pursuit']
+
+    def refused(response, names: str) -> None:
+        assert (response.status_code, names in response.json()['message']) == (status.HTTP_409_CONFLICT, True), show_status_and_response(
+            response
+        )
+
+    refused(client.post(f'{IDEAS}/{target}/fold', json={'into': idea}), 'is an initiative')
+    refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': pursuit['number']}), 'is a pursuit')
+    refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': idea}), 'itself')
+    for held in (idea, target):
+        ok(client.post('/claims', json={'record': held, 'holder': 'claude-code/other'}))
+        refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': target, 'holder': FOLDER}), 'claude-code/other holds')
+        ok(client.post(f'/claims/{held}/release', json={'released_by': 'claude-code/other'}))
+    assert (session.get(models.Record, idea).kind, ok(client.get(f'/initiatives/{target}'))['redirected_from']) == ('idea', [])
+
+    ok(client.post(f'{IDEAS}/{idea}/fold', json={'into': target}))
+    refused(client.delete(f'{IDEAS}/{idea}'), f'run it against #{target}')
+    refused(client.patch(f'{IDEAS}/{idea}', json={'title': 'Renamed'}), f'run it against #{target}')
+    refused(client.post('/comments', json={'record': idea, 'body': 'Late word'}), f'run it against #{target}')
+    shown = ok(client.get(f'/initiatives/{target}'))
+    assert (shown['name'], shown['comments']) == ('Narrate the fleet from its tables', [])

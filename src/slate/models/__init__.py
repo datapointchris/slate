@@ -30,6 +30,7 @@ from slate.models.record_change import AuditTrailTable
 from slate.models.record_change import RecordChange
 from slate.models.record_check import CheckVerdict
 from slate.models.record_check import RecordCheck
+from slate.models.record_redirect import RecordRedirect
 from slate.models.record_ref import RecordRef
 from slate.models.tag import RecordTag
 from slate.models.tag import Tag
@@ -39,6 +40,7 @@ from slate.models.worklog import WorklogLinkKind
 from slate.models.worklog import WorklogOutcome
 from slate.models.worklog import WorklogSpan
 from slate.models.worklog import WorklogStep
+from slate.models.worklog_redirect import WorklogRedirect
 
 # The table holding each kind of record, read from the kind each model declares.
 KIND_MODELS: dict[Kind, type[Idea] | type[Initiative] | type[Issue] | type[Pursuit]] = {
@@ -78,6 +80,7 @@ __all__ = [
     'RecordCheck',
     'RecordKind',
     'RecordPursuit',
+    'RecordRedirect',
     'RecordRef',
     'RecordTag',
     'Tag',
@@ -85,6 +88,7 @@ __all__ = [
     'WorklogLink',
     'WorklogLinkKind',
     'WorklogOutcome',
+    'WorklogRedirect',
     'WorklogSpan',
     'WorklogStep',
 ]

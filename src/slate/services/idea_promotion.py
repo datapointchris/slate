@@ -51,17 +51,27 @@ def in_place_of(promoted: PromotedIdea | None) -> dict[str, object]:
     return {'record': promoted.record, 'id': promoted.id, 'created_ts': promoted.created_ts}
 
 
+def idea_number(session: Session, ref: str) -> int:
+    """The number `ref` names as an idea's, by number or by the idea's UUID, whatever kind holds it now.
+
+    A number no record holds goes through `resolve_idea`, which answers 404, or 409 where a fold
+    retired the number, since only a write asks for an idea this way.
+    """
+    number = record_number(ref)
+    if number is None and (idea_id := parse_uuid(ref)) is not None:
+        number = number_holding_id(session, idea_id)
+    if number is None or session.get(models.Record, number) is None:
+        number = resolve_idea(session, ref).number
+    return number
+
+
 def lock_idea(session: Session, ref: str) -> models.Idea:
     """The idea `ref` names, with its `records` row locked `FOR UPDATE` until the transaction ends.
 
     Two promotions of one idea then run one after the other. The second reads the kind the first
     committed, and answers 409 as a number that another kind holds does.
     """
-    number = record_number(ref)
-    if number is None and (idea_id := parse_uuid(ref)) is not None:
-        number = number_holding_id(session, idea_id)
-    if number is None:
-        number = resolve_idea(session, ref).number
+    number = idea_number(session, ref)
     locked = select(models.Record).where(models.Record.number == number).with_for_update().execution_options(populate_existing=True)
     record = session.scalar(locked)
     if record is None:

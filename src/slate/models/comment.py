@@ -45,7 +45,10 @@ class Comment(Base):
     flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
 
     __table_args__ = (
-        ForeignKeyConstraint(['record_number', 'document_id'], ['documents.record_number', 'documents.id'], ondelete='CASCADE'),
+        # A fold moves a document to another record, and its line comments follow it there.
+        ForeignKeyConstraint(
+            ['record_number', 'document_id'], ['documents.record_number', 'documents.id'], ondelete='CASCADE', onupdate='CASCADE'
+        ),
         ForeignKeyConstraint(
             ['document_id', 'version'], ['document_versions.document_id', 'document_versions.version'], ondelete='CASCADE'
         ),

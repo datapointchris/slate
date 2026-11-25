@@ -1,4 +1,7 @@
-"""Ideas: work nobody has taken on, with its priority and refs, until promotion turns it into an initiative or an issue."""
+"""Ideas: work nobody has taken on, with its priority and refs.
+
+A promotion turns an idea into an initiative or an issue, and a fold ends it into the work that covers it.
+"""
 
 import datetime as dt
 from typing import Annotated
@@ -21,10 +24,15 @@ from slate.api.callers import signer_named_or_caller
 from slate.api.exceptions import Refusal
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
+from slate.models.record_redirect import FOLDED
 from slate.schemas.idea import FIELDS_OF_KIND
 from slate.schemas.idea import SHARED_FIELDS
 from slate.schemas.idea import PromotedKind
 from slate.services.claims import end_with_record
+from slate.services.idea_folds import fold_rows_into
+from slate.services.idea_folds import lock_fold
+from slate.services.idea_folds import name_folded_rows
+from slate.services.idea_folds import settle_claims
 from slate.services.idea_promotion import PromotedIdea
 from slate.services.idea_promotion import lock_idea
 from slate.services.idea_promotion import turn_idea_into
@@ -272,3 +280,50 @@ def promote_to_issue(
     )
     session.commit()
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))
+
+
+FoldWritten = schemas.IdeaWritten | schemas.InitiativeWritten | schemas.IssueWritten
+
+
+@router.post('/{id}/fold', response_model=FoldWritten, status_code=status.HTTP_200_OK)
+def fold(id: str, request: schemas.IdeaFold, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects) -> FoldWritten:
+    """End the idea into the idea, initiative or issue `into` names, which covers its work, in one transaction.
+
+    Every row on the idea's number moves to the target: worklogs, renumbered after the target's
+    last, claims and their waits, comments, checks, documents with their line comments, and refs,
+    tags and pursuits as a union. A document whose name the target holds moves as
+    `<name>-from-<idea>`. The idea's number, its `id` and each worklog's old name then lead there,
+    and so does every number that led to the idea. The target keeps its number, its fields and its
+    place in the queue, so the idea's pin is dropped with a warning. A closed target is accepted,
+    because the idea's work may already have shipped there.
+
+    Another session's live claim on either record answers 409 naming its holder. The caller's claim
+    on the idea moves to the target, or ends as released where `holder` holds the target too. A
+    non-idea, a pursuit, the idea itself and a number a fold already retired each answer 409. The
+    answer is the target's own kind's envelope, naming each row moved in `side_effects`.
+    """
+    idea, target = lock_fold(session, id, request.into)
+    idea_number, target_number = idea.number, target.number
+    name_record(idea_number)
+    now = dt.datetime.now(dt.UTC)
+    actor = caller_actor(caller)
+    settle_claims(session, idea_number, target_number, request.holder or actor, now, effects)
+    folded = fold_rows_into(session, idea_number, target_number, reason=FOLDED, redirected_ts=now, redirected_by=actor)
+    name_folded_rows(folded, effects)
+    session.commit()
+    return fold_target_written(session, target_number, zone, effects)
+
+
+def fold_target_written(session: DbSession, number: int, zone: str, effects: WriteEffects) -> FoldWritten:
+    """The fold's target, answered in its own kind's envelope."""
+    kind = session.scalar(select(models.Record.kind).where(models.Record.number == number))
+    match kind:
+        case Kind.IDEA:
+            target_idea = session.scalars(select(models.Idea).where(models.Idea.number == number)).one()
+            return effects.answer(schemas.IdeaWritten, idea=idea_view(session, target_idea))
+        case Kind.INITIATIVE:
+            initiative = session.scalars(select(models.Initiative).where(models.Initiative.number == number)).one()
+            return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
+        case _:
+            issue = session.scalars(select(models.Issue).where(models.Issue.number == number)).one()
+            return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, issue, zone))

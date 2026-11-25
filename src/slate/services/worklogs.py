@@ -46,6 +46,7 @@ def worklog_name_parts(ref: str) -> tuple[int, int] | None:
 
 
 def resolve_worklog(session: Session, ref: str) -> models.Worklog:
+    """The worklog a name names, or the one a fold renamed from it."""
     parts = worklog_name_parts(ref)
     if parts is None:
         raise HTTPException(
@@ -54,6 +55,10 @@ def resolve_worklog(session: Session, ref: str) -> models.Worklog:
         )
     number, sequence = parts
     worklog = session.scalar(select(models.Worklog).where(models.Worklog.record_number == number, models.Worklog.sequence == sequence))
+    if worklog is None:
+        worklog = session.scalar(
+            select(models.Worklog).join(models.WorklogRedirect).where(models.WorklogRedirect.name == f'{number}.{sequence}')
+        )
     if worklog is None:
         raise NotFoundException('worklog', ref, logger)
     return worklog

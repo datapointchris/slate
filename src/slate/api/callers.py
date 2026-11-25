@@ -5,6 +5,8 @@ write they make records their `sub` as its actor. A service client is named by i
 """
 
 from typing import Annotated
+from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfoNotFoundError
 
 import structlog
 from fastapi import Depends
@@ -19,8 +21,13 @@ from slate.api.exceptions import UnauthorizedException
 from slate.api.oidc_auth import OIDCIdentity
 from slate.api.oidc_auth import ScopedClient
 from slate.api.oidc_auth import get_oidc_identity
+from slate.api.request_zone import CALENDAR_FALLBACK_ZONE
 from slate.database.session import get_sqlalchemy_session
 from slate.models.record_change import bind_actor
+from slate.services.record_lookup import mark_request
+
+# The methods that read and never write, as RFC 9110 calls them safe.
+SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
 
 logger = structlog.get_logger()
 
@@ -44,6 +51,21 @@ def get_current_caller(
     bind_actor(session, identity.actor)
     logger.debug('auth_method_person', subject=identity.subject, username=identity.username, client_id=identity.client_id)
     return identity
+
+
+def mark_request_on_session(request: Request, session: Annotated[Session, Depends(get_sqlalchemy_session)]) -> None:
+    """Say on the session whether the request writes, before any route resolves a record, so a write through a retired number is refused.
+
+    The zone is the one the request names in `timezone`, which every CLI write sends, so a refusal
+    dates the redirect on the reader's calendar. A zone that names none falls back to UTC here, and
+    the route's own validation still refuses it.
+    """
+    zone = request.query_params.get('timezone') or CALENDAR_FALLBACK_ZONE
+    try:
+        ZoneInfo(zone)
+    except ZoneInfoNotFoundError, ValueError:
+        zone = CALENDAR_FALLBACK_ZONE
+    mark_request(session, request.method not in SAFE_METHODS, zone)
 
 
 def caller_actor(caller: OIDCIdentity | ScopedClient) -> str:
