@@ -80,6 +80,7 @@ def queue_board(session: Session, zone: str) -> schemas.QueueBoard:
             spot,
             schemas.QueueBoardRow(
                 **spot.row_fields(),
+                slot=spot.key.slot_number,
                 kind='issue',
                 number=issue.number,
                 title=issue.title,
@@ -105,6 +106,7 @@ def queue_board(session: Session, zone: str) -> schemas.QueueBoard:
             spot,
             schemas.QueueBoardRow(
                 **spot.row_fields(),
+                slot=spot.key.slot_number,
                 kind='initiative',
                 number=initiative.number,
                 title=initiative.name,
@@ -121,6 +123,7 @@ def queue_board(session: Session, zone: str) -> schemas.QueueBoard:
             spot,
             schemas.QueueBoardRow(
                 **spot.row_fields(),
+                slot=spot.key.slot_number,
                 kind='idea',
                 number=idea.number,
                 title=idea.title,

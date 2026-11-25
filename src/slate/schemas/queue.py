@@ -113,11 +113,14 @@ class QueueBoardRow(QueueRowBase):
     issue's initiative, as an issue's read names it, and `pursuits` that initiative's for an issue, else the record's own.
     `repos` is an issue's repo, or each repo an initiative's issues name. `open_count` is an
     initiative's unclosed issues. `expires_ts` and `waiting` are those of the claim holding a
-    claimed row, which is the initiative's where `held_through` is set.
+    claimed row, which is the initiative's where `held_through` is set. `slot` is the record whose
+    slot holds the row's place: its own, its initiative's, or that of what raised it. A move ranks a
+    row beside a slot, so a board reads its neighbors' slots to say where a move lands.
     """
 
     kind: Literal['issue', 'initiative', 'idea']
     own_priority: int
+    slot: int
     initiative: InitiativeSummary | None = None
     repos: list[str] = []
     pursuits: list[PursuitSummary] = []

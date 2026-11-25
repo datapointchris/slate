@@ -108,6 +108,9 @@ carries only what a board draws, and no `record`:
 - an issue's `initiative`, in the same shape as on the issue's own read, and
   `repos`: an issue's repo, or each repo that an initiative's issues name
 - `pursuits`: an issue's initiative's, else the record's own
+- `slot`, the record whose slot holds the row's place: its own, its
+  initiative's, or that of what raised it. A move ranks a row beside a slot,
+  so a board reads the slots of a row's neighbors to say where a move lands.
 - an initiative's `open_count`, and an issue's `overlaps`
 - on a claimed row, `holder`, `held_through`, and the claim's `expires_ts` and
   `waiting`. Where `held_through` names an initiative, its claim holds the

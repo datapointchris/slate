@@ -256,18 +256,20 @@ def test_each_row_names_what_placed_it_one_hop_back(client):
     depends(urgent, pulled)
 
     placed = {
-        alone: ('own', None, None),
-        pinned: ('pin', None, None),
-        inside: ('initiative', None, plan),
-        child: ('parent', parent, None),
-        blocker: ('waiter', gated, None),
-        pulled: ('waiter', urgent, pinned_plan),
-        kept: ('initiative', None, pinned_plan),
+        alone: ('own', None, None, alone),
+        pinned: ('pin', None, None, pinned),
+        inside: ('initiative', None, plan, plan),
+        child: ('parent', parent, None, parent),
+        blocker: ('waiter', gated, None, gated),
+        pulled: ('waiter', urgent, pinned_plan, urgent),
+        kept: ('initiative', None, pinned_plan, pinned_plan),
     }
     board = ok(client.get(BOARD))['queue']
-    assert {row['number']: (row['placed_by'], row['raised_by'], (row['initiative'] or {}).get('number')) for row in board} == placed
+    assert {
+        row['number']: (row['placed_by'], row['raised_by'], (row['initiative'] or {}).get('number'), row['slot']) for row in board
+    } == placed
     assert {row['number']: row['placed_by'] for row in ok(client.get(QUEUE))['queue']} == {
-        number: placed_by for number, (placed_by, _, _) in placed.items()
+        number: placed_by for number, (placed_by, _, _, _) in placed.items()
     }
 
 
