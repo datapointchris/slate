@@ -106,6 +106,26 @@ class Queue(BaseModel):
     claimed: list[QueueRow]
 
 
+class QueueMove(BaseModel):
+    """Where one move takes a queued row, as the rank write's own rules decide it.
+
+    `beside` is the record that write names: `before` it to move the row ahead, `after` it to move
+    the row behind. `passes` lists each queued row that ends up on the row's other side, nearest
+    first. `refused` is why the write would be refused, in its own words, and `beside` is then null.
+    """
+
+    beside: int | None = None
+    passes: list[int] = []
+    refused: str | None = None
+
+
+class QueueRowMoves(BaseModel):
+    """A queued row's move ahead of the row above it, and behind the row below it."""
+
+    ahead: QueueMove
+    behind: QueueMove
+
+
 class QueueBoardRow(QueueRowBase):
     """One row of the queue with only what a board draws of it, and no record body.
 
@@ -114,13 +134,15 @@ class QueueBoardRow(QueueRowBase):
     `repos` is an issue's repo, or each repo an initiative's issues name. `open_count` is an
     initiative's unclosed issues. `expires_ts` and `waiting` are those of the claim holding a
     claimed row, which is the initiative's where `held_through` is set. `slot` is the record whose
-    slot holds the row's place: its own, its initiative's, or that of what raised it. A move ranks a
-    row beside a slot, so a board reads its neighbors' slots to say where a move lands.
+    slot holds the row's place: its own, its initiative's, or the slot of the issue that raised it,
+    however many hops back. `moves` says where a move ahead or behind takes a queued row, and is
+    null on a claimed row, which holds no place in the order drawn.
     """
 
     kind: Literal['issue', 'initiative', 'idea']
     own_priority: int
     slot: int
+    moves: QueueRowMoves | None = None
     initiative: InitiativeSummary | None = None
     repos: list[str] = []
     pursuits: list[PursuitSummary] = []

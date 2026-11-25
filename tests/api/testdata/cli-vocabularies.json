@@ -103,6 +103,13 @@
     "build",
     "retro"
   ],
+  "placed_by": [
+    "own",
+    "pin",
+    "initiative",
+    "parent",
+    "waiter"
+  ],
   "promote_kinds": [
     "initiative",
     "issue"

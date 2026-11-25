@@ -273,6 +273,55 @@ def test_each_row_names_what_placed_it_one_hop_back(client):
     }
 
 
+def test_each_board_row_says_where_the_rank_write_moves_it_and_the_write_lands_it_there(client):
+    def depends(waiter: int, waited_on: int) -> None:
+        ok(client.post(f'/issues/{waiter}/dependencies', json={'depends_on': waited_on}), status.HTTP_201_CREATED)
+
+    def idea(title: str, priority: int) -> int:
+        return ok(client.post('/ideas', json={'title': title, 'priority': priority}), status.HTTP_201_CREATED)['idea']['number']
+
+    pinned = idea('Water the plants', 2)
+    pin(client, 'ideas', pinned)
+    urgent = issue(client, 'Ship the export today', priority=1)
+    first_wait, second_wait = issue(client, 'Export the rows'), issue(client, 'Export the columns')
+    first_raised, second_raised = issue(client, 'Read the rows'), issue(client, 'Read the columns')
+    depends(urgent, first_wait)
+    depends(urgent, second_wait)
+    depends(first_wait, first_raised)
+    depends(second_wait, second_raised)
+    urgent_idea = idea('Try a layout', 1)
+    plan = initiative(client, 'Ship the importer', priority=2)
+    check_step(client, plan, 'preflight')
+    first_inside, second_inside = issue(client, 'Import stage 1', initiative=plan), issue(client, 'Import stage 2', initiative=plan)
+    last = idea('Schedule review rounds', 2)
+
+    def board() -> list[dict]:
+        return ok(client.get(BOARD))['queue']
+
+    def answered(move: dict) -> object:
+        assert (move['beside'] is None) == (move['refused'] is not None), move
+        return 'refused' if move['refused'] else (move['beside'], move['passes'])
+
+    drawn = board()
+    assert [row['number'] for row in drawn] == [pinned, first_raised, second_raised, urgent_idea, first_inside, second_inside, last]
+    assert {row['number']: (answered(row['moves']['ahead']), answered(row['moves']['behind'])) for row in drawn} == {
+        pinned: ('refused', 'refused'),
+        first_raised: ('refused', (second_raised, [second_raised])),
+        second_raised: ((first_raised, [first_raised]), 'refused'),
+        urgent_idea: ((urgent, [second_raised, first_raised]), 'refused'),
+        first_inside: ('refused', (second_inside, [second_inside])),
+        second_inside: ((first_inside, [first_inside]), 'refused'),
+        last: ((plan, [second_inside, first_inside]), 'refused'),
+    }
+    refused = client.post(f'/issues/{second_raised}/rank', json={'after': first_inside})
+    assert refused.json()['message'] == drawn[2]['moves']['behind']['refused']
+
+    ok(client.post(f'/issues/{second_raised}/rank', json={'before': first_raised}))
+    ok(client.post(f'/ideas/{urgent_idea}/rank', json={'before': urgent}))
+    ok(client.post(f'/ideas/{last}/rank', json={'before': plan}))
+    assert [row['number'] for row in board()] == [pinned, urgent_idea, second_raised, first_raised, last, first_inside, second_inside]
+
+
 def test_an_issue_filed_and_claimed_after_readiness_was_measured_lists_under_its_holder_alone(client, txn_api_logged_in, monkeypatch):
     """Each statement after the readiness pass sees what committed since, so a claim landing between them reaches the read unmeasured."""
     _, session = txn_api_logged_in

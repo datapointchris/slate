@@ -109,8 +109,12 @@ carries only what a board draws, and no `record`:
   `repos`: an issue's repo, or each repo that an initiative's issues name
 - `pursuits`: an issue's initiative's, else the record's own
 - `slot`, the record whose slot holds the row's place: its own, its
-  initiative's, or that of what raised it. A move ranks a row beside a slot,
-  so a board reads the slots of a row's neighbors to say where a move lands.
+  initiative's, or the slot of the issue that raised it, however many hops
+  back
+- on a queued row, `moves`: for `ahead` and `behind`, the record that a rank
+  write names to move the row past the place beside it, and the rows that it
+  passes, or the 409 that write would answer. The rank write's own rule works
+  each out, so a board makes the move it offers. A claimed row's is null.
 - an initiative's `open_count`, and an issue's `overlaps`
 - on a claimed row, `holder`, `held_through`, and the claim's `expires_ts` and
   `waiting`. Where `held_through` names an initiative, its claim holds the
