@@ -70,6 +70,12 @@ A worklog's `state` is derived on every read, and takes a claim's three names:
 `models.Worklog` holds each as a predicate that reads the same in Python and in
 SQL, so a read and a list filter cannot disagree.
 
+`held_until` is derived the same way: when the worklog stopped being under way,
+its `ended_ts`, else where its claim ended or ran out, and null while live.
+`GET /worklogs` lists the expired and the ended by it, the latest first, so a
+limit keeps the ones that stopped most recently, however long ago each started.
+The live and `all` list the latest started first.
+
 ## A session is in one worklog at a time
 
 A span says an agent session was in a worklog from `started_ts` to `ended_ts`.

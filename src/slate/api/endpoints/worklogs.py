@@ -109,12 +109,15 @@ def read_many(
     state: Annotated[WorklogStateFilter, Query(description='live is under way; expired lost its claim; ended is history')] = 'live',
     limit: RowLimit = None,
 ):
-    """Worklogs, latest started first. The default reads the live ones: what is under way now."""
+    """Worklogs, the live ones and `all` latest started first, the expired and ended latest stopped first.
+
+    The default reads the live ones: what is under way now. Under a limit, the expired and ended
+    reads keep the worklogs that most recently ran out or ended, however long ago each started.
+    """
     now = dt.datetime.now(dt.UTC)
+    latest_first = models.Worklog.held_until(now) if state in ('expired', 'ended') else models.Worklog.started_ts
     query = (
-        with_worklog_claim(select(models.Worklog))
-        .options(*WORKLOG_LOAD_OPTIONS)
-        .order_by(models.Worklog.started_ts.desc(), models.Worklog.id.desc())
+        with_worklog_claim(select(models.Worklog)).options(*WORKLOG_LOAD_OPTIONS).order_by(latest_first.desc(), models.Worklog.id.desc())
     )
     if record is not None:
         number = resolve_record(session, record).number

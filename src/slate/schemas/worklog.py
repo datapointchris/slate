@@ -78,7 +78,9 @@ class WorklogLink(RecordModel):
 class Worklog(RecordModel):
     """One go at one record, named `<record>.<sequence>`.
 
-    `state`, `stage` and `tokens` are derived on every read. `claim` is the claim whose hold opened
+    `state`, `stage`, `held_until` and `tokens` are derived on every read. `held_until` is when it
+    stopped being under way: its end, else where its claim ran out or ended, and null while live.
+    `claim` is the claim whose hold opened
     it, and `waits` every stretch that claim's holder spent waiting. `tokens` sums its spans', as
     each session last reported them, and is null while none of its spans holds a reported message.
     `document_versions` is every version a session wrote while in it, oldest first. `step` is the
@@ -101,6 +103,7 @@ class Worklog(RecordModel):
     outcome: str | None = None
     ended_by: str | None = None
     flow_id: str | None = None
+    held_until: dt.datetime | None = None
     state: WorklogState
     stage: WorklogStage
     claim: Claim | None = None
