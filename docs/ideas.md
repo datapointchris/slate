@@ -108,7 +108,9 @@ One transaction does the whole fold:
    each old name is kept in `worklog_redirects`. Claims with their waits,
    comments and checks move as they are. A document whose name the record
    already holds moves as `<name>-from-<idea>`, and its line comments follow
-   through the `ON UPDATE CASCADE` key on `comments`. Refs, tags and pursuits
+   through the `ON UPDATE CASCADE` key on `comments`. Each document's old
+   number and name are kept in `document_redirects`, mapped to its `id`, so a
+   later fold that moves it again leaves no chain. Refs, tags and pursuits
    move where the record lacks them. An issue holds no pursuits, so a fold into
    one drops the idea's.
 5. **It retargets every redirect that led to the idea**, so a retired number

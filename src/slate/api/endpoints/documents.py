@@ -21,7 +21,7 @@ from slate.api.callers import caller_actor
 from slate.models.document import DOCUMENT_NAME_PATTERN
 from slate.services.document_views import document_view
 from slate.services.document_views import list_documents
-from slate.services.documents import find_document
+from slate.services.documents import document_moved_off
 from slate.services.documents import resolve_document
 from slate.services.documents import resolve_version
 from slate.services.documents import write_version
@@ -88,14 +88,14 @@ def read_one(
 
     A line comment written on another version sits on the line its own became here, or on no line
     when this version changed or removed it. Through a number a fold retired, it answers the
-    document the fold renamed `<name>-from-<number>`, and the target's own `<name>` where none was.
+    document that number held as `name`, wherever later folds moved it, and the target's own
+    `<name>` where the number held none.
     """
     number = resolve_record(session, record).number
     name_record(number)
     redirect = redirect_named(session, record)
-    if redirect is not None and find_document(session, number, renamed := f'{name}-from-{redirect.number}') is not None:
-        name = renamed
-    document = resolve_document(session, number, name)
+    moved = document_moved_off(session, redirect.number, name) if redirect is not None else None
+    document = moved or resolve_document(session, number, name)
     return document_view(session, document, resolve_version(document, version))
 
 

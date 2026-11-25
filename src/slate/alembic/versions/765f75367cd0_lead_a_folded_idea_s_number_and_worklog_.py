@@ -1,4 +1,4 @@
-"""lead a folded idea's number and worklog names to where its rows went
+"""lead a folded idea's number, worklog names and document addresses to where its rows went
 
 Revision ID: 765f75367cd0
 Revises: b8b7f5a0b2ce
@@ -48,6 +48,18 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('name', name=op.f('pk_worklog_redirects')),
     )
     op.create_index('idx_worklog_redirects_worklog_id', 'worklog_redirects', ['worklog_id'], unique=False)
+    op.create_table(
+        'document_redirects',
+        sa.Column('record_number', sa.BigInteger(), autoincrement=False, nullable=False),
+        sa.Column('name', sa.Text(), nullable=False),
+        sa.Column('document_id', sa.BigInteger(), nullable=False),
+        sa.Column('redirected_ts', sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ['document_id'], ['documents.id'], name=op.f('fk_document_redirects_document_id_documents'), ondelete='CASCADE'
+        ),
+        sa.PrimaryKeyConstraint('record_number', 'name', name=op.f('pk_document_redirects')),
+    )
+    op.create_index('idx_document_redirects_document_id', 'document_redirects', ['document_id'], unique=False)
     op.drop_constraint(op.f('fk_comments_record_number_documents'), 'comments', type_='foreignkey')
     op.create_foreign_key(
         op.f('fk_comments_record_number_documents'),
@@ -72,6 +84,8 @@ def downgrade() -> None:
         ['record_number', 'id'],
         ondelete='CASCADE',
     )
+    op.drop_index('idx_document_redirects_document_id', table_name='document_redirects')
+    op.drop_table('document_redirects')
     op.drop_index('idx_worklog_redirects_worklog_id', table_name='worklog_redirects')
     op.drop_table('worklog_redirects')
     op.drop_index('idx_record_redirects_to_number', table_name='record_redirects')

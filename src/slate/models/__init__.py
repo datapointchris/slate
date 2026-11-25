@@ -7,6 +7,7 @@ from slate.models.comment import Comment
 from slate.models.document import Document
 from slate.models.document import DocumentKind
 from slate.models.document import DocumentVersion
+from slate.models.document_redirect import DocumentRedirect
 from slate.models.focus import Focus
 from slate.models.focus import FocusShare
 from slate.models.idea import Idea
@@ -58,6 +59,7 @@ __all__ = [
     'Comment',
     'Document',
     'DocumentKind',
+    'DocumentRedirect',
     'DocumentVersion',
     'Focus',
     'FocusShare',

@@ -588,7 +588,8 @@ func newIdeasFoldCommand() *cobra.Command {
 			"The idea's number then leads to the record. `slate show` follows it, and a\n" +
 			"write through it is refused, naming the record to write to. Each worklog's\n" +
 			"old name leads to that worklog under its new name, and a write through it\n" +
-			"reaches the worklog.\n" +
+			"reaches the worklog. Each document's old address reads that document,\n" +
+			"wherever later folds move it.\n" +
 			"\n" +
 			"The record keeps its own number, fields and place in the queue, so the idea's\n" +
 			"pin is dropped with a warning. A closed record is taken, because the idea's\n" +

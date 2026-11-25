@@ -91,7 +91,9 @@ leads to, `reason` `folded`, and the idea's `id`, title, priority, flow and
   redirected_ts, sentence}]`, oldest first. `sentence` is the line the 404 and
   the 409 carry. A wrong fold shows there.
 - **A document read through the old number answers the one the fold moved**,
-  as `<name>-from-<number>` where the record already held the name.
+  wherever later folds moved it. `document_redirects` keeps each moved
+  document's old number and name, mapped to the document's `id`. Where the old
+  number held no document of that name, the read answers the target's own.
 - **A search for the old number lists the record it leads to.**
 - **The record's changes include the folded idea's own rows**, under its old
   `id`.

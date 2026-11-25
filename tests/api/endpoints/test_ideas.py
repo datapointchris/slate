@@ -135,6 +135,7 @@ def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in
     target = new_initiative(client, tags=['security'], pursuits=pursuits[:1], refs=['inbox:1'])['number']
     ok(client.post('/claims', json={'record': target, 'holder': FOLDER, 'step': 'design'}))
     ok(client.put(f'/documents/{target}/design', json={'kind': 'design', 'body': 'The target design\n'}), status.HTTP_201_CREATED)
+    ok(client.put(f'/documents/{target}/plan', json={'kind': 'plan', 'body': 'The target plan\n'}), status.HTTP_201_CREATED)
 
     idea = new_idea(client, tags=['security', 'data'], pursuits=pursuits, refs=['inbox:1', 'inbox:2'])
     number = idea['number']
@@ -149,6 +150,7 @@ def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in
     session.add(models.RecordCheck(record_number=number, checked_by='a-check', verdict='holds', evidence='It still holds'))
     session.flush()
     earlier = new_idea(client, title='Read the fleet each morning')['number']
+    ok(client.put(f'/documents/{earlier}/plan', json={'kind': 'plan', 'body': 'The earlier plan\n'}), status.HTTP_201_CREATED)
     ok(client.post(f'{IDEAS}/{earlier}/fold', json={'into': number, 'holder': FOLDER}))
     # A released CLI reads an idea, then deletes it by the id that read answered, and asks for no redirect.
     unasked = client.get(f'{IDEAS}/{earlier}')
@@ -181,6 +183,11 @@ def test_fold_moves_every_row_and_redirects_the_number(client, txn_api_logged_in
     renamed = ok(client.get(f'/documents/{number}/design', headers=FOLLOW))
     assert (renamed['name'], [comment['body'] for comment in renamed['comments']]) == (f'design-from-{number}', ['About line one'])
     assert ok(client.get(f'/documents/{target}/design'))['name'] == 'design'
+    # The next fold onto a record that already took a fold: the earlier plan reached #number as `plan`,
+    # then #target as `plan-from-<number>`, and its first address still reads it rather than #target's plan.
+    plan = ok(client.get(f'/documents/{earlier}/plan', headers=FOLLOW))
+    assert (plan['address'], plan['version']['body']) == (f'{target}/plan-from-{number}', 'The earlier plan\n')
+    assert ok(client.get(f'/documents/{earlier}/design', headers=FOLLOW))['version']['body'] == 'The target design\n'
 
     read = ok(client.get(f'/records/{number}', headers=FOLLOW))
     assert (read['kind'], read['number']) == ('initiative', target)

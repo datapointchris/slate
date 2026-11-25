@@ -4,7 +4,8 @@ This is a CRM's merge. Salesforce reparents the loser's related records onto the
 HubSpot answers the loser's old id with the survivor. The target keeps its own number, fields and
 place in the queue. The idea's `ideas` and `records` rows go, and a `record_redirects` row leads
 its number, and its `id`, to the target. Each worklog moves under the target's number, after the
-target's last, and a `worklog_redirects` row keeps its old name. A fold has no undo: a wrong one
+target's last, and a `worklog_redirects` row keeps its old name. A `document_redirects` row keeps
+each moved document's old number and name. A fold has no undo: a wrong one
 shows in the target's `redirected_from`, and the audit trail keeps the idea's row whole.
 
 `fold_rows_into` moves the rows and writes the redirect. It leaves the locks, the claims and the
@@ -61,7 +62,7 @@ CARRIED_BY_FOLD = {
     models.Claim.__tablename__: 'moved, with their waits',
     models.Comment.__tablename__: 'moved, a line comment with its document',
     models.RecordCheck.__tablename__: 'moved',
-    models.Document.__tablename__: 'moved, renamed where the target holds the name',
+    models.Document.__tablename__: 'moved, renamed where the target holds the name, each old address kept',
     models.RecordRef.__tablename__: 'moved where the target lacks them',
     models.RecordTag.__tablename__: 'moved where the target lacks them',
     models.RecordPursuit.__tablename__: 'moved where the target holds pursuits and lacks them',
@@ -190,11 +191,11 @@ def fold_rows_into(
 
     In order: worklogs, renumbered after the target's last and each old name kept; claims, whose
     waits follow them; comments on the record, and checks; documents, each renamed
-    `<name>-from-<idea>` where the target already holds its name, their line comments following
-    through `ON UPDATE CASCADE`; refs,
-    tags and pursuits as a union, or pursuits dropped where the target is an issue. Each redirect
-    that led to the idea then leads to the target, so none forms a chain. Last, the `ideas` and
-    `records` rows go, which takes the duplicates the unions left, and the redirect is inserted.
+    `<name>-from-<idea>` where the target already holds its name and each old address kept, their
+    line comments following through `ON UPDATE CASCADE`; refs, tags and pursuits as a union, or
+    pursuits dropped where the target is an issue. Each redirect that led to the idea then leads to
+    the target, so none forms a chain. Last, the `ideas` and `records` rows go, which takes the
+    duplicates the unions left, and the redirect is inserted.
 
     Both `records` rows must already be locked, and no other session's live claim may sit on
     either. Every statement is Core SQL on the tables, so the ORM objects the session holds are
@@ -233,6 +234,9 @@ def fold_rows_into(
     for document_id, name in documents.all():
         moved_name = f'{name}-from-{idea}' if name in held else name
         run(session, update(models.Document).where(models.Document.id == document_id).values(record_number=target, name=moved_name))
+        session.execute(
+            insert(models.DocumentRedirect).values(record_number=idea, name=name, document_id=document_id, redirected_ts=redirected_ts)
+        )
         folded.documents.append((f'{idea}/{name}', f'{target}/{moved_name}'))
 
     folded.refs = union_into(session, models.RecordRef, models.RecordRef.ref, idea, target)
