@@ -1,4 +1,4 @@
-"""The closed vocabularies the CLI keeps its own copy of, written where the CLI's suite reads them."""
+"""The closed vocabularies and limits the CLI keeps its own copy of, written where the CLI's suite reads them."""
 
 import json
 from pathlib import Path
@@ -28,6 +28,7 @@ from slate.schemas.idea import PromotedKind
 from slate.schemas.queue import Step
 from slate.services import initiatives
 from slate.services.issues import CREATE_STATUSES
+from slate.services.row_limit import RECORD_LIMIT_MAX
 
 VOCABULARIES_DOCUMENT = Path(__file__).parent / 'testdata' / 'cli-vocabularies.json'
 
@@ -59,6 +60,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'promote_issue_fields': sorted(FIELDS_OF_KIND['issue']),
         'promote_shared_fields': sorted(SHARED_FIELDS),
         'idea_endings': IDEA_ENDINGS,
+        'record_limit_max': RECORD_LIMIT_MAX,
     }
     document = json.dumps(table, indent=2) + '\n'
     if not VOCABULARIES_DOCUMENT.exists() or VOCABULARIES_DOCUMENT.read_text() != document:

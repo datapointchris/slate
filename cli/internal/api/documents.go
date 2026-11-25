@@ -92,6 +92,10 @@ type ListedDocument struct {
 	Record RecordSummary `json:"record"`
 }
 
+// RecordLimitMost is the largest record_limit that a list read may ask for. The API
+// owns it, and TestVocabularies_EachCopyHoldsWhatTheAPITakes holds this copy level.
+const RecordLimitMost = 500
+
 // DocumentFilter narrows a document list. Record names one record. RecordLimit
 // keeps the documents on that many records, the newest written first, and nil
 // leaves the API's default.
