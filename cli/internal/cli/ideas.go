@@ -124,9 +124,12 @@ func newIdeasListCommand() *cobra.Command {
 		limit   int
 	)
 	cmd := &cobra.Command{
-		Use:         "list",
-		Short:       "List every idea, promoted or not, most urgent first",
-		Long:        "Priority none sorts after every level. INITIATIVE is the one an idea was promoted into.",
+		Use:   "list",
+		Short: "List every idea, most urgent first",
+		Long: "Priority none sorts after every level. A promoted idea is its initiative or\n" +
+			"issue under the same number, so it is not listed, and `slate show <n>` reads it.\n" +
+			"INITIATIVE is the initiative that names an idea in its idea_id, under a number\n" +
+			"of its own.",
 		Example:     "  slate ideas list\n  slate ideas list --tag security\n  slate ideas list --ref capture/\n  slate ideas list --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
@@ -345,33 +348,41 @@ func newIdeasEditCommand() *cobra.Command {
 	return cmd
 }
 
-// promoteKinds are what --to takes, the first its default.
-var promoteKinds = []string{api.PromotedToInitiative, api.PromotedToIssue}
-
-// promoteFlagsOfKind are the flags of `ideas promote` that apply to one kind
-// alone. --description, --priority and --tag apply to both.
-var promoteFlagsOfKind = map[string][]string{
-	api.PromotedToInitiative: {"summary", "name", "status", "autofix", "pursuit", "not-planned"},
-	api.PromotedToIssue:      {"repo", "path", "type", "acceptance", "initiative", "parent"},
+// promoteFieldOfFlag is the field each flag of `ideas promote` sets, by the
+// JSON name that api.PromoteFieldsOfKind and api.PromoteSharedFields use.
+var promoteFieldOfFlag = map[string]string{
+	"description": "description",
+	"priority":    "priority",
+	"tag":         "tags",
+	"summary":     "summary",
+	"name":        "name",
+	"status":      "status",
+	"autofix":     "autofix",
+	"pursuit":     "pursuits",
+	"not-planned": "not_planned_steps",
+	"repo":        "repo",
+	"path":        "paths",
+	"type":        "type",
+	"acceptance":  "acceptance",
+	"initiative":  "initiative",
+	"parent":      "parent",
 }
 
 // promoteKindNames is how a refusal names each kind.
 var promoteKindNames = map[string]string{api.PromotedToInitiative: "an initiative", api.PromotedToIssue: "--to issue"}
 
-// refuseFlagsOfOtherKind refuses the first flag set that applies to the kind
-// --to did not name, before any request.
+// refuseFlagsOfOtherKind refuses the first flag set whose field applies to a
+// kind that --to did not name, before any request.
 func refuseFlagsOfOtherKind(f *pflag.FlagSet, kind string) error {
-	for _, other := range promoteKinds {
-		if other == kind {
-			continue
-		}
-		for _, flag := range promoteFlagsOfKind[other] {
-			if f.Changed(flag) {
-				return goclikit.UsageError(fmt.Errorf("--%s applies to %s, not %s", flag, promoteKindNames[other], promoteKindNames[kind]))
+	var refused error
+	f.Visit(func(flag *pflag.Flag) {
+		for _, other := range api.PromoteKinds {
+			if refused == nil && other != kind && slices.Contains(api.PromoteFieldsOfKind[other], promoteFieldOfFlag[flag.Name]) {
+				refused = goclikit.UsageError(fmt.Errorf("--%s applies to %s, not %s", flag.Name, promoteKindNames[other], promoteKindNames[kind]))
 			}
 		}
-	}
-	return nil
+	})
+	return refused
 }
 
 // promotedLine is the line naming a promotion, which keeps the idea's number.
@@ -416,9 +427,9 @@ func newIdeasPromoteCommand() *cobra.Command {
 			"\n" +
 			"An initiative needs --summary, because an idea has none. --name defaults to\n" +
 			"the idea's title, and --pursuit to its pursuits; --pursuit \"\" leaves none.\n" +
-			"--status someday creates it set aside. --not-planned names each step it will\n" +
-			"not run, so `slate next` never offers it; an idea marks none, so left out the\n" +
-			"initiative plans every step.\n" +
+			"--status someday promotes it set aside and clears its pin. --not-planned names\n" +
+			"each step it will not run, so `slate next` never offers it; an idea marks none,\n" +
+			"so left out the initiative plans every step.\n" +
 			"\n" +
 			"An issue takes --repo, --path, --type, --acceptance, --initiative and --parent,\n" +
 			"and starts open. It reads its pursuits from its initiative, so the idea's are\n" +
@@ -433,8 +444,8 @@ func newIdeasPromoteCommand() *cobra.Command {
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
-			if !slices.Contains(promoteKinds, to) {
-				return goclikit.UsageError(fmt.Errorf("unknown --to %q — one of: %s", to, strings.Join(promoteKinds, ", ")))
+			if !slices.Contains(api.PromoteKinds, to) {
+				return goclikit.UsageError(fmt.Errorf("unknown --to %q — one of: %s", to, strings.Join(api.PromoteKinds, ", ")))
 			}
 			if err := refuseFlagsOfOtherKind(f, to); err != nil {
 				return err
@@ -500,7 +511,7 @@ func newIdeasPromoteCommand() *cobra.Command {
 			}
 			promoted := written.Initiative
 			if promoted.Number == 0 {
-				return fmt.Errorf("the API answered with no initiative, so it predates promoting an idea under its own number; `slate show %s` reads what the promotion made", args[0])
+				return fmt.Errorf("the API's answer held no initiative; `slate show %s` reads what the promotion made", args[0])
 			}
 			if err := reportWrite(cmd, asJSON, written, written.WriteEffects, promotedLine(promoted.Number, "an initiative", "")); err != nil {
 				return err
@@ -515,8 +526,8 @@ func newIdeasPromoteCommand() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVar(&to, "to", api.PromotedToInitiative, "What the idea becomes: "+strings.Join(promoteKinds, " or "))
-	withFlagValues(cmd, "to", promoteKinds...)
+	f.StringVar(&to, "to", api.PromotedToInitiative, "What the idea becomes: "+strings.Join(api.PromoteKinds, " or "))
+	withFlagValues(cmd, "to", api.PromoteKinds...)
 	f.StringVar(&description, "description", "", "The description it carries (default the idea's)")
 	f.StringVar(&priority, "priority", "", "One of: "+priorityChoices()+" (default the idea's)")
 	f.StringArrayVar(&tags, "tag", nil, "Tag it carries (repeatable; default the idea's, empty for none)")
