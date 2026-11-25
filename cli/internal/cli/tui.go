@@ -71,6 +71,13 @@ func tuiTabs() []tuiTab {
 				return readAndPrintTab(cmd, asJSON, newIdeasBoard(in.client))
 			},
 		},
+		{
+			name:  tabDocuments,
+			board: func(in tabInputs) gotermboard.Board { return newDocumentsBoard(in.client) },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				return readAndPrintTab(cmd, asJSON, newDocumentsBoard(in.client))
+			},
+		},
 	}
 }
 
@@ -96,7 +103,7 @@ func newTUICommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "A live board of the initiatives, the repos and the ideas, in a program with a tab per view",
+		Short: "A live board of the initiatives, the repos, the ideas and the documents, in a program with a tab per view",
 		Long: "One program with a tab per view, reading the API at its own pace. It draws its\n" +
 			"last good read with that read's age, so a rollout leaves the board drawn. Tab\n" +
 			"cycles the tabs once there is more than one.\n\n" +
@@ -140,6 +147,12 @@ func newTUICommand() *cobra.Command {
 			"after the last. enter opens an idea's read: its placements, its refs and its\n" +
 			"description. tui-ideas.schema.json in slate's cli/internal/cli holds the shape\n" +
 			"--json prints of it.\n\n" +
+			fmt.Sprintf("documents is every document on the %d records written to last, each under its\n", documentRecordsStep) +
+			fmt.Sprintf("record, the newest written first in both. + and - read %d records more or fewer.\n", documentRecordsStep) +
+			"enter opens a document's latest version full screen, its line comments listed\n" +
+			"after it, each quoting its line. No earlier version shows. / matches a document's\n" +
+			"name, its kind and its record's title. tui-documents.schema.json in slate's\n" +
+			"cli/internal/cli holds the shape --json prints of it.\n\n" +
 			"t on a row goes to another tab that draws what the row names, where one does, and\n" +
 			"esc comes back. t on a pull request opens `prs tui` on it. * locks every tab to the\n" +
 			"lines naming what the row names, such as one pursuit, and lifts the lock.\n\n" +
@@ -157,6 +170,7 @@ func newTUICommand() *cobra.Command {
 			"  slate tui --grouping pursuit --once\n" +
 			"  slate tui --view repos --json | jq '.board.repos[] | {repo, ready: (.ready | length)}'\n" +
 			"  slate tui --view ideas --json | jq '.rows[] | {number, title, ref_count}'\n" +
+			"  slate tui --view documents --json | jq '.records[] | {number: .record.number, documents: [.documents[].name]}'\n" +
 			"  slate tui --json | jq '.board.totals.states'\n" +
 			"  slate tui --json | jq '.board.pursuits[] | {name: .pursuit.name, closes_30d: .closes.last_30d, untouched: .untouched_longest.name}'",
 		Args:        cobra.NoArgs,

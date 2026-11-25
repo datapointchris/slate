@@ -154,7 +154,9 @@ cd cli && go build -o slate . && ./slate --help
 tier and each initiative's progress on one set of columns. Its repos tab puts each
 repo on the same columns, with its closes per week and how long its ready issues
 have waited. Its ideas tab lists every idea not yet promoted, newest first, narrowed
-by pursuit or tag. From the board you move, pin and reorder work, open a Claude session
+by pursuit or tag. Its documents tab groups every document under its record, the
+newest written first, and opens a document's latest version with its line comments.
+From the board you move, pin and reorder work, open a Claude session
 on a row, and open a pull request an issue's worklogs hold in `prs`.
 `docs/live-board.md` says why it has that shape.
 

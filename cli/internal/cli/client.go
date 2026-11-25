@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
@@ -46,8 +47,14 @@ func newAPIClient(cmd *cobra.Command) (*api.Client, error) {
 	}
 	httpClient := oauth2.NewClient(cmd.Context(), source)
 	httpClient.Transport = retryingTransport{next: carryingTrace(cmd, httpClient.Transport), pause: randomPause}
+	httpClient.Timeout = apiRequestTimeout
 	return api.New(deployment.API.Value, httpClient, api.WrapErrors(carry)), nil
 }
+
+// apiRequestTimeout bounds each request, its retries and their pauses included, so an API that
+// accepts a connection and never answers fails the command, or a tui read, rather than holding
+// it. The slowest read answers in seconds, and goclilogin bounds the token fetch on its own.
+const apiRequestTimeout = 30 * time.Second
 
 // builtFrom is an error from building or using an API client, carrying the
 // deployment it was built from and whether it authenticated as a service.

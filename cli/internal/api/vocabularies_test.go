@@ -49,4 +49,11 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 			t.Errorf("%s = %v, the API's are %v", name, copied, theirs)
 		}
 	}
+	var recordLimitMax int
+	if err := json.Unmarshal(api["record_limit_max"], &recordLimitMax); err != nil {
+		t.Errorf("decode the API's record_limit_max: %v", err)
+	}
+	if RecordLimitMost != recordLimitMax {
+		t.Errorf("RecordLimitMost = %d, the API answers at most %d records", RecordLimitMost, recordLimitMax)
+	}
 }
