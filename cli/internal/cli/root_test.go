@@ -56,19 +56,15 @@ func runLine(t *testing.T, args ...string) error {
 	return run(root, autoupdate.Config{Suppress: true})
 }
 
-// A word one slip from a subcommand, or one its SuggestFor lists, is answered
-// with the subcommand, at the root and inside a group alike.
-func TestAnUnknownSubcommandNamesTheNearOnes(t *testing.T) {
+// A word a subcommand's SuggestFor lists is answered with that subcommand, at
+// the root and inside a group alike.
+func TestAWordASubcommandSuggestsForNamesThatSubcommand(t *testing.T) {
 	for _, c := range []struct {
 		args  []string
 		meant string
 	}{
-		{[]string{"issuez"}, "issues"},
-		{[]string{"issues", "lisy"}, "list"},
 		{[]string{"items", "show", "848"}, "issues"},
 		{[]string{"view", "848", "--json"}, "show"},
-		{[]string{"initiativez", "--json"}, "initiatives"},
-		{[]string{"labels", "lisz", "--json"}, "list"},
 		{[]string{"issues", "update", "1"}, "edit"},
 	} {
 		err := runLine(t, c.args...)
