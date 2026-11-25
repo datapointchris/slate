@@ -85,8 +85,8 @@ number leads to the initiative, and its shape worklog reads under the
 initiative's number with the old name in `former_names`. Its refs, tags and
 pursuits moved where the initiative lacked them, and went as duplicates where
 the promotion had copied them. The check `ck_initiatives_initiative_idea_id_unset`
-holds `idea_id` null since. The models leave the column unmapped, so the API
-neither reads nor writes it, and a later migration drops it.
+held `idea_id` null until migration `f721a977feb1` dropped the column, one
+release after the API stopped mapping it.
 
 ## `GET /ideas` lists the open ideas, and `state` adds every number that ended, saying what it became
 

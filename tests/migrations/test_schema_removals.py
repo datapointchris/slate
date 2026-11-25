@@ -15,6 +15,8 @@ REMOVED_ONCE_UNREAD: dict[str, set[str]] = {
     # Only a migration run and the trigger function read it, and the function is replaced with it.
     '6d88eaec7184': {'audit_trail_tables.audited_table'},
     'eccf77f525dc': {'idea_evidence'},
+    # The release before declares it on the table for `alembic check` and leaves it out of its mapper.
+    'f721a977feb1': {'initiatives.idea_id'},
 }
 
 
