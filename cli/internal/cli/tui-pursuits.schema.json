@@ -5,21 +5,17 @@
   "description": "What `slate tui --view pursuits --json` prints: the focus in force, or none, and one row per pursuit in the standing's order, the furthest under its share first, with its usage on each day of the focus. A row's figures carry the names that `slate focus show --json` gives them, and each day the names that `slate focus usage --json` gives it. The client computes no figure. This read writes nothing.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "taken_at", "tab", "focus", "in_force", "window", "days", "rows", "unattributed", "reads"],
+  "required": ["schema_version", "taken_at", "tab", "focus", "window", "days", "rows", "unattributed", "reads"],
   "properties": {
     "schema_version": {"const": 1},
     "taken_at": {"type": "string", "format": "date-time"},
     "tab": {"const": "pursuits"},
     "focus": {
-      "description": "The focus the tab shows: the one in force, or an earlier one that h moved to. Null where none is in force.",
+      "description": "The focus in force. Null where none is. The h and l keys reach earlier ones only on screen.",
       "oneOf": [{"type": "null"}, {"$ref": "#/definitions/focus"}]
     },
-    "in_force": {
-      "description": "Whether the tab shows the focus in force, or the last 30 days where none is, rather than an earlier focus.",
-      "type": "boolean"
-    },
     "window": {
-      "description": "The span the rows' figures count: the standing's, ending at the read, or an earlier focus's last day. Null until that read lands.",
+      "description": "The span the rows' figures count: the standing's, ending at the read. Null until that read lands.",
       "oneOf": [{"type": "null"}, {"$ref": "#/definitions/window"}]
     },
     "days": {
@@ -151,6 +147,11 @@
         "ended_reason": {"type": ["string", "null"]},
         "set_by": {"type": "string"},
         "active": {"type": "boolean"},
+        "held_until": {
+          "description": "The instant the focus stops holding: the earlier of ended_ts and the midnight after until_date. Absent from an API that predates it.",
+          "type": "string",
+          "format": "date-time"
+        },
         "shares": {
           "description": "Each share the focus named.",
           "type": "array",

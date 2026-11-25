@@ -302,34 +302,45 @@ func (b *pursuitsBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 		return frame
 	}
 	frame.Groups = []gotermboard.Group{b.totalGroup(view, now)}
-	switch {
-	case !view.read:
-	case view.focus == nil:
-		frame.Groups = append(frame.Groups, b.pursuitGroup(view, pursuitGroupEvery, "every pursuit", view.rows, now))
-	default:
-		var named, rest []standingRow
-		restShare := 0.0
-		for _, line := range view.rows {
-			if line.ShareNamed {
-				named = append(named, line)
-				continue
-			}
-			rest = append(rest, line)
-			if line.Share != nil {
-				restShare += *line.Share
-			}
-		}
-		if len(named) > 0 {
-			frame.Groups = append(frame.Groups, b.pursuitGroup(view, pursuitGroupNamed, "named shares", named, now))
-		}
-		if len(rest) > 0 {
-			frame.Groups = append(frame.Groups, b.pursuitGroup(view, pursuitGroupRest, "the rest share "+fraction(restShare), rest, now))
+	if view.read {
+		for _, group := range pursuitGroups(view) {
+			frame.Groups = append(frame.Groups, b.pursuitGroup(view, group.key, group.title, group.rows, now))
 		}
 	}
 	if len(frame.Groups) > 1 && len(frame.Groups[1].Rows) > 0 {
 		frame.StartAt = frame.Groups[1].Rows[0].Key
 	}
 	return frame
+}
+
+// pursuitRowGroup is one group of the tab's rows, under its key in --json and its title on screen.
+type pursuitRowGroup struct {
+	key, title string
+	rows       []standingRow
+}
+
+// pursuitGroups decides which group each row sits in: every pursuit where the focus shown is
+// none, else the named shares and then the rest, each in the standing's order and left out
+// where empty.
+func pursuitGroups(view pursuitsView) []pursuitRowGroup {
+	if view.focus == nil {
+		return []pursuitRowGroup{{key: pursuitGroupEvery, title: "every pursuit", rows: view.rows}}
+	}
+	named := pursuitRowGroup{key: pursuitGroupNamed, title: "named shares"}
+	rest := pursuitRowGroup{key: pursuitGroupRest}
+	restShare := 0.0
+	for _, line := range view.rows {
+		if line.ShareNamed {
+			named.rows = append(named.rows, line)
+			continue
+		}
+		rest.rows = append(rest.rows, line)
+		if line.Share != nil {
+			restShare += *line.Share
+		}
+	}
+	rest.title = "the rest share " + fraction(restShare)
+	return slices.DeleteFunc([]pursuitRowGroup{named, rest}, func(group pursuitRowGroup) bool { return len(group.rows) == 0 })
 }
 
 func pursuitKey(number int) string { return "pursuit:" + strconv.Itoa(number) }
@@ -339,7 +350,7 @@ func (b *pursuitsBoard) stripLine(now time.Time, view pursuitsView) gotermboard.
 	switch focus := view.focus; {
 	case !view.read && view.viewing == 0:
 	case focus == nil && view.viewing == 0:
-		line = append(line, gotermboard.C("no focus in force · usage over the last 30 days", gotermboard.Yellow))
+		line = append(line, gotermboard.C("no focus in force · usage since "+view.window.Since.Local().Format("01-02"), gotermboard.Yellow))
 	case focus == nil:
 		line = append(line, gotermboard.C(fmt.Sprintf("focus %d · reading…", view.viewing), dimCode))
 	default:
@@ -347,7 +358,7 @@ func (b *pursuitsBoard) stripLine(now time.Time, view pursuitsView) gotermboard.
 		if view.viewing == 0 {
 			said += "through " + monthDay(focus.UntilDate)
 		} else {
-			said += focusSpan(*focus)
+			said += focusSpan(*focus, view.usage)
 		}
 		line = append(line, gotermboard.C(said, gotermboard.Cyan))
 		if view.usage != nil {
@@ -370,19 +381,20 @@ func monthDay(day string) string {
 }
 
 // focusSpan is an earlier focus's first and last day and how it ended, as 11-01 to 11-20 ·
-// replaced. Its last day is the one it ended on, or its until day where it ran out.
-func focusSpan(focus api.Focus) string {
-	last, ended := focus.UntilDate, "lapsed"
+// replaced. Its last day is its usage read's last, which the API ends where the focus stopped
+// holding, so it reads … until that read lands.
+func focusSpan(focus api.Focus, usage *api.FocusUsage) string {
+	last, ended := "…", "lapsed"
+	if usage != nil && len(usage.Days) > 0 {
+		last = monthDay(usage.Days[len(usage.Days)-1].Day)
+	}
 	if focus.EndedTS != nil {
-		if day := focus.EndedTS.Local().Format(time.DateOnly); day < last {
-			last = day
-		}
 		ended = strValue(focus.EndedReason)
 	}
 	if focus.Active {
 		ended = "in force"
 	}
-	return fmt.Sprintf("%s to %s · %s", focus.StartedTS.Local().Format("01-02"), monthDay(last), ended)
+	return fmt.Sprintf("%s to %s · %s", focus.StartedTS.Local().Format("01-02"), last, ended)
 }
 
 // cutText is text cut to at most runes, ending in an ellipsis where it was cut.
@@ -551,7 +563,10 @@ func (b *pursuitsBoard) pursuitPanel(view pursuitsView, line standingRow, pursui
 // usageHeading is the chart's heading, naming its focus and any cut to its last days.
 func usageHeading(view pursuitsView) string {
 	if view.focus == nil {
-		return "usage by day, the last 30 days"
+		if view.usage != nil && len(view.usage.Days) > 0 {
+			return fmt.Sprintf("usage by day, the last %d days", len(view.usage.Days))
+		}
+		return "usage by day"
 	}
 	heading := fmt.Sprintf("usage by day, focus %d", view.focus.ID)
 	if view.usage != nil {
@@ -581,20 +596,14 @@ func (b *pursuitsBoard) chartOrWhy(view pursuitsView, draw func(api.FocusUsage) 
 	return lines
 }
 
-// chartSpan is the time axis: from the first day's start to the end of the focus in force's last
-// day, so the days still to come show empty, or else to the last day read.
+// chartSpan is the time axis: from where the read's first day counts to where the focus in force
+// stops holding, so the days still to come show empty, or else to the end of the last day read.
 func chartSpan(usage api.FocusUsage, view pursuitsView) (time.Time, time.Time) {
-	from, err := time.ParseInLocation(time.DateOnly, usage.Days[0].Day, time.Local)
-	if err != nil {
-		from = usage.Since
-	}
 	to := usage.Until
-	if view.viewing == 0 && view.focus != nil {
-		if until, err := time.ParseInLocation(time.DateOnly, view.focus.UntilDate, time.Local); err == nil && until.AddDate(0, 0, 1).After(to) {
-			to = until.AddDate(0, 0, 1)
-		}
+	if focus := view.focus; view.viewing == 0 && focus != nil && focus.HeldUntil != nil && focus.HeldUntil.After(to) {
+		to = *focus.HeldUntil
 	}
-	return from, to
+	return usage.Since, to
 }
 
 func dayLabel(t time.Time) string { return t.Format("01-02") }
@@ -662,7 +671,7 @@ func (b *pursuitsBoard) totalPanel(view pursuitsView, now time.Time) gotermboard
 		var lines []gotermboard.Line
 		switch focus := view.focus; {
 		case focus == nil && view.viewing == 0:
-			lines = append(lines, heading("No focus is in force"), plainLine("Every pursuit's usage over the last 30 days, with no share to stand against."))
+			lines = append(lines, heading("No focus is in force"), plainLine("Every pursuit's usage on each day, with no share to stand against."))
 		case focus == nil:
 			lines = append(lines, heading(fmt.Sprintf("Focus %d", view.viewing)), dimLine("reading…"))
 		default:
@@ -690,15 +699,15 @@ func (b *pursuitsBoard) totalPanel(view pursuitsView, now time.Time) gotermboard
 // pursuit's work on a day. With no focus naming any, the most used on the last day stand apart.
 func totalUsageChart(usage api.FocusUsage, view pursuitsView, width int) []gotermboard.Line {
 	var apart []standingRow
-	for _, line := range view.rows {
-		if line.ShareNamed {
-			apart = append(apart, line)
+	for _, group := range pursuitGroups(view) {
+		switch group.key {
+		case pursuitGroupNamed:
+			apart = group.rows
+		case pursuitGroupEvery:
+			apart = slices.Clone(group.rows)
+			slices.SortStableFunc(apart, func(a, b standingRow) int { return cmp.Compare(b.Usage, a.Usage) })
+			apart = slices.DeleteFunc(apart[:min(len(apart), totalChartMost)], func(line standingRow) bool { return line.Usage <= 0 })
 		}
-	}
-	if view.focus == nil {
-		apart = slices.Clone(view.rows)
-		slices.SortStableFunc(apart, func(a, b standingRow) int { return cmp.Compare(b.Usage, a.Usage) })
-		apart = slices.DeleteFunc(apart[:min(len(apart), totalChartMost)], func(line standingRow) bool { return line.Usage <= 0 })
 	}
 	isApart := map[int]bool{}
 	var layers []chart.Layer
@@ -742,7 +751,6 @@ type pursuitsSnapshot struct {
 	TakenAt       time.Time              `json:"taken_at"`
 	Tab           string                 `json:"tab"`
 	Focus         *api.Focus             `json:"focus"`
-	ShowsCurrent  bool                   `json:"in_force"`
 	Window        *api.FocusWindow       `json:"window"`
 	Days          *pursuitsSnapshotDays  `json:"days"`
 	Rows          []pursuitSnapshotRow   `json:"rows"`
@@ -784,7 +792,7 @@ type pursuitSnapshotDay struct {
 func (b *pursuitsBoard) Snapshot(now time.Time) pursuitsSnapshot {
 	view := b.view()
 	snapshot := pursuitsSnapshot{
-		SchemaVersion: pursuitsSchemaVersion, TakenAt: now, Tab: tabPursuits, Focus: view.focus, ShowsCurrent: view.viewing == 0,
+		SchemaVersion: pursuitsSchemaVersion, TakenAt: now, Tab: tabPursuits, Focus: view.focus,
 		Rows:  []pursuitSnapshotRow{},
 		Reads: []gotermboard.Status{b.standing.Status(), b.pursuits.Status(), b.history.Status(), b.usage.Status()},
 	}
@@ -800,16 +808,16 @@ func (b *pursuitsBoard) Snapshot(now time.Time) pursuitsSnapshot {
 		unattributed := b.standing.Value().Unattributed
 		snapshot.Unattributed = &unattributed
 	}
+	groupOf := map[int]string{}
+	for _, group := range pursuitGroups(view) {
+		for _, line := range group.rows {
+			groupOf[line.Number] = group.key
+		}
+	}
 	for _, line := range view.rows {
 		row := pursuitSnapshotRow{
 			PursuitFigures: line.PursuitFigures, Name: line.name, Status: line.status, TouchedTS: line.touched,
-			Group: pursuitGroupRest, ByDay: []pursuitSnapshotDay{},
-		}
-		switch {
-		case view.focus == nil:
-			row.Group = pursuitGroupEvery
-		case line.ShareNamed:
-			row.Group = pursuitGroupNamed
+			Group: groupOf[line.Number], ByDay: []pursuitSnapshotDay{},
 		}
 		if pursuit, read := view.pursuits[line.Number]; read {
 			initiatives, ideas := len(pursuit.Initiatives), len(pursuit.Ideas)

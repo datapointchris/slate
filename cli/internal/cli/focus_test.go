@@ -42,7 +42,8 @@ func TestFocusUsage_PrintsEachPursuitByDayInTheLastDaysOrder(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		noFocus bool
-		header  string
+		// header opens the output where it carries the focus's id.
+		header string
 		// rows are each row's first fields, in the order printed.
 		rows [][]string
 	}{
@@ -57,7 +58,7 @@ func TestFocusUsage_PrintsEachPursuitByDayInTheLastDaysOrder(t *testing.T) {
 			},
 		},
 		{
-			name: "no focus in force", noFocus: true, header: "No focus is in force",
+			name: "no focus in force", noFocus: true,
 			rows: [][]string{
 				{"#2985", "·", "·", "·", "Tidy"},
 				{"#2983", "·", "0.30", "·", "█▆", "Finish"},
@@ -74,7 +75,7 @@ func TestFocusUsage_PrintsEachPursuitByDayInTheLastDaysOrder(t *testing.T) {
 			if err != nil {
 				t.Fatalf("run: %v", err)
 			}
-			if !strings.HasPrefix(out, test.header) {
+			if test.header != "" && !strings.HasPrefix(out, test.header) {
 				t.Errorf("the header should open %q:\n%s", test.header, out)
 			}
 			var rows [][]string

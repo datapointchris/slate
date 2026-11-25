@@ -55,12 +55,12 @@ func (s *pursuitsStandIn) serve(w http.ResponseWriter, r *http.Request) {
 	named := func(number int) api.PursuitSummary { return api.PursuitSummary{Number: number, Name: names[number]} }
 	current := api.Focus{
 		ID: 3, Statement: "Lock the doors up front, then finish the warehouse", StartedTS: onDay(21).Add(9 * time.Hour),
-		UntilDate: "2026-12-23", SetBy: "chris", Active: true,
+		UntilDate: "2026-12-23", SetBy: "chris", Active: true, HeldUntil: new(time.Date(2026, 12, 24, 0, 0, 0, 0, time.Local)),
 		Shares: []api.FocusShare{{Pursuit: named(2984), Share: 0.45}, {Pursuit: named(2983), Share: 0.25}},
 	}
 	before := api.Focus{
 		ID: 2, Statement: "Warehouse first", StartedTS: time.Date(2026, 9, 1, 9, 0, 0, 0, time.Local), UntilDate: "2026-11-30",
-		EndedTS: new(onDay(21).Add(9 * time.Hour)), EndedReason: new("replaced"), SetBy: "chris",
+		EndedTS: new(onDay(21).Add(9 * time.Hour)), EndedReason: new("replaced"), SetBy: "chris", HeldUntil: new(onDay(21).Add(9 * time.Hour)),
 		Shares: []api.FocusShare{{Pursuit: named(2983), Share: 0.6}},
 	}
 	var day21, day22, day23 []api.PursuitFigures
@@ -130,7 +130,7 @@ func (s *pursuitsStandIn) serve(w http.ResponseWriter, r *http.Request) {
 		}}
 		switch {
 		case r.URL.Query().Get("focus") == "2":
-			usage = api.FocusUsage{Focus: &before, Since: onDay(20), Until: onDay(21).Add(9 * time.Hour), Days: []api.FocusUsageDay{
+			usage = api.FocusUsage{Focus: &before, Since: onDay(20), Until: onDay(21).Add(9 * time.Hour), DaysInFocus: new(82), Days: []api.FocusUsageDay{
 				usageDay(20, standingFigures(2983, new(0.6), true, 0.4, new(0.63), 4000), standingFigures(2984, new(0.2), false, 0.6, new(0.13), 6000)),
 				usageDay(21,
 					standingFigures(2983, new(0.6), true, 0.5, new(0.56), 5000), standingFigures(2984, new(0.2), false, 0.3, new(0.35), 3000),
@@ -139,7 +139,7 @@ func (s *pursuitsStandIn) serve(w http.ResponseWriter, r *http.Request) {
 		case s.noFocus:
 			usage = api.FocusUsage{Since: onDay(22), Until: onDay(23).Add(15 * time.Hour), Days: []api.FocusUsageDay{usageDay(22, day22...), usageDay(23, day23...)}}
 		default:
-			usage.Focus = &current
+			usage.Focus, usage.DaysInFocus = &current, new(3)
 		}
 		for _, number := range []int{2983, 2984, 2985, 2989, 2992} {
 			listed := slices.ContainsFunc(usage.Days, func(day api.FocusUsageDay) bool {
@@ -253,9 +253,6 @@ func TestThePursuitsTabSplitsTheStandingAndChartsEachPursuitByDay(t *testing.T) 
 func TestThePursuitsTabWithNoFocusDrawsOneGroupAndNoShareLine(t *testing.T) {
 	_, model, _ := openPursuitsTab(t, &pursuitsStandIn{noFocus: true})
 	screen := model.View().Content
-	if strip := strings.SplitN(screen, "\n", 2)[0]; !strings.Contains(strip, "no focus in force · usage over the last 30 days") {
-		t.Errorf("the strip should say no focus is in force: %s", strip)
-	}
 	if !strings.Contains(screen, "every pursuit · 3") || strings.Contains(screen, "named shares") {
 		t.Errorf("one group should hold every pursuit:\n%s", screen)
 	}

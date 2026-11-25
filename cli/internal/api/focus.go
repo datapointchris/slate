@@ -35,7 +35,8 @@ type FocusShare struct {
 
 // Focus is a focus as it was set. Active is derived on read: nothing ended it
 // and its UntilDate has not passed. One past its UntilDate reads inactive
-// while EndedTS is still null, until the next set ends it as lapsed.
+// while EndedTS is still null, until the next set ends it as lapsed. HeldUntil
+// is the instant it stops holding, and nil from an API that predates it.
 type Focus struct {
 	ID          int          `json:"id"`
 	Statement   string       `json:"statement"`
@@ -45,6 +46,7 @@ type Focus struct {
 	EndedReason *string      `json:"ended_reason"`
 	SetBy       string       `json:"set_by"`
 	Active      bool         `json:"active"`
+	HeldUntil   *time.Time   `json:"held_until,omitempty"`
 	Shares      []FocusShare `json:"shares"`
 }
 
@@ -140,15 +142,18 @@ type FocusUsageDay struct {
 // FocusUsage is each day of a focus, oldest first, every day from the first to
 // the last. Focus is nil where the read named none and none is in force, and
 // the days are then the API's last USAGE_DAYS. A focus longer than that answers
-// its last USAGE_DAYS, so Since falls after its start. Pursuits names each one
+// its last USAGE_DAYS, so Since falls after its start and DaysInFocus exceeds
+// len(Days). DaysInFocus is nil with no focus, or from an API that predates
+// it. Pursuits names each one
 // any day lists, in number order. Only the last day of the focus in force is
 // sure to equal GET /focus.
 type FocusUsage struct {
-	Focus    *Focus              `json:"focus"`
-	Since    time.Time           `json:"since"`
-	Until    time.Time           `json:"until"`
-	Pursuits []FocusUsagePursuit `json:"pursuits"`
-	Days     []FocusUsageDay     `json:"days"`
+	Focus       *Focus              `json:"focus"`
+	Since       time.Time           `json:"since"`
+	Until       time.Time           `json:"until"`
+	DaysInFocus *int                `json:"days_in_focus"`
+	Pursuits    []FocusUsagePursuit `json:"pursuits"`
+	Days        []FocusUsageDay     `json:"days"`
 }
 
 // GetFocusUsage reads each day of the focus id names, or of the focus in force

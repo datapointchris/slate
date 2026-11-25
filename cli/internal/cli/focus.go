@@ -27,6 +27,12 @@ var focusHints = []string{
 	"See which API slate is pointed at: slate auth status",
 }
 
+// `slate focus usage` names no pursuit, and meets a 404 where --focus names no focus.
+var focusUsageHints = []string{
+	"List each focus by its id: slate focus list",
+	"See which API slate is pointed at: slate auth status",
+}
+
 func newFocusCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "focus",
@@ -51,7 +57,7 @@ func newFocusCommand() *cobra.Command {
 	cmd.AddCommand(inGroup(groupReading,
 		newFocusShowCommand(),
 		newFocusListCommand(),
-		newFocusUsageCommand(),
+		goclikit.WithRecoveryHints(newFocusUsageCommand(), focusUsageHints...),
 	)...)
 	cmd.AddCommand(inGroup(groupChanging,
 		newFocusSetCommand(),
@@ -157,8 +163,9 @@ func newFocusUsageCommand() *cobra.Command {
 			"`slate focus list`, a day at a time. Each day's usage is over the window ending\n" +
 			"at that day's midnight, as `slate focus show` counts it now, with the pursuits\n" +
 			"active now. So only the last day of the focus in force equals `slate focus show`.\n" +
-			"A focus longer than 30 days shows its last 30. With no focus in force, it shows\n" +
-			"the last 30 days, and SHARE and FACTOR read ·.\n" +
+			"A focus longer than one read answers shows its last days, and the header names\n" +
+			"the cut. With no focus in force, it shows the API's last days, and SHARE and\n" +
+			"FACTOR read ·.\n" +
 			"\n" +
 			"The rows come in the last day's order, the furthest under its share first, then\n" +
 			"any pursuit that only an earlier day lists. SHARE, USAGE and FACTOR are the last\n" +
@@ -477,26 +484,13 @@ func usageSpark(days []*api.PursuitUsageOnDay) string {
 	return b.String()
 }
 
-// focusDays is how many calendar days a focus spans, from the day it started to lastDay.
-func focusDays(focus api.Focus, lastDay string) int {
-	first, err := time.ParseInLocation(time.DateOnly, focus.StartedTS.Local().Format(time.DateOnly), time.Local)
-	if err != nil {
-		return 0
-	}
-	last, err := time.ParseInLocation(time.DateOnly, lastDay, time.Local)
-	if err != nil {
-		return 0
-	}
-	return int(last.Sub(first).Round(24*time.Hour).Hours()/24) + 1
-}
-
 // usageCut says the read answers only the last days of a focus longer than it reads, as "the
 // last 30 of its 45 days", and nothing where it answers every day.
 func usageCut(usage api.FocusUsage) string {
-	if usage.Focus == nil || len(usage.Days) == 0 || !usage.Since.After(usage.Focus.StartedTS) {
+	if usage.DaysInFocus == nil || *usage.DaysInFocus <= len(usage.Days) {
 		return ""
 	}
-	return fmt.Sprintf("the last %d of its %d days", len(usage.Days), focusDays(*usage.Focus, usage.Days[len(usage.Days)-1].Day))
+	return fmt.Sprintf("the last %d of its %d days", len(usage.Days), *usage.DaysInFocus)
 }
 
 func printFocusUsage(out io.Writer, usage api.FocusUsage, now time.Time) {
@@ -509,7 +503,7 @@ func printFocusUsage(out io.Writer, usage api.FocusUsage, now time.Time) {
 		}
 		_, _ = fmt.Fprintf(out, "  %s\n\n", focus.Statement)
 	} else {
-		_, _ = fmt.Fprintln(out, "No focus is in force, so these are the last 30 days, with no share to stand against.")
+		_, _ = fmt.Fprintln(out, "No focus is in force, so no share stands against these days.")
 		_, _ = fmt.Fprintln(out)
 	}
 	if len(usage.Days) == 0 {

@@ -274,8 +274,8 @@ Every factor is then null, so the standing's order puts the least output first.
 `GET /pursuits`, `GET /focus/history` and `GET /focus/usage` read once a minute. The pursuits
 read gives each row its summary, its measure, and INIT and IDEAS, which count every initiative
 and idea in it whatever its status, as `slate pursuits list` does. It reads every status, because
-a pursuit that is not active stays in the standing while its window holds its output. The usage
-read answers about 97 KB for 30 days.
+a pursuit that is not active stays in the standing while its window holds its output. Each is
+light enough to poll once a minute, as `tab-prior-art-and-read-costs.md` measures.
 
 **The panel charts the pursuit's usage on each day beside its share.** `GET /focus/usage`
 answers every day of the focus from its first to its last, with each pursuit's figures over the
@@ -296,8 +296,9 @@ the last day stand apart from the rest. The panel also names the output that rea
 
 **`h` and `l` move between focuses.** An earlier focus's rows come from its usage read's last
 day: its shares, and its usage, factor and output at the end of that day. The strip names its
-span, how it ended and its statement. A focus longer than 30 days answers its last 30, and the
-strip and the chart's heading name the cut, as `the last 30 of its 45 days`. INIT, IDEAS and LAST
+span, how it ended and its statement. A focus longer than the API's `USAGE_DAYS` answers its last
+`USAGE_DAYS`, and the strip and the chart's heading name the cut from the read's `days_in_focus`,
+as `the last 30 of its 45 days`. INIT, IDEAS and LAST
 WORKED stand as they are now, because no read answers them for an earlier day. `l` from a focus
 that the history no longer lists returns to the one in force.
 
