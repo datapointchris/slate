@@ -35,9 +35,11 @@ type tuiTab struct {
 }
 
 // tabInputs is what the tabs' boards are built from. The initiatives board is built only where
-// its tab is printed or opened.
+// its tab is printed or opened. Writer is the one that both writing tabs hold, and the
+// initiatives board is built with it.
 type tabInputs struct {
 	client      *api.Client
+	writer      *rankAndPinWriter
 	initiatives func() *initiativesBoard
 }
 
@@ -55,6 +57,13 @@ func tuiTabs() []tuiTab {
 					noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
 				}
 				return nil
+			},
+		},
+		{
+			name:  tabQueue,
+			board: func(in tabInputs) gotermboard.Board { return newQueueBoard(in.client, in.writer) },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				return readAndPrintTab(cmd, asJSON, newQueueBoard(in.client, in.writer))
 			},
 		},
 		{
@@ -117,7 +126,7 @@ func newTUICommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "A live board of the initiatives, the repos, the ideas, the documents, the pursuits and the worklogs, in a program with a tab per view",
+		Short: "A live board of the initiatives, the queue, the repos, the ideas, the documents, the pursuits and the worklogs, in a program with a tab per view",
 		Long: "One program with a tab per view, reading the API at its own pace. It draws its\n" +
 			"last good read with that read's age, so a rollout leaves the board drawn. Tab\n" +
 			"cycles the tabs once there is more than one.\n\n" +
@@ -150,6 +159,22 @@ func newTUICommand() *cobra.Command {
 			"slate.records.plan, and P a person's login. C opens a Claude session on the row,\n" +
 			"in the checkout the repo registry names for its repo: in a new window inside\n" +
 			"tmux, and otherwise in this terminal until it ends.\n\n" +
+			"queue is every kind of open work in the order `slate next` takes it, with its\n" +
+			"step, priority, initiative, repos and title. A * marks a priority inherited, and\n" +
+			"pinned a row that a pin placed. " +
+			fmt.Sprintf("1 shows the first %d rows, 2 the first %d and 3\n", queueFirstFew, queueFirstMany) +
+			"all of them, each cut from one read of the whole queue. The claimed work sits\n" +
+			"apart below, each row naming its holder and what its claim waits on. The panel\n" +
+			"names what set the row's place and the record that did, its pin, its rank, each\n" +
+			"of its pursuits' factors against the focus in force, and its description. P pins\n" +
+			"or unpins the row, and < and > move it by the API's move rules. A row raised by\n" +
+			"what waits on it moves only among the rows that waiter raised, and an issue in an\n" +
+			"initiative moves only among that initiative's issues. Any other row moves past the\n" +
+			"next row of its own priority and pin, with that row's issues. Where none qualifies,\n" +
+			"the footer says why and nothing is written. A move past a row the scope hides asks\n" +
+			"first. The queue and initiatives tabs share one writer, so one write runs at a\n" +
+			"time across both. tui-queue.schema.json in slate's cli/internal/cli holds the\n" +
+			"shape --json prints of it.\n\n" +
 			"repos is every repo the issues name on the same columns, then how long its oldest\n" +
 			"ready issue has waited and its closes in each recent week. Repos with nothing\n" +
 			"open and no close in those weeks fold under quiet. The panel draws a repo's\n" +
@@ -205,6 +230,7 @@ func newTUICommand() *cobra.Command {
 			"  slate tui --status someday\n" +
 			"  COLUMNS=188 LINES=88 slate tui --once > frame.txt\n" +
 			"  slate tui --grouping pursuit --once\n" +
+			"  slate tui --view queue --json | jq '.board.queue[] | {number, placed_by, raised_by}'\n" +
 			"  slate tui --view repos --json | jq '.board.repos[] | {repo, ready: (.ready | length)}'\n" +
 			"  slate tui --view ideas --json | jq '.rows[] | {number, title, ref_count}'\n" +
 			"  slate tui --view documents --json | jq '.records[] | {number: .record.number, documents: [.documents[].name]}'\n" +
@@ -242,8 +268,9 @@ func newTUICommand() *cobra.Command {
 			if cmd.Flags().Changed("limit") {
 				scope.kind = scopeFirstInList
 			}
-			in := tabInputs{client: client, initiatives: func() *initiativesBoard {
-				return newInitiativesBoard(client, initiativeStatus, scope, grouping)
+			writer := newRankAndPinWriter(client)
+			in := tabInputs{client: client, writer: writer, initiatives: func() *initiativesBoard {
+				return newInitiativesBoard(client, writer, initiativeStatus, scope, grouping)
 			}}
 			if printing {
 				return printOpeningTab(cmd, view, asJSON, in)

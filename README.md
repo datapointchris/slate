@@ -151,7 +151,9 @@ cd cli && go build -o slate . && ./slate --help
 ```
 
 `slate tui` opens a live board of the initiatives, with the total, each priority
-tier and each initiative's progress on one set of columns. Its repos tab puts each
+tier and each initiative's progress on one set of columns. Its queue tab lists every
+kind of open work in the order `slate next` takes it, the claimed work apart, and says
+what set each row's place. Its repos tab puts each
 repo on the same columns, with its closes per week and how long its ready issues
 have waited. Its ideas tab lists every open idea, newest first, narrowed
 by pursuit or tag. Its documents tab groups every document under its record, the

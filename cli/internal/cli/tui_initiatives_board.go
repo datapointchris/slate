@@ -161,24 +161,25 @@ type initiativesBoard struct {
 	text        *gotermboard.Source[api.InitiativeBoardText]
 	cursorRow   *gotermboard.Source[cursorRowReads]
 	cursor      atomic.Pointer[string]
-	// markdown, records, recordsReadAt, places and writing belong to the program's
-	// goroutine, with the keys and Frame.
+	// writer runs the writes the keys start, one at a time across this tab and the queue tab.
+	writer *rankAndPinWriter
+	// markdown, records, recordsReadAt and places belong to the program's goroutine, with the
+	// keys and Frame.
 	markdown      *markdown.Renderer
 	records       map[int]bool
 	recordsReadAt time.Time
 	// places is each reorderable row's neighbors as the last frame drew them.
 	places map[string]queuePlace
-	// writing is the write under way, which the footer names, or empty.
-	writing string
 	// readFailure is the board read's last failure, for --once and --json to exit on,
 	// since a source keeps only its sentence.
 	readFailure error
 }
 
-// newInitiativesBoard opens at the grouping it is given, or by tier where it is empty.
-func newInitiativesBoard(client *api.Client, status string, scope boardScope, grouping string) *initiativesBoard {
+// newInitiativesBoard opens at the grouping it is given, or by tier where it is empty. Its keys
+// write through writer, which the queue tab holds too.
+func newInitiativesBoard(client *api.Client, writer *rankAndPinWriter, status string, scope boardScope, grouping string) *initiativesBoard {
 	zone := issueZone()
-	b := &initiativesBoard{client: client, scope: scope, opensAt: cmp.Or(grouping, groupingTier), described: map[int]bool{}}
+	b := &initiativesBoard{client: client, writer: writer, scope: scope, opensAt: cmp.Or(grouping, groupingTier), described: map[int]bool{}}
 	b.reading.Store(&boardReading{status: status})
 	b.markdown = markdown.New(b.colorRecordNumbers)
 	b.initiatives = gotermboard.NewSource("initiatives", boardReadEvery, func(ctx context.Context) (api.InitiativeBoard, string, error) {

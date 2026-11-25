@@ -35,7 +35,8 @@ func boardFromServer(t *testing.T, read api.InitiativeBoard, scope boardScope) *
 		}
 	}))
 	t.Cleanup(server.Close)
-	board := newInitiativesBoard(api.New(server.URL, server.Client()), "", scope, "")
+	client := api.New(server.URL, server.Client())
+	board := newInitiativesBoard(client, newRankAndPinWriter(client), "", scope, "")
 	if err := board.readOnce(context.Background()); err != nil {
 		t.Fatal(err)
 	}

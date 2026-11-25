@@ -91,6 +91,53 @@ type Queue struct {
 	Claimed []QueueRow `json:"claimed"`
 }
 
+// QueueBoardRow is one row of GET /queue/board: only what a board draws of a
+// record in the queue, and no record body. OwnPriority is the record's own,
+// beside the Priority it sorts at. Initiative is an issue's, and Pursuits that
+// initiative's for an issue, else the record's own. OpenCount is set on an
+// initiative's row alone. ExpiresTS and Waiting are those of the claim holding
+// a claimed row. Slot is the record whose slot holds the row's place, and nil
+// where an API older than this CLI answered none.
+type QueueBoardRow struct {
+	Kind        string             `json:"kind"`
+	Number      int                `json:"number"`
+	Title       string             `json:"title"`
+	Step        string             `json:"step"`
+	Priority    int                `json:"priority"`
+	OwnPriority int                `json:"own_priority"`
+	Pinned      bool               `json:"pinned"`
+	PlacedBy    string             `json:"placed_by"`
+	RaisedBy    *int               `json:"raised_by"`
+	Holder      *string            `json:"holder"`
+	HeldThrough *int               `json:"held_through"`
+	Initiative  *InitiativeSummary `json:"initiative"`
+	Repos       []string           `json:"repos"`
+	Pursuits    []PursuitSummary   `json:"pursuits"`
+	OpenCount   *int               `json:"open_count"`
+	Overlaps    []PathOverlap      `json:"overlaps"`
+	ExpiresTS   *time.Time         `json:"expires_ts"`
+	Waiting     *ClaimWait         `json:"waiting"`
+	Slot        *int               `json:"slot"`
+}
+
+// QueueBoard is every open row of the queue in GET /queue's order, the
+// unheld first row next and the held apart by holder, as of ReadTS.
+type QueueBoard struct {
+	ReadTS  time.Time       `json:"read_ts"`
+	Queue   []QueueBoardRow `json:"queue"`
+	Claimed []QueueBoardRow `json:"claimed"`
+}
+
+// GetQueueBoard reads every open row of the queue, slim, for a board that
+// polls it. It takes no filter and no limit.
+func (c *Client) GetQueueBoard(ctx context.Context, zone DayZone) (QueueBoard, error) {
+	var board QueueBoard
+	if err := c.get(ctx, withQuery("/queue/board", zoneQuery(zone)), &board); err != nil {
+		return QueueBoard{}, err
+	}
+	return board, nil
+}
+
 // GetQueue returns every kind of open work by priority, each row with its
 // step, and the held work apart.
 func (c *Client) GetQueue(ctx context.Context, filter QueueFilter, zone DayZone) (Queue, error) {
