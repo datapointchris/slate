@@ -92,7 +92,7 @@ func openJumpTabs(t *testing.T, stand *jumpAPI, view string) *gotermboard.Tabs {
 
 // TestEachKindLandsWhereItsTabDrawsItWhole is the jump table: each row opens slate tui on a
 // tab, jumps or presses keys, and reads the screen. A tab that declares a kind adds the rows that
-// land on it. goTo stands in for t on a row of a tab that is not built yet.
+// land on it. goTo is the jump that t makes from a row on another tab.
 func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 	const webLink = "https://github.com/owner/repo/pull/40"
 	initiative := func(number int) *gotermboard.EntityRef {
@@ -111,24 +111,23 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		// cursorOn is in the line under the cursor, and shows and hides each in the screen or not.
 		cursorOn     string
 		shows, hides []string
-		// handsOver says the last key handed the terminal to a program.
-		handsOver bool
+		// handsOver says whether the last key handed the terminal to a program, unchecked where nil.
+		handsOver *bool
 		// readsAt is the status the newest board read asked for, empty for active.
 		readsAt *string
 	}{
 		{
 			name: "t on a pull request with a web link and prs on PATH opens prs", opensOn: tabInitiatives,
-			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, prsOnPath: true, pullRequest: webLink, handsOver: true,
+			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, prsOnPath: true, pullRequest: webLink, handsOver: new(true),
 		},
 		{
-			name: "t on a pull request with no prs on PATH says so", opensOn: tabInitiatives,
-			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, pullRequest: webLink,
-			shows: []string{"prs is not on PATH, so o opens owner/repo#40 in the browser"},
+			name: "t on a pull request with no prs on PATH opens nothing", opensOn: tabInitiatives,
+			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, pullRequest: webLink, handsOver: new(false),
 		},
 		{
-			name: "t on a pull request that is no web link says so", opensOn: tabInitiatives,
+			name: "t on a pull request that is no web link opens nothing", opensOn: tabInitiatives,
 			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, prsOnPath: true, pullRequest: "ssh://host/owner/repo/pull/40",
-			shows: []string{"ssh://host/owner/repo/pull/40 is not a web link, so nothing opened it"},
+			handsOver: new(false),
 		},
 		{
 			name: "* on a pursuit narrows the ideas tab to the ideas in it", opensOn: tabIdeas,
@@ -186,8 +185,8 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 					t.Errorf("the screen should not show %q:\n%s", unwanted, screen)
 				}
 			}
-			if test.handsOver && last == nil {
-				t.Errorf("the last key should hand the terminal over:\n%s", screen)
+			if test.handsOver != nil && *test.handsOver != (last != nil) {
+				t.Errorf("the last key handed the terminal over: %t, want %t:\n%s", last != nil, *test.handsOver, screen)
 			}
 			if test.readsAt != nil && stand.lastStatus() != *test.readsAt {
 				t.Errorf("the board read last at status %q, want %q, after reading at %q", stand.lastStatus(), *test.readsAt, stand.statuses)

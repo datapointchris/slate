@@ -260,18 +260,23 @@ request by its link.
 | initiative | initiatives | its row on the initiatives tab |
 | issue | initiatives, under its initiative | its row on the initiatives tab |
 | idea | ideas | its row on the ideas tab |
-| pursuit | no tab yet | each initiative and idea in it, and its group under `v` pursuit |
-| worklog | no tab yet | each pull request and session row it holds |
+| pursuit | none: `t` offers nothing | each initiative and idea in it, and its group under `v` pursuit |
+| worklog | none: `t` offers nothing | each pull request and session row it holds |
 | pull request | `prs tui --pr`, outside | its row under an issue |
 
-**A jump to an initiative draws it, whatever the scope.** The per-tier scope opens on five a tier,
-and the sixth sits in a group that draws only under a filter, where gotermboard's seek finds no
-line. So the sought initiative, or the one holding the sought issue, counts as shown until the
-reader leaves the tab.
+A tab that declares a kind in its `EntityKinds` adds its row here. `t` never offers the tab the
+row is on, so a jump to an initiative, an issue or an idea comes from a row on another tab.
 
-**The status widens only where a read lacks the record.** Every status reads 2.5 times the bytes of
-the active ones in the same time, so a board reading it on every poll pays that for nothing. Where
-the last read lacks the record, the jump widens to every status at once. A tab that has not read
+**A jump to an initiative draws it, whatever the scope.** The per-tier scope draws the first few of
+each tier, and the rest sit in a group that draws only under a filter, where gotermboard's seek
+finds no line. So the sought initiative, or the one holding the sought issue, counts as shown until
+the reader leaves the tab.
+
+**The status widens only where a read lacks the record.** `GET /initiatives/board` answers about
+0.5 MB at active and 1.2 MB at every status, each in under 1 s, on a board of 92 active initiatives
+and 225 in all. `curl -w '%{size_download} %{time_total}'` with a bearer token measures them again.
+A board reading every status on every poll pays that for nothing. Where the last read lacks the
+record, the jump widens to every status at once. A tab that has not read
 yet learns that from its first read, which reads every status after it only where its answer
 lacks the record. The status narrows back once the reader leaves for good. A chained jump that `esc`
 can still return along keeps it wide, so `esc` finds the row it left.
