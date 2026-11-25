@@ -40,6 +40,22 @@ func TestATabNamesTheReadItsAPILacks(t *testing.T) {
 			},
 			lacks: errDocumentsLackRecord,
 		},
+		{
+			name: "the usage by day", view: tabPursuits,
+			serve: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/api/v1/focus":
+					_ = json.NewEncoder(w).Encode(api.FocusStanding{})
+				case "/api/v1/pursuits", "/api/v1/focus/history":
+					_, _ = w.Write([]byte(`[]`))
+				default:
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"error":"Not Found","message":"no route answers ` + r.URL.Path + `"}`))
+				}
+			},
+			lacks: errFocusUsageUnanswered,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(test.serve)

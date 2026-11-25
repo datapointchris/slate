@@ -25,7 +25,8 @@ const (
 	entityKindInitiative = api.RecordKindInitiative
 	// entityKindIssue lands on the initiatives tab, under its initiative.
 	entityKindIssue = api.RecordKindIssue
-	// entityKindPursuit is a pursuit, which a line names beside each record serving it.
+	// entityKindPursuit is a pursuit, which a line names beside each record serving it. It lands
+	// on the pursuits tab, at the focus in force.
 	entityKindPursuit = api.RecordKindPursuit
 	// entityKindWorklog is a worklog, by its name: its record's number and its sequence, such as 12.1.
 	entityKindWorklog = "worklog"

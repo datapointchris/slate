@@ -607,6 +607,7 @@ func TestService_EachCommandSendsOnlyRoutesItsOwnScopesReach(t *testing.T) {
 		},
 		{[]string{"focus", "show", "--json"}, `{}`, nil},
 		{[]string{"focus", "list", "--json"}, `[]`, nil},
+		{[]string{"focus", "usage", "--focus", "3", "--json"}, `{}`, nil},
 		{
 			[]string{"focus", "set", "--statement", "Warehouse first", "--until", "2099-12-31", "--share", "Data Warehouse=0.6", "--share", "3010=0.2"},
 			`{}`,

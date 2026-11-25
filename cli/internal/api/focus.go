@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -63,21 +64,27 @@ type FocusWindow struct {
 	Until time.Time `json:"until"`
 }
 
-// PursuitStanding is where one pursuit stands against its share. Share and
-// Factor are nil where no focus is in force or the pursuit is not active.
-// SplitOutputTokens may hold a fraction, because a worklog reaching two
-// pursuits gives each half its output.
+// PursuitFigures is one pursuit's share, output, usage and factor over one
+// window. Share and Factor are nil where no focus is in force or the pursuit
+// is not active. SplitOutputTokens may hold a fraction, because a worklog
+// reaching two pursuits gives each half its output.
+type PursuitFigures struct {
+	Number            int      `json:"number"`
+	Share             *float64 `json:"share"`
+	ShareNamed        bool     `json:"share_named"`
+	SplitOutputTokens float64  `json:"split_output_tokens"`
+	WorklogCount      int      `json:"worklog_count"`
+	Usage             float64  `json:"usage"`
+	Factor            *float64 `json:"factor"`
+}
+
+// PursuitStanding is where one pursuit stands against its share, with its
+// name and status now.
 type PursuitStanding struct {
-	Number            int        `json:"number"`
-	Name              string     `json:"name"`
-	Status            string     `json:"status"`
-	Share             *float64   `json:"share"`
-	ShareNamed        bool       `json:"share_named"`
-	SplitOutputTokens float64    `json:"split_output_tokens"`
-	WorklogCount      int        `json:"worklog_count"`
-	Usage             float64    `json:"usage"`
-	Factor            *float64   `json:"factor"`
-	TouchedTS         *time.Time `json:"touched_ts"`
+	PursuitFigures
+	Name      string     `json:"name"`
+	Status    string     `json:"status"`
+	TouchedTS *time.Time `json:"touched_ts"`
 }
 
 // UnattributedUsage is the window's output that reached no pursuit.
@@ -103,6 +110,59 @@ func (c *Client) GetFocusStanding(ctx context.Context, zone DayZone) (FocusStand
 		return FocusStanding{}, err
 	}
 	return standing, nil
+}
+
+// FocusUsagePursuit is a pursuit that some day of a usage read lists, with its
+// status now.
+type FocusUsagePursuit struct {
+	PursuitSummary
+	Status string `json:"status"`
+}
+
+// PursuitUsageOnDay is one pursuit's figures over one day's window.
+// SplitOutputTokensOnDay is its part of the output written that day while the
+// focus held.
+type PursuitUsageOnDay struct {
+	PursuitFigures
+	SplitOutputTokensOnDay float64 `json:"split_output_tokens_on_day"`
+}
+
+// FocusUsageDay is one day of a focus, as YYYY-MM-DD in the read's zone, and
+// each pursuit's figures over the window ending with it, the furthest under its
+// share first. A pursuit that is not active is listed only on a day whose
+// window drew output from it.
+type FocusUsageDay struct {
+	Day      string              `json:"day"`
+	Window   FocusWindow         `json:"window"`
+	Pursuits []PursuitUsageOnDay `json:"pursuits"`
+}
+
+// FocusUsage is each day of a focus, oldest first, every day from the first to
+// the last. Focus is nil where the read named none and none is in force, and
+// the days are then the API's last USAGE_DAYS. A focus longer than that answers
+// its last USAGE_DAYS, so Since falls after its start. Pursuits names each one
+// any day lists, in number order. Only the last day of the focus in force is
+// sure to equal GET /focus.
+type FocusUsage struct {
+	Focus    *Focus              `json:"focus"`
+	Since    time.Time           `json:"since"`
+	Until    time.Time           `json:"until"`
+	Pursuits []FocusUsagePursuit `json:"pursuits"`
+	Days     []FocusUsageDay     `json:"days"`
+}
+
+// GetFocusUsage reads each day of the focus id names, or of the focus in force
+// where id is nil.
+func (c *Client) GetFocusUsage(ctx context.Context, id *int, zone DayZone) (FocusUsage, error) {
+	query := zoneQuery(zone)
+	if id != nil {
+		query.Set("focus", strconv.Itoa(*id))
+	}
+	var usage FocusUsage
+	if err := c.get(ctx, withQuery("/focus/usage", query), &usage); err != nil {
+		return FocusUsage{}, err
+	}
+	return usage, nil
 }
 
 // ListFocuses returns every focus, the latest set first.

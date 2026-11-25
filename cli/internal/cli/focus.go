@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -39,6 +41,7 @@ func newFocusCommand() *cobra.Command {
 			"A factor reads 0.5 at its share, toward 1 under it and toward 0 over it. A\n" +
 			"reader ordering the queue takes slate's factor rather than working it out.",
 		Example: "  slate focus show\n" +
+			"  slate focus usage\n" +
 			"  slate focus set --statement \"Warehouse first this month\" --until 2026-12-31 --share \"Data Warehouse=0.6\"\n" +
 			"  slate focus end --reason \"The audit finished early\"\n" +
 			"  slate focus list",
@@ -48,6 +51,7 @@ func newFocusCommand() *cobra.Command {
 	cmd.AddCommand(inGroup(groupReading,
 		newFocusShowCommand(),
 		newFocusListCommand(),
+		newFocusUsageCommand(),
 	)...)
 	cmd.AddCommand(inGroup(groupChanging,
 		newFocusSetCommand(),
@@ -125,6 +129,66 @@ func newFocusListCommand() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output every focus as JSON to stdout")
 	addLimitFlag(cmd, &limit)
+	return cmd
+}
+
+// errFocusUsageUnanswered is an API older than the usage by day, which answers its route as no
+// route at all.
+var errFocusUsageUnanswered = errors.New("this API answers no usage by day, so it is older than this CLI")
+
+// focusUsageRead is GetFocusUsage, naming an API older than the route by errFocusUsageUnanswered.
+func focusUsageRead(ctx context.Context, client *api.Client, id *int) (api.FocusUsage, error) {
+	usage, err := client.GetFocusUsage(ctx, id, issueZone())
+	if noRouteFor(err) {
+		return api.FocusUsage{}, errFocusUsageUnanswered
+	}
+	return usage, err
+}
+
+func newFocusUsageCommand() *cobra.Command {
+	var (
+		asJSON  bool
+		focusID int
+	)
+	cmd := &cobra.Command{
+		Use:   "usage [--focus <id>]",
+		Short: "Show each pursuit's usage on each day of a focus, beside its share",
+		Long: "Reads the focus in force, or the one --focus names by its id from\n" +
+			"`slate focus list`, a day at a time. Each day's usage is over the window ending\n" +
+			"at that day's midnight, as `slate focus show` counts it now, with the pursuits\n" +
+			"active now. So only the last day of the focus in force equals `slate focus show`.\n" +
+			"A focus longer than 30 days shows its last 30. With no focus in force, it shows\n" +
+			"the last 30 days, and SHARE and FACTOR read ·.\n" +
+			"\n" +
+			"The rows come in the last day's order, the furthest under its share first, then\n" +
+			"any pursuit that only an earlier day lists. SHARE, USAGE and FACTOR are the last\n" +
+			"day's. BY DAY is a glyph per day, each pursuit's usage scaled to its own highest,\n" +
+			"and blank on a day it drew nothing.",
+		Example:     "  slate focus usage\n  slate focus usage --focus 3\n  slate focus usage --json | jq '.days[-1].pursuits[] | {number, usage, factor}'",
+		Args:        cobra.NoArgs,
+		Annotations: scopesForService(scopeRecordsRead),
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			var id *int
+			if cmd.Flags().Changed("focus") {
+				id = &focusID
+			}
+			client, err := newAPIClient(cmd)
+			if err != nil {
+				return handleAPIError(err)
+			}
+			usage, err := focusUsageRead(cmd.Context(), client, id)
+			if err != nil {
+				return handleArgumentAPIError(err)
+			}
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), usage)
+			}
+			printFocusUsage(cmd.OutOrStdout(), usage, time.Now())
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&focusID, "focus", 0, "The focus to read, by its id (see: slate focus list); the one in force where none is named")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the focus and each day's figures as JSON to stdout")
 	return cmd
 }
 
@@ -330,6 +394,154 @@ func printFocusStanding(out io.Writer, standing api.FocusStanding, now time.Time
 	_, _ = fmt.Fprintf(out, "\nUNATTRIBUTED  %s output in %d %s reaching no pursuit · %s output in no worklog\n",
 		groupedDigits(unattributed.OutputTokens), unattributed.WorklogCount, plural(unattributed.WorklogCount, "worklog", "worklogs"),
 		groupedDigits(unattributed.OutsideWorklogsOutputTokens))
+}
+
+// noFigure stands in a cell for a share or factor that the read holds none of, and for a usage
+// or output of zero.
+const noFigure = "·"
+
+func figureOrDot(f *float64) string {
+	if f == nil {
+		return noFigure
+	}
+	return fraction(*f)
+}
+
+// pursuitDays is one pursuit's figures on each day of a usage read, nil on a day that lacks it.
+type pursuitDays struct {
+	pursuit api.FocusUsagePursuit
+	days    []*api.PursuitUsageOnDay
+}
+
+// last is the pursuit's figures on the read's last day, nil where that day lacks it.
+func (p pursuitDays) last() *api.PursuitUsageOnDay {
+	if len(p.days) == 0 {
+		return nil
+	}
+	return p.days[len(p.days)-1]
+}
+
+// byPursuit is each pursuit the read lists, with its figures on each day: in the last day's
+// order, the furthest under its share first, then each that only an earlier day lists, in number
+// order.
+func byPursuit(usage api.FocusUsage) []pursuitDays {
+	at := map[int]int{}
+	var rows []pursuitDays
+	add := func(number int) int {
+		if i, seen := at[number]; seen {
+			return i
+		}
+		pursuit := api.FocusUsagePursuit{PursuitSummary: api.PursuitSummary{Number: number}}
+		if found := slices.IndexFunc(usage.Pursuits, func(p api.FocusUsagePursuit) bool { return p.Number == number }); found >= 0 {
+			pursuit = usage.Pursuits[found]
+		}
+		at[number] = len(rows)
+		rows = append(rows, pursuitDays{pursuit: pursuit, days: make([]*api.PursuitUsageOnDay, len(usage.Days))})
+		return at[number]
+	}
+	if n := len(usage.Days); n > 0 {
+		for _, figures := range usage.Days[n-1].Pursuits {
+			add(figures.Number)
+		}
+	}
+	for _, pursuit := range usage.Pursuits {
+		add(pursuit.Number)
+	}
+	for day := range usage.Days {
+		for i := range usage.Days[day].Pursuits {
+			figures := &usage.Days[day].Pursuits[i]
+			rows[add(figures.Number)].days[day] = figures
+		}
+	}
+	return rows
+}
+
+// usageSpark is a glyph per day, scaled to the pursuit's highest usage, and blank on a day it
+// drew nothing or that lacks it.
+func usageSpark(days []*api.PursuitUsageOnDay) string {
+	glyphs := []rune(sparkGlyphs)
+	most := 0.0
+	for _, day := range days {
+		if day != nil {
+			most = max(most, day.Usage)
+		}
+	}
+	var b strings.Builder
+	for _, day := range days {
+		if day == nil || day.Usage <= 0 || most <= 0 {
+			b.WriteByte(' ')
+			continue
+		}
+		b.WriteRune(glyphs[min(len(glyphs)-1, int(day.Usage/most*float64(len(glyphs)-1)+0.5))])
+	}
+	return b.String()
+}
+
+// focusDays is how many calendar days a focus spans, from the day it started to lastDay.
+func focusDays(focus api.Focus, lastDay string) int {
+	first, err := time.ParseInLocation(time.DateOnly, focus.StartedTS.Local().Format(time.DateOnly), time.Local)
+	if err != nil {
+		return 0
+	}
+	last, err := time.ParseInLocation(time.DateOnly, lastDay, time.Local)
+	if err != nil {
+		return 0
+	}
+	return int(last.Sub(first).Round(24*time.Hour).Hours()/24) + 1
+}
+
+// usageCut says the read answers only the last days of a focus longer than it reads, as "the
+// last 30 of its 45 days", and nothing where it answers every day.
+func usageCut(usage api.FocusUsage) string {
+	if usage.Focus == nil || len(usage.Days) == 0 || !usage.Since.After(usage.Focus.StartedTS) {
+		return ""
+	}
+	return fmt.Sprintf("the last %d of its %d days", len(usage.Days), focusDays(*usage.Focus, usage.Days[len(usage.Days)-1].Day))
+}
+
+func printFocusUsage(out io.Writer, usage api.FocusUsage, now time.Time) {
+	if focus := usage.Focus; focus != nil {
+		_, _ = fmt.Fprintf(out, "Focus %d, set %s by %s, ", focus.ID, localClock(focus.StartedTS, now), focus.SetBy)
+		if focus.Active {
+			_, _ = fmt.Fprintf(out, "holds through %s\n", focus.UntilDate)
+		} else {
+			_, _ = fmt.Fprintf(out, "held through %s, ended %s\n", focus.UntilDate, focusEnded(*focus, now))
+		}
+		_, _ = fmt.Fprintf(out, "  %s\n\n", focus.Statement)
+	} else {
+		_, _ = fmt.Fprintln(out, "No focus is in force, so these are the last 30 days, with no share to stand against.")
+		_, _ = fmt.Fprintln(out)
+	}
+	if len(usage.Days) == 0 {
+		_, _ = fmt.Fprintln(out, "No day to show.")
+		return
+	}
+	days := fmt.Sprintf("Days %s to %s", usage.Days[0].Day, usage.Days[len(usage.Days)-1].Day)
+	if cut := usageCut(usage); cut != "" {
+		days += ", " + cut
+	}
+	_, _ = fmt.Fprintf(out, "%s, counted from %s to %s.\n\n", days, localClock(usage.Since, now), localClock(usage.Until, now))
+	rows := byPursuit(usage)
+	if len(rows) == 0 {
+		_, _ = fmt.Fprintln(out, "No active pursuits, and none drew output on these days.")
+		return
+	}
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "PURSUIT\tSHARE\tUSAGE\tFACTOR\tBY DAY\tNAME")
+	for _, row := range rows {
+		share, used, factor := noFigure, noFigure, noFigure
+		if last := row.last(); last != nil {
+			share, factor = figureOrDot(last.Share), figureOrDot(last.Factor)
+			if last.Share != nil && !last.ShareNamed {
+				share += " (rest)"
+			}
+			if last.Usage > 0 {
+				used = fraction(last.Usage)
+			}
+		}
+		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%s\t%s\t%s\t%s\n", row.pursuit.Number, share, used, factor, usageSpark(row.days), row.pursuit.Name)
+	}
+	_ = tw.Flush()
 }
 
 // focusEnded says how a focus stands: - in force, lapsed where its last day

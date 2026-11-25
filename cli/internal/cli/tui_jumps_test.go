@@ -21,7 +21,7 @@ import (
 // jumpAPI stands in for slate's API under every tab. At active it reads sevenHighAndTwoLow, with
 // initiative 1 in pursuit 3010 and holding issue 50, whose worklog links one pull request. Every
 // status adds completed initiative 20, which holds the one document, its retro. Idea 4100 is in
-// pursuit 3010, and idea 4000 in none.
+// pursuit 3010, and idea 4000 in none. No focus is in force, and 3010 is the one pursuit.
 type jumpAPI struct {
 	pullRequest string
 	mu          sync.Mutex
@@ -66,6 +66,14 @@ func (s *jumpAPI) serve(w http.ResponseWriter, r *http.Request) {
 			RecordNumber: 20, Name: "retro", Address: "20/retro", Kind: "retro", CreatedTS: day,
 			Latest: api.DocumentVersionSummary{Version: 1, WrittenBy: "someone", WrittenTS: day},
 		}}}
+	case "/api/v1/focus":
+		answer = api.FocusStanding{Pursuits: []api.PursuitStanding{{PursuitFigures: api.PursuitFigures{Number: garden.Number}, Name: garden.Name, Status: "active"}}}
+	case "/api/v1/pursuits":
+		answer = []api.Pursuit{{Number: garden.Number, Name: garden.Name, Status: "active"}}
+	case "/api/v1/focus/history":
+		answer = []api.Focus{}
+	case "/api/v1/focus/usage":
+		answer = api.FocusUsage{}
 	default:
 		answer = map[string]any{}
 	}
@@ -169,6 +177,14 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		{
 			name: "esc from a document's initiative comes back to the document", opensOn: tabDocuments,
 			keys: []string{"t", "esc"}, pullRequest: webLink, cursorOn: "retro",
+		},
+		{
+			name: "t on an initiative lands on its pursuit's row", opensOn: tabIdeas,
+			goTo: initiative(1), keys: []string{"t"}, pullRequest: webLink, cursorOn: "Grow the garden", shows: []string{"slate · pursuits"},
+		},
+		{
+			name: "esc from the pursuit comes back to the initiative", opensOn: tabIdeas,
+			goTo: initiative(1), keys: []string{"t", "esc"}, pullRequest: webLink, cursorOn: "initiative 1",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

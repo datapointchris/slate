@@ -21,8 +21,8 @@ that tools such as Jellyfish and LinearB report.
 | `PUT /focus` | sets a focus from now | `slate.focus.write` |
 | `POST /focus/end` | ends the focus in force, with a reason | `slate.focus.write` |
 
-`slate focus show`, `list`, `set` and `end` drive the four routes in that
-order. `set` takes each share as `--share <pursuit>=<fraction>`, the pursuit
+`slate focus show`, `list`, `usage`, `set` and `end` drive the five routes in
+that order. `set` takes each share as `--share <pursuit>=<fraction>`, the pursuit
 by number or exact name, and reads a name to its number before the PUT.
 
 `focuses` holds each focus: `statement`, `started_ts`, `until_date`,
