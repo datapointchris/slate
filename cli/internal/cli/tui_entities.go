@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -56,8 +57,9 @@ func soughtNumber(ref *gotermboard.EntityRef, kind string) (int, bool) {
 	return number, err == nil
 }
 
-// prsOnPullRequest is t on a pull request: prs opens on its link, and quitting prs comes back.
-// gotermboard asks CannotOpen first, so Command opens only a link it passed.
+// prsOnPullRequest is prs opened on a pull request's link, the one door that t and enter on its
+// row take, and quitting prs comes back. gotermboard asks CannotOpen first, so Command opens only
+// a link it passed.
 var prsOnPullRequest = gotermboard.Outside{
 	Kind: entityKindPullRequest, Name: "prs",
 	CannotOpen: prsCannotOpen,
@@ -65,6 +67,7 @@ var prsOnPullRequest = gotermboard.Outside{
 		// prs holds the terminal until the user quits it, so the handover has no deadline.
 		return terminalCommand{exec.CommandContext(context.Background(), "prs", "tui", "--pr", link)}
 	},
+	Ended: prsEnded,
 }
 
 // prsCannotOpen says why prs cannot open link, and nothing where link is a web link and prs is
@@ -74,9 +77,26 @@ func prsCannotOpen(link string) string {
 		return fmt.Sprintf("%s is not a web link, so nothing opened it", link)
 	}
 	if _, err := exec.LookPath("prs"); err != nil {
-		return fmt.Sprintf("prs is not on PATH, so o opens %s in the browser", pullRequestName(link))
+		return fmt.Sprintf("prs is not on PATH, so nothing opened %s", pullRequestName(link))
 	}
 	return ""
+}
+
+// usageExit is the status a command line it refuses exits with, by the convention prs keeps.
+const usageExit = 2
+
+// prsEnded is what the footer says once prs hands the terminal back. After a non-zero exit it
+// names the last line prs wrote to stderr, or its exit status where it wrote nothing.
+func prsEnded(link string, err error, stderr []byte) string {
+	name := pullRequestName(link)
+	var exited *exec.ExitError
+	switch {
+	case errors.As(err, &exited) && exited.ExitCode() == usageExit:
+		return fmt.Sprintf("the prs on PATH refused `prs tui --pr` (%s), so nothing opened %s", gotermboard.LastLine(stderr, err), name)
+	case err != nil:
+		return fmt.Sprintf("prs did not open %s: %s", name, gotermboard.LastLine(stderr, err))
+	}
+	return "back from prs on " + name
 }
 
 // terminalCommand is a command that Bubble Tea's Exec hands the terminal to.

@@ -232,9 +232,8 @@ An issue is a folding group rather than a row, so the cursor can land on what it
 A pull request row is owned by prs, so `enter` there hands the terminal to
 `prs tui --pr <url>`, and quitting prs comes back to the board, which reads again. After prs
 exits non-zero, the board shows the last line prs wrote to stderr, or its exit status where it
-wrote nothing. A usage error, exit 2, means the `prs` on `PATH` takes no `tui --pr`, so the
-footer points at `o`, as it does where no prs is on `PATH`. `o` opens the pull request in the
-browser from any of its rows.
+wrote nothing. A usage error, exit 2, means the `prs` on `PATH` takes no `tui --pr`, and the
+footer says so. `o` opens the pull request in the browser from any of its rows.
 
 A worklog's link is free text any writer sets, and a desktop opener honors `file:`, `ssh:` and
 every scheme an app registers. So `enter` and `o` hand on only an `http` or `https` link, and
@@ -284,8 +283,10 @@ can still return along keeps it wide, so `esc` finds the row it left.
 **`*` narrows by what each line names, and nothing more.** A lock on a pursuit keeps the
 initiatives and the ideas in it, past the scope included, and each issue under a kept initiative.
 
-**`t` on a pull request opens `prs tui --pr` only on a web link with `prs` on `PATH`.** Otherwise
-the footer says which is missing and nothing opens, as `enter` on the same row does.
+**`t` and `enter` on a pull request take one door to `prs tui --pr`.** `enter` returns
+gotermboard's `GoTo` to the program outside named prs, so the checks before prs opens and the
+footer after it ends are written once, in `prsOnPullRequest`. prs opens only on a web link with
+`prs` on `PATH`. Otherwise the footer says which is missing and nothing opens.
 
 - *Rejected:* reading every status whenever the tab had not read. A jump from another tab to an
   active initiative would then draw the completed ones too.

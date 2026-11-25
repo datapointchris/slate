@@ -1,13 +1,10 @@
 package cli
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
-	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -129,33 +126,6 @@ func (b *initiativesBoard) repoOf(kind string, number int) string {
 		}
 	}
 	return ""
-}
-
-// usageExit is the status a command line it refuses exits with, by the convention prs keeps.
-const usageExit = 2
-
-// openInPrs is enter on a pull request's row: prs opens on it, and quitting prs comes back.
-// After prs exits non-zero, the footer shows the last line it wrote to stderr, or its exit
-// status where it wrote nothing.
-func (b *initiativesBoard) openInPrs(m *gotermboard.Model, link string) tea.Cmd {
-	name := pullRequestName(link)
-	if why := prsCannotOpen(link); why != "" {
-		m.Say(why)
-		return nil
-	}
-	// prs holds the terminal until the user quits it, so the handover has no deadline.
-	return m.HandOver(exec.CommandContext(context.Background(), "prs", "tui", "--pr", link), func(m *gotermboard.Model, err error, stderr []byte) tea.Cmd {
-		var exited *exec.ExitError
-		switch {
-		case errors.As(err, &exited) && exited.ExitCode() == usageExit:
-			m.Say(fmt.Sprintf("the prs on PATH refused `prs tui --pr` (%s), so o opens %s in the browser", gotermboard.LastLine(stderr, err), name))
-		case err != nil:
-			m.Say(fmt.Sprintf("prs did not open %s: %s", name, gotermboard.LastLine(stderr, err)))
-		default:
-			m.Say("back from prs on " + name)
-		}
-		return nil
-	})
 }
 
 // webLink says whether link opens a web page, the one kind of link the board hands on.

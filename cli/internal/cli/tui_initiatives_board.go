@@ -536,7 +536,7 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 			Keys: []string{"enter"}, Label: "fold a group or open a row, and open a pull request in prs", Footer: "enter open",
 			Run: func(m *gotermboard.Model) tea.Cmd {
 				if link, ok := pullRequestAt(m.Cursor()); ok {
-					return b.openInPrs(m, link)
+					return gotermboard.GoTo(prsOnPullRequest.Name, gotermboard.EntityRef{Kind: entityKindPullRequest, ID: link})
 				}
 				return m.Toggle()
 			},
