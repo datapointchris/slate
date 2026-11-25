@@ -56,6 +56,19 @@ func TestATabNamesTheReadItsAPILacks(t *testing.T) {
 			},
 			lacks: errFocusUsageUnanswered,
 		},
+		{
+			name: "the queue board", view: tabQueue,
+			serve: func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.URL.Path == "/api/v1/focus" {
+					_ = json.NewEncoder(w).Encode(api.FocusStanding{})
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error":"Not Found","message":"no route answers ` + r.URL.Path + `"}`))
+			},
+			lacks: errQueueBoardUnanswered,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(test.serve)
@@ -67,8 +80,9 @@ func TestATabNamesTheReadItsAPILacks(t *testing.T) {
 			}
 
 			client := api.New(server.URL, server.Client())
-			in := tabInputs{client: client, initiatives: func() *initiativesBoard {
-				return newInitiativesBoard(client, "", boardScope{kind: scopePerTier, perTier: defaultBoardPerTier}, "")
+			writer := newRankAndPinWriter(client)
+			in := tabInputs{client: client, writer: writer, initiatives: func() *initiativesBoard {
+				return newInitiativesBoard(client, writer, "", boardScope{kind: scopePerTier, perTier: defaultBoardPerTier}, "")
 			}}
 			tabs, err := openTabs(tuiTabList(in), test.view)
 			if err != nil {

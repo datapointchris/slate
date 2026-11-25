@@ -1,0 +1,202 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:slate:tui:queue:v1",
+  "title": "Every kind of open work in the order slate next takes it, as the queue tab of slate tui draws it",
+  "description": "What `slate tui --view queue --json` prints: every open row of the queue as `GET /queue/board` answers it, the unclaimed first row next and the claimed apart by holder, each pursuit's factor against the focus in force, and the record under the cursor as its read by number gives it. --json prints every row, whatever the screen's scope draws. This read writes nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "taken_at", "tab", "board", "pursuit_factors", "cursor_record", "reads"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "taken_at": {"type": "string", "format": "date-time"},
+    "tab": {"const": "queue"},
+    "board": {
+      "description": "The queue as `GET /queue/board` answers it, under its names.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read_ts", "queue", "claimed"],
+      "properties": {
+        "read_ts": {"description": "When the API measured the queue.", "type": "string", "format": "date-time"},
+        "queue": {
+          "description": "The work nobody holds, in the order to take it, first row next.",
+          "type": "array",
+          "items": {"$ref": "#/definitions/row"}
+        },
+        "claimed": {
+          "description": "The work a live claim holds, by holder, then in queue order.",
+          "type": "array",
+          "items": {"$ref": "#/definitions/row"}
+        }
+      }
+    },
+    "pursuit_factors": {
+      "description": "Each pursuit the focus in force lists, with its factor, under the names `slate focus show --json` gives them. A factor places no row, so the panel lists it apart from what placed the row.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["number", "name", "factor"],
+        "properties": {
+          "number": {"type": "integer"},
+          "name": {"type": "string"},
+          "factor": {"description": "Null where no focus is in force.", "type": ["number", "null"]}
+        }
+      }
+    },
+    "cursor_record": {
+      "description": "The record under the cursor, which --json puts on the first queued row, as its read by number gives what the panel draws. Null where nothing is queued, or before its read lands.",
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "number", "description", "rank", "pinned_ts"],
+          "properties": {
+            "kind": {"enum": ["idea", "initiative", "issue"]},
+            "number": {"type": "integer"},
+            "description": {"type": ["string", "null"]},
+            "rank": {"description": "The record's rank, which orders it within its priority and its slot.", "type": ["number", "null"]},
+            "pinned_ts": {"description": "When the record's own pin was set. Null where none is.", "type": ["string", "null"], "format": "date-time"}
+          }
+        }
+      ]
+    },
+    "reads": {
+      "description": "Each source the tab reads, as its last read left it: the queue board, the focus, then the cursor's record.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "every"],
+        "properties": {
+          "name": {"type": "string"},
+          "every": {"type": "string"},
+          "read_at": {"type": "string", "format": "date-time"},
+          "took": {"type": "string"},
+          "tried_at": {"type": "string", "format": "date-time"},
+          "fault": {"type": "string"},
+          "note": {"type": "string"},
+          "reading": {"type": "boolean"}
+        }
+      }
+    }
+  },
+  "definitions": {
+    "row": {
+      "description": "One record in the queue, with only what a board draws of it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind", "number", "title", "step", "priority", "own_priority", "pinned", "placed_by", "raised_by", "holder", "held_through",
+        "initiative", "repos", "pursuits", "open_count", "overlaps", "expires_ts", "waiting", "slot", "moves"
+      ],
+      "properties": {
+        "kind": {"enum": ["idea", "initiative", "issue"]},
+        "number": {"type": "integer"},
+        "title": {"type": "string"},
+        "step": {"enum": ["discuss", "shape", "design", "preflight", "decide", "build", "retro"]},
+        "priority": {"description": "The priority the row sorts at: an issue's effective priority, else the record's own.", "type": "integer"},
+        "own_priority": {"type": "integer"},
+        "pinned": {"description": "A pin holds the row's place at some hop: its own, its initiative's, or that of what waits on it.", "type": "boolean"},
+        "placed_by": {
+          "description": "What set the row's place, one hop back. raised_by names the parent or waiter, and initiative the initiative.",
+          "enum": ["own", "pin", "initiative", "parent", "waiter"]
+        },
+        "raised_by": {"type": ["integer", "null"]},
+        "holder": {"description": "Who holds a claimed row. Null in the queue.", "type": ["string", "null"]},
+        "held_through": {"description": "The initiative whose claim holds the row, where the row's own does not.", "type": ["integer", "null"]},
+        "initiative": {
+          "description": "An issue's initiative, as the issue's own read names it. Null for an idea or an initiative.",
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "number", "name", "status", "priority", "autofix"],
+              "properties": {
+                "id": {"type": "string"},
+                "number": {"type": "integer"},
+                "name": {"type": "string"},
+                "status": {"type": "string"},
+                "priority": {"type": "integer"},
+                "autofix": {"type": "boolean"}
+              }
+            }
+          ]
+        },
+        "repos": {"type": "array", "items": {"type": "string"}},
+        "pursuits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["number", "name"],
+            "properties": {"number": {"type": "integer"}, "name": {"type": "string"}}
+          }
+        },
+        "open_count": {"description": "An initiative's unclosed issues. Null on any other row.", "type": ["integer", "null"]},
+        "overlaps": {
+          "description": "Each issue under a live claim whose paths meet this issue's.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["number", "title", "holder", "expires_ts", "paths"],
+            "properties": {
+              "number": {"type": "integer"},
+              "title": {"type": "string"},
+              "holder": {"type": "string"},
+              "expires_ts": {"type": "string", "format": "date-time"},
+              "paths": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        },
+        "expires_ts": {"description": "When the claim holding a claimed row runs out.", "type": ["string", "null"], "format": "date-time"},
+        "waiting": {
+          "description": "What the claim holding a claimed row waits on now. Null while it works.",
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["waiting_on", "started_ts", "ended_ts", "ended_by"],
+              "properties": {
+                "waiting_on": {"type": "string"},
+                "started_ts": {"type": "string", "format": "date-time"},
+                "ended_ts": {"type": ["string", "null"], "format": "date-time"},
+                "ended_by": {"type": ["string", "null"]}
+              }
+            }
+          ]
+        },
+        "slot": {
+          "description": "The record whose slot holds the row's place: its own, its initiative's, or the slot of the issue that raised it, however many hops back. Null where an API older than the CLI answered none.",
+          "type": ["integer", "null"]
+        },
+        "moves": {
+          "description": "Where < and > take a queued row, as the API's rank write decides. Null on a claimed row, or where an API older than the CLI answered none.",
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ahead", "behind"],
+              "properties": {"ahead": {"$ref": "#/definitions/move"}, "behind": {"$ref": "#/definitions/move"}}
+            }
+          ]
+        }
+      }
+    },
+    "move": {
+      "description": "One move: the record the rank write names, each queued row that ends up on the row's other side, nearest first, or the API's refusal.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["beside", "passes", "refused"],
+      "properties": {
+        "beside": {"type": ["integer", "null"]},
+        "passes": {"type": "array", "items": {"type": "integer"}},
+        "refused": {"description": "Why the write would be refused, in the API's words. Empty or null where it moves.", "type": ["string", "null"]}
+      }
+    }
+  }
+}

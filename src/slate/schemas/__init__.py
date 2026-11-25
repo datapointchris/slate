@@ -101,6 +101,8 @@ from slate.schemas.queue import Queue
 from slate.schemas.queue import QueueBoard
 from slate.schemas.queue import QueueBoardRow
 from slate.schemas.queue import QueueFilter
+from slate.schemas.queue import QueueMove
+from slate.schemas.queue import QueueRowMoves
 from slate.schemas.record import RecordDependencyCreate
 from slate.schemas.record import RecordListed
 from slate.schemas.record import RecordPin
@@ -265,6 +267,8 @@ __all__ = [
     'QueueBoard',
     'QueueBoardRow',
     'QueueFilter',
+    'QueueMove',
+    'QueueRowMoves',
     'ReadyIssue',
     'RecordChange',
     'RecordCheck',

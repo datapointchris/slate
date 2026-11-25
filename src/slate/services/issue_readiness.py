@@ -155,6 +155,8 @@ class IssueReadiness:
     slot_of: dict[UUID, int]
     raised_by: dict[UUID, int]
     placed_by: dict[UUID, PlacedBy]
+    # Each unclosed issue's id by its number, for a read naming an issue only by number, as `raised_by` does.
+    unclosed_issue_by_number: dict[int, UUID]
     # Each idea and initiative the queue holds as a slot, by number: an active initiative, with
     # its issues or alone, and an idea nobody has promoted.
     slot_key_by_number: dict[int, QueueKey]
@@ -365,5 +367,6 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
         slot_of=slot_of,
         raised_by=raised_by,
         placed_by=placed_by,
+        unclosed_issue_by_number={rows[issue_id].number: issue_id for issue_id in unclosed},
         slot_key_by_number=slot_key_by_number,
     )

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,7 @@ import (
 func TestNextForAPlanShowsEveryRowAndWhatEachUnblocks(t *testing.T) {
 	rows := make([]string, defaultNextLimit+2)
 	for i := range rows {
-		rows[i] = fmt.Sprintf(`{"kind": "issue", "number": %d, "title": "Stage %d", "step": "build", "priority": 2, "unblocks": [2242],
+		rows[i] = fmt.Sprintf(`{"kind": "issue", "number": %d, "title": "Stage %d", "step": "build", "priority": 2, "unblocks": [2242], "placed_by": "waiter", "raised_by": 1544,
 		  "record": {"number": %d, "title": "Stage %d", "status": "open", "priority": 2, "effective_priority": 2}}`, 3000+i, i, 3000+i, i)
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -32,5 +33,19 @@ func TestNextForAPlanShowsEveryRowAndWhatEachUnblocks(t *testing.T) {
 	}
 	if !strings.Contains(out, fmt.Sprintf("Stage %d", len(rows)-1)) || !strings.Contains(out, "unblocks #2242") {
 		t.Errorf("the plan printed:\n%s", out)
+	}
+
+	out, err = runService(t, "next", "--for", "#1544", "--json")
+	if err != nil {
+		t.Fatalf("slate next --for '#1544' --json: %v", err)
+	}
+	var printed struct {
+		Queue []struct {
+			PlacedBy string `json:"placed_by"`
+			RaisedBy int    `json:"raised_by"`
+		} `json:"queue"`
+	}
+	if err := json.Unmarshal([]byte(out), &printed); err != nil || len(printed.Queue) == 0 || printed.Queue[0].PlacedBy != "waiter" || printed.Queue[0].RaisedBy != 1544 {
+		t.Errorf("--json should name what placed each row and what raised it, printed:\n%s", out)
 	}
 }

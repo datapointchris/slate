@@ -26,6 +26,7 @@ from slate.schemas.idea import IDEA_ENDINGS
 from slate.schemas.idea import SHARED_FIELDS
 from slate.schemas.idea import IdeaStateFilter
 from slate.schemas.idea import PromotedKind
+from slate.schemas.queue import PlacedBy
 from slate.schemas.queue import Step
 from slate.services import initiatives
 from slate.services.issues import CREATE_STATUSES
@@ -57,6 +58,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'record_kinds': [kind.value for kind in Kind],
         'document_kinds': DOCUMENT_KINDS,
         'queue_steps': list(get_args(Step)),
+        'placed_by': list(get_args(PlacedBy)),
         'promote_kinds': list(get_args(PromotedKind)),
         'promote_initiative_fields': sorted(FIELDS_OF_KIND['initiative']),
         'promote_issue_fields': sorted(FIELDS_OF_KIND['issue']),

@@ -90,6 +90,14 @@ func (s *jumpAPI) serve(w http.ResponseWriter, r *http.Request) {
 		answer = []api.Focus{}
 	case "/api/v1/focus/usage":
 		answer = api.FocusUsage{}
+	case "/api/v1/queue/board":
+		first := &api.InitiativeSummary{Number: 1, Name: "initiative 1", Status: "active", Priority: 2}
+		answer = api.QueueBoard{ReadTS: day, Claimed: []api.QueueBoardRow{}, Queue: []api.QueueBoardRow{{
+			Kind: api.RecordKindIssue, Number: 50, Title: "Rotate the keys", Step: "build", Priority: 2, PlacedBy: "initiative",
+			Initiative: first, Pursuits: []api.PursuitSummary{garden}, Slot: new(1),
+		}}}
+	case "/api/v1/records/50":
+		answer = map[string]any{"kind": api.RecordKindIssue, "number": 50, "record": map[string]any{"number": 50, "title": "Rotate the keys"}}
 	default:
 		answer = map[string]any{}
 	}
@@ -110,10 +118,11 @@ func openJumpTabs(t *testing.T, stand *jumpAPI, view string) *gotermboard.Tabs {
 	server := httptest.NewServer(http.HandlerFunc(stand.serve))
 	t.Cleanup(server.Close)
 	client := api.New(server.URL, server.Client())
-	initiatives := newInitiativesBoard(client, "", boardScope{kind: scopePerTier, perTier: defaultBoardPerTier}, "")
+	writer := newRankAndPinWriter(client)
+	initiatives := newInitiativesBoard(client, writer, "", boardScope{kind: scopePerTier, perTier: defaultBoardPerTier}, "")
 	initiatives.CursorOn(issueKey(50))
 	initiatives.cursorRow.Refresh(context.Background())
-	tabs, err := openTabs(tuiTabList(tabInputs{client: client, initiatives: func() *initiativesBoard { return initiatives }}), view)
+	tabs, err := openTabs(tuiTabList(tabInputs{client: client, writer: writer, initiatives: func() *initiativesBoard { return initiatives }}), view)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,6 +235,18 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		{
 			name: "esc from the pursuit comes back to the initiative", opensOn: tabIdeas,
 			goTo: initiative(1), keys: []string{"t", "esc"}, pullRequest: webLink, cursorOn: "initiative 1",
+		},
+		{
+			name: "t on a queue row lands on its record", opensOn: tabQueue,
+			keys: []string{"t", "1", "enter"}, pullRequest: webLink, cursorOn: "Rotate the keys", on: tabInitiatives, shows: []string{"slate · initiatives"},
+		},
+		{
+			name: "t on a queue row lands on its initiative", opensOn: tabQueue,
+			keys: []string{"t", "2", "enter"}, pullRequest: webLink, cursorOn: "initiative 1", on: tabInitiatives, shows: []string{"slate · initiatives"},
+		},
+		{
+			name: "t on a queue row lands on its pursuit", opensOn: tabQueue,
+			keys: []string{"t", "3", "enter"}, pullRequest: webLink, cursorOn: "Grow the garden", on: tabPursuits, shows: []string{"slate · pursuits"},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

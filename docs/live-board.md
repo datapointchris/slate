@@ -128,6 +128,89 @@ and work done lifts the lower one toward it. Each step is drawn square, so a jum
 moment rather than a ramp. The lines come from the progress read's `burnup`, which the cursor's
 row already reads, and draw in braille through gotermboard's `chart` package.
 
+## The queue tab draws every kind of open work in `slate next`'s order, and its panel says why each row sits there
+
+```text
+slate · queue   60 open · 1 claimed · first 50   read 1s ago
+
+   #     KIND        STEP       PRI    INITIATIVE  REPO       TITLE
+▌  3148  initiative  shape      low    —           —          Every change to the watering schedule runs beside the old…  pinned
+   1482  initiative  design     high   —           gates, +2  Lock every gate in the garden
+   1192  issue       decide     high*  1482        gates      Decide whether the side gate takes a key or a code
+   1193  issue       build      high*  1482        gates      Fit the padlock on the back gate
+   1963  initiative  design     high   —           shed       Sort the shed into labeled bins
+ ▾ claimed · 1
+   4271  initiative  preflight  high   —           journal    The garden keeps its own journal  held by cda42040 · waiting on…
+```
+
+The panel on issue 1192 splits its place into what set it, as Slurm's `sprio` splits a job's
+priority into its factors:
+
+```text
+1192 · issue · decide · high
+placed by  initiative 1482 Lock every gate in the garden · its own priority is none
+pin        none
+rank       183
+
+standing
+  Keep the garden safe   factor 0.88
+
+The whole of record 1192.
+```
+
+**One read of the whole queue, cut in the client.** The tab reads `GET /queue/board` every
+`boardReadEvery`. That board answers every open row with only the fields drawn on it, where
+`GET /queue` builds every record's whole view first. `1`, `2` and `3` draw the first
+`queueFirstFew` rows, the first `queueFirstMany`, and every row. Each cuts the read in hand, so
+a scope change reads nothing. The rows past the scope sit in a group that draws only under `/`,
+as the initiatives tab's do. The claimed work sits apart under `claimed`, each row naming its
+holder's session and what its claim waits on.
+
+**`placed by` reads the row's `placed_by`, one hop back, and names the record behind it.** That
+record is the row's initiative, or the parent or waiter that `raised_by` names. A `*` beside a
+priority marks one the row inherits, where `priority` differs from `own_priority`. `pin`, `rank`
+and the description come from the cursor's record, read by number with `GET /records/{number}`
+once the cursor rests there. Each record's read is kept, so moving back draws at once.
+
+**`standing` lists each pursuit with its factor, apart from what placed the row.** The tab reads
+`GET /focus` itself every `boardReadEvery`, so the factor draws with the pursuits tab never
+opened, and under `--once` and `--json`. A factor places no row, so it sits under its own heading
+rather than beside the pin and the rank.
+
+- *Rejected:* a factor on each row. A record in two pursuits would need a rule for which factor
+  wins, and slate has none.
+
+**The board answers each row's moves, and `<` and `>` make them.** `GET /queue/board` gives each
+queued row `moves.ahead` and `moves.behind`. Each names the record that the rank write ranks the
+row beside, and the rows the move passes, or else the write's own refusal. `board_moves` in
+`services/queue_moves.py` works each out with `placement`, the function the rank write runs, so
+the tab offers only what the write does. A move steps past the place above or below, with every
+row sorting in it: an initiative with its issues, or an issue with the rows sorting just ahead of
+it. Nothing is placed beside a raised row, so a move reaching one is placed beside the issue that
+row waits on. A raised row moves only among the rows sorting at its step under the same waiter's
+place. Each row also carries `slot`, the record whose slot holds its place, however many hops
+back `placed_by` stops.
+
+Where the API would refuse the move, the footer gives its reason, and nothing is written. A move
+asks first where its `beside` record, or a row it passes, sits past the scope, and names each. An
+idea reorders through `RankIdea`, the write `slate ideas reorder` runs. `P` pins or unpins the
+row's own record. It reads the record's own pin from the cursor's record, because a row's
+`pinned` may come from its initiative or its waiter. A record read before the last write on
+either writing tab ended counts as unread, as does one whose own pin its board row contradicts.
+`P` then waits for a fresh read rather than send the wrong verb. A claimed row takes `P`, and `<`
+and `>` do not apply there, because it holds no place in the order drawn.
+
+- *Rejected:* the move rules copied into the client. Nothing would hold the copy level with
+  `placement`. After a rule changed in the API, an installed CLI would refuse a move that the API
+  accepts, or land one somewhere the panel did not say.
+
+**The tab declares no kind.** Each row names its record, its initiative and each of its
+pursuits, so `t` lands on the initiatives, ideas or pursuits tab that draws each whole. An API
+older than `GET /queue/board` answers it as no route, and the tab names the read it lacks where
+the rows would be. `--json` prints what `cli/internal/cli/tui-queue.schema.json` describes: the
+whole board read, whatever the scope draws, each pursuit's factor, and the record of the first
+queued row.
+
 ## The repos tab answers how fast each repo closes work and how long ready work has waited
 
 On the initiatives tab a repo is dim text beside an initiative's counts, so a cursor has nowhere
@@ -487,7 +570,8 @@ request by its link.
 
 A tab that declares a kind in its `EntityKinds` adds its row here. `t` never offers the tab the
 row is on, so a jump to an initiative, an issue, an idea or a pursuit comes from a row on another tab. The
-documents tab declares no kind, and each of its rows names its record, of whatever kind.
+documents and queue tabs declare no kind, and each of their rows names its record, of whatever
+kind.
 
 **A jump to an initiative draws it, whatever the scope.** The per-tier scope draws the first few of
 each tier, and the rest sit in a group that draws only under a filter, where gotermboard's seek
@@ -524,11 +608,13 @@ ahead of the row drawn above it or behind the row drawn below, as `reorder --bef
 `--after` do. An answer's warnings follow what the footer says it did, and a refusal shows in
 the API's own words.
 
-One write runs at a time, with the footer naming it, and the board reads everything again when
-it ends, refused or not. A write that timed out or lost its connection may have landed, so the
-footer says its outcome is unknown rather than that it failed. An initiative moves only within
-its priority and only while sorted by priority, because otherwise the rows beside it are not its
-neighbors in the queue.
+One write runs at a time across the initiatives and queue tabs, because both hold one writer,
+`rankAndPinWriter`. A key that writes on either tab while a write runs names the write under way
+and writes nothing. The footer of the tab that started a write names it, and every tab holding
+the writer reads everything again when it ends, refused or not. A write that timed out or lost its connection may have landed, so the
+footer says its outcome is unknown rather than that it failed. An initiative moves only while
+sorted by priority, because otherwise the rows beside it are not its neighbors in the queue. The
+API refuses a move across a priority or the pin, and the footer gives its reason.
 
 A write acts at once on the row under the cursor. It asks first where the screen does not show
 everything it changes:

@@ -91,6 +91,85 @@ type Queue struct {
 	Claimed []QueueRow `json:"claimed"`
 }
 
+// What set a row's place, one hop back, as the API's placed_by names it.
+const (
+	PlacedByOwn        = "own"
+	PlacedByPin        = "pin"
+	PlacedByInitiative = "initiative"
+	PlacedByParent     = "parent"
+	PlacedByWaiter     = "waiter"
+)
+
+// PlacedByNames is every value of placed_by, in the API's order.
+var PlacedByNames = []string{PlacedByOwn, PlacedByPin, PlacedByInitiative, PlacedByParent, PlacedByWaiter}
+
+// QueueMove is where one move takes a queued row, as the API's rank write
+// decides it. Beside is the record the write names, before it to move ahead and
+// after it to move behind. Passes is each queued row that ends up on the row's
+// other side, nearest first. Refused is why the write would be refused, in the
+// API's words, and Beside is then nil.
+type QueueMove struct {
+	Beside  *int   `json:"beside"`
+	Passes  []int  `json:"passes"`
+	Refused string `json:"refused"`
+}
+
+// QueueRowMoves is a queued row's move ahead of the row above it, and behind
+// the row below it.
+type QueueRowMoves struct {
+	Ahead  QueueMove `json:"ahead"`
+	Behind QueueMove `json:"behind"`
+}
+
+// QueueBoardRow is one row of GET /queue/board: only what a board draws of a
+// record in the queue, and no record body. OwnPriority is the record's own,
+// beside the Priority it sorts at. Initiative is an issue's, and Pursuits that
+// initiative's for an issue, else the record's own. OpenCount is set on an
+// initiative's row alone. ExpiresTS and Waiting are those of the claim holding
+// a claimed row. Slot is the record whose slot holds the row's place. Moves is
+// where a move ahead or behind takes a queued row, and nil on a claimed row or
+// where an API older than this CLI answered none.
+type QueueBoardRow struct {
+	Kind        string             `json:"kind"`
+	Number      int                `json:"number"`
+	Title       string             `json:"title"`
+	Step        string             `json:"step"`
+	Priority    int                `json:"priority"`
+	OwnPriority int                `json:"own_priority"`
+	Pinned      bool               `json:"pinned"`
+	PlacedBy    string             `json:"placed_by"`
+	RaisedBy    *int               `json:"raised_by"`
+	Holder      *string            `json:"holder"`
+	HeldThrough *int               `json:"held_through"`
+	Initiative  *InitiativeSummary `json:"initiative"`
+	Repos       []string           `json:"repos"`
+	Pursuits    []PursuitSummary   `json:"pursuits"`
+	OpenCount   *int               `json:"open_count"`
+	Overlaps    []PathOverlap      `json:"overlaps"`
+	ExpiresTS   *time.Time         `json:"expires_ts"`
+	Waiting     *ClaimWait         `json:"waiting"`
+	Slot        *int               `json:"slot"`
+	Moves       *QueueRowMoves     `json:"moves"`
+}
+
+// QueueBoard is every open row of the queue in GET /queue's order, the
+// unheld first row next and the held apart by holder, as of ReadTS.
+type QueueBoard struct {
+	ReadTS  time.Time       `json:"read_ts"`
+	Queue   []QueueBoardRow `json:"queue"`
+	Claimed []QueueBoardRow `json:"claimed"`
+}
+
+// GetQueueBoard reads every open row of the queue, slim, for a board that
+// polls it. It takes no filter and no limit.
+func (c *Client) GetQueueBoard(ctx context.Context, zone DayZone) (QueueBoard, error) {
+	var board QueueBoard
+	if err := c.get(ctx, withQuery("/queue/board", zoneQuery(zone)), &board); err != nil {
+		return QueueBoard{}, err
+	}
+	return board, nil
+}
+
 // GetQueue returns every kind of open work by priority, each row with its
 // step, and the held work apart.
 func (c *Client) GetQueue(ctx context.Context, filter QueueFilter, zone DayZone) (Queue, error) {

@@ -196,7 +196,7 @@ func (b *initiativesBoard) initiativeGroups(initiatives []api.BoardInitiative, p
 		group := b.initiativeGroup(initiative, placement, issues, counts, !drawn.shown[initiative.Number], drawn)
 		groups = append(groups, group)
 		keys = append(keys, group.Key)
-		places = append(places, queuePlace{kind: "initiative", number: initiative.Number, priority: initiative.Priority})
+		places = append(places, queuePlace{kind: "initiative", number: initiative.Number})
 	}
 	b.placeInOrder(keys, places, initiativeNeighbors(initiatives, drawn), initiativeNeighbors(queue, drawn))
 	return groups
@@ -205,7 +205,7 @@ func (b *initiativesBoard) initiativeGroups(initiatives []api.BoardInitiative, p
 func initiativeNeighbors(initiatives []api.BoardInitiative, drawn boardDraw) []queueNeighbor {
 	neighbors := make([]queueNeighbor, len(initiatives))
 	for at, initiative := range initiatives {
-		neighbors[at] = queueNeighbor{number: initiative.Number, title: initiative.Name, priority: initiative.Priority, hidden: !drawn.shown[initiative.Number]}
+		neighbors[at] = queueNeighbor{number: initiative.Number, title: initiative.Name, hidden: !drawn.shown[initiative.Number]}
 	}
 	return neighbors
 }
@@ -585,7 +585,7 @@ func (b *initiativesBoard) issueGroups(initiative int, placement string, issues,
 		places := make([]queuePlace, len(open))
 		for at, issue := range open {
 			keys[at] = issueKey(issue.Number) + placement
-			places[at] = queuePlace{kind: "issue", number: issue.Number, priority: issue.EffectivePriority}
+			places[at] = queuePlace{kind: "issue", number: issue.Number}
 		}
 		queue := slices.DeleteFunc(slices.Clone(every), func(issue api.BoardIssue) bool {
 			return issue.State == api.IssueStatusCompleted || issue.State == api.IssueStatusCanceled
@@ -625,7 +625,7 @@ func (b *initiativesBoard) issueGroups(initiative int, placement string, issues,
 func issueNeighbors(issues []api.BoardIssue) []queueNeighbor {
 	neighbors := make([]queueNeighbor, len(issues))
 	for at, issue := range issues {
-		neighbors[at] = queueNeighbor{number: issue.Number, title: issue.Title, priority: issue.EffectivePriority}
+		neighbors[at] = queueNeighbor{number: issue.Number, title: issue.Title}
 	}
 	return neighbors
 }
