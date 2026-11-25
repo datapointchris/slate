@@ -87,6 +87,28 @@ def test_a_worklog_started_with_no_claim_warns_of_another_open_one_and_ends_by_h
     assert current(client, 's2') is None
 
 
+def test_a_long_worklog_that_just_ended_leads_the_ended_list_a_client_cuts_with_a_limit(txn_api_logged_in):
+    """A worklog tab reads the ended worklogs under a limit, so the one that stopped last has to survive the cut."""
+    client, session = txn_api_logged_in
+    long_go, short_go = (
+        ok(client.post('/ideas', json={'title': title}), status.HTTP_201_CREATED)['idea']['number']
+        for title in ('Rebuild the index', 'Rename the flag')
+    )
+    for idea in (long_go, short_go):
+        ok(client.post(WORKLOGS, json={'record': idea, 'opened_by': 'chris@desk'}), status.HTTP_201_CREATED)
+        ok(client.post(f'{WORKLOGS}/{idea}.1/finish', json={'finished_by': 'chris@desk'}))
+    now = dt.datetime.now(dt.UTC)
+    for idea, started, ended in (
+        (long_go, now - dt.timedelta(days=3), now - dt.timedelta(minutes=1)),
+        (short_go, now - dt.timedelta(hours=2), now - dt.timedelta(hours=1)),
+    ):
+        session.execute(update(models.Worklog).where(models.Worklog.record_number == idea).values(started_ts=started, ended_ts=ended))
+    session.flush()
+
+    (newest,) = ok(client.get(WORKLOGS, params={'state': 'ended', 'limit': 1}))
+    assert (newest['name'], dt.datetime.fromisoformat(newest['held_until'])) == (f'{long_go}.1', now - dt.timedelta(minutes=1))
+
+
 def test_a_step_is_checked_once_its_go_ends_and_the_furthest_is_its_stage(txn_api_logged_in):
     """A hold names its step, so the initiative reads which steps it went through without a session remembering to record them."""
     client, session = txn_api_logged_in

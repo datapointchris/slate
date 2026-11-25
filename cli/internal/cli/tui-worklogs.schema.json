@@ -1,0 +1,237 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:slate:tui:worklogs:v1",
+  "title": "The live, expired and newest ended worklogs that the worklogs tab of slate tui draws",
+  "description": "What `slate tui --view worklogs --json` prints: the live worklogs, the expired ones whose claim ran out, and the newest ended, each under the names and values that `slate worklogs list --json` gives it. Each read names its state and a limit, so a list that reached its limit leaves older worklogs unread. A worklog that changed state between two reads sits once, under the read that landed last. cursor_worklog names the worklog under the cursor, and cursor_record_totals is what the panel draws of its record. This read writes nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "taken_at", "tab", "live", "expired", "ended", "cursor_worklog", "cursor_record_totals", "reads"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "taken_at": {"type": "string", "format": "date-time"},
+    "tab": {"const": "worklogs"},
+    "live": {
+      "description": "The worklogs under way, the latest started first.",
+      "type": "array",
+      "items": {"$ref": "#/definitions/worklog"}
+    },
+    "expired": {
+      "description": "The worklogs whose claim ran out with no write ending them, the latest to run out first.",
+      "type": "array",
+      "items": {"$ref": "#/definitions/worklog"}
+    },
+    "ended": {
+      "description": "The newest ended worklogs, the latest ended first, as many as the ended read asked for.",
+      "type": "array",
+      "items": {"$ref": "#/definitions/worklog"}
+    },
+    "cursor_worklog": {
+      "description": "The worklog under the cursor, which --json puts on the first live one. Null where no worklog is live.",
+      "type": ["string", "null"]
+    },
+    "cursor_record_totals": {
+      "description": "The record holding cursor_worklog, with its tokens by kind over all its work and the estimate its latest preflight set. tokens and estimate carry the names and values `slate totals --json` gives them, and record is that answer's scope.record. Null where no worklog is live, or before its read lands.",
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["record", "tokens", "estimate"],
+          "properties": {
+            "record": {"$ref": "#/definitions/record"},
+            "tokens": {
+              "description": "Every token the record's worklogs and those of every record under it hold. Null while none was reported.",
+              "oneOf": [{"type": "null"}, {"$ref": "#/definitions/tokens"}]
+            },
+            "estimate": {
+              "description": "The estimate the record's latest preflight worklog holding one set, and that worklog's name. Null where none did.",
+              "oneOf": [
+                {"type": "null"},
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["worklog", "tokens"],
+                  "properties": {
+                    "worklog": {"type": "string"},
+                    "tokens": {"$ref": "#/definitions/estimate"}
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "reads": {
+      "description": "Each source the tab reads, as its last read left it: the live, the expired and the ended worklogs, then the cursor's record totals.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "every"],
+        "properties": {
+          "name": {"type": "string"},
+          "every": {"type": "string"},
+          "read_at": {"type": "string", "format": "date-time"},
+          "took": {"type": "string"},
+          "tried_at": {"type": "string", "format": "date-time"},
+          "fault": {"type": "string"},
+          "note": {"type": "string"},
+          "reading": {"type": "boolean"}
+        }
+      }
+    }
+  },
+  "definitions": {
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["number", "kind", "title", "status"],
+      "properties": {
+        "number": {"type": "integer", "minimum": 1},
+        "kind": {"enum": ["idea", "initiative", "issue", "pursuit"]},
+        "title": {"type": "string"},
+        "status": {"type": ["string", "null"]}
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uncached_input", "cache_write", "cache_read", "output"],
+      "properties": {
+        "uncached_input": {"type": "integer", "minimum": 0},
+        "cache_write": {"type": "integer", "minimum": 0},
+        "cache_read": {"type": "integer", "minimum": 0},
+        "output": {"type": "integer", "minimum": 0}
+      }
+    },
+    "estimate": {
+      "description": "The tokens by kind a piece of work is expected to spend, null for a kind not estimated.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uncached_input", "cache_write", "cache_read", "output"],
+      "properties": {
+        "uncached_input": {"type": ["integer", "null"], "minimum": 0},
+        "cache_write": {"type": ["integer", "null"], "minimum": 0},
+        "cache_read": {"type": ["integer", "null"], "minimum": 0},
+        "output": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "wait": {
+      "description": "A stretch the claim's holder spent waiting. ended_ts is null while it waits still.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["waiting_on", "started_ts", "ended_ts", "ended_by"],
+      "properties": {
+        "waiting_on": {"type": "string"},
+        "started_ts": {"type": "string", "format": "date-time"},
+        "ended_ts": {"type": ["string", "null"], "format": "date-time"},
+        "ended_by": {"type": ["string", "null"]}
+      }
+    },
+    "claim": {
+      "description": "The claim whose hold opened the worklog. waiting is what its holder waits on now, null while it works.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "record_number", "holder", "session", "host", "directory", "started_ts", "expires_ts",
+        "ended_ts", "ending", "ended_by", "flow_id", "state", "worklog", "waiting"
+      ],
+      "properties": {
+        "id": {"type": "integer", "minimum": 1},
+        "record_number": {"type": "integer", "minimum": 1},
+        "holder": {"type": "string"},
+        "session": {"type": ["string", "null"]},
+        "host": {"type": ["string", "null"]},
+        "directory": {"type": ["string", "null"]},
+        "started_ts": {"type": "string", "format": "date-time"},
+        "expires_ts": {"type": "string", "format": "date-time"},
+        "ended_ts": {"type": ["string", "null"], "format": "date-time"},
+        "ending": {"type": ["string", "null"]},
+        "ended_by": {"type": ["string", "null"]},
+        "flow_id": {"type": ["string", "null"]},
+        "state": {"enum": ["live", "expired", "ended"]},
+        "worklog": {"type": ["string", "null"]},
+        "waiting": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/wait"}]}
+      }
+    },
+    "span": {
+      "description": "One session's time in the worklog. ended_ts is null while the session is still in it, and tokens while no message it reported landed in it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session", "directory", "started_ts", "ended_ts", "tokens"],
+      "properties": {
+        "session": {"type": "string"},
+        "directory": {"type": ["string", "null"]},
+        "started_ts": {"type": "string", "format": "date-time"},
+        "ended_ts": {"type": ["string", "null"], "format": "date-time"},
+        "tokens": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/tokens"}]}
+      }
+    },
+    "link": {
+      "description": "A commit, pull request or landing the worklog produced, with its ref as given.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref", "repo", "session", "linked_ts", "linked_by"],
+      "properties": {
+        "kind": {"type": "string"},
+        "ref": {"type": "string"},
+        "repo": {"type": ["string", "null"]},
+        "session": {"type": ["string", "null"]},
+        "linked_ts": {"type": "string", "format": "date-time"},
+        "linked_by": {"type": "string"}
+      }
+    },
+    "documentVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "kind", "version", "written_ts"],
+      "properties": {
+        "address": {"description": "The record's number and the document's name, as 4271/plan.", "type": "string"},
+        "kind": {"type": "string"},
+        "version": {"type": "integer", "minimum": 1},
+        "written_ts": {"type": "string", "format": "date-time"}
+      }
+    },
+    "worklog": {
+      "description": "One go at one record, named <record>.<sequence>. state, stage, held_until and tokens are derived on every read, and tokens sums its spans' as each session last reported them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name", "former_names", "record_number", "sequence", "record", "opened_by", "step", "estimate",
+        "started_ts", "ended_ts", "outcome", "ended_by", "flow_id", "held_until", "state", "stage", "claim", "waits",
+        "tokens", "spans", "links", "document_versions"
+      ],
+      "properties": {
+        "name": {"type": "string"},
+        "former_names": {"description": "Each name a fold moved it away from, oldest first.", "type": "array", "items": {"type": "string"}},
+        "record_number": {"type": "integer", "minimum": 1},
+        "sequence": {"type": "integer", "minimum": 1},
+        "record": {"$ref": "#/definitions/record"},
+        "opened_by": {"type": "string"},
+        "step": {"description": "The step of its record's life it performed, null where it names none.", "type": ["string", "null"]},
+        "estimate": {
+          "description": "The tokens by kind its record's work is expected to spend, which only a preflight worklog sets. Null where it estimates no kind.",
+          "oneOf": [{"type": "null"}, {"$ref": "#/definitions/estimate"}]
+        },
+        "started_ts": {"type": "string", "format": "date-time"},
+        "ended_ts": {"type": ["string", "null"], "format": "date-time"},
+        "outcome": {"type": ["string", "null"]},
+        "ended_by": {"type": ["string", "null"]},
+        "flow_id": {"type": ["string", "null"]},
+        "held_until": {
+          "description": "When it stopped being under way: its end, else where its claim ran out or ended. Null while live.",
+          "type": ["string", "null"], "format": "date-time"
+        },
+        "state": {"enum": ["live", "expired", "ended"]},
+        "stage": {"enum": ["started", "planned", "committed", "pull_request", "landed"]},
+        "claim": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/claim"}]},
+        "waits": {"description": "Every stretch the claim's holder spent waiting, oldest first.", "type": "array", "items": {"$ref": "#/definitions/wait"}},
+        "tokens": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/tokens"}]},
+        "spans": {"type": "array", "items": {"$ref": "#/definitions/span"}},
+        "links": {"type": "array", "items": {"$ref": "#/definitions/link"}},
+        "document_versions": {"description": "Every document version a session wrote while in it, oldest first.", "type": "array", "items": {"$ref": "#/definitions/documentVersion"}}
+      }
+    }
+  }
+}

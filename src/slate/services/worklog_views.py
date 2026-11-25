@@ -97,6 +97,7 @@ def worklog_view(
         outcome=worklog.outcome,
         ended_by=worklog.ended_by,
         flow_id=worklog.flow_id,
+        held_until=worklog.held_until(now),
         state=worklog_state(worklog, now),
         stage=worklog_stage(worklog, versions),
         claim=claim_view(claim, now) if claim is not None else None,

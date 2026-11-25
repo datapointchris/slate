@@ -313,6 +313,97 @@ lacks under the total, and the rows still draw the standing. `--json` prints wha
 `slate focus usage [--focus <id>]` prints the same read: the window, then a row per pursuit in
 the last day's order, with that day's share, usage and factor and a glyph a day.
 
+## The worklogs tab reads the live and expired worklogs often and the latest ended slower, each bounded
+
+```text
+slate · worklogs   3 live · 1 expired · newest 100 of the ended   read 2s ago
+
+ WORKLOG     STEP       STAGE      SINCE             SESS  HOLDER            WAITS ON                        RECORD
+ ▾   live · 3
+▌  ▸ 240.2   preflight  planned    13:46                2  cda42040          the user reading its work plan  Reminders fire on a date…
+   ▸ 212.3   design     committed  14:26                4  5a6e9b8b          round 4 on owner/repo#12        Every outside source ent…
+   ▸ 251.1   —          started    2026-11-20 01:12     0  slate-svc-runner                                  Compost the kitchen scraps
+ ▸   expired · 1
+ ▸   ended · newest 100  + reads 100 more
+```
+
+The panel on worklog 240.2:
+
+```text
+240.2 · preflight · planned · started 13:46
+initiative 240 · Reminders fire on a date or on a checked condition
+
+claim
+claude-code/cda42040-8d12-4c30-9d5f-f1d9325ef5af
+holds until 2026-11-25 13:46
+waits on the user reading its work plan   14:02 → now
+
+sessions
+  cda42040   13:46 → now
+  5e179cd4   13:50 → 14:01
+
+links
+  commit        docs  d50cd60  14:01
+
+wrote  240/plan v1
+
+tokens             uncached   cache  cache  output
+                      input   write   read
+this worklog            523  763.0k  58.5M  352.0k
+its estimate              —       —      —    2.4M
+240 all its work      12.9k   15.9M   1.2B    5.3M
+240 estimate              —       —      —    2.4M
+240's estimate is the one preflight 240.2 set
+```
+
+A worklog is one go at one record, and the tab answers what is under way now, what lost its
+claim, and what just ended. Each row names the worklog's step, `—` where it names none, its stage,
+when it came to its state, its sessions, its holder and what its claim waits on. SINCE is a live
+worklog's start, and where an expired or ended one stopped being under way, as the API's
+`held_until` answers it. A holder reads as its session's first group, as a person tells sessions
+apart, or as the holder's name where no session holds it.
+
+**Every read names its state and a limit.** Every worklog of every state answers megabytes, and
+`tab-prior-art-and-read-costs.md` measures each read. The live and the expired read every
+`boardReadEvery`, each up to `worklogsReadMost`. The ended read asks for the newest
+`endedWorklogsStep` every `boardTextReadEvery`, the slower interval, because it answers the most.
+`+` and `-` move it by `endedWorklogsStep` up to `worklogsReadMost`. A group whose read reached
+its limit says `newest` and the limit, so a cut list never reads as the whole. A worklog that
+changed state between two reads sits once, under the read that landed last, so no key draws
+twice.
+
+**The ended read keeps the worklogs that ended last.** `GET /worklogs` lists the expired and the
+ended by when each stopped being under way, the latest first. A long worklog that ended a minute
+ago then leads the list, however long ago it started, where a list by start would cut it first.
+
+**The panel is the worklog whole.** It holds the claim and each wait of its holder, the open
+one in yellow, each session's span, and each link with its repo and when it was linked. The `wrote` line names each document version the worklog wrote. Then a table of tokens
+by kind: the worklog's own, its own estimate where it holds one, and its record's total and
+estimate. Each kind's title takes two lines, its key's first word over the rest, so the table fits
+a panel a third of a 200-column screen wide. Only a preflight worklog holds an estimate. A
+worklog with no reported tokens says `none reported`.
+
+**The record's figures come from `GET /totals?record=`**, the read `slate totals` prints. It
+answers the record's tokens over all its work and the estimate the latest preflight set, and
+names that worklog. It reads once the cursor lands on a worklog, and again every
+`boardTextReadEvery` while the cursor stays. Each record's read is kept, so moving back draws at
+once. A failed read says so in the panel, and `--once` and `--json` exit on it, as on a failed
+list.
+
+`enter` unfolds a worklog into a row per session, then a row per link, as an issue unfolds on the
+initiatives tab. `enter` on a pull request hands it to `prs tui --pr`. `o` opens an `http` or
+`https` link in the browser and names any other, since a commit's ref is a hash and a worklog's
+link is free text. The browser opens off the program's goroutine, with its output sent to
+`/dev/null`, because a launcher given any other writer waits on the browser it starts.
+
+The tab declares the `worklog` kind. A worklog's row names the worklog, its record and each pull
+request it links. So `t` there lands on the record's tab, and asks first where the worklog links a
+pull request. A jump to a worklog that none of the bounded reads holds reads it by name, with
+`GET /worklogs/{name}`, and draws it under its state until a later jump seeks another. `--json`
+prints what `cli/internal/cli/tui-worklogs.schema.json` describes: each group's worklogs under the
+names that `slate worklogs list --json` gives them, the cursor's worklog, then its record's tokens
+and estimate under the names that `slate totals --json` gives them.
+
 ## `v` groups the same initiatives by tier, repo, pursuit, tag or alone
 
 Tier is the default, because priority is the order in which the queue takes them. A pin outranks
@@ -391,8 +482,8 @@ request by its link.
 | issue | initiatives, under its initiative | its row on the initiatives tab |
 | idea | ideas | its row on the ideas tab |
 | pursuit | pursuits, at the focus in force | each initiative and idea in it, its group under `v` pursuit, and its row on the pursuits tab |
-| worklog | none: `t` offers nothing | each pull request and session row it holds |
-| pull request | `prs tui --pr`, outside | its row under an issue |
+| worklog | worklogs | its row and each row under it on the worklogs tab, and each pull request and session row it holds on the initiatives tab |
+| pull request | `prs tui --pr`, outside | its row under an issue, and a worklog's row and link row on the worklogs tab |
 
 A tab that declares a kind in its `EntityKinds` adds its row here. `t` never offers the tab the
 row is on, so a jump to an initiative, an issue, an idea or a pursuit comes from a row on another tab. The
@@ -415,10 +506,12 @@ can still return along keeps it wide, so `esc` finds the row it left.
 **`*` narrows by what each line names, and nothing more.** A lock on a pursuit keeps the
 initiatives and the ideas in it, past the scope included, and each issue under a kept initiative.
 
-**`t` and `enter` on a pull request take one door to `prs tui --pr`.** `enter` returns
+**`enter` on a pull request, and `t`'s prs answer, take one door to `prs tui --pr`.** Each returns
 gotermboard's `GoTo` to the program outside named prs, so the checks before prs opens and the
 footer after it ends are written once, in `prsOnPullRequest`. prs opens only on a web link with
-`prs` on `PATH`. Otherwise the footer says which is missing and nothing opens.
+`prs` on `PATH`. Otherwise the footer says which is missing and nothing opens. A pull request's
+row under an issue also names its worklog, so `t` there asks which: prs, or the worklog's row on
+the worklogs tab.
 
 - *Rejected:* reading every status whenever the tab had not read. A jump from another tab to an
   active initiative would then draw the completed ones too.

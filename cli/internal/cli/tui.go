@@ -85,6 +85,13 @@ func tuiTabs() []tuiTab {
 				return readAndPrintTab(cmd, asJSON, newPursuitsBoard(in.client))
 			},
 		},
+		{
+			name:  tabWorklogs,
+			board: func(in tabInputs) gotermboard.Board { return newWorklogsBoard(in.client) },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				return readAndPrintTab(cmd, asJSON, newWorklogsBoard(in.client))
+			},
+		},
 	}
 }
 
@@ -110,7 +117,7 @@ func newTUICommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "A live board of the initiatives, the repos, the ideas, the documents and the pursuits, in a program with a tab per view",
+		Short: "A live board of the initiatives, the repos, the ideas, the documents, the pursuits and the worklogs, in a program with a tab per view",
 		Long: "One program with a tab per view, reading the API at its own pace. It draws its\n" +
 			"last good read with that read's age, so a rollout leaves the board drawn. Tab\n" +
 			"cycles the tabs once there is more than one.\n\n" +
@@ -170,9 +177,22 @@ func newTUICommand() *cobra.Command {
 			"before and after, which show their shares and their figures at the end of their\n" +
 			"last day. tui-pursuits.schema.json in slate's cli/internal/cli holds the shape\n" +
 			"--json prints of it.\n\n" +
+			"worklogs is the live worklogs, the expired ones whose claim ran out, and the\n" +
+			fmt.Sprintf("%d that ended last, each with its step, stage, when it came to that state,\n", endedWorklogsStep) +
+			fmt.Sprintf("sessions, holder and what its claim waits on. + and - read %d ended more or\n", endedWorklogsStep) +
+			fmt.Sprintf("fewer, up to %d. enter unfolds a worklog into its sessions and the commits,\n", worklogsReadMost) +
+			"pull requests and landings it links.\n" +
+			"enter on a pull request opens `prs tui` on it, and o opens a web link in the\n" +
+			"browser and names any other. The panel holds the claim and its waits, each\n" +
+			"session's span, the links and the document versions it wrote, then its tokens by\n" +
+			"kind beside its record's total and the record's estimate, as `slate totals` reads\n" +
+			"them. tui-worklogs.schema.json in slate's cli/internal/cli holds the shape --json\n" +
+			"prints of it.\n\n" +
 			"t on a row goes to another tab that draws what the row names, where one does, and\n" +
-			"esc comes back. t on a pull request opens `prs tui` on it. * locks every tab to the\n" +
-			"lines naming what the row names, such as one pursuit, and lifts the lock.\n\n" +
+			"esc comes back. Where a row names two such things, t asks which. t on a pull\n" +
+			"request opens `prs tui` on it, and asks first where the row names its worklog\n" +
+			"too. * locks every tab to the lines naming what the row names, such as one\n" +
+			"pursuit, and lifts the lock.\n\n" +
 			"The next run opens on the tab last moved to, unless --view names one. Each tab\n" +
 			"keeps its p panel, f summaries, v grouping, and the groups and rows folded and\n" +
 			"opened, in $XDG_STATE_HOME/slate/tui-display.json. A run --grouping names keeps none.\n\n" +
@@ -189,6 +209,7 @@ func newTUICommand() *cobra.Command {
 			"  slate tui --view ideas --json | jq '.rows[] | {number, title, ref_count}'\n" +
 			"  slate tui --view documents --json | jq '.records[] | {number: .record.number, documents: [.documents[].name]}'\n" +
 			"  slate tui --view pursuits --json | jq '.rows[] | {name, share, usage, factor}'\n" +
+			"  slate tui --view worklogs --json | jq '.live[] | {name, step, waiting: .claim.waiting.waiting_on}'\n" +
 			"  slate tui --json | jq '.board.totals.states'\n" +
 			"  slate tui --json | jq '.board.pursuits[] | {name: .pursuit.name, closes_30d: .closes.last_30d, untouched: .untouched_longest.name}'",
 		Args:        cobra.NoArgs,
@@ -263,7 +284,7 @@ func tuiTabList(in tabInputs) []gotermboard.Tab {
 	return list
 }
 
-// openTabs is the program of tabs, opening on view, where t on a pull request opens prs.
+// openTabs is the program of tabs, opening on view, where a jump to a pull request opens prs.
 func openTabs(tabs []gotermboard.Tab, view string) (*gotermboard.Tabs, error) {
 	program, err := gotermboard.NewTabs(tabs, gotermstyle.PaletteFor(os.Stdout), view)
 	if err != nil {

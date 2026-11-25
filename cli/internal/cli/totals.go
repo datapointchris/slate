@@ -135,30 +135,16 @@ func printByStep(out io.Writer, steps []api.StepTotals) {
 // record's latest preflight estimated, a dash where nothing was reported or
 // the kind was not estimated.
 func printSpentBesideEstimate(out io.Writer, spent *api.Tokens, estimate api.PreflightEstimate) {
-	var s api.Tokens
-	if spent != nil {
-		s = *spent
-	}
-	spentOf := func(n int) *int {
-		if spent == nil {
-			return nil
-		}
-		return &n
-	}
-	rows := []struct {
-		kind             string
-		spent, estimated *int
-	}{
-		{"uncached input", spentOf(s.UncachedInput), estimate.Tokens.UncachedInput},
-		{"cache write", spentOf(s.CacheWrite), estimate.Tokens.CacheWrite},
-		{"cache read", spentOf(s.CacheRead), estimate.Tokens.CacheRead},
-		{"output", spentOf(s.Output), estimate.Tokens.Output},
-	}
+	estimated := estimate.Tokens.ByKind()
 	_, _ = fmt.Fprintf(out, "\nSpent beside the estimate of preflight %s:\n", estimate.Worklog)
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "  KIND\tSPENT\tESTIMATED")
-	for _, row := range rows {
-		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", row.kind, countOrDash(row.spent), countOrDash(row.estimated))
+	for at, kind := range api.TokenKinds {
+		spentOfKind := "—"
+		if spent != nil {
+			spentOfKind = groupedDigits(spent.ByKind()[at])
+		}
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", tokenKindWord(kind), spentOfKind, countOrDash(estimated[at]))
 	}
 	_ = tw.Flush()
 }

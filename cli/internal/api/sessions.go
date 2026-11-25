@@ -18,6 +18,19 @@ type Tokens struct {
 // TokenKinds are the API keys of the kinds Tokens counts, in its order.
 var TokenKinds = []string{"uncached_input", "cache_write", "cache_read", "output"}
 
+// ByKind is each kind's count, in TokenKinds' order.
+func (t Tokens) ByKind() []int {
+	return []int{t.UncachedInput, t.CacheWrite, t.CacheRead, t.Output}
+}
+
+// Plus is t and more summed kind by kind.
+func (t Tokens) Plus(more Tokens) Tokens {
+	return Tokens{
+		UncachedInput: t.UncachedInput + more.UncachedInput, CacheWrite: t.CacheWrite + more.CacheWrite,
+		CacheRead: t.CacheRead + more.CacheRead, Output: t.Output + more.Output,
+	}
+}
+
 // TokenEstimate is the tokens by kind a piece of work is expected to spend. A
 // nil kind was not estimated, which differs from an estimate of zero.
 type TokenEstimate struct {
@@ -25,6 +38,11 @@ type TokenEstimate struct {
 	CacheWrite    *int `json:"cache_write"`
 	CacheRead     *int `json:"cache_read"`
 	Output        *int `json:"output"`
+}
+
+// ByKind is each kind's estimate, in TokenKinds' order, nil where the kind is not estimated.
+func (e TokenEstimate) ByKind() []*int {
+	return []*int{e.UncachedInput, e.CacheWrite, e.CacheRead, e.Output}
 }
 
 // MessageTokens is one model message a session spent tokens on. Key is the

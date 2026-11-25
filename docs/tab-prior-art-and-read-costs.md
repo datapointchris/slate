@@ -30,6 +30,10 @@ Each figure is one read against a queue of about 900 open records and about 1,65
 | --- | --- | --- |
 | `GET /queue` | about 3 MB | about 4 s |
 | `GET /worklogs?state=ended` | about 5 MB | about 3.5 s |
+| `GET /worklogs?state=ended&limit=100` | about 330 KB | about 1.2 s |
+| `GET /worklogs?state=live` | about 60 KB | under 0.5 s |
+| `GET /worklogs?state=expired` | about 35 KB | under 0.5 s |
+| `GET /totals?record=<n>` | about 3 KB | under 0.5 s |
 | `GET /initiatives/board` | about 0.5 MB | under 1 s |
 | `GET /documents` | about 60 KB | under 1 s |
 | `GET /focus` | about 5 KB | under 0.5 s |
