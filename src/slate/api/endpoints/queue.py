@@ -1,4 +1,4 @@
-"""The queue: every kind of open work in the order to take it, read by `slate next`."""
+"""The queue: every kind of open work in the order to take it, read whole by `slate next` and slim by a board polling it."""
 
 from typing import Annotated
 
@@ -9,6 +9,7 @@ from fastapi import status
 from slate import schemas
 from slate.api.callers import DbSession
 from slate.api.request_zone import RequestZone
+from slate.services.queue_board import queue_board
 from slate.services.row_limit import RowLimit
 from slate.services.work_queue import read_queue
 from slate.tracing.named_work import name_record
@@ -27,3 +28,12 @@ def read(session: DbSession, zone: RequestZone, filters: Annotated[schemas.Queue
     if filters.for_record is not None:
         name_record(filters.for_record)
     return read_queue(session, zone, filters, limit)
+
+
+@router.get('/board', response_model=schemas.QueueBoard, status_code=status.HTTP_200_OK)
+def board(session: DbSession, zone: RequestZone):
+    """Every open row of the queue in `GET /queue`'s order, each with only what a board draws, for a view polling it.
+
+    It takes no filter and no `limit`, so a board counts, searches and cuts the rows itself.
+    """
+    return queue_board(session, zone)

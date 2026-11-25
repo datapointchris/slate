@@ -174,7 +174,7 @@ reaches only the routes its scopes list:
 
 | Scope | Reaches |
 | --- | --- |
-| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives, ideas and pursuits, the queue `slate next` reads, who holds which claim, worklogs, documents, comments, the checks on an issue or initiative and the order they come due, a session's tokens, the work's totals, and the focus with each pursuit's standing against it |
+| `slate.records.read` | reading the vocabulary, reading any record by number, searching every kind, listing and showing issues, initiatives, ideas and pursuits, the queue `slate next` reads and its slim board, who holds which claim, worklogs, documents, comments, the checks on an issue or initiative and the order they come due, a session's tokens, the work's totals, and the focus with each pursuit's standing against it |
 | `slate.claims.hold` | holding a claim on a record or on the head of the ready issues, and extending, releasing, waiting on and resuming one, under the service's own client id |
 | `slate.comments.write` | commenting on any record, or on one line of its document, under the service's own client id |
 | `slate.documents.write` | writing the next version of a document on any record, under the service's own client id, which keeps every earlier version |

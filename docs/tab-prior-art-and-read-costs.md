@@ -28,7 +28,7 @@ Each figure is one read against a queue of about 900 open records and about 1,65
 
 | Read | Answers | Takes |
 | --- | --- | --- |
-| `GET /queue` | about 3 MB | about 4 s |
+| `GET /queue` | about 3 MB | about 1 s |
 | `GET /worklogs?state=ended` | about 5 MB | about 3.5 s |
 | `GET /worklogs?state=ended&limit=100` | about 330 KB | about 1.2 s |
 | `GET /worklogs?state=live` | about 60 KB | under 0.5 s |
@@ -42,7 +42,7 @@ Each figure is one read against a queue of about 900 open records and about 1,65
 - **A queue row carries its whole record.** Dropping every description still leaves about 1.5 MB,
   because each row holds the record's refs, claim, last check and steps. The tab draws a few
   hundred bytes of each row. [api-memory.md](api-memory.md) names `GET /queue` among the reads that grow
-  the API's memory.
+  the API's memory, and `GET /queue/board` as the slim read of the same rows that the tab polls.
 - **An ended worklog is about 3 KB**, with its spans, links and document versions. Reading the
   newest hundred costs about a tenth of reading them all.
 - **`GET /focus` answers one total per pursuit over its whole window**, so a chart of usage by day

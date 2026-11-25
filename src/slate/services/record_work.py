@@ -20,9 +20,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from slate import models
-from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.services.initiative_waits import holding_waits
+from slate.services.open_records import is_open
 from slate.services.record_lookup import resolve_record
 
 
@@ -45,9 +45,9 @@ class WorkGraph:
 
 def read_work_graph(session: Session) -> WorkGraph:
     rows = session.execute(
-        select(models.Issue.id, models.Issue.number, models.Issue.status, models.Issue.parent_id, models.Issue.initiative_id)
+        select(models.Issue.id, models.Issue.number, models.Issue.parent_id, models.Issue.initiative_id).where(is_open(Kind.ISSUE))
     ).all()
-    by_id = {row.id: row for row in rows if row.status not in CLOSED_ISSUE_STATUSES}
+    by_id = {row.id: row for row in rows}
 
     waits_on: dict[UUID, list[UUID]] = {}
     for issue_id, depends_on_id in session.execute(select(models.IssueDependency.issue_id, models.IssueDependency.depends_on_id)).all():
@@ -73,14 +73,22 @@ def record_work(session: Session, number: int, graph: WorkGraph | None = None) -
     record = resolve_record(session, number)
     kind = Kind(record.kind)
     work_graph = graph or read_work_graph(session)
-    by_id, waits_on = work_graph.by_id, work_graph.waits_on
-
     if kind == Kind.INITIATIVE:
-        initiative_id = session.scalar(select(models.Initiative.id).where(models.Initiative.number == number))
-        roots = [row.id for row in by_id.values() if row.initiative_id == initiative_id]
-    else:
-        roots = [row.id for row in by_id.values() if row.number == number]
+        initiative_id = session.scalars(select(models.Initiative.id).where(models.Initiative.number == number)).one()
+        return initiative_work(work_graph, number, initiative_id)
+    roots = [row.id for row in work_graph.by_id.values() if row.number == number]
+    return RecordWork(number=number, kind=kind, unblocks=closure_from(work_graph, roots))
 
+
+def initiative_work(graph: WorkGraph, number: int, initiative_id: UUID) -> RecordWork:
+    """The work of the initiative `number` names and `initiative_id` keys, walked from its open issues without a query."""
+    roots = [row.id for row in graph.by_id.values() if row.initiative_id == initiative_id]
+    return RecordWork(number=number, kind=Kind.INITIATIVE, unblocks=closure_from(graph, roots))
+
+
+def closure_from(graph: WorkGraph, roots: list[UUID]) -> dict[int, list[int]]:
+    """Each open issue `roots` transitively wait on, `roots` included, with the numbers in the closure waiting on it directly."""
+    by_id, waits_on = graph.by_id, graph.waits_on
     unblocks: dict[int, list[int]] = {by_id[root].number: [] for root in roots}
     walk = deque(roots)
     while walk:
@@ -93,4 +101,4 @@ def record_work(session: Session, number: int, graph: WorkGraph | None = None) -
                 unblocks[target] = []
                 walk.append(waited_on)
             unblocks[target].append(by_id[waiter].number)
-    return RecordWork(number=number, kind=kind, unblocks={issue: sorted(set(waiters)) for issue, waiters in unblocks.items()})
+    return {issue: sorted(set(waiters)) for issue, waiters in unblocks.items()}

@@ -75,11 +75,51 @@ Each row says its `kind`, `number`, `step` and `priority`, and carries the
 kind's own read as `record`. `priority` is the one by which the row sorts: an
 issue's effective priority, else the record's own.
 
+**Each row names what set its place, one hop back, as `placed_by`:**
+
+| `placed_by` | The row sorts at |
+| --- | --- |
+| `own` | its own priority and rank, standing alone |
+| `pin` | its own pin, standing alone |
+| `initiative` | its initiative's slot, among that initiative's issues |
+| `parent` | just ahead of its open parent, which `raised_by` names |
+| `waiter` | just ahead of an issue depending on it, which `raised_by` names |
+
+An issue raised by a waiter names the waiter, and the waiter's own row names
+what placed it. So in a pinned initiative, an issue names `waiter` where a
+waiter's place sorts ahead of the initiative's, and `initiative` otherwise.
+`pinned` says whether a pin stands behind the place at any hop.
+`services/issue_readiness.py` derives `placed_by` in the walk that raises an
+issue, outside the key that sorts it.
+
 A live claim says someone is working the record, so a held record is listed
 apart in `claimed`, by holder, whatever its readiness. A live claim on an
 initiative lists the ready issues to build in its plan there too, and
 [claims.md](claims.md) says what that holds and what it leaves alone. The rest
 are `queue`, first row next. `limit` caps `queue` and never `claimed`.
+
+**`GET /queue/board` is the queue a live view polls.** It answers every open
+row of `GET /queue`, in its order, with `claimed` apart by holder. Each row
+carries only what a board draws, and no `record`:
+
+- `kind`, `number`, `title`, `step`, `priority`, `pinned`, `placed_by` and
+  `raised_by`, as `GET /queue` spells them
+- `own_priority`, the record's own, beside the `priority` by which it sorts
+- an issue's `initiative`, and `repos`: an issue's repo, or each repo that an
+  initiative's issues name
+- `pursuits`: an issue's initiative's, else the record's own
+- an initiative's `open_count`, and an issue's `overlaps`
+- on a claimed row, `holder`, `held_through`, and the claim's `expires_ts` and
+  `waiting`. Where `held_through` names an initiative, its claim holds the
+  row, so the expiry and the wait are that claim's.
+
+It takes no filter and no `limit`, because a board counts, searches and cuts
+the rows itself. Open work closes, so the open queue does not grow with use.
+`queued_issues`, `initiative_row_step` and `QueuePlacement` choose and place the
+rows of both reads, so the order has one owner. The board reads only light
+columns and builds no `issue_views`, `initiative_views` or `idea_views` row. Its
+queries do not grow with the rows, and a test pins their count, as the
+initiative board's test does.
 
 `POST /claims/next` holds the head of the `build` rows under the same filters,
 and the initiative's holder can also take its own plan's issues. `queued_issues`
