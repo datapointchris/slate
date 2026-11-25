@@ -36,7 +36,7 @@ def test_the_record_read_answers_each_kind_with_its_claim_history(client):
     ]
     assert [(claim['holder'], claim['ending']) for claim in read[idea]['record']['claims']] == [('agent-a', 'released')]
     assert read[initiative]['record']['claims'] == []
-    ok(client.get('/records/999999'), status.HTTP_404_NOT_FOUND)
+    assert ok(client.get('/records/999999'), status.HTTP_404_NOT_FOUND)['message'] == 'record 999999 not found'
 
 
 def test_the_changes_read_every_write_to_an_issue_and_its_rows_with_imported_history_beside(
@@ -89,13 +89,22 @@ def test_the_changes_read_every_write_to_an_issue_and_its_rows_with_imported_his
     assert ok(client.get(f'/records/{number}/changes', params={'limit': 1})) == changes[:1]
 
 
-def test_an_ideas_changes_hold_the_initiative_its_promotion_created_and_nothing_after(client):
-    idea = ok(client.post('/ideas', json={'title': 'Promote me'}), status.HTTP_201_CREATED)['idea']['number']
-    initiative = ok(client.post(f'/ideas/{idea}/promote', json={'summary': 'It is done.'}))['idea']['initiative']['number']
-    ok(client.patch(f'/initiatives/{initiative}', json={'description': 'Its own write'}))
+def test_a_promoted_numbers_changes_hold_the_ideas_writes_and_the_initiatives_as_its_own(client):
+    number = ok(client.post('/ideas', json={'title': 'Promote me'}), status.HTTP_201_CREATED)['idea']['number']
+    ok(client.patch(f'/ideas/{number}', json={'description': 'Its idea write'}))
+    ok(client.post(f'/ideas/{number}/promote', json={'summary': 'It is done.'}))
+    ok(client.patch(f'/initiatives/{number}', json={'description': 'Its initiative write'}))
 
-    changes = ok(client.get(f'/records/{idea}/changes'))
-    assert [(row['table_name'], row['operation']) for row in changes if row['table_name'] == 'initiatives'] == [('initiatives', 'insert')]
+    changes = ok(client.get(f'/records/{number}/changes'))
+    assert [(row['table_name'], row['operation']) for row in changes if row['is_own_row']] == [
+        ('initiatives', 'update'),
+        ('initiatives', 'insert'),
+        ('records', 'update'),
+        ('ideas', 'delete'),
+        ('ideas', 'update'),
+        ('ideas', 'insert'),
+        ('records', 'insert'),
+    ]
 
 
 def test_a_search_reads_every_kind_closed_ones_included_and_unclosed_first(client):

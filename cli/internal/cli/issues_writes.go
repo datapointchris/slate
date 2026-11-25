@@ -643,25 +643,27 @@ func newIssuesDeleteCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			issue, err := client.GetIssue(cmd.Context(), args[0], issueZone())
-			if err != nil {
-				return handleArgumentAPIError(err)
-			}
 			if !yes {
-				ok, err := confirm(cmd, fmt.Sprintf("Delete #%d %q? This cannot be undone.", issue.Number, issue.Title))
+				issue, err := client.GetIssue(cmd.Context(), args[0], issueZone())
 				if err != nil {
-					return err
+					return handleArgumentAPIError(err)
 				}
-				if !ok {
-					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
-					return nil
+				if !answeredAnother(args[0], issue.Number) {
+					ok, err := confirm(cmd, fmt.Sprintf("Delete #%d %q? This cannot be undone.", issue.Number, issue.Title))
+					if err != nil {
+						return err
+					}
+					if !ok {
+						_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
+						return nil
+					}
 				}
 			}
-			deleted, err := client.DeleteIssue(cmd.Context(), issue.ID, issueZone())
+			deleted, err := client.DeleteIssue(cmd.Context(), args[0], issueZone())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, fmt.Sprintf("Deleted #%d %s", issue.Number, issue.Title))
+			return reportWrite(cmd, asJSON, deleted, deleted.WriteEffects, fmt.Sprintf("Deleted #%d %s", deleted.Deleted.Number, deleted.Deleted.Title))
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the confirmation prompt")
@@ -687,7 +689,7 @@ func runIssueTransition(cmd *cobra.Command, ref string, from []string, in api.Is
 		return fmt.Errorf("#%d is %s — %s applies to an issue that is %s",
 			current.Number, current.Status, cmd.Name(), strings.Join(from, " or "))
 	}
-	written, err := client.UpdateIssue(cmd.Context(), current.ID, in, nil, issueZone())
+	written, err := client.UpdateIssue(cmd.Context(), ref, in, nil, issueZone())
 	if err != nil {
 		return handleArgumentAPIError(err)
 	}

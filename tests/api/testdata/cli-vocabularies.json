@@ -98,5 +98,30 @@
     "build",
     "retro"
   ],
+  "promote_kinds": [
+    "initiative",
+    "issue"
+  ],
+  "promote_initiative_fields": [
+    "autofix",
+    "name",
+    "not_planned_steps",
+    "pursuits",
+    "status",
+    "summary"
+  ],
+  "promote_issue_fields": [
+    "acceptance",
+    "initiative",
+    "parent",
+    "paths",
+    "repo",
+    "type"
+  ],
+  "promote_shared_fields": [
+    "description",
+    "priority",
+    "tags"
+  ],
   "record_limit_max": 500
 }

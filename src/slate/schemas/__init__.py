@@ -41,9 +41,11 @@ from slate.schemas.focus import UnattributedUsage
 from slate.schemas.idea import Idea
 from slate.schemas.idea import IdeaCreate
 from slate.schemas.idea import IdeaDetail
+from slate.schemas.idea import IdeaFold
 from slate.schemas.idea import IdeaPromote
 from slate.schemas.idea import IdeaUpdate
 from slate.schemas.idea import IdeaWritten
+from slate.schemas.idea import InitiativeWrittenWithIdea
 from slate.schemas.initiative import Initiative
 from slate.schemas.initiative import InitiativeCreate
 from slate.schemas.initiative import InitiativeDetail
@@ -107,6 +109,7 @@ from slate.schemas.record_check import RecordCheck
 from slate.schemas.record_check import RecordCheckCreate
 from slate.schemas.record_check import RecordCheckWritten
 from slate.schemas.record_parts import RecordParts
+from slate.schemas.record_parts import RedirectedFrom
 from slate.schemas.record_ref import RecordRef
 from slate.schemas.record_ref import RecordRefsLink
 from slate.schemas.repo_board import BoardRepo
@@ -210,6 +213,7 @@ __all__ = [
     'Idea',
     'IdeaCreate',
     'IdeaDetail',
+    'IdeaFold',
     'IdeaPromote',
     'IdeaUpdate',
     'IdeaWritten',
@@ -223,6 +227,7 @@ __all__ = [
     'InitiativeSummary',
     'InitiativeUpdate',
     'InitiativeWritten',
+    'InitiativeWrittenWithIdea',
     'Issue',
     'IssueCreate',
     'IssueDependencyCreate',
@@ -253,6 +258,7 @@ __all__ = [
     'RecordDependencyCreate',
     'RecordListed',
     'RecordParts',
+    'RedirectedFrom',
     'RecordPin',
     'RecordRankMove',
     'RecordRef',

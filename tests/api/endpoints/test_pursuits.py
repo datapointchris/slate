@@ -92,14 +92,6 @@ def test_a_pursuit_holds_no_claim_and_no_place_in_the_queue(txn_api_logged_in):
     assert pursuit['number'] not in numbers(ok(client.get('/queue'))['queue'])
 
 
-def test_a_promoted_idea_hands_its_pursuits_to_the_initiative(txn_api_logged_in):
-    client, _ = txn_api_logged_in
-    pursuit = a_pursuit(client)
-    idea = created(client, '/ideas', {'title': 'Model the sessions', 'pursuits': [pursuit['number']]})['idea']
-    promoted = ok(client.post(f'/ideas/{idea["number"]}/promote', json={'summary': 'Sessions are a table'}))['idea']
-    assert promoted['initiative']['pursuits'] == [{'number': pursuit['number'], 'name': 'Data Warehouse'}]
-
-
 def test_a_membership_reads_as_a_change_of_both_records_under_the_pursuits_name(txn_api_logged_in):
     client, _ = txn_api_logged_in
     pursuit = a_pursuit(client)

@@ -87,28 +87,28 @@ def test_a_worklog_started_with_no_claim_warns_of_another_open_one_and_ends_by_h
     assert current(client, 's2') is None
 
 
-def test_a_step_is_checked_once_its_go_ends_and_the_furthest_on_the_initiative_or_its_idea_is_its_stage(txn_api_logged_in):
+def test_a_step_is_checked_once_its_go_ends_and_the_furthest_is_its_stage(txn_api_logged_in):
     """A hold names its step, so the initiative reads which steps it went through without a session remembering to record them."""
     client, session = txn_api_logged_in
     holder = {'holder': 'claude-code/s3', 'session': 's3'}
-    idea = ok(client.post('/ideas', json={'title': 'Record the steps'}), status.HTTP_201_CREATED)['idea']['number']
-    ok(client.post('/claims', json={'record': idea, 'step': 'shape', **holder}))
-    initiative = ok(client.post(f'/ideas/{idea}/promote', json={'summary': 'Each step shows.'}))['idea']['initiative']['number']
+    initiative = ok(client.post('/ideas', json={'title': 'Record the steps'}), status.HTTP_201_CREATED)['idea']['number']
+    ok(client.post('/claims', json={'record': initiative, 'step': 'shape', **holder}))
+    ok(client.post(f'/ideas/{initiative}/promote', json={'summary': 'Each step shows.'}))
 
     def read() -> tuple[str, list[tuple[str, str, str | None]]]:
         shown = ok(client.get(f'/initiatives/{initiative}'))
         return shown['stage'], [(step['step'], step['worklog'], step['session']) for step in shown['steps']]
 
-    assert read() == ('shape', [('shape', f'{idea}.1', 's3')])
+    assert read() == ('shape', [('shape', f'{initiative}.1', 's3')])
     ok(client.post('/claims', json={'record': initiative, 'step': 'design', **holder}))
     ok(client.post('/claims', json={'record': initiative, 'step': 'preflight', **holder}))
-    assert (ok(client.get(f'{WORKLOGS}/{initiative}.1'))['step'], read()[0]) == ('design', 'shape')
+    assert (ok(client.get(f'{WORKLOGS}/{initiative}.2'))['step'], read()[0]) == ('design', 'shape')
     ok(client.post(f'/claims/{initiative}/release', json={'released_by': 'claude-code/s3'}))
-    assert read() == ('design', [('shape', f'{idea}.1', 's3'), ('design', f'{initiative}.1', 's3')])
+    assert read() == ('design', [('shape', f'{initiative}.1', 's3'), ('design', f'{initiative}.2', 's3')])
 
     ok(client.post(WORKLOGS, json={'record': initiative, 'opened_by': 'chris', 'step': 'shape'}), status.HTTP_201_CREATED)
-    ok(client.post(f'{WORKLOGS}/{initiative}.2/finish', json={'finished_by': 'chris'}))
-    assert read() == ('design', [('shape', f'{initiative}.2', None), ('design', f'{initiative}.1', 's3')])
+    ok(client.post(f'{WORKLOGS}/{initiative}.3/finish', json={'finished_by': 'chris'}))
+    assert read() == ('design', [('shape', f'{initiative}.3', None), ('design', f'{initiative}.2', 's3')])
 
     lapsing = ok(client.post('/claims', json={'record': initiative, 'step': 'preflight', **holder}))['claim']
     lapsed = dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)

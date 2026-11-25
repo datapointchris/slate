@@ -1,4 +1,7 @@
-"""One record's changes: every audit row on the record, and on each row hanging off it.
+"""One record's changes: every audit row on the record, on each kind row that held its `id`, and on each row hanging off it.
+
+A number a fold retired leads to the record that took its rows, so its `records` row and its idea's
+rows count as the record's own, and the rows that hung off it are found from them.
 
 A row hangs off a record when single-column `ON DELETE CASCADE` foreign keys lead to it from the
 record, through any number of rows: a claim on the record's number, then a wait on that claim.
@@ -96,9 +99,10 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
     """Every write to `record` and to each row hanging off it, newest first, the latest `limit` of them."""
     kind_model = models.KIND_MODELS[record.kind]
     record_id = str(session.scalars(select(kind_model.id).where(kind_model.number == record.number)).one())
-    own = {(models.Record.__tablename__, str(record.number)), (kind_model.__tablename__, record_id)}
+    own = {(models.Record.__tablename__, str(record.number)), (kind_model.__tablename__, record_id)} | former_kind_rows(session, record_id)
     if (former := FORMER_KIND_TABLES.get(kind_model.__tablename__)) is not None:
         own.add((former, record_id))
+    own |= redirected_rows(session, record.number)
     written = set(own)
     found = own
     while found:
@@ -124,6 +128,26 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
         for row in session.scalars(apply_row_limit(query, limit))
     ]
     return with_referenced_names(session, changes)
+
+
+def redirected_rows(session: Session, number: int) -> set[tuple[str, str]]:
+    """The `records` row and the kind rows of each retired number leading to `number`, so a fold target reads the folded idea's writes.
+
+    The rows that hung off the retired number moved here, and their inserts name the retired number,
+    so the walk from its `records` row finds them.
+    """
+    rows: set[tuple[str, str]] = set()
+    redirects = select(models.RecordRedirect.number, models.RecordRedirect.former_id).where(models.RecordRedirect.to_number == number)
+    for retired, former_id in session.execute(redirects):
+        rows |= {(models.Record.__tablename__, str(retired))} | former_kind_rows(session, str(former_id))
+    return rows
+
+
+def former_kind_rows(session: Session, record_id: str) -> set[tuple[str, str]]:
+    """Each kind table that holds or held a row under `record_id`. A promoted record's `ideas` row is among them."""
+    tables = [model.__tablename__ for model in models.KIND_MODELS.values()]
+    held = session.scalars(select(Change.table_name).distinct().where(Change.table_name.in_(tables), Change.record_id == record_id))
+    return {(table, record_id) for table in held}
 
 
 @dataclass(frozen=True)

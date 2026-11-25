@@ -12,6 +12,12 @@ one, so the name says what was worked and how many times before. The API takes
 the name wherever it takes a worklog: `GET /worklogs/1991.2`. `slate show
 1991.2` reads it as `slate show` reads any record.
 
+A fold moves an idea's worklogs to another record and numbers them on after
+that record's last. Each old name stays in `worklog_redirects` and answers the
+worklog under its new name, so `4086.1` reads as `2356.6`. A write through an
+old name reaches the worklog too, because both names name one worklog. A
+worklog folded twice keeps every old name, each leading straight to it.
+
 A worklog is a row of `worklogs` on a record number, like a claim. Its spans
 are rows of `worklog_spans`, and its links rows of `worklog_links`.
 
@@ -44,7 +50,7 @@ A worklog's `outcome` says which ending it reached:
 | `released` | its claim was released |
 | `expired` | its claim's lease ran out, and it ended at the claim's `expires_ts` |
 | `completed`, `canceled`, `dropped` | the record reached that closing status |
-| `promoted` | the idea became its initiative |
+| `promoted` | the idea became an initiative or an issue under its number |
 
 Closing or promoting a record also ends each worklog `start` opened on it.
 Finishing a worklog whose claim still holds goes through with a
@@ -180,9 +186,10 @@ being promoted. A claim that ran out ended nobody's go, and a record dropped or
 canceled abandoned it, so `expired`, `dropped` and `canceled` check nothing.
 
 An initiative's read derives `steps`, each checked step from its latest such
-worklog: the worklog's name, when it ended, and the first session in it. It
-reads the steps of the idea promoted into it too, because an idea is shaped
-before it has an initiative's number. It derives `stage` as well, the furthest
+worklog: the worklog's name, when it ended, and the first session in it. A
+promoted idea keeps its number, so the steps it went through are the
+initiative's own. An initiative whose `idea_id` is set reads that idea's steps
+too. It derives `stage` as well, the furthest
 checked step, or `idea` before any. [issues.md](issues.md) covers how the
 initiative reads print them. Nothing is read from a document's text, so a retro
 document checks `retro` only through a worklog of that step.

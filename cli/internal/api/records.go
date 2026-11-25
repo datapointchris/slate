@@ -27,6 +27,41 @@ type RecordParts struct {
 	Claims    []Claim           `json:"claims"`
 	Comments  []Comment         `json:"comments"`
 	Documents []DocumentSummary `json:"documents"`
+	// RedirectedFrom is each retired number leading to the record, oldest
+	// first. An API from before folds sends none.
+	RedirectedFrom []RedirectedFrom `json:"redirected_from"`
+}
+
+// FollowRedirectsHeader, sent as "true", asks the API to answer a read of a
+// retired number with the record it leads to. Without it the read answers 404
+// naming that record, which keeps a client that writes by the id a read
+// answered from writing to the wrong record. Every write the CLI sends goes by
+// the number typed, so it asks on every request.
+const FollowRedirectsHeader = "Slate-Follow-Redirects"
+
+// RedirectedFrom is a retired number that leads to a record: why, what the idea
+// holding it was called, and since when. A read through it answers the record
+// it leads to, so the record's number differs from the one asked for.
+type RedirectedFrom struct {
+	Number       int       `json:"number"`
+	Reason       string    `json:"reason"`
+	FormerKind   string    `json:"former_kind"`
+	FormerTitle  string    `json:"former_title"`
+	RedirectedTS time.Time `json:"redirected_ts"`
+	// Sentence says it whole, as `#4086 was folded into initiative #2356 on
+	// 2026-11-24`, dated in the zone the read named.
+	Sentence string `json:"sentence"`
+}
+
+// RedirectOf is the redirect in from that led asked to the record, or nil
+// where asked is the record's own number.
+func RedirectOf(from []RedirectedFrom, asked int) *RedirectedFrom {
+	for i := range from {
+		if from[i].Number == asked {
+			return &from[i]
+		}
+	}
+	return nil
 }
 
 // Record is the read of any record by its number. Kind says which of Idea,
@@ -38,6 +73,22 @@ type Record struct {
 	Initiative *InitiativeDetail
 	Issue      *IssueDetail
 	Pursuit    *PursuitDetail
+}
+
+// Parts is what every kind's read carries beside its own fields, from
+// whichever kind holds the record.
+func (r Record) Parts() RecordParts {
+	switch {
+	case r.Idea != nil:
+		return r.Idea.RecordParts
+	case r.Initiative != nil:
+		return r.Initiative.RecordParts
+	case r.Issue != nil:
+		return r.Issue.RecordParts
+	case r.Pursuit != nil:
+		return r.Pursuit.RecordParts
+	}
+	return RecordParts{}
 }
 
 // UnmarshalJSON decodes `record` into the read its `kind` names, so a caller

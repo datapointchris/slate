@@ -87,7 +87,7 @@ func newInitiativesUnpinCommand() *cobra.Command {
 }
 
 func newIdeasPinCommand() *cobra.Command {
-	return newPinCommand("idea", "is promoted, which moves the pin to its initiative", "  slate ideas pin 1530")
+	return newPinCommand("idea", "is promoted and that work closes or is shelved, since a promotion keeps the pin on the number", "  slate ideas pin 1530")
 }
 
 func newIdeasUnpinCommand() *cobra.Command {

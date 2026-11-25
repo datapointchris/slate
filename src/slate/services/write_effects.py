@@ -32,10 +32,7 @@ class WriteEffectCode(enum.StrEnum):
     ANCESTOR_REOPENED = 'ancestor_reopened'
     CLAIM_ENDED = 'claim_ended'
     EXPIRED_CLAIM_ENDED = 'expired_claim_ended'
-    INITIATIVE_CREATED = 'initiative_created'
     PIN_CLEARED = 'pin_cleared'
-    PIN_CARRIED = 'pin_carried'
-    REFS_CARRIED = 'refs_carried'
 
     # Warnings on a pin write that changed nothing.
     ALREADY_PINNED = 'already_pinned'
@@ -86,6 +83,28 @@ class WriteEffectCode(enum.StrEnum):
 
     # A warning on linking a ref that a record already carries.
     REF_ALREADY_LINKED = 'ref_already_linked'
+
+    # A warning on promoting or folding an idea into an issue, which reads its pursuits from its initiative and holds none.
+    PURSUITS_DROPPED = 'pursuits_dropped'
+
+    # Side effects of folding an idea into the record that covers it: each row moved there, the
+    # holder's claim moving with them, each redirect that led to the idea now leading there, and
+    # the idea's number leading there. A warning that the idea's pin went with its record.
+    WORKLOG_MOVED = 'worklog_moved'
+    CLAIM_MOVED = 'claim_moved'
+    CLAIMS_MOVED = 'claims_moved'
+    COMMENTS_MOVED = 'comments_moved'
+    CHECKS_MOVED = 'checks_moved'
+    DOCUMENT_MOVED = 'document_moved'
+    REFS_MOVED = 'refs_moved'
+    TAGS_MOVED = 'tags_moved'
+    PURSUITS_MOVED = 'pursuits_moved'
+    REDIRECT_RETARGETED = 'redirect_retargeted'
+    RECORD_REDIRECTED = 'record_redirected'
+    PIN_DROPPED = 'pin_dropped'
+
+    # A side effect of deleting a record that numbers were folded into: each such number goes with it.
+    REDIRECT_DELETED = 'redirect_deleted'
 
     # A warning on creating a record whose title reads like an open record's.
     POSSIBLE_DUPLICATE = 'possible_duplicate'

@@ -2,7 +2,7 @@
 
 A work tracker built for coding agents. Ideas hold the work that nobody has
 taken on, with their priority and the refs that they rest on, until promotion
-makes each an initiative. Issues carry their dependencies, labels and the
+makes each an initiative or an issue under the same number. Issues carry their dependencies, labels and the
 initiative they ship toward. Ideas, initiatives and issues carry tags from a
 short closed list, and an issue reads its initiative's tags as its own. Each
 also carries refs, the keys or URLs that it came from, and each list narrows
@@ -186,7 +186,7 @@ reaches only the routes its scopes list:
 | `slate.worklogs.observe` | joining a session that commits nothing, such as a pull request's reviewer, to a live worklog another client opened |
 | `slate.sessions.write` | reporting the tokens an agent session spent, which replaces that session's last report |
 
-No scope deletes anything, and none edits or promotes an idea. A service
+No scope deletes anything, and none edits, promotes or folds an idea. A service
 files one with `slate.ideas.write`, and a planning job moves one in the queue.
 A `--ref` given while filing rides the scope that files the record.
 `src/slate/api/client_scopes.py` holds the exact routes.
