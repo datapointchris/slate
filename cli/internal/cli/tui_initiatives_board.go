@@ -198,11 +198,12 @@ func newInitiativesBoard(client *api.Client, status string, scope boardScope, gr
 }
 
 // everyInitiativeStatus is the status that reads every initiative, which a jump widens to.
-// Every status reads 2.5 times the bytes of the active ones, so only a jump widens to it.
+// Every status reads more than twice the bytes of the active ones, so only a jump widens to
+// it. live-board.md holds the measurement.
 const everyInitiativeStatus = "all"
 
 // boardReading is what the board reads ask for. Each change stores a new one, so a read
-// widening the one it started under loses to a jump or a hide that came since.
+// widening it loses to a jump or a hide that came since.
 type boardReading struct {
 	// status is the initiatives' status, empty for active.
 	status string
@@ -239,20 +240,26 @@ func (b *initiativesBoard) soughtRecord() *gotermboard.EntityRef {
 	return nil
 }
 
-// readBoard reads the board, then every status where the sought record is missing from the
-// status asked. A tab that has not read yet learns that only from this read.
+// readBoard reads the board at the reading's status, and every status where the answer lacks
+// the sought record. A tab that has not read yet learns that only from this read. Where a jump
+// or a hide changes the reading while a read is out, the answer is checked against the new
+// one, and read again where its status changed.
 func (b *initiativesBoard) readBoard(ctx context.Context, zone api.DayZone) (api.InitiativeBoard, error) {
-	asked := b.reading.Load()
-	read, err := b.client.ReadInitiativeBoard(ctx, asked.status, zone)
-	if err != nil || !asked.lacksSought(read) {
-		return read, err
+	status := b.reading.Load().status
+	read, err := b.client.ReadInitiativeBoard(ctx, status, zone)
+	for err == nil {
+		at := b.reading.Load()
+		switch {
+		case at.status != status:
+			status = at.status
+			read, err = b.client.ReadInitiativeBoard(ctx, status, zone)
+		case !at.lacksSought(read):
+			return read, nil
+		case b.reading.CompareAndSwap(at, at.widened()):
+			b.text.Force()
+		}
 	}
-	wider := asked.widened()
-	if !b.reading.CompareAndSwap(asked, wider) {
-		return read, nil
-	}
-	b.text.Force()
-	return b.client.ReadInitiativeBoard(ctx, wider.status, zone)
+	return read, err
 }
 
 // EntityKinds is gotermboard.EntityBoard's.
