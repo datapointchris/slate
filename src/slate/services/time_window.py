@@ -47,6 +47,11 @@ def last_day_before(until: dt.datetime, zone: ZoneInfo) -> dt.date:
     return local.date() - dt.timedelta(days=1) if local.time() == dt.time.min else local.date()
 
 
+def day_starts(day: dt.date, zone: ZoneInfo) -> dt.datetime:
+    """The first instant of `day` in `zone`, in UTC, so arithmetic on it counts elapsed hours rather than wall-clock ones."""
+    return dt.datetime.combine(day, dt.time.min, tzinfo=zone).astimezone(dt.UTC)
+
+
 def apply_time_window(query: Select, column: InstrumentedAttribute, window: TimeWindow, *, zone: str | None) -> Select:
     """Narrow to rows whose `column` falls inside `window`, or leave the query alone.
 

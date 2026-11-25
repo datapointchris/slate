@@ -50,6 +50,7 @@
     "GET /api/v1/documents/{record}/{name}",
     "GET /api/v1/focus",
     "GET /api/v1/focus/history",
+    "GET /api/v1/focus/usage",
     "GET /api/v1/ideas",
     "GET /api/v1/ideas/{id}",
     "GET /api/v1/initiatives",
