@@ -169,6 +169,35 @@ func TestTheDocumentsTabGroupsByRecordAndReadsTheLatestVersionOnce(t *testing.T)
 	}
 }
 
+func TestAFoldedDocumentsRecordNamesItsKindsPastItsTitle(t *testing.T) {
+	stand := &documentsStandIn{designVersion: 1, designComments: 1, bodyReads: map[string]int{}}
+	server := httptest.NewServer(http.HandlerFunc(stand.serve))
+	t.Cleanup(server.Close)
+	model := gotermboard.NewModel(newDocumentsBoard(api.New(server.URL, server.Client())), gotermstyle.NewPalette(false))
+	model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	settle(model, model.Init())
+
+	header := func(title string) string {
+		screen := model.View().Content
+		at := linesAt(screen, []string{title})[0]
+		if at < 0 {
+			t.Fatalf("no line names %q:\n%s", title, screen)
+		}
+		return strings.TrimRight(strings.Split(screen, "\n")[at], " ")
+	}
+	if got := header("4281  The desk nudge pill"); !strings.HasSuffix(got, "The desk nudge pill  design") {
+		t.Errorf("folded 4281 should name its one kind past its title: %q", got)
+	}
+	if got := header("4271  Reminders fire on a date"); !strings.HasSuffix(got, "Reminders fire on a date") {
+		t.Errorf("open 4271 should name no kind past its title: %q", got)
+	}
+	model.Update(tea.KeyPressMsg{Code: 'z', Text: "z"})
+	model.Update(tea.KeyPressMsg{Code: 'M', Text: "M"})
+	if got := header("4271  Reminders fire on a date"); !strings.HasSuffix(got, "Reminders fire on a date  design · plan · review") {
+		t.Errorf("folded 4271 should name its kinds in the order of each one's newest write: %q", got)
+	}
+}
+
 // linesAt is the line of screen each of texts first shows on, -1 where none does.
 func linesAt(screen string, texts []string) []int {
 	lines := strings.Split(screen, "\n")

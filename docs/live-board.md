@@ -196,14 +196,15 @@ slate · documents   43 records · 183 documents · newest written first   read 
     plan           plan      1  19:18    212.3    ·
     design         design    8  19:13    212.3    ·
     design-review  review    2  18:16    212.2    ·
- ▸ 240  Reminders fire on a date or on a checked condition
- ▸ 251  Compost the kitchen scraps
+ ▸ 240  Reminders fire on a date or on a checked condition  design · plan · review
+ ▸ 251  Compost the kitchen scraps  design
 ```
 
 A document is what a step of the work wrote down: a design, a plan, a review or a retro. At a
 review point the question is what was just written. So the record written to last comes first,
 and within a record so does its document written last. The first record opens, and the rest fold
-to their titles.
+to their titles. A folded record names its documents' kinds past its title, each kind once, in
+the order of its newest write. So a folded record still says which steps wrote there.
 
 **The read is bounded by record, never by row.** The tab reads `GET /documents` with a
 `record_limit` on the long-text poll: every document on the records written to last. The list

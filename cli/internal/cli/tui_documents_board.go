@@ -350,9 +350,22 @@ func (b *documentsBoard) recordGroup(record recordDocuments, folded bool, now ti
 		Entities: entity,
 		Title:    gotermboard.Line{gotermboard.C(strconv.Itoa(record.record.Number), gotermboard.Cyan)},
 		Span:     gotermboard.Line{gotermboard.C(record.record.Title, gotermboard.Bold)},
+		Summary:  documentKinds(record.documents),
 		Folded:   folded,
 		Rows:     rows,
 	}
+}
+
+// documentKinds names each kind of documents once, in the order of its newest write, since
+// documents come newest first.
+func documentKinds(documents []api.ListedDocument) gotermboard.Line {
+	var kinds []string
+	for _, document := range documents {
+		if !slices.Contains(kinds, document.Kind) {
+			kinds = append(kinds, document.Kind)
+		}
+	}
+	return gotermboard.Line{gotermboard.C(strings.Join(kinds, " · "), dimCode)}
 }
 
 // documentRow draws a document's latest version on the columns. It names its record, so t goes
