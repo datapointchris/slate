@@ -159,8 +159,7 @@ Each row below keeps a flow as `flow_id`:
 
 An idea, initiative or issue filed before the column existed holds a root flow
 minted for it once, and each worklog opened on it before then holds that flow.
-So every go at one record shares one flow. An initiative whose `idea_id` names
-such an idea shares the idea's. `flow_id` is null on any other row
+So every go at one record shares one flow. `flow_id` is null on any other row
 written before the column existed: a pursuit, a claim, a comment, a document
 version or an audit row.
 

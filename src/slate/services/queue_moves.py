@@ -65,10 +65,8 @@ def standing(session: Session, readiness: IssueReadiness, record: models.Record)
                 raise outside_the_queue(record, f'a {initiative.status} initiative')
             return Standing(record, record.number, key.urgency, key.pin, key)
         case Kind.IDEA:
-            if (key := readiness.slot_key_by_number.get(record.number)) is None:
-                idea = session.scalars(select(models.Idea).where(models.Idea.number == record.number)).one()
-                promoted_to = f'#{idea.initiative.number}' if idea.initiative is not None else 'an initiative'
-                raise outside_the_queue(record, f'an idea promoted to {promoted_to}')
+            # Every idea is open, so the queue holds a place for each.
+            key = readiness.slot_key_by_number[record.number]
             return Standing(record, record.number, key.urgency, key.pin, key)
         case Kind.PURSUIT:
             raise outside_the_queue(record, 'a pursuit, which holds no work of its own')

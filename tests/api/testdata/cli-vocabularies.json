@@ -122,5 +122,9 @@
     "description",
     "priority",
     "tags"
+  ],
+  "idea_endings": [
+    "folded",
+    "promoted"
   ]
 }

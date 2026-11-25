@@ -144,7 +144,6 @@ class WriteEffectCode(enum.StrEnum):
     INCOMING = 'incoming'
     DEFERRED = 'deferred'
     SHELVED = 'shelved'
-    IDEA_PROMOTED = 'idea_promoted'
     OPEN_DEPENDENCY = 'open_dependency'
     INITIATIVE_WAITS = 'initiative_waits'
     OPEN_CHILDREN = 'open_children'

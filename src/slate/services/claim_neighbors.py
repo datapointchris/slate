@@ -7,7 +7,7 @@ A neighbor the same holder claims is that holder's own work, so it goes unnamed.
 An issue's neighbors are its initiative, what that initiative waits on, any initiative whose plan
 holds it, its parent, its children, what it depends on, what depends on it, and every issue on its
 repo naming a path that overlaps one of its own. An initiative's are the issues in its plan. An
-idea's is the initiative it became.
+idea has none.
 """
 
 from __future__ import annotations
@@ -197,17 +197,4 @@ def warn_about_initiative(session: Session, number: int, holder: str, now: dt.da
 
 
 def warn_about_idea(session: Session, number: int, holder: str, now: dt.datetime, today: dt.date, effects: WriteEffects) -> None:
-    initiative = session.scalars(select(models.Initiative).join(models.Idea).where(models.Idea.number == number)).one_or_none()
-    if initiative is None:
-        return
-    effects.warn(
-        WriteEffectCode.IDEA_PROMOTED,
-        f'#{number} was promoted to initiative #{initiative.number} {initiative.name!r}, where its work is.',
-        initiative.number,
-    )
-    if (claim := claimed_by_others(session, [initiative.number], holder, now).get(initiative.number)) is not None:
-        effects.warn(
-            WriteEffectCode.CLAIMED_INITIATIVE,
-            f'#{number} became initiative #{initiative.number} {initiative.name!r}, which is claimed by {held_by(claim, effects)}.',
-            initiative.number,
-        )
+    """An idea sits in no plan and holds none, so a hold on one names no neighbor."""

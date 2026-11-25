@@ -74,6 +74,19 @@ def test_promotion_changes_the_kind_and_keeps_every_row(client, txn_api_logged_i
     )
     record = session.get(models.Record, number)
     assert (record.promoted_by, record.promoted_ts is not None) == (TEST_PERSON.actor, True)
+    listed = {item['number']: item for item in ok(client.get(IDEAS))}[number]
+    assert (listed['id'], listed['became'], listed['initiative']['number']) == (
+        idea['id'],
+        {
+            'how': 'promoted',
+            'kind': 'initiative',
+            'number': number,
+            'at': record.promoted_ts.isoformat().replace('+00:00', 'Z'),
+            'title': idea['title'],
+            'status': 'active',
+        },
+        number,
+    )
 
     written = {(row['table_name'], row['operation']) for row in ok(client.get(f'/records/{number}/changes'))}
     assert {('ideas', 'insert'), ('ideas', 'delete'), ('records', 'update'), ('initiatives', 'insert')} <= written

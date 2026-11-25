@@ -130,11 +130,12 @@ func newIdeasListCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List every idea, most urgent first",
-		Long: "Priority none sorts after every level. A promoted idea is its initiative or\n" +
-			"issue under the same number, so it is not listed, and `slate show <n>` reads it.\n" +
-			"INITIATIVE is the initiative that names an idea in its idea_id, under a number\n" +
-			"of its own.",
+		Short: "List every idea, promoted or not, most urgent first",
+		Long: "Priority none sorts after every level. Every number that is or was an idea\n" +
+			"is listed once. BECAME names what an idea turned into: the initiative or issue\n" +
+			"it was promoted to, or the record it folded into, and — while it is open.\n" +
+			"--json carries it as became, with how it ended and that record as it stands.\n" +
+			"--tag, --pursuit and --ref leave out folded ideas, whose rows moved.",
 		Example:     "  slate ideas list\n  slate ideas list --tag security\n  slate ideas list --ref capture/\n  slate ideas list --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
@@ -700,15 +701,26 @@ func printIdeasTable(out io.Writer, ideas []api.Idea) {
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "IDEA\tPRIORITY\tREFS\tINITIATIVE\tTITLE")
+	_, _ = fmt.Fprintln(tw, "IDEA\tPRIORITY\tREFS\tBECAME\tTITLE")
 	for _, idea := range ideas {
-		initiative := "—"
-		if idea.Initiative != nil {
-			initiative = "#" + strconv.Itoa(idea.Initiative.Number)
-		}
-		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%d\t%s\t%s\n", idea.Number, priorityName(idea.Priority), len(idea.Refs), initiative, idea.Title)
+		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%d\t%s\t%s\n", idea.Number, priorityName(idea.Priority), len(idea.Refs), becameCell(idea.Became), idea.Title)
 	}
 	_ = tw.Flush()
+}
+
+// becameCell names what an idea became: the kind and number it was promoted
+// to, the record it folded into, or a dash while it is open.
+func becameCell(became *api.Became) string {
+	switch {
+	case became == nil:
+		return "—"
+	case became.How == api.IdeaPromoted:
+		return fmt.Sprintf("%s #%d", became.Kind, became.Number)
+	case became.How == api.IdeaFolded:
+		return fmt.Sprintf("folded into #%d", became.Number)
+	default:
+		return fmt.Sprintf("%s #%d", became.How, became.Number)
+	}
 }
 
 func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {

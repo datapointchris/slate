@@ -11,7 +11,6 @@ from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from fastapi import status
-from sqlalchemy import case
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 
@@ -40,18 +39,16 @@ from slate.services.idea_promotion import refuse_named_by_initiative
 from slate.services.idea_promotion import turn_idea_into
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
-from slate.services.idea_views import idea_views
+from slate.services.idea_views import listed_ideas
 from slate.services.idea_views import promoted_idea_view
 from slate.services.initiative_views import counted
 from slate.services.initiatives import new_initiative
-from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.issue_views import fresh_issue_detail
 from slate.services.issues import new_issue
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_record_parts_deleted
 from slate.services.record_groupings import GroupingsQuery
-from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_lookup import REQUEST_WRITES
 from slate.services.record_lookup import resolve_idea
 from slate.services.record_pins import clear_pin_on_close
@@ -65,7 +62,6 @@ from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
 from slate.services.row_limit import RowLimit
-from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
@@ -93,15 +89,15 @@ def read_many(
     groupings: GroupingsQuery,
     limit: RowLimit = None,
 ):
-    """Every idea, most urgent first. Priority 0 is no priority and sorts last.
+    """Every idea, promoted or not, most urgent first. Priority 0 is no priority and sorts last.
 
-    A promotion turns the idea into its initiative or issue under the same number, so a promoted
-    number is no longer listed. An idea that an initiative names in `idea_id` is listed with it.
+    Every number that is or was an idea is listed once. `became` is null for an open idea, and
+    otherwise says how it ended and names the record that carries its work, as that record stands.
+    A promoted record reads as the idea it was. A number a fold retired reads from its redirect,
+    and so does an idea promoted before promotion kept the number. A tag, a pursuit or a ref leaves
+    a retired number out, because its rows moved to the record it leads to.
     """
-    urgency = case((models.Idea.priority == 0, NO_PRIORITY_URGENCY), else_=models.Idea.priority)
-    query = select(models.Idea).order_by(urgency.asc(), models.Idea.number.asc())
-    query = narrowed_to_groupings(query, Kind.IDEA, groupings, session)
-    return idea_views(session, session.scalars(apply_row_limit(query, limit)).all())
+    return listed_ideas(session, groupings, limit)
 
 
 @router.post('', response_model=schemas.IdeaWritten, status_code=status.HTTP_201_CREATED)

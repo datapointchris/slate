@@ -149,10 +149,10 @@ counts is left unlabeled rather than rounded.
 A CLI released ahead of its API says so where a chart would be: the repos tab names the missing
 read, and the burn-up says the API answers none.
 
-## The ideas tab lists the unpromoted ideas newest first, narrowed in the client from one read
+## The ideas tab lists the open ideas newest first, narrowed in the client from one read
 
 ```text
-slate · ideas   21:32:57   3 unpromoted · newest first   pursuit all  tag all   read 0s ago
+slate · ideas   21:32:57   3 open · newest first   pursuit all  tag all   read 0s ago
 
    3 ideas  PRIORITY  CREATED     PURSUIT          TAG             REFS  TITLE
 ▌ ▸4164     none      2026-11-22  —                —                  ·  Dated reminders
@@ -162,14 +162,15 @@ slate · ideas   21:32:57   3 unpromoted · newest first   pursuit all  tag all 
 
 An idea is work that nobody has taken on, so the tab answers two questions: what was thought of
 lately, and what sits near it. Newest first answers the first. `u` narrows to one pursuit and `#`
-to one tag, each cycling back to `all` after the last, which answers the second. A promoted idea
-leaves the tab, because its work is the initiative's, and the initiatives tab draws that.
+to one tag, each cycling back to `all` after the last, which answers the second. An idea whose
+`became` is set leaves the tab, because its work is the initiative's or issue's that `became`
+names, and the other tabs draw that.
 
 The tab reads `GET /ideas` whole, at the pace of the board's long text, because descriptions are
 most of what an idea weighs. It narrows in the client by each idea's own `pursuits` and `tags`.
 For an idea those lists are the whole membership that the route's `pursuit` and `tag` filters
 test, so the client derives nothing that the read does not carry. The same read gives the
-choices that `u` and `#` cycle through, every pursuit and tag that an unpromoted idea has. So a
+choices that `u` and `#` cycle through, every pursuit and tag that an open idea has. So a
 key narrows at once.
 
 - *Rejected:* a read per narrowing through the route's filters. A narrowed read cannot list the

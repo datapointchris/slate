@@ -38,6 +38,7 @@ from slate.schemas.focus import FocusWindow
 from slate.schemas.focus import FocusWritten
 from slate.schemas.focus import PursuitStanding
 from slate.schemas.focus import UnattributedUsage
+from slate.schemas.idea import Became
 from slate.schemas.idea import Idea
 from slate.schemas.idea import IdeaCreate
 from slate.schemas.idea import IdeaDetail
@@ -210,6 +211,7 @@ __all__ = [
     'FocusStanding',
     'FocusWindow',
     'FocusWritten',
+    'Became',
     'Idea',
     'IdeaCreate',
     'IdeaDetail',

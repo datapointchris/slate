@@ -30,7 +30,7 @@ record's totals calls it rather than summing a second way.
 | --- | --- |
 | an idea's number | its own worklogs |
 | an issue's number | its own worklogs, and those of every issue under it, at any depth |
-| an initiative's number | its own worklogs, the idea it was promoted from, every issue in it, and every issue under those |
+| an initiative's number | its own worklogs, every issue in it, and every issue under those |
 | a pursuit's number | its own worklogs, each idea and initiative in it, and what each of those initiatives reaches |
 | a worklog's name | that worklog |
 | `repo` | the worklogs of the issues whose `repo` is that name; an empty name reaches the issues on no repo |
@@ -46,10 +46,9 @@ initiative's worklogs on slate's issues.
   initiative's. A child filed in another initiative then counts in both.
   Totals are groupings, never a partition, as an issue's total is also inside
   its initiative's.
-- **An initiative reaches the idea it was promoted from.** A promotion keeps
-  the number, so the goes at the idea are already the initiative's own. An
-  initiative whose `idea_id` names an idea under another number reaches that
-  idea's goes too, because they are the same work under the idea's number.
+- **An initiative's own worklogs hold the goes at the idea it came from.** A
+  promotion keeps the number, and a fold moves the folded idea's worklogs onto
+  the record that covers it.
 
 Reach is not membership. An issue is in an initiative when its `initiative_id`
 names it, which is what an initiative's counts by status and the queue read.

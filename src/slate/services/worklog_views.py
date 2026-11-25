@@ -8,9 +8,12 @@ sessions reported inside its spans.
 from __future__ import annotations
 
 import datetime as dt
+from collections import defaultdict
+from collections.abc import Collection
 from itertools import chain
 from typing import cast
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 
@@ -67,6 +70,7 @@ def worklog_view(
     span_tokens: dict[int, schemas.TokensByKind],
     versions: list[schemas.DocumentVersionRef],
     now: dt.datetime,
+    former_names: list[str],
 ) -> schemas.Worklog:
     claim = worklog.claim
     spans = [
@@ -81,6 +85,7 @@ def worklog_view(
     ]
     return schemas.Worklog(
         name=worklog.name,
+        former_names=former_names,
         record_number=worklog.record_number,
         sequence=worklog.sequence,
         record=record,
@@ -113,7 +118,26 @@ def worklog_views(session: Session, worklogs: list[models.Worklog], now: dt.date
     spans = chain.from_iterable(worklog.spans for worklog in worklogs)
     span_tokens = tokens_by_span(session, (span.id for span in spans))
     versions = worklog_document_versions(session, [worklog.id for worklog in worklogs])
-    return [worklog_view(worklog, summaries[worklog.record_number], span_tokens, versions.get(worklog.id, []), now) for worklog in worklogs]
+    former = former_names(session, [worklog.id for worklog in worklogs])
+    return [
+        worklog_view(worklog, summaries[worklog.record_number], span_tokens, versions.get(worklog.id, []), now, former.get(worklog.id, []))
+        for worklog in worklogs
+    ]
+
+
+def former_names(session: Session, worklog_ids: Collection[int]) -> dict[int, list[str]]:
+    """Each name a fold moved the worklog away from, by its id, oldest first."""
+    if not worklog_ids:
+        return {}
+    rows = session.execute(
+        select(models.WorklogRedirect.worklog_id, models.WorklogRedirect.name)
+        .where(models.WorklogRedirect.worklog_id.in_(list(worklog_ids)))
+        .order_by(models.WorklogRedirect.redirected_ts, models.WorklogRedirect.name)
+    )
+    names: dict[int, list[str]] = defaultdict(list)
+    for worklog_id, name in rows:
+        names[worklog_id].append(name)
+    return dict(names)
 
 
 def current_worklog(session: Session, session_id: str, now: dt.datetime) -> models.Worklog | None:

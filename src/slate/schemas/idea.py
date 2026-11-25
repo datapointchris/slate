@@ -2,12 +2,14 @@ import datetime as dt
 from typing import Annotated
 from typing import Literal
 from typing import Self
+from typing import get_args
 from uuid import UUID
 
 from pydantic import ConfigDict
 from pydantic import StringConstraints
 from pydantic import model_validator
 
+from slate.models.record_redirect import RedirectReason
 from slate.schemas.claim import Claim
 from slate.schemas.initiative import Initiative
 from slate.schemas.initiative import InitiativeRef
@@ -55,6 +57,11 @@ class IdeaUpdate(RecordModel):
 
 
 PromotedKind = Literal['initiative', 'issue']
+
+# How an idea ends: promoted into an initiative or an issue, or folded into existing work. A
+# redirect's reason is the same word, so a retired number's ending is its redirect's.
+IdeaEnding = RedirectReason
+IDEA_ENDINGS: list[str] = list(get_args(IdeaEnding))
 
 # Each kind's own fields on a promotion, each named as that kind's create names it.
 FIELDS_OF_KIND: dict[PromotedKind, frozenset[str]] = {
@@ -118,12 +125,37 @@ class IdeaPromote(RecordModel):
         return self
 
 
-class Idea(InPursuits):
-    """An idea, its refs oldest first, and the initiative it became with that initiative's progress.
+class Became(RecordModel):
+    """How an idea ended, and the record that carries its work, as that record stands now.
 
-    `claim` is the idea's unended claim, live or expired. `rank` places it among the records of its
-    priority in the queue. `pursuits` is each pursuit it is in, in number order. `flow_id` is the
-    flow of the work that filed it, which an initiative promoted from it takes.
+    `how` is `promoted` where the idea turned into `kind`, or where it was promoted before a
+    promotion kept the idea's number, and `folded` where it ended into existing work. `at` is when.
+    `title` is an initiative's name or an issue's or idea's title, and `status` is null for an idea.
+    """
+
+    how: IdeaEnding
+    kind: str
+    number: int
+    at: dt.datetime
+    title: str
+    status: str | None = None
+
+
+class Idea(InPursuits):
+    """A number that is or was an idea: an open idea, or what it became under `became`.
+
+    An open idea reads from its own rows, and `became` is null. A promoted record reads as the idea
+    it was, from its own kind row and record, with `became` naming itself. `updated_ts` is an
+    issue's, and an initiative's promotion, because an initiative keeps none. A retired number
+    reads from its redirect: its `title`, `priority`, `flow_id` and `created_ts` from when it was an
+    idea, `updated_ts` from when it ended, no `rank`, and no tags, pursuits, refs or claim, because
+    those moved to the record `became` names.
+
+    `claim` is the record's unended claim, live or expired. `rank` places it among the records of
+    its priority in the queue. `pursuits` is each pursuit it is in, in number order. `flow_id` is
+    the flow of the work that filed it. `initiative` is the initiative `became` names, and null
+    where `became` names an issue or an idea. It stays for CLI releases through `cli/v0.69.0`,
+    which read what an idea became from it.
     """
 
     id: UUID
@@ -131,7 +163,7 @@ class Idea(InPursuits):
     title: str
     description: str | None = None
     priority: int
-    rank: float
+    rank: float | None = None
     pinned_ts: dt.datetime | None = None
     pinned_by: str | None = None
     pinned_session: str | None = None
@@ -140,6 +172,7 @@ class Idea(InPursuits):
     updated_ts: dt.datetime
     tags: list[str] = []
     refs: list[RecordRef] = []
+    became: Became | None = None
     initiative: Initiative | None = None
     claim: Claim | None = None
 

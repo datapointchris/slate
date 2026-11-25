@@ -31,7 +31,6 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.database.base import Base
-from slate.models.record import Kind
 from slate.models.record_change import KNOWN_BY
 from slate.models.record_change import RECORDED
 from slate.services.row_limit import apply_row_limit
@@ -90,10 +89,6 @@ def hanging_tables() -> dict[str, tuple[Hanging, ...]]:
 
 HANGING = hanging_tables()
 
-# A promotion is the insert of the initiative naming the idea. Only that row is the idea's, because
-# every later write to the initiative is the initiative's own.
-PROMOTION = Hanging(models.Initiative.__tablename__, 'idea_id', key_is_int=False)
-
 
 def record_changes(session: Session, record: models.Record, limit: int | None) -> list[schemas.RecordChange]:
     """Every write to `record` and to each row hanging off it, newest first, the latest `limit` of them."""
@@ -118,10 +113,6 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
     rows: list[ColumnElement[bool]] = [
         and_(Change.table_name == table, Change.record_id.in_(sorted(keys))) for table, keys in keys_by_table.items()
     ]
-    if record.kind == Kind.IDEA:
-        rows.append(
-            and_(Change.operation == 'insert', Change.table_name == PROMOTION.table, names(PROMOTION.parent_column, record_id, 'new'))
-        )
     query = select(Change).where(or_(*rows)).order_by(Change.changed_ts.desc(), Change.id.desc())
     changes = [
         schemas.RecordChange.model_validate(row).model_copy(update={'is_own_row': (row.table_name, row.record_id) in own})

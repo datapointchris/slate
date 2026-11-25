@@ -7,15 +7,18 @@ import (
 	"time"
 )
 
-// Idea is work nobody has taken on yet. Initiative is the one it was promoted
-// into, with that initiative's progress, and nil until then.
+// Idea is a number that is or was an idea. Became is nil for an open idea, and
+// otherwise says how it ended and names the record that carries its work.
+// Rank is nil for a number a fold retired, which holds no place in the queue.
+// Initiative is the initiative Became names, kept for the import that still
+// reads it, and nil where Became names an issue or an idea.
 type Idea struct {
 	ID            string     `json:"id"`
 	Number        int        `json:"number"`
 	Title         string     `json:"title"`
 	Description   *string    `json:"description"`
 	Priority      int        `json:"priority"`
-	Rank          float64    `json:"rank"`
+	Rank          *float64   `json:"rank"`
 	PinnedTS      *time.Time `json:"pinned_ts"`
 	PinnedBy      *string    `json:"pinned_by"`
 	PinnedSession *string    `json:"pinned_session"`
@@ -26,8 +29,29 @@ type Idea struct {
 	// InPursuits holds each pursuit the idea is in.
 	InPursuits
 	Refs       []RecordRef `json:"refs"`
+	Became     *Became     `json:"became"`
 	Initiative *Initiative `json:"initiative"`
 	Claim      *Claim      `json:"claim"`
+}
+
+// How an idea ended, as Became.How names it.
+const (
+	IdeaPromoted = "promoted"
+	IdeaFolded   = "folded"
+)
+
+// IdeaEndings are each way an idea ends.
+var IdeaEndings = []string{IdeaFolded, IdeaPromoted}
+
+// Became is how an idea ended, at At, and the record carrying its work now:
+// its Kind, Number, Title and Status as it stands. Status is nil for an idea.
+type Became struct {
+	How    string    `json:"how"`
+	Kind   string    `json:"kind"`
+	Number int       `json:"number"`
+	At     time.Time `json:"at"`
+	Title  string    `json:"title"`
+	Status *string   `json:"status"`
 }
 
 // IdeaDetail is an idea with its claims, comments and documents.

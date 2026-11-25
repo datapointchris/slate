@@ -27,6 +27,7 @@ type Vocabulary struct {
 	PursuitStatuses    []string       `json:"pursuit_statuses"`
 	DocumentKinds      []string       `json:"document_kinds"`
 	CheckVerdicts      []string       `json:"check_verdicts"`
+	IdeaEndings        []string       `json:"idea_endings"`
 	WorklogSteps       []WorklogStep  `json:"worklog_steps"`
 	QueueSteps         []string       `json:"queue_steps"`
 	Labels             []IssueLabel   `json:"labels"`

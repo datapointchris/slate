@@ -2,10 +2,10 @@
 
 A step is checked on a record once a worklog naming it ended because its go did: finished by hand,
 released, or ended by its record completing or its idea being promoted. A claim that ran out ended
-nobody's go, and a record dropped or canceled abandoned it, so neither checks a step. An initiative
-also reads the steps checked on the idea promoted into it, because an idea is shaped before it has
-an initiative's number. Steps come in `WORKLOG_STEPS` order, which `worklog_steps.position` mirrors,
-and the stage is the furthest of them. A step it marks as not planned stays checked.
+nobody's go, and a record dropped or canceled abandoned it, so neither checks a step. An idea is
+shaped under the number its initiative keeps, so the shape step is the initiative's own worklog.
+Steps come in `WORKLOG_STEPS` order, which `worklog_steps.position` mirrors, and the stage is the
+furthest of them. A step it marks as not planned stays checked.
 """
 
 from __future__ import annotations
@@ -13,9 +13,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Collection
 from collections.abc import Sequence
-from itertools import chain
 from typing import cast
-from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import distinct_on
@@ -63,24 +61,12 @@ def checked_steps(session: Session, numbers: Collection[int]) -> dict[int, dict[
 
 
 def initiative_steps(session: Session, initiatives: Sequence[models.Initiative]) -> dict[int, list[schemas.CheckedStep]]:
-    """Each initiative's checked steps with its idea's, the later worklog where both checked one, in `WORKLOG_STEPS` order."""
-    idea_ids = [initiative.idea_id for initiative in initiatives if initiative.idea_id is not None]
-    idea_numbers: dict[UUID | None, int] = (
-        dict(session.execute(select(models.Idea.id, models.Idea.number).where(models.Idea.id.in_(idea_ids))).all()) if idea_ids else {}
-    )
-    records = {
-        initiative.number: [number for number in (initiative.number, idea_numbers.get(initiative.idea_id)) if number is not None]
+    """Each initiative's checked steps, in `WORKLOG_STEPS` order."""
+    checked = checked_steps(session, [initiative.number for initiative in initiatives])
+    return {
+        initiative.number: sorted(checked.get(initiative.number, {}).values(), key=lambda step: WORKLOG_STEPS.index(step.step))
         for initiative in initiatives
     }
-    checked = checked_steps(session, list(chain.from_iterable(records.values())))
-    steps: dict[int, list[schemas.CheckedStep]] = {}
-    for initiative, numbers in records.items():
-        latest: dict[str, schemas.CheckedStep] = {}
-        for step in chain.from_iterable(checked.get(number, {}).values() for number in numbers):
-            if step.step not in latest or step.ended_ts > latest[step.step].ended_ts:
-                latest[step.step] = step
-        steps[initiative] = sorted(latest.values(), key=lambda step: WORKLOG_STEPS.index(step.step))
-    return steps
 
 
 def stage_of(steps: list[schemas.CheckedStep]) -> schemas.RecordStage:

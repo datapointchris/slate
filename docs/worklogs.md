@@ -16,7 +16,9 @@ A fold moves an idea's worklogs to another record and numbers them on after
 that record's last. Each old name stays in `worklog_redirects` and answers the
 worklog under its new name, so `4086.1` reads as `2356.6`. A write through an
 old name reaches the worklog too, because both names name one worklog. A
-worklog folded twice keeps every old name, each leading straight to it.
+worklog folded twice keeps every old name, each leading straight to it. A
+worklog read lists them in `former_names`, oldest first, so an import keyed on
+the name replaces the row it wrote under the old one.
 
 A worklog is a row of `worklogs` on a record number, like a claim. Its spans
 are rows of `worklog_spans`, and its links rows of `worklog_links`.
@@ -188,8 +190,7 @@ canceled abandoned it, so `expired`, `dropped` and `canceled` check nothing.
 An initiative's read derives `steps`, each checked step from its latest such
 worklog: the worklog's name, when it ended, and the first session in it. A
 promoted idea keeps its number, so the steps it went through are the
-initiative's own. An initiative whose `idea_id` is set reads that idea's steps
-too. It derives `stage` as well, the furthest
+initiative's own. It derives `stage` as well, the furthest
 checked step, or `idea` before any. [issues.md](issues.md) covers how the
 initiative reads print them. Nothing is read from a document's text, so a retro
 document checks `retro` only through a worklog of that step.

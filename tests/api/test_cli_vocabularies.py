@@ -22,6 +22,7 @@ from slate.models.worklog import OPTIONAL_STEPS
 from slate.models.worklog import WORKLOG_LINK_KINDS
 from slate.models.worklog import WORKLOG_STEPS
 from slate.schemas.idea import FIELDS_OF_KIND
+from slate.schemas.idea import IDEA_ENDINGS
 from slate.schemas.idea import SHARED_FIELDS
 from slate.schemas.idea import PromotedKind
 from slate.schemas.queue import Step
@@ -57,6 +58,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'promote_initiative_fields': sorted(FIELDS_OF_KIND['initiative']),
         'promote_issue_fields': sorted(FIELDS_OF_KIND['issue']),
         'promote_shared_fields': sorted(SHARED_FIELDS),
+        'idea_endings': IDEA_ENDINGS,
     }
     document = json.dumps(table, indent=2) + '\n'
     if not VOCABULARIES_DOCUMENT.exists() or VOCABULARIES_DOCUMENT.read_text() != document:

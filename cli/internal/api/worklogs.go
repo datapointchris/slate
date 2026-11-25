@@ -71,7 +71,9 @@ type WorklogLink struct {
 // sums its spans', as each session last reported them, and is nil while none
 // of its spans holds a reported message.
 type Worklog struct {
-	Name         string        `json:"name"`
+	Name string `json:"name"`
+	// FormerNames is each name a fold moved it away from, oldest first.
+	FormerNames  []string      `json:"former_names"`
 	RecordNumber int           `json:"record_number"`
 	Sequence     int           `json:"sequence"`
 	Record       RecordSummary `json:"record"`
