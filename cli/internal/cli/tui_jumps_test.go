@@ -20,7 +20,8 @@ import (
 
 // jumpAPI stands in for slate's API under every tab. At active it reads sevenHighAndTwoLow, with
 // initiative 1 in pursuit 3010 and holding issue 50, whose worklog links one pull request. Every
-// status adds completed initiative 20. Idea 4100 is in pursuit 3010, and idea 4000 in none.
+// status adds completed initiative 20, which holds the one document, its retro. Idea 4100 is in
+// pursuit 3010, and idea 4000 in none.
 type jumpAPI struct {
 	pullRequest string
 	mu          sync.Mutex
@@ -58,6 +59,13 @@ func (s *jumpAPI) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	case "/api/v1/initiatives/progress":
 		answer = []any{}
+	case "/api/v1/documents":
+		w.Header().Set("X-Total-Records", "1")
+		completed := api.RecordSummary{Number: 20, Kind: api.RecordKindInitiative, Title: "initiative 20", Status: ptr("completed")}
+		answer = []api.ListedDocument{{Record: completed, DocumentSummary: api.DocumentSummary{
+			RecordNumber: 20, Name: "retro", Address: "20/retro", Kind: "retro", CreatedTS: day,
+			Latest: api.DocumentVersionSummary{Version: 1, WrittenBy: "someone", WrittenTS: day},
+		}}}
 	default:
 		answer = map[string]any{}
 	}
@@ -104,7 +112,9 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		name    string
 		opensOn string
 		goTo    *gotermboard.EntityRef
-		keys    []string
+		// keys are pressed in order. "show <tab>" presses tab until that tab shows, so a row reads
+		// no tab order.
+		keys []string
 		// prsOnPath puts a prs on PATH, and pullRequest is the link issue 50's worklog holds.
 		prsOnPath   bool
 		pullRequest string
@@ -136,7 +146,7 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		},
 		{
 			name: "* on a pursuit narrows the initiatives tab to the initiatives serving it", opensOn: tabIdeas,
-			keys: []string{"*", "2", "enter", "tab"}, pullRequest: webLink,
+			keys: []string{"*", "2", "enter", "show " + tabInitiatives}, pullRequest: webLink,
 			shows: []string{"initiative 1"}, hides: []string{"initiative 2", "initiative 8"},
 		},
 		{
@@ -149,8 +159,16 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		},
 		{
 			name: "esc from the completed initiative reads the status the tab held", opensOn: tabIdeas,
-			goTo: initiative(20), keys: []string{"esc", "tab"}, pullRequest: webLink,
+			goTo: initiative(20), keys: []string{"esc", "show " + tabInitiatives}, pullRequest: webLink,
 			hides: []string{"initiative 20"}, readsAt: new(""),
+		},
+		{
+			name: "t on a document of a completed initiative reads every status and lands on its row", opensOn: tabDocuments,
+			keys: []string{"t"}, pullRequest: webLink, cursorOn: "initiative 20", readsAt: new(everyInitiativeStatus),
+		},
+		{
+			name: "esc from a document's initiative comes back to the document", opensOn: tabDocuments,
+			keys: []string{"t", "esc"}, pullRequest: webLink, cursorOn: "retro",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -168,6 +186,10 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 			}
 			var last tea.Cmd
 			for _, key := range test.keys {
+				if name, ok := strings.CutPrefix(key, "show "); ok {
+					showTab(tabs, name)
+					continue
+				}
 				last = pressKey(tabs, key)
 				settle(tabs, last)
 			}
@@ -203,6 +225,16 @@ func cursorLine(screen string) string {
 		}
 	}
 	return ""
+}
+
+// showTab presses tab until the tab named name shows.
+func showTab(tabs *gotermboard.Tabs, name string) {
+	for range tuiTabNames() {
+		if tabs.ReopensOn() == name {
+			return
+		}
+		settle(tabs, pressKey(tabs, "tab"))
+	}
 }
 
 func pressKey(tabs *gotermboard.Tabs, key string) tea.Cmd {

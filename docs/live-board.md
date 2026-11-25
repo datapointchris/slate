@@ -182,6 +182,67 @@ its description rendered. `/` matches the description too. `--json` prints what
 `cli/internal/cli/tui-ideas.schema.json` describes. A row carries the fields that
 `slate ideas list --json` gives the same idea, and `ref_count`, the count that the row draws.
 
+## The documents tab groups every document under its record and opens the latest version
+
+```text
+slate · documents   43 records · 183 documents · newest written first   read 0s ago
+
+ DOCUMENT          KIND    VER  WRITTEN  WORKLOG  COMMENTS
+────────────────────────────────────────────────────────────────────────────────────────────
+ ▾ 212  Every outside source enters through one ingestion layer
+▌   plan-review    review    2  19:18    212.3    ·
+    plan           plan      1  19:18    212.3    ·
+    design         design    8  19:13    212.3    ·
+    design-review  review    2  18:16    212.2    ·
+ ▸ 240  Reminders fire on a date or on a checked condition
+ ▸ 251  Compost the kitchen scraps
+```
+
+A document is what a step of the work wrote down: a design, a plan, a review or a retro. At a
+review point the question is what was just written. So the record written to last comes first,
+and within a record so does its document written last. The first record opens, and the rest fold
+to their titles.
+
+**The read is bounded by record, never by row.** The tab reads `GET /documents?record_limit=50`
+every 60 seconds: every document on the 50 records written to last. The list interleaves records
+by each document's latest write, so a cut by row would draw a record with its older documents
+missing. `+` and `-` move the bound by 50, up to the 500 that one read answers. `X-Total-Records`
+counts every record holding a document. So where the bound cut the read, the strip says
+`50 of 61 records` and `+ reads 50 more`.
+
+- *Rejected:* `limit` on the list read. A row cut drops a record's older documents.
+
+**A body is read once per version.** The list carries each document's latest version and no
+body. The cursor's document is read whole with `GET /documents/{record}/{name}` once the cursor
+lands on it, and the body is kept by address and version. A list read showing a newer
+`latest.version` for the cursor's document reads it again on the next tick. Otherwise the poll
+reads one list and no body. The read waits for the next tick, so holding `j` down reads only the
+document it stops on.
+
+**`enter` opens the latest version full screen**, rendered on the board's markdown reader, and
+from 160 columns the side panel draws it beside the table. Line comments follow the body as a
+list, each naming its line and quoting it. Rendered markdown reflows, so a comment pinned beside
+a raw line number would sit beside the wrong text. A comment on a line that the latest version
+changed names the version and line where it was written. No earlier version and no diff show,
+because a reader here acts on what a document says now. `slate documents show --version` prints
+an earlier one.
+
+**Each read runs under a 30-second deadline.** gotermboard hands a source's read a context with
+no deadline, so a read that never answered would hold its source until the program ended.
+`readWithin` in `cli/internal/cli/tui.go` wraps a tab's read in the deadline. One that runs out
+shows as a fault on the strip, and a failed body read says so where the body would be.
+
+`/` matches a document's name and kind, and its record's title, so a title finds the documents
+inside a folded record. The tab declares no kinds. Each row names its record, so `t` lands on the
+record's own tab. A retro sits on a completed initiative, so its `t` widens the initiatives tab
+to every status, and `esc` narrows it back.
+
+An API older than the `record` on each listed document answers no `X-Total-Records`. The tab
+then names the read it lacks where the rows would be, rather than drawing documents that it
+cannot group. `--json` prints what `cli/internal/cli/tui-documents.schema.json` describes: each
+record with its documents, under the names that `slate documents list --json` gives them, then
+the cursor's latest version with its line comments.
+
 ## `v` groups the same initiatives by tier, repo, pursuit, tag or alone
 
 Tier is the default, because priority is the order in which the queue takes them. A pin outranks
@@ -264,7 +325,8 @@ request by its link.
 | pull request | `prs tui --pr`, outside | its row under an issue |
 
 A tab that declares a kind in its `EntityKinds` adds its row here. `t` never offers the tab the
-row is on, so a jump to an initiative, an issue or an idea comes from a row on another tab.
+row is on, so a jump to an initiative, an issue or an idea comes from a row on another tab. The
+documents tab declares no kind, and each of its rows names its record, of whatever kind.
 
 **A jump to an initiative draws it, whatever the scope.** The per-tier scope draws the first few of
 each tier, and the rest sit in a group that draws only under a filter, where gotermboard's seek
