@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,6 +85,10 @@ func newSessionsReportCommand() *cobra.Command {
 				return err
 			}
 			messages, err := transcript.SessionMessages(transcriptPath)
+			if path == "" && errors.Is(err, fs.ErrNotExist) {
+				// A CLI subcommand such as `claude mcp list` ends a hooked session that wrote no transcript.
+				return nil
+			}
 			if err != nil {
 				return fmt.Errorf("read the transcript of session %s: %w", session, err)
 			}
