@@ -59,7 +59,10 @@ func newNextCommand() *cobra.Command {
 			"The priority column is the one the queue sorts by, and a * marks one inherited\n" +
 			"from what the issue blocks, its parent, or its initiative. A pin sorts ahead of\n" +
 			"every priority, and a row it put there says `pinned`: the pinned record, its\n" +
-			"initiative's issues, and what they wait on.\n" +
+			"initiative's issues, and what they wait on. --json names what set each row's\n" +
+			"place, one hop back, in placed_by: own, pin, initiative, parent or waiter.\n" +
+			"raised_by names the parent or waiter, and the queue tab of `slate tui` reads\n" +
+			"both out beside the row.\n" +
 			"\n" +
 			"--for reads the plan of one record: its own open work and every open issue it\n" +
 			"transitively waits on, in any initiative or repo, ready or not, in queue order.\n" +
