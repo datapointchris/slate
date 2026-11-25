@@ -40,7 +40,6 @@ from slate.services.idea_promotion import turn_idea_into
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
 from slate.services.idea_views import listed_ideas
-from slate.services.idea_views import promoted_idea_view
 from slate.services.initiative_views import counted
 from slate.services.initiatives import new_initiative
 from slate.services.issue_views import fresh_issue_detail
@@ -189,10 +188,10 @@ def link(idea: IdeaFromPath, request: schemas.RecordRefsLink, session: DbSession
     return effects.answer(schemas.IdeaWritten, idea=idea_view(session, idea))
 
 
-@router.post('/{id}/promote', response_model=schemas.InitiativeWrittenWithIdea | schemas.IssueWritten, status_code=status.HTTP_200_OK)
+@router.post('/{id}/promote', response_model=schemas.InitiativeWritten | schemas.IssueWritten, status_code=status.HTTP_200_OK)
 def promote(
     id: str, request: schemas.IdeaPromote, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects
-) -> schemas.InitiativeWrittenWithIdea | schemas.IssueWritten:
+) -> schemas.InitiativeWritten | schemas.IssueWritten:
     """Turn the idea into an initiative or an issue under its own number and `id`, in one transaction.
 
     Every row on the number stays: its comments, documents, refs, tags, checks and waits, and the
@@ -223,7 +222,7 @@ def create_fields(request: schemas.IdeaPromote, kind: PromotedKind, promoted: Pr
 
 def promote_to_initiative(
     session: DbSession, idea: models.Idea, request: schemas.IdeaPromote, actor: str, now: dt.datetime, effects: WriteEffects
-) -> schemas.InitiativeWrittenWithIdea:
+) -> schemas.InitiativeWritten:
     promoted = turn_idea_into(session, idea, Kind.INITIATIVE, actor, now)
     initiative = new_initiative(
         session,
@@ -234,8 +233,7 @@ def promote_to_initiative(
         clear_pin_on_close(initiative, initiative.status, effects)
     session.commit()
     session.refresh(initiative)
-    view = counted(session, initiative)
-    return effects.answer(schemas.InitiativeWrittenWithIdea, initiative=view, idea=promoted_idea_view(promoted, view, now))
+    return effects.answer(schemas.InitiativeWritten, initiative=counted(session, initiative))
 
 
 def promote_to_issue(

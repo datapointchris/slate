@@ -59,7 +59,6 @@ def test_promotion_changes_the_kind_and_keeps_every_row(client, txn_api_logged_i
         ('claim_ended', number),
         ('worklog_ended', number),
     ]
-    assert promoted['idea']['initiative']['number'] == number
 
     read = ok(client.get(f'/records/{number}'))
     shown = read['record']
@@ -74,7 +73,7 @@ def test_promotion_changes_the_kind_and_keeps_every_row(client, txn_api_logged_i
     assert (record.promoted_by, record.promoted_ts is not None) == (TEST_PERSON.actor, True)
     assert number not in {item['number'] for item in ok(client.get(IDEAS))}
     listed = {item['number']: item for item in ok(client.get(IDEAS, params={'state': 'ended'}))}[number]
-    assert (listed['id'], listed['became'], listed['initiative']['number']) == (
+    assert (listed['id'], listed['became']) == (
         idea['id'],
         {
             'how': 'promoted',
@@ -84,7 +83,6 @@ def test_promotion_changes_the_kind_and_keeps_every_row(client, txn_api_logged_i
             'title': idea['title'],
             'status': 'active',
         },
-        number,
     )
 
     written = {(row['table_name'], row['operation']) for row in ok(client.get(f'/records/{number}/changes'))}

@@ -451,7 +451,8 @@ func newIdeasPromoteCommand() *cobra.Command {
 			"and starts open. It reads its pursuits from its initiative, so the idea's are\n" +
 			"dropped with a warning naming each.\n" +
 			"\n" +
-			"An idea that already names an initiative of its own is refused, naming it.",
+			"A number that is no longer an idea, such as one promoted already, is refused\n" +
+			"naming the kind it holds.",
 		Example: "  slate ideas promote 1860 --summary \"Review rounds run on a schedule\"\n" +
 			"  slate ideas promote 1860 --name \"Scheduled review rounds\" --summary \"Review rounds run on a schedule\" --status someday\n" +
 			"  slate ideas promote 1860 --summary \"Review rounds run on a schedule\" --not-planned shape\n" +
@@ -698,13 +699,6 @@ func ideaLine(verb string, idea api.Idea) string {
 	return fmt.Sprintf("%s idea #%d %q", verb, idea.Number, idea.Title)
 }
 
-// initiativeProgress is an initiative's status and how much of its work is done.
-func initiativeProgress(initiative api.Initiative) string {
-	return fmt.Sprintf("%s, %d of %d %s done, %d open",
-		initiative.Status, initiative.CompletedCount, initiative.IssueCount-initiative.CanceledCount,
-		plural(initiative.IssueCount-initiative.CanceledCount, "issue", "issues"), initiative.OpenCount)
-}
-
 func printIdeasTable(out io.Writer, ideas []api.Idea) {
 	if len(ideas) == 0 {
 		_, _ = fmt.Fprintln(out, "No ideas.")
@@ -743,9 +737,6 @@ func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {
 	}
 	if len(idea.Pursuits) > 0 {
 		_, _ = fmt.Fprintf(out, "  pursuits:    %s\n", pursuitList(idea.Pursuits))
-	}
-	if initiative := idea.Initiative; initiative != nil {
-		_, _ = fmt.Fprintf(out, "  initiative:  #%d %s (%s)\n", initiative.Number, initiative.Name, initiativeProgress(*initiative))
 	}
 	if idea.Claim != nil {
 		_, _ = fmt.Fprintf(out, "  claim:       %s\n", claimNote(*idea.Claim, now))

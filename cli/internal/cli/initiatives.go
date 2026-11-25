@@ -799,9 +799,6 @@ func printInitiativeDetail(out io.Writer, initiative api.Initiative) {
 	if initiative.Claim != nil {
 		_, _ = fmt.Fprintf(out, "  claim:      %s\n", claimNote(*initiative.Claim, time.Now()))
 	}
-	if initiative.Idea != nil {
-		_, _ = fmt.Fprintf(out, "  idea:       #%d %s\n", initiative.Idea.Number, initiative.Idea.Title)
-	}
 	if note := lastCheckNote(initiative.LastCheck); note != "" {
 		_, _ = fmt.Fprintf(out, "  last check: %s\n", note)
 	}
