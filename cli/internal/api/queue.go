@@ -32,7 +32,10 @@ type PathOverlap struct {
 }
 
 // QueueRow is one record in the queue, of any kind. Priority is the one it
-// sorts at. Holder is set on a claimed row, and HeldThrough is the initiative
+// sorts at. PlacedBy names what set its place, one hop back, as docs/issues.md
+// spells the API's placed_by, and is nil where an API older than this CLI
+// answered none. RaisedBy is the record that raised it, where one did.
+// Holder is set on a claimed row, and HeldThrough is the initiative
 // whose claim holds it where the row's own claim does not. Record holds
 // whichever of Issue, Initiative and Idea Kind names, and the other two are nil.
 type QueueRow struct {
@@ -42,6 +45,7 @@ type QueueRow struct {
 	Step        string        `json:"step"`
 	Priority    int           `json:"priority"`
 	Pinned      bool          `json:"pinned"`
+	PlacedBy    *string       `json:"placed_by"`
 	RaisedBy    *int          `json:"raised_by"`
 	Holder      *string       `json:"holder"`
 	HeldThrough *int          `json:"held_through"`

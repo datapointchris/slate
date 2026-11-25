@@ -12,19 +12,24 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate.models.worklog import BUILD
+from slate.services.record_work import initiative_work
 from slate.services.record_work import read_work_graph
-from slate.services.record_work import record_work
 
 
 def held_plans(session: Session, held: Mapping[int, models.Claim]) -> dict[int, models.Claim]:
-    """Each issue in the plan of an initiative under a live claim, with that claim. The earlier claim keeps an issue two plans share."""
-    numbers = session.scalars(select(models.Initiative.number).where(models.Initiative.number.in_(list(held)))).all()
-    if not numbers:
+    """Each issue in the plan of an initiative under a live claim, with that claim. The earlier claim keeps an issue two plans share.
+
+    Its queries stay the same however many initiatives are held, because a board polls it.
+    """
+    initiatives = dict(
+        session.execute(select(models.Initiative.number, models.Initiative.id).where(models.Initiative.number.in_(list(held)))).all()
+    )
+    if not initiatives:
         return {}
     graph = read_work_graph(session)
     plans: dict[int, models.Claim] = {}
-    for claim in sorted((held[number] for number in numbers), key=lambda claim: claim.started_ts):
-        for number in record_work(session, claim.record_number, graph).unblocks:
+    for claim in sorted((held[number] for number in initiatives), key=lambda claim: claim.started_ts):
+        for number in initiative_work(graph, claim.record_number, initiatives[claim.record_number]).unblocks:
             plans.setdefault(number, claim)
     return plans
 

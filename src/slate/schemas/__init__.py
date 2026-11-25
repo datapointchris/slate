@@ -97,7 +97,10 @@ from slate.schemas.pursuit import PursuitSummary
 from slate.schemas.pursuit import PursuitUpdate
 from slate.schemas.pursuit import PursuitWritten
 from slate.schemas.queue import PathOverlap
+from slate.schemas.queue import PlacedBy
 from slate.schemas.queue import Queue
+from slate.schemas.queue import QueueBoard
+from slate.schemas.queue import QueueBoardRow
 from slate.schemas.queue import QueueFilter
 from slate.schemas.record import RecordDependencyCreate
 from slate.schemas.record import RecordListed
@@ -256,10 +259,13 @@ __all__ = [
     'MessageTokensReport',
     'ModelTokens',
     'PathOverlap',
+    'PlacedBy',
     'PlacedComment',
     'PreflightEstimate',
     'PriorityName',
     'Queue',
+    'QueueBoard',
+    'QueueBoardRow',
     'QueueFilter',
     'ReadyIssue',
     'RecordChange',

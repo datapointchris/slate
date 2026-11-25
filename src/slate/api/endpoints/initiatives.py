@@ -29,6 +29,7 @@ from slate.services.claims import end_with_record
 from slate.services.initiative_board import initiative_board
 from slate.services.initiative_board import initiative_board_text
 from slate.services.initiative_progress import initiatives_progress
+from slate.services.initiative_views import IssueCounts
 from slate.services.initiative_views import counted
 from slate.services.initiative_views import initiative_detail
 from slate.services.initiative_views import initiative_views
@@ -122,7 +123,7 @@ def read_many(
     )
     query = narrowed_to_groupings(query, Kind.INITIATIVE, groupings, session)
     rows = session.execute(apply_row_limit(narrowed_to_status(query, initiative_status, session), limit)).all()
-    return initiative_views(session, [(row[0], row[1:]) for row in rows])
+    return initiative_views(session, [(row[0], IssueCounts.of(row)) for row in rows])
 
 
 @router.post('', response_model=schemas.InitiativeWritten, status_code=status.HTTP_201_CREATED)

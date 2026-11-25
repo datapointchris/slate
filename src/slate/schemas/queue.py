@@ -8,9 +8,12 @@ from typing import get_args
 from pydantic import BaseModel
 from pydantic import Field
 
+from slate.schemas.claim import ClaimWait
 from slate.schemas.idea import Idea
 from slate.schemas.initiative import Initiative
+from slate.schemas.initiative import InitiativeSummary
 from slate.schemas.issue import Issue
+from slate.schemas.pursuit import PursuitSummary
 from slate.schemas.ready_filter import ReadyFilter
 
 # What a row asks of whoever takes it, in the order work moves through them. An idea is discussed and
@@ -18,6 +21,11 @@ from slate.schemas.ready_filter import ReadyFilter
 # `StepName` is one of these.
 Step = Literal['discuss', 'shape', 'design', 'preflight', 'decide', 'build', 'retro']
 QUEUE_STEPS: list[str] = list(get_args(Step))
+
+# What set a row's place, one hop back. `own` is its own priority and rank, `pin` its own pin, and
+# `initiative` the slot of the initiative holding it. `parent` and `waiter` raised it just ahead of
+# its open parent or of an issue depending on it, which the row's `raised_by` names.
+PlacedBy = Literal['own', 'pin', 'initiative', 'parent', 'waiter']
 
 
 class QueueFilter(ReadyFilter):
@@ -50,9 +58,9 @@ class QueueRowBase(BaseModel):
     release the issue. `overlaps` names each issue under a live claim whose paths meet this issue's,
     so the collision shows before anyone takes it.
     `pinned` says a pin put the row ahead of every priority: its own, its initiative's, or that of
-    what waits on it. The record's `pinned_ts` is set only where its own pin is. `raised_by` is
-    the issue whose wait put this one ahead of its own place, which refuses a rank move beside it.
-    `unblocks` is filled only under `for_record`: each issue in that record's work waiting on this one directly.
+    what waits on it. The record's `pinned_ts` is set only where its own pin is. `placed_by` says
+    what set the row's place, one hop back. `raised_by` is the issue whose wait put this one ahead
+    of its own place, which refuses a rank move beside it.
     """
 
     number: int
@@ -60,24 +68,30 @@ class QueueRowBase(BaseModel):
     step: Step
     priority: int
     pinned: bool = False
+    placed_by: PlacedBy
     raised_by: int | None = None
     holder: str | None = None
     held_through: int | None = None
     overlaps: list[PathOverlap] = []
+
+
+class RecordQueueRow(QueueRowBase):
+    """`unblocks` is filled only under `for_record`: each issue in that record's work waiting on this one directly."""
+
     unblocks: list[int] = []
 
 
-class IssueRow(QueueRowBase):
+class IssueRow(RecordQueueRow):
     kind: Literal['issue'] = 'issue'
     record: Issue
 
 
-class InitiativeRow(QueueRowBase):
+class InitiativeRow(RecordQueueRow):
     kind: Literal['initiative'] = 'initiative'
     record: Initiative
 
 
-class IdeaRow(QueueRowBase):
+class IdeaRow(RecordQueueRow):
     kind: Literal['idea'] = 'idea'
     record: Idea
 
@@ -90,3 +104,31 @@ class Queue(BaseModel):
 
     queue: list[QueueRow]
     claimed: list[QueueRow]
+
+
+class QueueBoardRow(QueueRowBase):
+    """One row of the queue with only what a board draws of it, and no record body.
+
+    `own_priority` is the record's own, beside the `priority` it sorts at. `initiative` is an
+    issue's initiative, as an issue's read names it, and `pursuits` that initiative's for an issue, else the record's own.
+    `repos` is an issue's repo, or each repo an initiative's issues name. `open_count` is an
+    initiative's unclosed issues. `expires_ts` and `waiting` are those of the claim holding a
+    claimed row, which is the initiative's where `held_through` is set.
+    """
+
+    kind: Literal['issue', 'initiative', 'idea']
+    own_priority: int
+    initiative: InitiativeSummary | None = None
+    repos: list[str] = []
+    pursuits: list[PursuitSummary] = []
+    open_count: int | None = None
+    expires_ts: dt.datetime | None = None
+    waiting: ClaimWait | None = None
+
+
+class QueueBoard(BaseModel):
+    """Every open row of the queue, slim, in the order `Queue` lists them: `queue` first row next, `claimed` by holder."""
+
+    read_ts: dt.datetime
+    queue: list[QueueBoardRow]
+    claimed: list[QueueBoardRow]

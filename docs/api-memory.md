@@ -24,6 +24,10 @@ read lands on a thread whose arena has not yet held one that large, and it never
 reads are `GET /issues?status=all`, `GET /initiatives/progress`, `GET /issues` and `GET /queue`.
 Each answers several MiB of JSON and builds many times that in rows and models first.
 
+**A view polling the queue reads `GET /queue/board`, not `GET /queue`.** The board answers the
+same rows without their records. The readiness pass that both reads share sets the floor of what
+it grows.
+
 ## Two arenas and a fixed mmap threshold hold it level
 
 Each setting answers one half of the cause:

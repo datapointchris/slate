@@ -34,6 +34,10 @@ bottom keeps waiting while the work it gates sits at the top of the queue,
 hidden because it is blocked. So an issue's effective priority is the urgency
 of the place it sorts at: the most urgent of its own, its active initiative's,
 and that of everything waiting on it. Nothing in that set lowers it.
+
+`placed_by` names what set each unclosed issue's place, one hop back: the
+waiter or parent that raised it, else its initiative's slot, else its own pin,
+else its own priority and rank.
 """
 
 from __future__ import annotations
@@ -50,6 +54,7 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
+from slate.schemas.queue import PlacedBy
 from slate.services.claim_views import live_claim_numbers
 from slate.services.initiative_waits import HoldingWait
 from slate.services.initiative_waits import holding_waits
@@ -107,6 +112,11 @@ def slot_key(urgency_value: int, rank: float, number: int, pin: int = UNPINNED) 
     return QueueKey(pin, urgency_value, rank, number, AHEAD_OF_ITS_ISSUES, 0, 0, 0.0, 0)
 
 
+def slot_placed_by(key: QueueKey) -> PlacedBy:
+    """What placed a record standing as its own slot at `key`: its own pin, else its own priority and rank."""
+    return 'pin' if key.pin == PINNED else 'own'
+
+
 def just_ahead_of(waiter: QueueKey, rank: float, number: int) -> QueueKey:
     return waiter._replace(ahead=waiter.ahead - 1, tie_rank=rank, tie_number=number)
 
@@ -144,6 +154,7 @@ class IssueReadiness:
     home_key: dict[UUID, QueueKey]
     slot_of: dict[UUID, int]
     raised_by: dict[UUID, int]
+    placed_by: dict[UUID, PlacedBy]
     # Each idea and initiative the queue holds as a slot, by number: an active initiative, with
     # its issues or alone, and an idea nobody has promoted.
     slot_key_by_number: dict[int, QueueKey]
@@ -154,6 +165,10 @@ class IssueReadiness:
     def issue_sort_key(self, issue_id: UUID, priority: int, rank: float, number: int) -> QueueKey:
         """A closed issue stands alone at its own priority, which the queue never reads."""
         return self.queue_key.get(issue_id) or slot_key(urgency(priority), rank, number)
+
+    def issue_placed_by(self, issue: models.Issue) -> PlacedBy:
+        """An issue this pass never read, such as one filed and claimed since, stands alone as `issue_sort_key` places it."""
+        return self.placed_by.get(issue.id, 'own')
 
     def record_sort_key(self, number: int, priority: int, rank: float) -> QueueKey:
         """An idea or an initiative the queue holds no slot for, such as a held someday one, stands alone at its own priority."""
@@ -248,6 +263,7 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
 
     queue_key: dict[UUID, QueueKey] = {}
     raised_by: dict[UUID, int] = {}
+    raised_as: dict[UUID, PlacedBy] = {}
     walking: set[UUID] = set()
 
     def place(issue_id: UUID) -> QueueKey | None:
@@ -269,12 +285,19 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
             if waiter is not None and (ahead := just_ahead_of(waiter, row.rank, row.number)) < best:
                 best = ahead
                 raised_by[issue_id] = rows[waiter_id].number
+                raised_as[issue_id] = 'parent' if waiter_id == row.parent_id else 'waiter'
         walking.discard(issue_id)
         queue_key[issue_id] = best
         return best
 
     for issue_id in unclosed:
         place(issue_id)
+
+    placed_by = {
+        issue_id: raised_as.get(issue_id)
+        or ('initiative' if slot_of[issue_id] != rows[issue_id].number else slot_placed_by(home_key[issue_id]))
+        for issue_id in unclosed
+    }
 
     effective_priority = {
         issue_id: priority_of(queue_key[issue_id].urgency) if issue_id in unclosed else row.priority for issue_id, row in rows.items()
@@ -341,5 +364,6 @@ def measure_readiness(session: Session, today: dt.date, now: dt.datetime) -> Iss
         home_key=home_key,
         slot_of=slot_of,
         raised_by=raised_by,
+        placed_by=placed_by,
         slot_key_by_number=slot_key_by_number,
     )

@@ -63,6 +63,7 @@
     "GET /api/v1/pursuits",
     "GET /api/v1/pursuits/{ref:path}",
     "GET /api/v1/queue",
+    "GET /api/v1/queue/board",
     "GET /api/v1/records",
     "GET /api/v1/records/{number}",
     "GET /api/v1/records/{number}/changes",

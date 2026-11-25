@@ -70,6 +70,7 @@ SCOPED_URLS = {
     f'{API_PREFIX}/ideas/{{id}}': '/ideas/{idea}',
     f'{API_PREFIX}/issues': '/issues?status=all',
     f'{API_PREFIX}/queue': '/queue?step=build',
+    f'{API_PREFIX}/queue/board': '/queue/board',
     f'{API_PREFIX}/vocabulary': '/vocabulary',
     f'{API_PREFIX}/issues/{{id}}': '/issues/{issue}',
     f'{API_PREFIX}/initiatives': '/initiatives',

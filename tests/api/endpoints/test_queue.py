@@ -2,11 +2,17 @@
 
 import pytest
 from fastapi import status
+from sqlalchemy import event
 
+from slate.services import queue_board
+from slate.services import work_queue
+from slate.services.issue_readiness import measure_readiness
+from slate.services.issue_views import calendar_now
 from tests.util import check_step
 from tests.util import show_status_and_response
 
 QUEUE = '/queue'
+BOARD = '/queue/board'
 
 
 @pytest.fixture
@@ -150,6 +156,134 @@ def test_a_claim_on_an_initiative_takes_its_whole_plan_out_of_the_queue_for_ever
 
     assert ok(client.post('/claims/next', json={'holder': 'someone-else'}))['claim']['record_number'] == free
     assert ok(client.post('/claims/next', json={'holder': 'coordinator'}))['claim']['record_number'] in {ready, dependency}
+
+
+def test_the_board_lists_the_queues_rows_in_its_order_in_the_same_queries_however_many(client, txn_api_logged_in):
+    """A poll every 15 seconds pays each query four times a minute, so a query per row is the failure this pins."""
+    _, session = txn_api_logged_in
+    created = ok(client.post('/pursuits', json={'name': 'Interaction', 'summary': 'It holds work'}), status.HTTP_201_CREATED)
+    pursuit = {'number': created['pursuit']['number'], 'name': 'Interaction'}
+
+    def filed(prefix: str) -> dict[str, int]:
+        coordinator, repo = f'{prefix.lower()}-coordinator', f'{prefix.lower()}-app'
+        ok(client.post('/ideas', json={'title': f'{prefix} idea'}), status.HTTP_201_CREATED)
+        plan = initiative(client, f'{prefix} plan', priority=2, pursuits=[pursuit['number']])
+        built = issue(client, f'{prefix} build', initiative=plan, repo=repo, paths=['src'])
+        held_plan = initiative(client, f'{prefix} held plan', priority=3)
+        check_step(client, held_plan, 'preflight')
+        planned = issue(client, f'{prefix} planned', initiative=held_plan)
+        hold(client, held_plan, coordinator)
+        ok(client.post(f'/claims/{held_plan}/wait', json={'holder': coordinator, 'waiting_on': 'a read of its plan'}))
+        hold(client, issue(client, f'{prefix} held', priority=1, repo=repo, paths=['src/api']), f'{prefix.lower()}-worker')
+        issue(client, f'{prefix} decision', type='decision', priority=4)
+        return {'plan': plan, 'built': built, 'held_plan': held_plan, 'planned': planned}
+
+    def queries_to_read() -> int:
+        statements: list[str] = []
+
+        def asked(_conn, _cursor, statement, *_rest):
+            statements.append(statement)
+
+        engine = session.get_bind()
+        event.listen(engine, 'before_cursor_execute', asked)
+        try:
+            ok(client.get(BOARD))
+        finally:
+            event.remove(engine, 'before_cursor_execute', asked)
+        return len(statements)
+
+    first = filed('First')
+    asked = queries_to_read()
+    filed('More')
+    filed('Most')
+    assert queries_to_read() == asked
+
+    board, queue = ok(client.get(BOARD)), ok(client.get(QUEUE))
+    for part in ('queue', 'claimed'):
+        assert [row['number'] for row in board[part]] == [row['number'] for row in queue[part]]
+
+    rows = {row['number']: row for row in board['queue'] + board['claimed']}
+    plan, built, held_plan, planned = (rows[first[name]] for name in ('plan', 'built', 'held_plan', 'planned'))
+    assert (plan['kind'], plan['step'], plan['open_count'], plan['repos'], plan['pursuits']) == (
+        'initiative',
+        'shape',
+        1,
+        ['first-app'],
+        [pursuit],
+    )
+    assert ((built['initiative']['number'], built['initiative']['name']), built['repos'], built['pursuits'], built['open_count']) == (
+        (first['plan'], 'First plan'),
+        ['first-app'],
+        [pursuit],
+        None,
+    )
+    assert [overlap['holder'] for overlap in built['overlaps']] == ['first-worker']
+    assert (held_plan['holder'], held_plan['held_through'], held_plan['waiting']['waiting_on']) == (
+        'first-coordinator',
+        None,
+        'a read of its plan',
+    )
+    assert (planned['holder'], planned['held_through'], planned['waiting'], planned['expires_ts']) == (
+        'first-coordinator',
+        first['held_plan'],
+        held_plan['waiting'],
+        held_plan['expires_ts'],
+    )
+
+
+def test_each_row_names_what_placed_it_one_hop_back(client):
+    def depends(waiter: int, waited_on: int) -> None:
+        ok(client.post(f'/issues/{waiter}/dependencies', json={'depends_on': waited_on}), status.HTTP_201_CREATED)
+
+    alone = issue(client, 'Patch the outage', priority=3)
+    pinned = issue(client, 'Water the plants', priority=4)
+    pin(client, 'issues', pinned)
+    plan = initiative(client, 'Ship the importer', priority=3)
+    check_step(client, plan, 'preflight')
+    inside = issue(client, 'Import stage 1', initiative=plan)
+    parent = issue(client, 'Split the export', priority=2)
+    child = issue(client, 'Export the rows', parent=parent)
+    gated = issue(client, 'Ship the sync', priority=2)
+    blocker = issue(client, 'Fix the build', priority=4)
+    depends(gated, blocker)
+    pinned_plan = initiative(client, 'Ship the exporter', priority=4)
+    check_step(client, pinned_plan, 'preflight')
+    pin(client, 'initiatives', pinned_plan)
+    pulled = issue(client, 'Export stage 1', initiative=pinned_plan)
+    kept = issue(client, 'Export stage 2', initiative=pinned_plan)
+    urgent = issue(client, 'Ship the export today', priority=1)
+    pin(client, 'issues', urgent)
+    depends(urgent, pulled)
+
+    placed = {
+        alone: ('own', None, None),
+        pinned: ('pin', None, None),
+        inside: ('initiative', None, plan),
+        child: ('parent', parent, None),
+        blocker: ('waiter', gated, None),
+        pulled: ('waiter', urgent, pinned_plan),
+        kept: ('initiative', None, pinned_plan),
+    }
+    board = ok(client.get(BOARD))['queue']
+    assert {row['number']: (row['placed_by'], row['raised_by'], (row['initiative'] or {}).get('number')) for row in board} == placed
+    assert {row['number']: row['placed_by'] for row in ok(client.get(QUEUE))['queue']} == {
+        number: placed_by for number, (placed_by, _, _) in placed.items()
+    }
+
+
+def test_an_issue_filed_and_claimed_after_readiness_was_measured_lists_under_its_holder_alone(client, txn_api_logged_in, monkeypatch):
+    """Each statement after the readiness pass sees what committed since, so a claim landing between them reaches the read unmeasured."""
+    _, session = txn_api_logged_in
+    today, now = calendar_now('UTC')
+    measured_before = measure_readiness(session, today, now)
+    late = issue(client, 'Filed mid-read', priority=2)
+    hold(client, late, 'agent-a')
+    for module in (work_queue, queue_board):
+        monkeypatch.setattr(module, 'measure_readiness', lambda *_: measured_before)
+
+    for read in (QUEUE, BOARD):
+        (row,) = ok(client.get(read))['claimed']
+        assert (row['number'], row['holder'], row['priority'], row['placed_by']) == (late, 'agent-a', 2, 'own')
 
 
 def test_a_ready_issue_names_each_held_issue_changing_the_same_code(client):
