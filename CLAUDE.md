@@ -174,7 +174,9 @@ A client's 4xx logs at warning and only a 5xx at error.
 ## Releases are two tag streams, each moved by its own paths
 
 `release/resolve-version` versions both with svu, from conventional commits.
-A `chore:` or `docs:` commit releases nothing.
+Only a `feat:`, a `fix:` or a breaking change releases. Any other type,
+`refactor:` included, releases nothing on its own, so a migration under one
+reaches the cluster with the next commit that does release.
 
 - **`cli/vX.Y.Z` moves on commits touching `cli/`.** `slate update` reads only
   that prefix.
