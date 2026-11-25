@@ -1,13 +1,12 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"slices"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/goclikit"
@@ -26,10 +25,63 @@ const (
 	onceFallbackHeight = 88
 )
 
-// The tabs, in the order Tab cycles them.
 const tabInitiatives = "initiatives"
 
-func tuiTabs() []string { return []string{tabInitiatives, tabRepos, tabIdeas} }
+// tuiTab is one tab: its name, its board in the live program, and its print for --once and --json.
+type tuiTab struct {
+	name  string
+	board func(in tabInputs) gotermboard.Board
+	print func(cmd *cobra.Command, asJSON bool, in tabInputs) error
+}
+
+// tabInputs is what the tabs' boards are built from. The initiatives board is built only where
+// its tab is printed or opened.
+type tabInputs struct {
+	client      *api.Client
+	initiatives func() *initiativesBoard
+}
+
+// tuiTabs is every tab, in the order Tab cycles them.
+func tuiTabs() []tuiTab {
+	return []tuiTab{
+		{
+			name:  tabInitiatives,
+			board: func(in tabInputs) gotermboard.Board { return in.initiatives() },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				if err := readAndPrintTab(cmd, asJSON, in.initiatives()); err != nil {
+					return err
+				}
+				if !cmd.Flags().Changed("status") {
+					noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
+				}
+				return nil
+			},
+		},
+		{
+			name:  tabRepos,
+			board: func(in tabInputs) gotermboard.Board { return newReposBoard(in.client) },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				return readAndPrintTab(cmd, asJSON, newReposBoard(in.client))
+			},
+		},
+		{
+			name:  tabIdeas,
+			board: func(in tabInputs) gotermboard.Board { return newIdeasBoard(in.client) },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				return readAndPrintTab(cmd, asJSON, newIdeasBoard(in.client))
+			},
+		},
+	}
+}
+
+func tuiTabNames() []string {
+	tabs := tuiTabs()
+	names := make([]string, len(tabs))
+	for i, tab := range tabs {
+		names[i] = tab.name
+	}
+	return names
+}
 
 // onTerminal is whether a person holds the keyboard and sees the screen.
 func onTerminal() bool {
@@ -88,6 +140,9 @@ func newTUICommand() *cobra.Command {
 			"after the last. enter opens an idea's read: its placements, its refs and its\n" +
 			"description. tui-ideas.schema.json in slate's cli/internal/cli holds the shape\n" +
 			"--json prints of it.\n\n" +
+			"t on a row goes to another tab that draws what the row names, where one does, and\n" +
+			"esc comes back. t on a pull request opens `prs tui` on it. * locks every tab to the\n" +
+			"lines naming what the row names, such as one pursuit, and lifts the lock.\n\n" +
 			"The next run opens on the tab last moved to, unless --view names one. Each tab\n" +
 			"keeps its p panel, f summaries, v grouping, and the groups and rows folded and\n" +
 			"opened, in $XDG_STATE_HOME/slate/tui-display.json. A run --grouping names keeps none.\n\n" +
@@ -107,8 +162,8 @@ func newTUICommand() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if view != "" && !slices.Contains(tuiTabs(), view) {
-				return goclikit.UsageError(fmt.Errorf("--view takes one of %s, not %q", strings.Join(tuiTabs(), ", "), view))
+			if err := gotermboard.RefuseUnknownView(view, tuiTabNames()); err != nil {
+				return goclikit.UsageError(err)
 			}
 			if grouping != "" && !slices.Contains(initiativeGroupings, grouping) {
 				return goclikit.UsageError(fmt.Errorf("--grouping takes one of %s, not %q", strings.Join(initiativeGroupings, ", "), grouping))
@@ -134,16 +189,13 @@ func newTUICommand() *cobra.Command {
 			if cmd.Flags().Changed("limit") {
 				scope.kind = scopeFirstInList
 			}
+			in := tabInputs{client: client, initiatives: func() *initiativesBoard {
+				return newInitiativesBoard(client, initiativeStatus, scope, grouping)
+			}}
 			if printing {
-				return printOpeningTab(cmd, view, asJSON, client, func() *initiativesBoard {
-					return newInitiativesBoard(client, initiativeStatus, scope, grouping)
-				})
+				return printOpeningTab(cmd, view, asJSON, in)
 			}
-			tabs, err := gotermboard.NewTabs([]gotermboard.Tab{
-				{Name: tabInitiatives, Board: newInitiativesBoard(client, initiativeStatus, scope, grouping)},
-				{Name: tabRepos, Board: newReposBoard(client)},
-				{Name: tabIdeas, Board: newIdeasBoard(client)},
-			}, gotermstyle.PaletteFor(os.Stdout), view)
+			tabs, err := openTabs(tuiTabList(in), view)
 			if err != nil {
 				return err
 			}
@@ -155,8 +207,8 @@ func newTUICommand() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&view, "view", "", "Open on this tab: "+strings.Join(tuiTabs(), ", "))
-	withFlagValues(cmd, "view", tuiTabs()...)
+	cmd.Flags().StringVar(&view, "view", "", "Open on this tab: "+strings.Join(tuiTabNames(), ", "))
+	withFlagValues(cmd, "view", tuiTabNames()...)
 	cmd.Flags().StringVar(&grouping, "grouping", "", "Open the initiatives tab grouped by: "+strings.Join(initiativeGroupings, ", ")+" (default tier)")
 	withFlagValues(cmd, "grouping", initiativeGroupings...)
 	cmd.Flags().BoolVar(&once, "once", false, "Print one frame of the tab at COLUMNS by LINES, then exit")
@@ -169,44 +221,44 @@ func newTUICommand() *cobra.Command {
 	return cmd
 }
 
-// printOpeningTab reads the one tab --view names, and builds no other.
-func printOpeningTab(cmd *cobra.Command, view string, asJSON bool, client *api.Client, initiatives func() *initiativesBoard) error {
-	ctx, out := cmd.Context(), cmd.OutOrStdout()
-	switch view {
-	case tabRepos:
-		board := newReposBoard(client)
-		if err := board.readOnce(ctx); err != nil {
-			return handleAPIError(err)
-		}
-		return printTab(out, asJSON, board)
-	case tabIdeas:
-		board := newIdeasBoard(client)
-		if err := board.readOnce(ctx); err != nil {
-			return handleAPIError(err)
-		}
-		return printTab(out, asJSON, board)
+// tuiTabList is every tab with its live board.
+func tuiTabList(in tabInputs) []gotermboard.Tab {
+	tabs := tuiTabs()
+	list := make([]gotermboard.Tab, len(tabs))
+	for i, tab := range tabs {
+		list[i] = gotermboard.Tab{Name: tab.name, Board: tab.board(in)}
 	}
-	board := initiatives()
-	if err := board.readOnce(ctx); err != nil {
+	return list
+}
+
+// openTabs is the program of tabs, opening on view, where t on a pull request opens prs.
+func openTabs(tabs []gotermboard.Tab, view string) (*gotermboard.Tabs, error) {
+	program, err := gotermboard.NewTabs(tabs, gotermstyle.PaletteFor(os.Stdout), view)
+	if err != nil {
+		return nil, err
+	}
+	program.OpensOutside(prsOnPullRequest)
+	return program, nil
+}
+
+// printOpeningTab reads the one tab --view names, the first where it names none, and builds no
+// other.
+func printOpeningTab(cmd *cobra.Command, view string, asJSON bool, in tabInputs) error {
+	tabs := tuiTabs()
+	at := slices.IndexFunc(tabs, func(tab tuiTab) bool { return tab.name == view })
+	return tabs[max(at, 0)].print(cmd, asJSON, in)
+}
+
+// printableTab is a tab's board that --once and --json read once and print.
+type printableTab[S any] interface {
+	gotermboard.SnapshotBoard[S]
+	readOnce(ctx context.Context) error
+}
+
+// readAndPrintTab reads board once, then prints its frame, or its snapshot where asJSON is set.
+func readAndPrintTab[S any](cmd *cobra.Command, asJSON bool, board printableTab[S]) error {
+	if err := board.readOnce(cmd.Context()); err != nil {
 		return handleAPIError(err)
 	}
-	if !cmd.Flags().Changed("status") {
-		defer noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
-	}
-	return printTab(out, asJSON, board)
-}
-
-// snapshotBoard is a tab's board, which draws a frame and answers a snapshot of one shape.
-type snapshotBoard[S any] interface {
-	gotermboard.Board
-	Snapshot(now time.Time) S
-}
-
-func printTab[S any](out io.Writer, asJSON bool, board snapshotBoard[S]) error {
-	if asJSON {
-		return encodeJSON(out, board.Snapshot(time.Now()))
-	}
-	width, height := gotermboard.OnceSize(onceFallbackWidth, onceFallbackHeight)
-	_, err := fmt.Fprintln(out, gotermboard.Once(board, gotermstyle.PaletteFor(os.Stdout), width, height))
-	return err
+	return gotermboard.PrintTab(cmd.OutOrStdout(), asJSON, board, gotermstyle.PaletteFor(os.Stdout), onceFallbackWidth, onceFallbackHeight)
 }

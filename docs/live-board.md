@@ -232,9 +232,8 @@ An issue is a folding group rather than a row, so the cursor can land on what it
 A pull request row is owned by prs, so `enter` there hands the terminal to
 `prs tui --pr <url>`, and quitting prs comes back to the board, which reads again. After prs
 exits non-zero, the board shows the last line prs wrote to stderr, or its exit status where it
-wrote nothing. A usage error, exit 2, means the `prs` on `PATH` takes no `tui --pr`, so the
-footer points at `o`, as it does where no prs is on `PATH`. `o` opens the pull request in the
-browser from any of its rows.
+wrote nothing. A usage error, exit 2, means the `prs` on `PATH` takes no `tui --pr`, and the
+footer says so. `o` opens the pull request in the browser from any of its rows.
 
 A worklog's link is free text any writer sets, and a desktop opener honors `file:`, `ssh:` and
 every scheme an app registers. So `enter` and `o` hand on only an `http` or `https` link, and
@@ -245,6 +244,52 @@ read with the cursor's row, so a folded issue names its counts once the cursor h
 
 - *Rejected:* the pull requests as lines of the issue's panel. A panel line is not a row, so
   nothing could open one.
+
+## Each kind lands on one tab, so `t` goes to the tab that draws the record whole
+
+Every line names what it is about, as gotermboard's entities. `t` goes from a line to the tab
+declaring that kind, and `esc` comes back to the line it left. `*` locks every tab to the lines
+naming one thing. gotermboard asks which tab where two declare a kind, so each kind is declared on
+one tab, once, in `cli/internal/cli/tui_entities.go`. The record kinds are spelled as slate spells
+them and named by number, since they share one sequence. A worklog is named by its name, and a pull
+request by its link.
+
+| Kind | Lands on | A line naming it |
+| --- | --- | --- |
+| initiative | initiatives | its row on the initiatives tab |
+| issue | initiatives, under its initiative | its row on the initiatives tab |
+| idea | ideas | its row on the ideas tab |
+| pursuit | none: `t` offers nothing | each initiative and idea in it, and its group under `v` pursuit |
+| worklog | none: `t` offers nothing | each pull request and session row it holds |
+| pull request | `prs tui --pr`, outside | its row under an issue |
+
+A tab that declares a kind in its `EntityKinds` adds its row here. `t` never offers the tab the
+row is on, so a jump to an initiative, an issue or an idea comes from a row on another tab.
+
+**A jump to an initiative draws it, whatever the scope.** The per-tier scope draws the first few of
+each tier, and the rest sit in a group that draws only under a filter, where gotermboard's seek
+finds no line. So the sought initiative, or the one holding the sought issue, counts as shown until
+the reader leaves the tab.
+
+**The status widens only where a read lacks the record.** `GET /initiatives/board` answers about
+0.5 MB at active and 1.2 MB at every status, each in under 1 s, on a board of 92 active initiatives
+and 225 in all. `curl -w '%{size_download} %{time_total}'` with a bearer token measures them again.
+A board reading every status on every poll pays that for nothing. Where the last read lacks the
+record, the jump widens to every status at once. A tab that has not read
+yet learns that from its first read, which reads every status after it only where its answer
+lacks the record. The status narrows back once the reader leaves for good. A chained jump that `esc`
+can still return along keeps it wide, so `esc` finds the row it left.
+
+**`*` narrows by what each line names, and nothing more.** A lock on a pursuit keeps the
+initiatives and the ideas in it, past the scope included, and each issue under a kept initiative.
+
+**`t` and `enter` on a pull request take one door to `prs tui --pr`.** `enter` returns
+gotermboard's `GoTo` to the program outside named prs, so the checks before prs opens and the
+footer after it ends are written once, in `prsOnPullRequest`. prs opens only on a web link with
+`prs` on `PATH`. Otherwise the footer says which is missing and nothing opens.
+
+- *Rejected:* reading every status whenever the tab had not read. A jump from another tab to an
+  active initiative would then draw the completed ones too.
 
 ## Keys that write run what the slate verb runs, one at a time
 

@@ -70,6 +70,23 @@ func (b *ideasBoard) readOnce(ctx context.Context) error {
 	return b.readFailure
 }
 
+// EntityKinds is gotermboard.EntityBoard's.
+func (b *ideasBoard) EntityKinds() []string { return []string{entityKindIdea} }
+
+// ShowEntity is gotermboard.EntityBoard's. A pursuit or tag narrowing that hides the idea lifts,
+// as the seek clears a filter that hides it, so the tab says it holds no idea only where it
+// holds none.
+func (b *ideasBoard) ShowEntity(ref gotermboard.EntityRef) bool {
+	number, ok := soughtNumber(&ref, entityKindIdea)
+	if !ok {
+		return false
+	}
+	if at := slices.IndexFunc(b.ideas.Value(), func(idea api.Idea) bool { return idea.Number == number }); at >= 0 && !b.holds(b.ideas.Value()[at]) {
+		b.pursuit, b.tag = nil, ""
+	}
+	return false
+}
+
 // unpromotedNewestFirst leaves out each idea promoted to an initiative, whose work is the
 // initiative's, and puts the newest first.
 func unpromotedNewestFirst(read []api.Idea) []api.Idea {
@@ -261,7 +278,8 @@ func (b *ideasBoard) ideaRow(idea api.Idea) gotermboard.Row {
 		refs = gotermboard.C(strconv.Itoa(count), "")
 	}
 	return gotermboard.Row{
-		Key: ideaKey(idea.Number),
+		Key:      ideaKey(idea.Number),
+		Entities: recordAndPursuits(entityKindIdea, idea.Number, idea.Pursuits),
 		Cells: []gotermboard.Cell{
 			gotermboard.C(strconv.Itoa(idea.Number), gotermboard.Cyan),
 			gotermboard.C(priorityName(idea.Priority), tierCode(idea.Priority)),

@@ -120,8 +120,8 @@ func (b *initiativesBoard) stripLine(now time.Time, grouping string, showing, to
 		gotermboard.C(fmt.Sprintf(" · %d of %d shown   sorted by %s   ", showing, total, boardSorts[b.sort].label), ""),
 		gotermboard.C("grouped by "+grouping+"   ", gotermboard.Cyan),
 	}
-	if b.status != "" {
-		line = append(line, gotermboard.C(b.status+"   ", gotermboard.Magenta))
+	if status := b.readStatus(); status != "" {
+		line = append(line, gotermboard.C(status+"   ", gotermboard.Magenta))
 	}
 	return append(line, gotermboard.ReadStatus([]gotermboard.Status{b.initiatives.Status(), b.text.Status(), b.cursorRow.Status()}, now)...)
 }
@@ -215,6 +215,7 @@ func (b *initiativesBoard) initiativeGroup(initiative api.BoardInitiative, place
 	description := strValue(long.Description)
 	return gotermboard.Group{
 		Key:            initiativeKey(initiative.Number) + placement,
+		Entities:       recordAndPursuits(entityKindInitiative, initiative.Number, initiative.Pursuits),
 		Title:          gotermboard.Line{gotermboard.C(strconv.Itoa(initiative.Number), gotermboard.Cyan)},
 		Span:           append(gotermboard.Line{gotermboard.C(initiative.Name, gotermboard.Bold)}, heldBy(initiativeHolder(initiative))...),
 		Beside:         gotermboard.Items(dimCode, initiative.Repos...),
@@ -410,13 +411,16 @@ func (b *initiativesBoard) memberGroups(members []membership, grouping string, o
 			label = fmt.Sprintf("%s · %d of %d", member.name, showing, rollup.InitiativeCount)
 		}
 		title := gotermboard.Line{gotermboard.C(label, tierTone)}
+		var entities []gotermboard.EntityRef
 		if member.number != 0 {
 			title = append(gotermboard.Line{gotermboard.C(strconv.Itoa(member.number)+"  ", gotermboard.Cyan)}, title...)
+			entities = []gotermboard.EntityRef{recordEntity(entityKindPursuit, member.number)}
 		}
 		counts := rollup.BoardCounts
 		untouched := untouchedLines(rollup.UntouchedLongest, drawn.now)
 		groups = append(groups, gotermboard.Group{
 			Key:      grouping + ":" + strings.TrimPrefix(member.placement, "@"),
+			Entities: entities,
 			Title:    title,
 			Cells:    toned(boardCells(counts, drawn.now), tierTone),
 			WrapLast: append(scaledBar(counts), gotermboard.C("  ", ""), gotermboard.C(sparkLine(counts.Closes.ByDay), gotermboard.Green)),
@@ -647,6 +651,7 @@ func (b *initiativesBoard) issueGroup(issue api.BoardIssue, placement string, dr
 	}
 	group := gotermboard.Group{
 		Key:      issueKey(issue.Number) + placement,
+		Entities: []gotermboard.EntityRef{recordEntity(entityKindIssue, issue.Number)},
 		Title:    append(gotermboard.Line{lead, gotermboard.C(strconv.Itoa(issue.Number), gotermboard.Cyan), gotermboard.C("  "+issue.Title, "")}, heldBy(issue.Holder)...),
 		Under:    gotermboard.C(excerpt, ""),
 		Document: b.openDescription(issue.Number, description, isRead),
@@ -698,6 +703,9 @@ func pullRequestRow(issue int, placement string, worklog api.Worklog, link api.W
 	name := pullRequestName(link.Ref)
 	return gotermboard.Row{
 		Key: pullRequestKey(issue, placement, link.Ref),
+		Entities: []gotermboard.EntityRef{
+			{Kind: entityKindPullRequest, ID: link.Ref}, {Kind: entityKindWorklog, ID: worklog.Name},
+		},
 		Span: gotermboard.Line{
 			gotermboard.C(padRight("PR", issueStateWidth)+" ", gotermboard.Magenta),
 			gotermboard.C(name, gotermboard.Cyan),
@@ -776,7 +784,8 @@ func sessionRow(issue int, placement string, worklog api.Worklog, session worked
 			groupedDigits(session.tokens.CacheRead), groupedDigits(session.tokens.Output))))
 	}
 	return gotermboard.Row{
-		Key: fmt.Sprintf("session:%d%s:%s:%s", issue, placement, worklog.Name, session.id),
+		Key:      fmt.Sprintf("session:%d%s:%s:%s", issue, placement, worklog.Name, session.id),
+		Entities: []gotermboard.EntityRef{{Kind: entityKindWorklog, ID: worklog.Name}},
 		Span: gotermboard.Line{
 			gotermboard.C(padRight("session", issueStateWidth)+" ", ""),
 			gotermboard.C(shortSession(session.id), ""),

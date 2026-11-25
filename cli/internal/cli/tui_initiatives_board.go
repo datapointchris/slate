@@ -149,8 +149,10 @@ var initiativeGroupings = []string{groupingTier, groupingRepo, groupingPursuit, 
 // initiativesBoard is the initiatives tab. Its reads run off the program's goroutine and
 // touch only their sources, the cursor and readFailure. The keys and Frame run on it.
 type initiativesBoard struct {
-	client      *api.Client
-	status      string
+	client *api.Client
+	// reading is what both board reads ask for, which a jump changes on the program's goroutine
+	// and a read widens off it.
+	reading     atomic.Pointer[boardReading]
 	scope       boardScope
 	opensAt     string
 	sort        int
@@ -176,15 +178,16 @@ type initiativesBoard struct {
 // newInitiativesBoard opens at the grouping it is given, or by tier where it is empty.
 func newInitiativesBoard(client *api.Client, status string, scope boardScope, grouping string) *initiativesBoard {
 	zone := issueZone()
-	b := &initiativesBoard{client: client, status: status, scope: scope, opensAt: cmp.Or(grouping, groupingTier), described: map[int]bool{}}
+	b := &initiativesBoard{client: client, scope: scope, opensAt: cmp.Or(grouping, groupingTier), described: map[int]bool{}}
+	b.reading.Store(&boardReading{status: status})
 	b.markdown = markdown.New(b.colorRecordNumbers)
 	b.initiatives = gotermboard.NewSource("initiatives", boardReadEvery, func(ctx context.Context) (api.InitiativeBoard, string, error) {
-		read, err := client.ReadInitiativeBoard(ctx, status, zone)
+		read, err := b.readBoard(ctx, zone)
 		b.readFailure = err
 		return read, "", err
 	})
 	b.text = gotermboard.NewSource("long text", boardTextReadEvery, func(ctx context.Context) (api.InitiativeBoardText, string, error) {
-		read, err := client.ReadInitiativeBoardText(ctx, status)
+		read, err := client.ReadInitiativeBoardText(ctx, b.readStatus())
 		return read, "", err
 	})
 	b.cursorRow = gotermboard.NewSource("cursor's row", cursorRowReadEvery, func(ctx context.Context) (cursorRowReads, string, error) {
@@ -192,6 +195,116 @@ func newInitiativesBoard(client *api.Client, status string, scope boardScope, gr
 		return read, "", err
 	})
 	return b
+}
+
+// everyInitiativeStatus is the status that reads every initiative, which a jump widens to.
+// Every status reads more than twice the bytes of the active ones, so only a jump widens to
+// it. live-board.md holds the measurement.
+const everyInitiativeStatus = "all"
+
+// boardReading is what the board reads ask for. Each change stores a new one, so a read
+// widening it loses to a jump or a hide that came since.
+type boardReading struct {
+	// status is the initiatives' status, empty for active.
+	status string
+	// sought is what the last jump here asked to show, drawn whatever the scope.
+	sought *gotermboard.EntityRef
+	// widenedFrom is the status Hidden restores, and nil where no jump widened it.
+	widenedFrom *string
+}
+
+// widened reads every status, and narrows back to this one's on Hidden.
+func (r *boardReading) widened() *boardReading {
+	from := r.status
+	return &boardReading{status: everyInitiativeStatus, sought: r.sought, widenedFrom: &from}
+}
+
+// lacksSought says read holds no line naming the sought record, at a status narrower
+// than every one.
+func (r *boardReading) lacksSought(read api.InitiativeBoard) bool {
+	_, held := soughtInitiative(read, r.sought)
+	return r.sought != nil && !held && r.status != everyInitiativeStatus
+}
+
+func (b *initiativesBoard) readStatus() string {
+	if reading := b.reading.Load(); reading != nil {
+		return reading.status
+	}
+	return ""
+}
+
+func (b *initiativesBoard) soughtRecord() *gotermboard.EntityRef {
+	if reading := b.reading.Load(); reading != nil {
+		return reading.sought
+	}
+	return nil
+}
+
+// readBoard reads the board at the reading's status, and every status where the answer lacks
+// the sought record. A tab that has not read yet learns that only from this read. Where a jump
+// or a hide changes the reading while a read is out, the answer is checked against the new
+// one, and read again where its status changed.
+func (b *initiativesBoard) readBoard(ctx context.Context, zone api.DayZone) (api.InitiativeBoard, error) {
+	status := b.reading.Load().status
+	read, err := b.client.ReadInitiativeBoard(ctx, status, zone)
+	for err == nil {
+		at := b.reading.Load()
+		switch {
+		case at.status != status:
+			status = at.status
+			read, err = b.client.ReadInitiativeBoard(ctx, status, zone)
+		case !at.lacksSought(read):
+			return read, nil
+		case b.reading.CompareAndSwap(at, at.widened()):
+			b.text.Force()
+		}
+	}
+	return read, err
+}
+
+// EntityKinds is gotermboard.EntityBoard's.
+func (b *initiativesBoard) EntityKinds() []string {
+	return []string{entityKindInitiative, entityKindIssue}
+}
+
+// ShowEntity is gotermboard.EntityBoard's. Where the last read lacks the record, the reads widen
+// to every status at once, so a jump to a completed initiative lands on its row.
+func (b *initiativesBoard) ShowEntity(ref gotermboard.EntityRef) bool {
+	at := b.reading.Load()
+	next := &boardReading{status: at.status, sought: &ref, widenedFrom: at.widenedFrom}
+	if !b.initiatives.Status().ReadAt.IsZero() && next.lacksSought(b.initiatives.Value()) {
+		next = next.widened()
+	}
+	b.reading.Store(next)
+	return false
+}
+
+// Hidden is gotermboard.HidingBoard's. The sought record goes back under the scope, and a
+// widened status narrows to the one it widened from, read as the tab returns.
+func (b *initiativesBoard) Hidden() {
+	at := b.reading.Load()
+	if at.widenedFrom == nil {
+		b.reading.Store(&boardReading{status: at.status})
+		return
+	}
+	b.reading.Store(&boardReading{status: *at.widenedFrom})
+	b.initiatives.Force()
+	b.text.Force()
+}
+
+// soughtInitiative is the initiative in read that ref names, or that holds the issue ref names.
+func soughtInitiative(read api.InitiativeBoard, ref *gotermboard.EntityRef) (int, bool) {
+	if number, ok := soughtNumber(ref, entityKindInitiative); ok {
+		return number, slices.ContainsFunc(read.Initiatives, func(initiative api.BoardInitiative) bool { return initiative.Number == number })
+	}
+	if number, ok := soughtNumber(ref, entityKindIssue); ok {
+		for _, initiative := range read.Initiatives {
+			if slices.ContainsFunc(initiative.Issues, func(issue api.BoardIssue) bool { return issue.Number == number }) {
+				return initiative.Number, true
+			}
+		}
+	}
+	return 0, false
 }
 
 // Sources is gotermboard.Board's.
@@ -354,6 +467,10 @@ func (b *initiativesBoard) orderedAndShown(read api.InitiativeBoard) ([]api.Boar
 			shown[initiative.Number] = true
 		}
 	}
+	// Where the scope hides a group, gotermboard's seek finds no line in it.
+	if number, held := soughtInitiative(read, b.soughtRecord()); held {
+		shown[number] = true
+	}
 	return ordered, shown
 }
 
@@ -419,7 +536,7 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 			Keys: []string{"enter"}, Label: "fold a group or open a row, and open a pull request in prs", Footer: "enter open",
 			Run: func(m *gotermboard.Model) tea.Cmd {
 				if link, ok := pullRequestAt(m.Cursor()); ok {
-					return b.openInPrs(m, link)
+					return gotermboard.GoTo(prsOnPullRequest.Name, gotermboard.EntityRef{Kind: entityKindPullRequest, ID: link})
 				}
 				return m.Toggle()
 			},
@@ -459,7 +576,7 @@ func (b *initiativesBoard) Snapshot(time.Time) initiativesSnapshot {
 		}
 	}
 	snapshot := initiativesSnapshot{
-		Tab: tabInitiatives, Status: cmp.Or(b.status, "active"), Scope: b.scope.label(), Sort: boardSorts[b.sort].label,
+		Tab: tabInitiatives, Status: cmp.Or(b.readStatus(), "active"), Scope: b.scope.label(), Sort: boardSorts[b.sort].label,
 		Grouping: b.opensAt, Shown: numbers, Board: read, Text: b.text.Value(),
 		Reads: []gotermboard.Status{b.initiatives.Status(), b.text.Status(), b.cursorRow.Status()},
 	}
