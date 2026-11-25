@@ -11,10 +11,9 @@
     "taken_at": {"type": "string", "format": "date-time"},
     "tab": {"const": "documents"},
     "record_limit": {
-      "description": "How many records the list read asked for, the records written to last. + and - move it by 50.",
+      "description": "How many records the list read asked for, the records written to last. + and - move it a step at a time, up to the most one read answers.",
       "type": "integer",
-      "minimum": 50,
-      "maximum": 500
+      "minimum": 50
     },
     "total_records": {
       "description": "How many records hold a document. Where it exceeds record_limit, the rest went unread.",

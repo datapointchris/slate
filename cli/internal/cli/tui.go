@@ -7,7 +7,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/goclikit"
@@ -27,24 +26,6 @@ const (
 )
 
 const tabInitiatives = "initiatives"
-
-// tabReadTimeout bounds a tab's read, because gotermboard hands a source's read a context with
-// no deadline, and a read that never answers would hold its source until the program ends.
-const tabReadTimeout = 30 * time.Second
-
-// readWithin is read under tabReadTimeout. One that runs out fails, so the strip names it as a
-// fault and the source's next Claim reads again.
-func readWithin[T any](read func(context.Context) (T, string, error)) func(context.Context) (T, string, error) {
-	return func(ctx context.Context) (T, string, error) {
-		ctx, cancel := context.WithTimeout(ctx, tabReadTimeout)
-		defer cancel()
-		value, note, err := read(ctx)
-		if errors.Is(err, context.DeadlineExceeded) {
-			err = fmt.Errorf("no answer within %s: %w", tabReadTimeout, err)
-		}
-		return value, note, err
-	}
-}
 
 // tuiTab is one tab: its name, its board in the live program, and its print for --once and --json.
 type tuiTab struct {
@@ -166,8 +147,8 @@ func newTUICommand() *cobra.Command {
 			"after the last. enter opens an idea's read: its placements, its refs and its\n" +
 			"description. tui-ideas.schema.json in slate's cli/internal/cli holds the shape\n" +
 			"--json prints of it.\n\n" +
-			"documents is every document on the 50 records written to last, each under its\n" +
-			"record, the newest written first in both. + and - read 50 records more or fewer.\n" +
+			fmt.Sprintf("documents is every document on the %d records written to last, each under its\n", documentRecordsStep) +
+			fmt.Sprintf("record, the newest written first in both. + and - read %d records more or fewer.\n", documentRecordsStep) +
 			"enter opens a document's latest version full screen, its line comments listed\n" +
 			"after it, each quoting its line. No earlier version shows. / matches a document's\n" +
 			"name, its kind and its record's title. tui-documents.schema.json in slate's\n" +

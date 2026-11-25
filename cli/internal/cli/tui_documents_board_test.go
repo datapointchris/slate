@@ -21,13 +21,14 @@ import (
 
 // documentsStandIn stands in for slate's documents routes. It lists the documents of
 // initiative 4271 and issue 4281 interleaved, newest written first, as the API does, and counts
-// 120 records holding one, so + has more to read. 4271/design is at designVersion, with one
-// line comment on its fifth line.
+// 120 records holding one, so + has more to read. 4271/design is at designVersion, with a line
+// comment on its fifth line, and a second on its first where designComments is 2.
 type documentsStandIn struct {
-	mu            sync.Mutex
-	designVersion int
-	recordLimits  []string
-	bodyReads     map[string]int
+	mu             sync.Mutex
+	designVersion  int
+	designComments int
+	recordLimits   []string
+	bodyReads      map[string]int
 }
 
 func (s *documentsStandIn) serve(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +49,7 @@ func (s *documentsStandIn) serve(w http.ResponseWriter, r *http.Request) {
 		s.recordLimits = append(s.recordLimits, r.URL.Query().Get("record_limit"))
 		w.Header().Set("X-Total-Records", "120")
 		answer = []api.ListedDocument{
-			listed(initiative, "design", "design", s.designVersion, 14, 1),
+			listed(initiative, "design", "design", s.designVersion, 14, s.designComments),
 			listed(issue, "design", "design", 1, 13, 0),
 			listed(initiative, "plan", "plan", 1, 12, 0),
 			listed(initiative, "design-review", "review", 1, 11, 0),
@@ -56,19 +57,26 @@ func (s *documentsStandIn) serve(w http.ResponseWriter, r *http.Request) {
 	case "/api/v1/documents/4271/design":
 		s.bodyReads["4271/design"]++
 		body := "# The reminders design\n\nVersion " + strconv.Itoa(s.designVersion) + " fires on a date.\n\nReadiness reads ready."
+		comments := []api.PlacedComment{{
+			Comment: api.Comment{
+				ID: 7, RecordNumber: 4271, Body: "Check this again after 4270 lands.", WrittenBy: ptr("chris"), WrittenTS: at(15),
+				On: &api.CommentLine{Document: "design", Kind: "design", Version: 1, Line: 5, Text: "Readiness reads ready."},
+			},
+			ShownLine: ptr(5),
+		}, {
+			Comment: api.Comment{
+				ID: 8, RecordNumber: 4271, Body: "Name the reminder kinds.", WrittenBy: ptr("chris"), WrittenTS: at(16),
+				On: &api.CommentLine{Document: "design", Kind: "design", Version: 2, Line: 1, Text: "# The reminders design"},
+			},
+			ShownLine: ptr(1),
+		}}
 		answer = api.Document{
 			Record: initiative, Name: "design", Address: "4271/design", Kind: "design", CreatedTS: at(9),
 			Version: api.DocumentVersion{
 				DocumentVersionSummary: api.DocumentVersionSummary{Version: s.designVersion, WrittenBy: "someone", WrittenTS: at(14), LineCount: 5},
 				Body:                   body, Lines: strings.Split(body, "\n"),
 			},
-			Comments: []api.PlacedComment{{
-				Comment: api.Comment{
-					ID: 7, RecordNumber: 4271, Body: "Check this again after 4270 lands.", WrittenBy: ptr("chris"), WrittenTS: at(15),
-					On: &api.CommentLine{Document: "design", Kind: "design", Version: 1, Line: 5, Text: "Readiness reads ready."},
-				},
-				ShownLine: ptr(5),
-			}},
+			Comments: comments[:s.designComments],
 		}
 	default:
 		http.NotFound(w, r)
@@ -86,7 +94,7 @@ func (s *documentsStandIn) reads(address string) int {
 
 func TestTheDocumentsTabGroupsByRecordAndReadsTheLatestVersionOnce(t *testing.T) {
 	ctx := context.Background()
-	stand := &documentsStandIn{designVersion: 1, bodyReads: map[string]int{}}
+	stand := &documentsStandIn{designVersion: 1, designComments: 1, bodyReads: map[string]int{}}
 	server := httptest.NewServer(http.HandlerFunc(stand.serve))
 	t.Cleanup(server.Close)
 	board := newDocumentsBoard(api.New(server.URL, server.Client()))
@@ -127,6 +135,14 @@ func TestTheDocumentsTabGroupsByRecordAndReadsTheLatestVersionOnce(t *testing.T)
 		t.Fatalf("a list showing version 2 should read the body again, read %d times:\n%s", reads, reader)
 	}
 	model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	stand.designComments = 2
+	board.list.Refresh(ctx)
+	board.bodies.Refresh(ctx)
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if reads, reader := stand.reads("4271/design"), model.View().Content; reads != 3 || !strings.Contains(reader, "Name the reminder kinds.") {
+		t.Fatalf("a list showing a comment added at version 2 should read the body again, read %d times:\n%s", reads, reader)
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 
 	if strip := strings.SplitN(model.View().Content, "\n", 2)[0]; !strings.Contains(strip, "2 of 120 records · 4 documents") || !strings.Contains(strip, "+ reads 50 more") {
 		t.Errorf("the strip should name the records past the bound, and + as what reads them: %s", strip)
@@ -148,8 +164,8 @@ func TestTheDocumentsTabGroupsByRecordAndReadsTheLatestVersionOnce(t *testing.T)
 		t.Fatal(err)
 	}
 	if len(printed.Records) != 2 || printed.Records[0].Record.Number != 4271 || len(printed.Records[0].Documents) != 3 ||
-		printed.CursorDocument == nil || printed.CursorDocument.Address != "4271/design" || len(printed.CursorDocument.Comments) != 1 {
-		t.Errorf("--json should print 4271's three documents first and open 4271/design with its comment:\n%s", out)
+		printed.CursorDocument == nil || printed.CursorDocument.Address != "4271/design" || len(printed.CursorDocument.Comments) != 2 {
+		t.Errorf("--json should print 4271's three documents first and open 4271/design with its two comments:\n%s", out)
 	}
 }
 

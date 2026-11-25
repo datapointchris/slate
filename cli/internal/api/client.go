@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -127,13 +128,18 @@ var idempotent = map[string]bool{
 	http.MethodGet: true, http.MethodHead: true, http.MethodPut: true, http.MethodDelete: true,
 }
 
-// unreachedError is a request that got no HTTP response.
+// unreachedError is a request that got no HTTP response. within is the http.Client's Timeout
+// where that bound ran out, rather than the caller's context.
 type unreachedError struct {
 	baseURL string
+	within  time.Duration
 	err     error
 }
 
 func (e *unreachedError) Error() string {
+	if e.within > 0 {
+		return fmt.Sprintf("the slate API at %s gave no answer within %s", e.baseURL, e.within)
+	}
 	return fmt.Sprintf("reach the slate API at %s: %v", e.baseURL, e.err)
 }
 
@@ -160,7 +166,12 @@ func (c *Client) exchange(ctx context.Context, method, path string, body, out an
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, &unreachedError{baseURL: c.baseURL, err: err}
+		unreached := &unreachedError{baseURL: c.baseURL, err: err}
+		var transport *url.Error
+		if errors.As(err, &transport) && transport.Timeout() && ctx.Err() == nil {
+			unreached.within = c.http.Timeout
+		}
+		return nil, unreached
 	}
 	defer func() { _ = resp.Body.Close() }()
 

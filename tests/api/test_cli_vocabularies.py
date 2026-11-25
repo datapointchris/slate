@@ -1,4 +1,4 @@
-"""The closed vocabularies the CLI keeps its own copy of, written where the CLI's suite reads them."""
+"""The closed vocabularies and limits the CLI keeps its own copy of, written where the CLI's suite reads them."""
 
 import json
 from pathlib import Path
@@ -23,6 +23,7 @@ from slate.models.worklog import WORKLOG_LINK_KINDS
 from slate.models.worklog import WORKLOG_STEPS
 from slate.schemas.queue import Step
 from slate.services import initiatives
+from slate.services.row_limit import RECORD_LIMIT_MAX
 
 VOCABULARIES_DOCUMENT = Path(__file__).parent / 'testdata' / 'cli-vocabularies.json'
 
@@ -49,6 +50,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'record_kinds': [kind.value for kind in Kind],
         'document_kinds': DOCUMENT_KINDS,
         'queue_steps': list(get_args(Step)),
+        'record_limit_max': RECORD_LIMIT_MAX,
     }
     document = json.dumps(table, indent=2) + '\n'
     if not VOCABULARIES_DOCUMENT.exists() or VOCABULARIES_DOCUMENT.read_text() != document:

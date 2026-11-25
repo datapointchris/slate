@@ -28,7 +28,7 @@ const documentsSchemaVersion = 1
 // step, between one step and the most one read answers.
 const (
 	documentRecordsStep = 50
-	documentRecordsMost = 500
+	documentRecordsMost = api.RecordLimitMost
 )
 
 // errDocumentsLackRecord is an API older than the record on each listed document. It answers
@@ -58,7 +58,7 @@ type documentsRead struct {
 }
 
 // documentBodies is each document read whole, by address, at the version read. A body stays
-// until the list shows a newer version, so the poll reads no body.
+// until the list shows a newer version or another comment count, so the poll reads no body.
 type documentBodies map[string]api.Document
 
 // documentFault is the last body read that failed, and why.
@@ -88,8 +88,8 @@ type documentsBoard struct {
 func newDocumentsBoard(client *api.Client) *documentsBoard {
 	b := &documentsBoard{client: client, markdown: markdown.New(nil)}
 	b.records.Store(documentRecordsStep)
-	b.list = gotermboard.NewSource("documents", boardTextReadEvery, readWithin(b.readList))
-	b.bodies = gotermboard.NewSource("cursor's document", boardTextReadEvery, readWithin(b.readCursorDocument))
+	b.list = gotermboard.NewSource("documents", boardTextReadEvery, b.readList)
+	b.bodies = gotermboard.NewSource("cursor's document", boardTextReadEvery, b.readCursorDocument)
 	return b
 }
 
@@ -133,7 +133,8 @@ func (b *documentsBoard) readCursorDocument(ctx context.Context) (documentBodies
 }
 
 // cursorDocumentDue is the cursor's document as the newest list has it, and whether held lacks
-// its body at that version.
+// its body at that version and comment count. A line comment adds no version, so the count is
+// what shows one added since the body was read.
 func (b *documentsBoard) cursorDocumentDue(held documentBodies) (api.ListedDocument, bool) {
 	key, list := b.cursor.Load(), b.listed.Load()
 	if key == nil || list == nil {
@@ -149,7 +150,7 @@ func (b *documentsBoard) cursorDocumentDue(held documentBodies) (api.ListedDocum
 	}
 	listed := list.Documents[at]
 	body, read := held[address]
-	return listed, !read || body.Version.Version < listed.Latest.Version
+	return listed, !read || body.Version.Version < listed.Latest.Version || len(body.Comments) != listed.CommentCount
 }
 
 // Sources is gotermboard.Board's.
@@ -243,11 +244,11 @@ func (b *documentsBoard) Actions() []gotermboard.Action {
 			},
 		},
 		{
-			Keys: []string{"+", "="}, Label: "read the documents on 50 records more", Footer: "+/- records", Run: bound(1),
+			Keys: []string{"+", "="}, Label: fmt.Sprintf("read the documents on %d records more", documentRecordsStep), Footer: "+/- records", Run: bound(1),
 			Applies: func(*gotermboard.Model) bool { return b.moreToRead() },
 		},
 		{
-			Keys: []string{"-"}, Label: "read the documents on 50 records fewer", Run: bound(-1),
+			Keys: []string{"-"}, Label: fmt.Sprintf("read the documents on %d records fewer", documentRecordsStep), Run: bound(-1),
 			Applies: func(*gotermboard.Model) bool { return b.records.Load() > documentRecordsStep },
 		},
 	}

@@ -97,5 +97,6 @@
     "decide",
     "build",
     "retro"
-  ]
+  ],
+  "record_limit_max": 500
 }

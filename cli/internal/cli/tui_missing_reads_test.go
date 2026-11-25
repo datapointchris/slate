@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,13 +15,14 @@ import (
 )
 
 // TestATabNamesTheReadItsAPILacks is the missing-read table: each row opens a tab on an API
-// older than this CLI, and reads the line below the strip that names the read it lacks, where
-// the rows or the chart would be. A tab reading a route that an older API lacks adds its row.
+// older than this CLI. --once exits on the error naming the read it lacks, and the live tab
+// draws that error below the strip, where the rows or the chart would be. A tab reading a
+// route that an older API lacks adds its row.
 func TestATabNamesTheReadItsAPILacks(t *testing.T) {
 	for _, test := range []struct {
 		name, view string
 		serve      http.HandlerFunc
-		names      string
+		lacks      error
 	}{
 		{
 			name: "documents listed with no record", view: tabDocuments,
@@ -36,12 +38,18 @@ func TestATabNamesTheReadItsAPILacks(t *testing.T) {
 					Latest: api.DocumentVersionSummary{Version: 1, WrittenBy: "someone", WrittenTS: day},
 				}})
 			},
-			names: "this API answers no record on documents, so it is older than this CLI",
+			lacks: errDocumentsLackRecord,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(test.serve)
 			t.Cleanup(server.Close)
+
+			asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
+			if _, err := runService(t, "tui", "--view", test.view, "--once"); !errors.Is(err, test.lacks) {
+				t.Errorf("--once should exit on %q, exited on %v", test.lacks, err)
+			}
+
 			client := api.New(server.URL, server.Client())
 			in := tabInputs{client: client, initiatives: func() *initiativesBoard {
 				return newInitiativesBoard(client, "", boardScope{kind: scopePerTier, perTier: defaultBoardPerTier}, "")
@@ -53,9 +61,8 @@ func TestATabNamesTheReadItsAPILacks(t *testing.T) {
 			tabs.Update(tea.WindowSizeMsg{Width: 150, Height: 40})
 			settle(tabs, tabs.Init())
 			screen := tabs.View().Content
-			_, below, _ := strings.Cut(screen, "\n")
-			if !strings.Contains(below, test.names) {
-				t.Errorf("below the strip, the tab should say %q:\n%s", test.names, screen)
+			if _, below, _ := strings.Cut(screen, "\n"); !strings.Contains(below, test.lacks.Error()) {
+				t.Errorf("below the strip, the tab should draw %q:\n%s", test.lacks, screen)
 			}
 		})
 	}

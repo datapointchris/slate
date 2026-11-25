@@ -93,7 +93,9 @@ lets `/` find an initiative the scope cut.
 Two reads keep this cheap enough to poll. The board reads every 15 seconds and carries no
 descriptions, which are most of what an initiative weighs. Long text reads every 60 seconds.
 Reads run at their own pace, so a failed read leaves the last good one drawn with its age,
-and a rollout never blanks the screen.
+and a rollout never blanks the screen. Every request runs under the API client's `Timeout`,
+`apiRequestTimeout` in `cli/internal/cli/client.go`. So when the API never answers, the read
+fails like any other rather than holding its source.
 
 **What only one row shows is read for that row alone.** An initiative's next issues and its
 tokens by kind come from `GET /initiatives/progress`. An issue's whole description and its pin
@@ -203,34 +205,33 @@ review point the question is what was just written. So the record written to las
 and within a record so does its document written last. The first record opens, and the rest fold
 to their titles.
 
-**The read is bounded by record, never by row.** The tab reads `GET /documents?record_limit=50`
-every 60 seconds: every document on the 50 records written to last. The list interleaves records
-by each document's latest write, so a cut by row would draw a record with its older documents
-missing. `+` and `-` move the bound by 50, up to the 500 that one read answers. `X-Total-Records`
-counts every record holding a document. So where the bound cut the read, the strip says
-`50 of 61 records` and `+ reads 50 more`.
+**The read is bounded by record, never by row.** The tab reads `GET /documents` with a
+`record_limit` on the long-text poll: every document on the records written to last. The list
+interleaves records by each document's latest write, so a cut by row would draw a record with
+its older documents missing. `+` and `-` move the bound by `documentRecordsStep`, up to
+`api.RecordLimitMost`, the most that one read answers. The API owns that cap. Its suite writes it
+to `tests/api/testdata/cli-vocabularies.json`, and the CLI's suite holds the copy level.
+`X-Total-Records` counts every record holding a document. So where the bound cut the read, the
+strip names the records read of the total, and how many more `+` reads.
 
 - *Rejected:* `limit` on the list read. A row cut drops a record's older documents.
 
-**A body is read once per version.** The list carries each document's latest version and no
-body. The cursor's document is read whole with `GET /documents/{record}/{name}` once the cursor
-lands on it, and the body is kept by address and version. A list read showing a newer
-`latest.version` for the cursor's document reads it again on the next tick. Otherwise the poll
-reads one list and no body. The read waits for the next tick, so holding `j` down reads only the
-document it stops on.
+**A body is read again only on a new version or a new comment.** The list carries each
+document's latest version and its comment count, and no body. The cursor's document is read
+whole with `GET /documents/{record}/{name}` once the cursor lands on it, and the body is kept by
+address. A list read showing a newer `latest.version` or another `comment_count` for the cursor's
+document reads it again on the next tick. A line comment adds no version, so the count is what
+shows one written since. Otherwise the poll reads one list and no body. The read waits for the
+next tick, so holding `j` down reads only the document it stops on. A failed body read says so
+where the body would be.
 
 **`enter` opens the latest version full screen**, rendered on the board's markdown reader, and
-from 160 columns the side panel draws it beside the table. Line comments follow the body as a
-list, each naming its line and quoting it. Rendered markdown reflows, so a comment pinned beside
-a raw line number would sit beside the wrong text. A comment on a line that the latest version
-changed names the version and line where it was written. No earlier version and no diff show,
-because a reader here acts on what a document says now. `slate documents show --version` prints
-an earlier one.
-
-**Each read runs under a 30-second deadline.** gotermboard hands a source's read a context with
-no deadline, so a read that never answered would hold its source until the program ended.
-`readWithin` in `cli/internal/cli/tui.go` wraps a tab's read in the deadline. One that runs out
-shows as a fault on the strip, and a failed body read says so where the body would be.
+the side panel draws it beside the table where the screen is wide enough. Line comments follow
+the body as a list, each naming its line and quoting it. Rendered markdown reflows, so a comment
+pinned beside a raw line number would sit beside the wrong text. A comment on a line that the
+latest version changed names the version and line where it was written. No earlier version and
+no diff show, because a reader here acts on what a document says now. `slate documents show
+--version` prints an earlier one.
 
 `/` matches a document's name and kind, and its record's title, so a title finds the documents
 inside a folded record. The tab declares no kinds. Each row names its record, so `t` lands on the
