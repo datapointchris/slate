@@ -78,6 +78,13 @@ func tuiTabs() []tuiTab {
 				return readAndPrintTab(cmd, asJSON, newDocumentsBoard(in.client))
 			},
 		},
+		{
+			name:  tabPursuits,
+			board: func(in tabInputs) gotermboard.Board { return newPursuitsBoard(in.client) },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				return readAndPrintTab(cmd, asJSON, newPursuitsBoard(in.client))
+			},
+		},
 	}
 }
 
@@ -103,7 +110,7 @@ func newTUICommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "A live board of the initiatives, the repos, the ideas and the documents, in a program with a tab per view",
+		Short: "A live board of the initiatives, the repos, the ideas, the documents and the pursuits, in a program with a tab per view",
 		Long: "One program with a tab per view, reading the API at its own pace. It draws its\n" +
 			"last good read with that read's age, so a rollout leaves the board drawn. Tab\n" +
 			"cycles the tabs once there is more than one.\n\n" +
@@ -153,6 +160,16 @@ func newTUICommand() *cobra.Command {
 			"after it, each quoting its line. No earlier version shows. / matches a document's\n" +
 			"name, its kind and its record's title. tui-documents.schema.json in slate's\n" +
 			"cli/internal/cli holds the shape --json prints of it.\n\n" +
+			"pursuits is each pursuit's standing against the focus in force, as `slate focus\n" +
+			"show` reads it: its share, its usage, its factor, its output, its initiatives and\n" +
+			"ideas, and when it was last worked. The named shares come first, then the rest,\n" +
+			"each the furthest under its share first. With no focus in force, one group holds\n" +
+			"every pursuit, and SHARE and FACTOR read ·. The panel charts a pursuit's usage on\n" +
+			"each day of the focus beside its share, as `slate focus usage` reads it, and the\n" +
+			"total's stacks every named share and the rest. h and l move to the focus set\n" +
+			"before and after, which show their shares and their figures at the end of their\n" +
+			"last day. tui-pursuits.schema.json in slate's cli/internal/cli holds the shape\n" +
+			"--json prints of it.\n\n" +
 			"t on a row goes to another tab that draws what the row names, where one does, and\n" +
 			"esc comes back. t on a pull request opens `prs tui` on it. * locks every tab to the\n" +
 			"lines naming what the row names, such as one pursuit, and lifts the lock.\n\n" +
@@ -171,6 +188,7 @@ func newTUICommand() *cobra.Command {
 			"  slate tui --view repos --json | jq '.board.repos[] | {repo, ready: (.ready | length)}'\n" +
 			"  slate tui --view ideas --json | jq '.rows[] | {number, title, ref_count}'\n" +
 			"  slate tui --view documents --json | jq '.records[] | {number: .record.number, documents: [.documents[].name]}'\n" +
+			"  slate tui --view pursuits --json | jq '.rows[] | {name, share, usage, factor}'\n" +
 			"  slate tui --json | jq '.board.totals.states'\n" +
 			"  slate tui --json | jq '.board.pursuits[] | {name: .pursuit.name, closes_30d: .closes.last_30d, untouched: .untouched_longest.name}'",
 		Args:        cobra.NoArgs,

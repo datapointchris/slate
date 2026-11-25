@@ -33,6 +33,7 @@ Each figure is one read against a queue of about 900 open records and about 1,65
 | `GET /initiatives/board` | about 0.5 MB | under 1 s |
 | `GET /documents` | about 60 KB | under 1 s |
 | `GET /focus` | about 5 KB | under 0.5 s |
+| `GET /focus/usage` | about 4 KB a day for 16 pursuits, read at 2 days | under 0.5 s at 2 days |
 
 - **A queue row carries its whole record.** Dropping every description still leaves about 1.5 MB,
   because each row holds the record's refs, claim, last check and steps. The tab draws a few

@@ -246,6 +246,73 @@ cannot group. `--json` prints what `cli/internal/cli/tui-documents.schema.json` 
 record with its documents, under the names that `slate documents list --json` gives them, then
 the cursor's latest version with its line comments.
 
+## The pursuits tab is the focus's standing, with each pursuit's usage charted by day beside its share
+
+```text
+slate · pursuits   focus 4 · through 12-23 · Lock the doors up front, then finish the warehouse   read 0s ago
+
+ #            SHARE  USAGE  FACTOR  OUTPUT  INIT  IDEAS  LAST WORKED       NAME
+   TOTAL · 5                          1.2M               09:00
+───────────────────────────────────────────────────────────────────────────────────────────
+ ▾   named shares · 2
+▌   2984      0.45   0.08   0.88    125.3k     4      0  09:00             Lock the doors
+    2983      0.25   0.07   0.82    105.3k     3      1  09:00             Finish the warehouse
+ ▾   the rest share 0.30 · 3
+    2985      0.15   ·      1.00         ·     1      0  2026-11-21 19:56  Tidy the shed
+    2989      0.15   0.65   0.05    704.0k     2      0  09:00             Talk to the neighbors
+    2992      ·      0.20   ·       298.6k     0      0  2026-11-23 23:07  Paint the fence
+```
+
+A focus gives each pursuit a share of the work, and the tab answers whether the work is going
+there. It reads `GET /focus` every 15 seconds, the standing that `slate focus show`
+prints, and keeps its order: the furthest under its share first. The rows split by `share_named`
+into the shares the focus named and the rest, which take an even part of what the named shares
+left. The client computes no factor and fills no share, so the tab and `slate focus show` never
+disagree. With no focus in force, one group holds every pursuit and SHARE and FACTOR read `·`.
+Every factor is then null, so the standing's order puts the least output first.
+
+`GET /pursuits`, `GET /focus/history` and `GET /focus/usage` read once a minute. The pursuits
+read gives each row its summary, its measure, and INIT and IDEAS, which count every initiative
+and idea in it whatever its status, as `slate pursuits list` does. It reads every status, because
+a pursuit that is not active stays in the standing while its window holds its output. Each is
+light enough to poll once a minute, as `tab-prior-art-and-read-costs.md` measures.
+
+**The panel charts the pursuit's usage on each day beside its share.** `GET /focus/usage`
+answers every day of the focus from its first to its last, with each pursuit's figures over the
+window ending with that day. Each day's usage draws at the end of its window, so the last day's
+sits at the read. The share is dotted and runs on to the focus's last day, so the days still to
+come show what the work is aimed at. Where a day lacks the pursuit, the line breaks rather than
+joining across it, since a pursuit that is not active is listed only while its window holds its
+output. A failed usage read says `usage by day unread` where the chart would be. A read that
+fails after a good one keeps drawing the good one, and says so under it.
+
+**The total's panel stacks the named shares and the rest.** Usage sums to 1 on a day with any
+output, so the stack's height is the whole of the work and each band is a pursuit's part. The
+legend names each named pursuit with its share. With no focus naming any, the five used most on
+the last day stand apart from the rest. The panel also names the output that reached no pursuit.
+
+- *Rejected:* a line per named pursuit beside its share. Three pursuits and the rest draw eight
+  lines that cross.
+
+**`h` and `l` move between focuses.** An earlier focus's rows come from its usage read's last
+day: its shares, and its usage, factor and output at the end of that day. The strip names its
+span, how it ended and its statement. A focus longer than the API's `USAGE_DAYS` answers its last
+`USAGE_DAYS`, and the strip and the chart's heading name the cut from the read's `days_in_focus`,
+as `the last 30 of its 45 days`. INIT, IDEAS and LAST
+WORKED stand as they are now, because no read answers them for an earlier day. `l` from a focus
+that the history no longer lists returns to the one in force.
+
+The tab declares the `pursuit` kind, so `t` from an initiative or an idea lands on its pursuit's
+row. A line on another tab names a pursuit as it serves the work now, so a jump shows the focus
+in force. An API older than `/focus/usage` answers it as no route. The tab then names the read it
+lacks under the total, and the rows still draw the standing. `--json` prints what
+`cli/internal/cli/tui-pursuits.schema.json` describes: each row's figures under the names that
+`slate focus show --json` gives them, its group, and each day that lists it under the names that
+`slate focus usage --json` gives them.
+
+`slate focus usage [--focus <id>]` prints the same read: the window, then a row per pursuit in
+the last day's order, with that day's share, usage and factor and a glyph a day.
+
 ## `v` groups the same initiatives by tier, repo, pursuit, tag or alone
 
 Tier is the default, because priority is the order in which the queue takes them. A pin outranks
@@ -323,12 +390,12 @@ request by its link.
 | initiative | initiatives | its row on the initiatives tab |
 | issue | initiatives, under its initiative | its row on the initiatives tab |
 | idea | ideas | its row on the ideas tab |
-| pursuit | none: `t` offers nothing | each initiative and idea in it, and its group under `v` pursuit |
+| pursuit | pursuits, at the focus in force | each initiative and idea in it, its group under `v` pursuit, and its row on the pursuits tab |
 | worklog | none: `t` offers nothing | each pull request and session row it holds |
 | pull request | `prs tui --pr`, outside | its row under an issue |
 
 A tab that declares a kind in its `EntityKinds` adds its row here. `t` never offers the tab the
-row is on, so a jump to an initiative, an issue or an idea comes from a row on another tab. The
+row is on, so a jump to an initiative, an issue, an idea or a pursuit comes from a row on another tab. The
 documents tab declares no kind, and each of its rows names its record, of whatever kind.
 
 **A jump to an initiative draws it, whatever the scope.** The per-tier scope draws the first few of

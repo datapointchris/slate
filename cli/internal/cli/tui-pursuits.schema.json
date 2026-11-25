@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:slate:tui:pursuits:v1",
+  "title": "Each pursuit's standing against the focus, as the pursuits tab of slate tui draws it",
+  "description": "What `slate tui --view pursuits --json` prints: the focus in force, or none, and one row per pursuit in the standing's order, the furthest under its share first, with its usage on each day of the focus. A row's figures carry the names that `slate focus show --json` gives them, and each day the names that `slate focus usage --json` gives it. The client computes no figure. This read writes nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "taken_at", "tab", "focus", "window", "days", "rows", "unattributed", "reads"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "taken_at": {"type": "string", "format": "date-time"},
+    "tab": {"const": "pursuits"},
+    "focus": {
+      "description": "The focus in force. Null where none is. The h and l keys reach earlier ones only on screen.",
+      "oneOf": [{"type": "null"}, {"$ref": "#/definitions/focus"}]
+    },
+    "window": {
+      "description": "The span the rows' figures count: the standing's, ending at the read. Null until that read lands.",
+      "oneOf": [{"type": "null"}, {"$ref": "#/definitions/window"}]
+    },
+    "days": {
+      "description": "The days the usage by day answers. Null until it is read, or where its read failed.",
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["first", "last", "since", "until", "cut"],
+          "properties": {
+            "first": {"type": "string", "format": "date"},
+            "last": {"type": "string", "format": "date"},
+            "since": {"type": "string", "format": "date-time"},
+            "until": {"type": "string", "format": "date-time"},
+            "cut": {"description": "Whether the focus ran longer than the read answers, so these are its last days.", "type": "boolean"}
+          }
+        }
+      ]
+    },
+    "rows": {
+      "description": "Each pursuit the standing lists, in its order, the furthest under its share first.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "number", "share", "share_named", "split_output_tokens", "worklog_count", "usage", "factor",
+          "name", "status", "touched_ts", "group", "summary", "initiative_count", "idea_count", "by_day"
+        ],
+        "properties": {
+          "number": {"type": "integer", "minimum": 1},
+          "share": {"description": "Null where no focus is in force, or the pursuit is not active.", "type": ["number", "null"], "minimum": 0, "maximum": 1},
+          "share_named": {"description": "Whether the focus named the share, rather than the pursuit taking its part of what the named shares left.", "type": "boolean"},
+          "split_output_tokens": {"type": "number", "minimum": 0},
+          "worklog_count": {"type": "integer", "minimum": 0},
+          "usage": {"type": "number", "minimum": 0, "maximum": 1},
+          "factor": {"description": "2^(-usage/share), null where share is.", "type": ["number", "null"], "minimum": 0, "maximum": 1},
+          "name": {"type": "string"},
+          "status": {"type": "string"},
+          "touched_ts": {"description": "The latest touch of any initiative in the pursuit now, null where it holds none.", "type": ["string", "null"], "format": "date-time"},
+          "group": {
+            "description": "The group the row sits in: the named shares, the rest, or every pursuit where no focus names a share.",
+            "enum": ["named", "rest", "every"]
+          },
+          "summary": {"description": "The pursuit's summary, null until `GET /pursuits` reads it.", "type": ["string", "null"]},
+          "initiative_count": {"description": "Every initiative in the pursuit, whatever its status, null until `GET /pursuits` reads it.", "type": ["integer", "null"], "minimum": 0},
+          "idea_count": {"description": "Every idea in the pursuit, whatever its status, null until `GET /pursuits` reads it.", "type": ["integer", "null"], "minimum": 0},
+          "by_day": {
+            "description": "Each day of the usage by day that lists the pursuit, oldest first. A pursuit that is not active is listed only on a day whose window drew output from it.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["day", "number", "share", "share_named", "split_output_tokens", "worklog_count", "usage", "factor", "split_output_tokens_on_day"],
+              "properties": {
+                "day": {"type": "string", "format": "date"},
+                "number": {"type": "integer", "minimum": 1},
+                "share": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                "share_named": {"type": "boolean"},
+                "split_output_tokens": {"description": "Its output over the window ending with the day.", "type": "number", "minimum": 0},
+                "worklog_count": {"type": "integer", "minimum": 0},
+                "usage": {"type": "number", "minimum": 0, "maximum": 1},
+                "factor": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                "split_output_tokens_on_day": {"description": "Its output written that day while the focus held.", "type": "number", "minimum": 0}
+              }
+            }
+          }
+        }
+      }
+    },
+    "unattributed": {
+      "description": "The standing's output that reached no pursuit, null on an earlier focus or until the standing is read.",
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["output_tokens", "worklog_count", "outside_worklogs_output_tokens"],
+          "properties": {
+            "output_tokens": {"type": "integer", "minimum": 0},
+            "worklog_count": {"type": "integer", "minimum": 0},
+            "outside_worklogs_output_tokens": {"type": "integer", "minimum": 0}
+          }
+        }
+      ]
+    },
+    "reads": {
+      "description": "Each source the tab reads, as its last read left it: the focus, the pursuits, the focus history and the usage by day.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "every"],
+        "properties": {
+          "name": {"type": "string"},
+          "every": {"type": "string"},
+          "read_at": {"type": "string", "format": "date-time"},
+          "took": {"type": "string"},
+          "tried_at": {"type": "string", "format": "date-time"},
+          "fault": {"type": "string"},
+          "note": {"type": "string"},
+          "reading": {"type": "boolean"}
+        }
+      }
+    }
+  },
+  "definitions": {
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["since", "until"],
+      "properties": {
+        "since": {"type": "string", "format": "date-time"},
+        "until": {"type": "string", "format": "date-time"}
+      }
+    },
+    "focus": {
+      "description": "A focus as `slate focus list --json` gives it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statement", "started_ts", "until_date", "ended_ts", "ended_reason", "set_by", "active", "shares"],
+      "properties": {
+        "id": {"type": "integer", "minimum": 1},
+        "statement": {"type": "string"},
+        "started_ts": {"type": "string", "format": "date-time"},
+        "until_date": {"type": "string", "format": "date"},
+        "ended_ts": {"type": ["string", "null"], "format": "date-time"},
+        "ended_reason": {"type": ["string", "null"]},
+        "set_by": {"type": "string"},
+        "active": {"type": "boolean"},
+        "held_until": {
+          "description": "The instant the focus stops holding: the earlier of ended_ts and the midnight after until_date. Absent from an API that predates it.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "shares": {
+          "description": "Each share the focus named.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pursuit", "share"],
+            "properties": {
+              "pursuit": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["number", "name"],
+                "properties": {
+                  "number": {"type": "integer", "minimum": 1},
+                  "name": {"type": "string"}
+                }
+              },
+              "share": {"type": "number", "minimum": 0, "maximum": 1}
+            }
+          }
+        }
+      }
+    }
+  }
+}

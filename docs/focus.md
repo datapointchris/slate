@@ -21,8 +21,8 @@ that tools such as Jellyfish and LinearB report.
 | `PUT /focus` | sets a focus from now | `slate.focus.write` |
 | `POST /focus/end` | ends the focus in force, with a reason | `slate.focus.write` |
 
-`slate focus show`, `list`, `set` and `end` drive the four routes in that
-order. `set` takes each share as `--share <pursuit>=<fraction>`, the pursuit
+`slate focus show`, `list`, `usage`, `set` and `end` drive the table's routes in
+its order. `set` takes each share as `--share <pursuit>=<fraction>`, the pursuit
 by number or exact name, and reads a name to its number before the PUT.
 
 `focuses` holds each focus: `statement`, `started_ts`, `until_date`,
@@ -149,7 +149,8 @@ holds the writes.
 else the one in force. With neither, it reads the last `USAGE_DAYS` in
 `services/focus_usage_by_day.py`, with every `share` and `factor` null. It
 answers one entry per day of the focus, oldest first, up to its last
-`USAGE_DAYS`. `since`
+`USAGE_DAYS`. `days_in_focus` counts every day of the focus up to the last one
+answered, so a client names a cut read without counting days itself. `since`
 and `until` bound the days answered. `pursuits` names each pursuit that any day
 lists, with its status now.
 
@@ -163,8 +164,9 @@ lists, with its status now.
   the focus in force, so its last day equals `GET /focus` on every figure the
   two share. Otherwise it is the earlier of the focus's `ended_ts` and the
   midnight after its `until_date`, which `held_until` in
-  `services/focuses.py` reads. A focus that lapsed reads the same days after
-  the next set stamps its `ended_ts`.
+  `services/focuses.py` reads. The API answers each focus with that instant as
+  `held_until`. A focus that lapsed reads the same days after the next set
+  stamps its `ended_ts`.
 - **`split_output_tokens_on_day` is the output written that day while the
   focus held.** So output written before the focus began counts on no day. A
   day with no output still has an entry: each pursuit's usage over its window,

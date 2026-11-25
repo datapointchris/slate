@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/datapointchris/goclikit"
@@ -34,6 +35,60 @@ func TestFocusSet_SendsEachShareByItsPursuitsNumber(t *testing.T) {
 	want := []api.FocusShareSet{{Pursuit: 2950, Share: 0.6}, {Pursuit: 3010, Share: 0.25}}
 	if sent.Statement != "Warehouse first" || sent.UntilDate != "2099-12-31" || !slices.Equal(sent.Shares, want) {
 		t.Errorf("sent %+v, want the statement, the day and shares %v", sent, want)
+	}
+}
+
+func TestFocusUsage_PrintsEachPursuitByDayInTheLastDaysOrder(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		noFocus bool
+		// header opens the output where it carries the focus's id.
+		header string
+		// rows are each row's first fields, in the order printed.
+		rows [][]string
+	}{
+		{
+			name: "a focus in force", header: "Focus 3, set",
+			rows: [][]string{
+				{"#2985", "0.15", "(rest)", "·", "1.00", "Tidy"},
+				{"#2984", "0.45", "0.08", "0.88", "▃▅█", "Lock"},
+				{"#2983", "0.25", "0.07", "0.82", "▄▆█", "Finish"},
+				{"#2989", "0.15", "(rest)", "0.65", "0.05", "█▆▆", "Talk"},
+				{"#2992", "·", "0.20", "·", "██", "Paint"},
+			},
+		},
+		{
+			name: "no focus in force", noFocus: true,
+			rows: [][]string{
+				{"#2985", "·", "·", "·", "Tidy"},
+				{"#2983", "·", "0.30", "·", "█▆", "Finish"},
+				{"#2984", "·", "0.70", "·", "▇█", "Lock"},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc((&pursuitsStandIn{noFocus: test.noFocus}).serve))
+			t.Cleanup(server.Close)
+			handToken(t, server.URL, "handed-access-token")
+
+			out, err := runService(t, "focus", "usage")
+			if err != nil {
+				t.Fatalf("run: %v", err)
+			}
+			if test.header != "" && !strings.HasPrefix(out, test.header) {
+				t.Errorf("the header should open %q:\n%s", test.header, out)
+			}
+			var rows [][]string
+			for line := range strings.SplitSeq(out, "\n") {
+				if fields := strings.Fields(line); len(fields) > 0 && strings.HasPrefix(fields[0], "#") {
+					rows = append(rows, fields)
+				}
+			}
+			startsAs := func(row, want []string) bool { return len(row) >= len(want) && slices.Equal(row[:len(want)], want) }
+			if !slices.EqualFunc(rows, test.rows, startsAs) {
+				t.Errorf("printed rows %q, want rows starting %q:\n%s", rows, test.rows, out)
+			}
+		})
 	}
 }
 
