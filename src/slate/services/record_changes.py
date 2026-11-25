@@ -127,7 +127,7 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
 
 
 def former_kind_rows(session: Session, record_id: str) -> set[tuple[str, str]]:
-    """Each kind table that wrote a row under `record_id`, as `ideas` did before a promotion kept the idea's `id` on the new kind's row."""
+    """Each kind table that holds or held a row under `record_id`. A promoted record's `ideas` row is among them."""
     tables = [model.__tablename__ for model in models.KIND_MODELS.values()]
     held = session.scalars(select(Change.table_name).distinct().where(Change.table_name.in_(tables), Change.record_id == record_id))
     return {(table, record_id) for table in held}

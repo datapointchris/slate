@@ -182,8 +182,8 @@ canceled abandoned it, so `expired`, `dropped` and `canceled` check nothing.
 An initiative's read derives `steps`, each checked step from its latest such
 worklog: the worklog's name, when it ended, and the first session in it. A
 promoted idea keeps its number, so the steps it went through are the
-initiative's own. An initiative that an earlier promotion created under a new
-number reads its idea's steps too, through `idea_id`. It derives `stage` as well, the furthest
+initiative's own. An initiative whose `idea_id` is set reads that idea's steps
+too. It derives `stage` as well, the furthest
 checked step, or `idea` before any. [issues.md](issues.md) covers how the
 initiative reads print them. Nothing is read from a document's text, so a retro
 document checks `retro` only through a worklog of that step.

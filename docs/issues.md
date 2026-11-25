@@ -626,10 +626,12 @@ as far as any count of closes reaches, so the read grows with recent closes and
 not with the initiatives.
 
 `untouched_longest` names the active initiative in the group touched longest ago.
-Each initiative's `touched_ts` is the latest of when it was created, when a claim
-on it or one of its issues started, and when one of its issues closed. A claim is
-kept after it ends, so a session that held one and closed nothing still counts as
-a touch.
+Each initiative's `touched_ts` is the latest of when it was created, when it was
+promoted from an idea, when a claim on it or one of its issues started, and when
+one of its issues closed. A claim is kept after it ends, so a session that held
+one and closed nothing still counts as a touch. A promoted initiative keeps its
+idea's `created_ts`, so `records.promoted_ts` is the touch that says when it
+became one.
 
 Its queries do not grow with the initiatives: every read is one query over all
 of them, and everything else folds those rows in memory. It builds no `issue_views` row, because that loads labels,

@@ -24,6 +24,8 @@ from slate import models
 from slate.api.exceptions import NotFoundException
 from slate.api.exceptions import with_article
 from slate.models.record import Kind
+from slate.services.record_lookup import number_holding_id
+from slate.services.record_lookup import parse_uuid
 from slate.services.record_lookup import record_number
 from slate.services.record_lookup import resolve_idea
 
@@ -56,6 +58,8 @@ def lock_idea(session: Session, ref: str) -> models.Idea:
     committed, and answers 409 as a number that another kind holds does.
     """
     number = record_number(ref)
+    if number is None and (idea_id := parse_uuid(ref)) is not None:
+        number = number_holding_id(session, idea_id)
     if number is None:
         number = resolve_idea(session, ref).number
     locked = select(models.Record).where(models.Record.number == number).with_for_update().execution_options(populate_existing=True)

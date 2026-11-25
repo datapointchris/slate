@@ -54,11 +54,13 @@ class IdeaUpdate(RecordModel):
 
 PromotedKind = Literal['initiative', 'issue']
 
-# Each kind's own fields on a promotion. `description`, `priority` and `tags` apply to both kinds.
+# Each kind's own fields on a promotion, each named as that kind's create names it.
 FIELDS_OF_KIND: dict[PromotedKind, frozenset[str]] = {
     'initiative': frozenset({'summary', 'name', 'status', 'autofix', 'pursuits', 'not_planned_steps'}),
     'issue': frozenset({'repo', 'paths', 'type', 'acceptance', 'initiative', 'parent'}),
 }
+# The fields a promotion to either kind takes.
+SHARED_FIELDS = frozenset({'description', 'priority', 'tags'})
 
 
 class IdeaPromote(RecordModel):
@@ -135,9 +137,9 @@ class IdeaWritten(Written):
 
 
 class InitiativeWrittenWithIdea(InitiativeWritten):
-    """A promotion's answer while the release before it is live: `idea` is the record as that release answered one.
+    """A promotion's answer to an initiative, with `idea` in the shape that CLI releases through `cli/v0.66.0` decode.
 
-    That release's CLI decodes `idea`, and its `initiative` names the record itself.
+    `idea.initiative` names the record itself.
     """
 
     idea: Idea

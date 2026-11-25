@@ -11,6 +11,7 @@ import structlog
 from fastapi import HTTPException
 from fastapi import status
 from sqlalchemy import select
+from sqlalchemy import union_all
 from sqlalchemy.orm import Session
 
 from slate import models
@@ -56,6 +57,11 @@ def kind_holding(session: Session, number: int | None) -> str | None:
     return None if record is None else record.kind
 
 
+def number_holding_id(session: Session, record_id: UUID) -> int | None:
+    """The number of the record whose kind row holds `record_id`. A promotion keeps the idea's `id` on the new kind's row."""
+    return session.scalar(union_all(*(select(model.number).where(model.id == record_id) for model in models.KIND_MODELS.values())))
+
+
 def issue_by_number(session: Session, number: int) -> models.Issue | None:
     return session.scalar(select(models.Issue).where(models.Issue.number == number))
 
@@ -89,10 +95,12 @@ def resolve_idea(session: Session, ref: str | UUID | int) -> models.Idea:
     """Fetch an idea by its UUID or its number."""
     idea: models.Idea | None
     number: int | None = None
+    idea_id: UUID | None = None
     if isinstance(ref, int):
         number = ref
         idea = session.scalar(select(models.Idea).where(models.Idea.number == ref))
     elif isinstance(ref, UUID):
+        idea_id = ref
         idea = session.get(models.Idea, ref)
     elif (idea_id := parse_uuid(ref)) is not None:
         idea = session.get(models.Idea, idea_id)
@@ -101,7 +109,9 @@ def resolve_idea(session: Session, ref: str | UUID | int) -> models.Idea:
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f'{ref!r} is not an idea UUID or number')
     if idea is None:
-        raise NotFoundException('idea', str(ref), logger, held_as=kind_holding(session, number))
+        if idea_id is not None:
+            number = number_holding_id(session, idea_id)
+        raise NotFoundException('idea', str(ref), logger, held_as=kind_holding(session, number), held_number=number)
     return idea
 
 

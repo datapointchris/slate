@@ -54,6 +54,8 @@ class NotFoundException(HTTPException):
 
     `held_as` is the kind of record that holds a number asked for as another
     kind, so `issue 1986 not found` says that #1986 is an initiative.
+    `held_number` is that number where `resource_id` is a UUID, as a promoted
+    idea's UUID names its initiative's or issue's row.
     """
 
     def __init__(
@@ -63,11 +65,13 @@ class NotFoundException(HTTPException):
         logger: Any,
         near: Sequence[str] = (),
         held_as: str | None = None,
+        held_number: int | None = None,
     ):
         logger.warning('resource_not_found', resource_type=resource_type, resource_id=resource_id, held_as=held_as)
         detail = f'{resource_type} {resource_id} not found'
         if held_as is not None:
-            detail += f': #{str(resource_id).removeprefix("#")} is {with_article(held_as)}'
+            number = str(resource_id).removeprefix('#') if held_number is None else held_number
+            detail += f': #{number} is {with_article(held_as)}'
         if near:
             detail += '. A name matches only in full, and these come near it: ' + ', '.join(repr(name) for name in near)
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail=detail)

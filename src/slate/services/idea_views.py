@@ -53,9 +53,9 @@ def idea_view(session: Session, idea: models.Idea) -> schemas.Idea:
 
 
 def promoted_idea_view(promoted: PromotedIdea, initiative: schemas.Initiative, now: dt.datetime) -> schemas.Idea:
-    """The idea as the release before in-place promotion answered a promotion, naming the initiative it became.
+    """The idea in the shape that CLI releases through `cli/v0.66.0` read from a promotion, naming the initiative it became.
 
-    The initiative now holds the number's parts, so the view reads them from it.
+    The initiative holds the number's parts, so the view reads them from it.
     """
     return schemas.Idea(
         id=promoted.id,

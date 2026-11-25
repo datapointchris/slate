@@ -48,9 +48,8 @@ initiative's worklogs on slate's issues.
   its initiative's.
 - **An initiative reaches the idea it was promoted from.** A promotion keeps
   the number, so the goes at the idea are already the initiative's own. An
-  earlier promotion created the initiative under a new number and named the
-  idea in `idea_id`. The reach follows that link, because the goes at that idea
-  are the same work under its earlier number.
+  initiative whose `idea_id` names an idea under another number reaches that
+  idea's goes too, because they are the same work under the idea's number.
 
 Reach is not membership. An issue is in an initiative when its `initiative_id`
 names it, which is what an initiative's counts by status and the queue read.

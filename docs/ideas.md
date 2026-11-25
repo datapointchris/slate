@@ -61,9 +61,11 @@ the new kind's from then on. Every worklog still open on it ends as `promoted`
 too, each named as `worklog_ended`. Promoting into `someday` clears the pin, as
 shelving an initiative does, and answers `pin_cleared`.
 
-For one release the initiative's answer also carries `idea`, the idea as it
-was, with `idea.initiative` naming the record itself. The CLI release before
-this one reads that member.
+The initiative's answer also carries `idea`, the idea as it was, with
+`idea.initiative` naming the record itself. CLI releases through `cli/v0.66.0`
+read a promotion's answer from that member. A promoted idea's UUID names the
+new kind's row, so a read or a promotion by that UUID answers as one by its
+number does.
 
 `GET /records/{n}/changes` reads every kind row that held the record's `id`, so
 the idea's writes stay in the number's history after it is an initiative or an
@@ -74,12 +76,12 @@ issue.
   to keep level with the schema, and the work changed numbers at the moment it
   started. `merged-and-moved-ids-prior-art.md` gives what other trackers do.
 
-### Ideas promoted before this hold their initiative under another number
+### An initiative that names an idea in `idea_id` holds its work under another number
 
-An initiative created by the earlier promotion names its idea in `idea_id`, and
-reads it back as `idea`. Promoting such an idea again answers 409 naming that
-initiative. A claim on it goes through with an `idea_promoted` warning naming
-the initiative, because the work lives there.
+An initiative whose `idea_id` is set came from that idea under a number of its
+own, and reads it back as `idea`. Promoting such an idea again answers 409
+naming that initiative. A claim on it goes through with an `idea_promoted`
+warning naming the initiative, because the work lives there.
 
 ## Deleting an idea takes its refs, and an idea that names its initiative is refused
 
@@ -89,6 +91,6 @@ queue only by its delete. `DELETE /ideas/{id}` deletes the idea's record, as
 and worklog on it go with it. The answer names the claims and worklogs as
 `claims_deleted` and `worklogs_deleted`.
 
-An idea that an earlier promotion's initiative names answers 409 naming that
+An idea that an initiative names in `idea_id` answers 409 naming that
 initiative. The initiative's `idea_id` is where its work came from, and would
 quietly set to null if the idea went.

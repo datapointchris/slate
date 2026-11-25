@@ -91,9 +91,8 @@ These cases are set by hand in `services/record_changes.py`:
 - A record reads every kind row that held its `id`. A promotion keeps the
   idea's `id` on the new kind's row, so the idea's writes stay in the number's
   history.
-- An idea that an earlier promotion's initiative names holds that
-  initiative's insert, and no later write to it. Those are the initiative's
-  own.
+- An idea that an initiative names in `idea_id` holds that initiative's
+  insert, and no later write to it. Those are the initiative's own.
 - An issue's comments in `issue_comments`, a table imported rows name and no
   model maps, are read by the issue each one names.
 

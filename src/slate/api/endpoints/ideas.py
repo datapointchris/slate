@@ -21,7 +21,11 @@ from slate.api.callers import signer_named_or_caller
 from slate.api.exceptions import Refusal
 from slate.api.request_zone import RequestZone
 from slate.models.record import Kind
+from slate.schemas.idea import FIELDS_OF_KIND
+from slate.schemas.idea import SHARED_FIELDS
+from slate.schemas.idea import PromotedKind
 from slate.services.claims import end_with_record
+from slate.services.idea_promotion import PromotedIdea
 from slate.services.idea_promotion import lock_idea
 from slate.services.idea_promotion import turn_idea_into
 from slate.services.idea_views import idea_detail
@@ -75,7 +79,11 @@ def read_many(
     groupings: GroupingsQuery,
     limit: RowLimit = None,
 ):
-    """Every idea, promoted or not, most urgent first. Priority 0 is no priority and sorts last."""
+    """Every idea, most urgent first. Priority 0 is no priority and sorts last.
+
+    A promotion turns the idea into its initiative or issue under the same number, so a promoted
+    number is no longer listed. An idea that an initiative names in `idea_id` is listed with it.
+    """
     urgency = case((models.Idea.priority == 0, NO_PRIORITY_URGENCY), else_=models.Idea.priority)
     query = select(models.Idea).order_by(urgency.asc(), models.Idea.number.asc())
     query = narrowed_to_groupings(query, Kind.IDEA, groupings, session)
@@ -195,7 +203,7 @@ def promote(
     The claim and each open worklog end as `promoted`, which closes the shape step, and the answer
     names each. An issue holds no pursuits, so a promotion to one drops the idea's and warns
     `pursuits_dropped` for each. A number another kind holds answers 409, and so does an idea that
-    an earlier release promoted into an initiative of its own.
+    an initiative names in `idea_id`.
     """
     idea = lock_idea(session, id)
     name_record(idea.number)
@@ -212,9 +220,13 @@ def promote(
     return promote_to_initiative(session, idea, request, actor, now, effects)
 
 
-def kept_unless_sent(request: schemas.IdeaPromote, *fields: str) -> dict[str, object]:
-    """Each of `fields` that the request sent. A create sets only the fields it was sent, so the rest keep what the record holds."""
-    return {field: getattr(request, field) for field in fields if getattr(request, field) is not None}
+def create_fields(request: schemas.IdeaPromote, kind: PromotedKind, promoted: PromotedIdea) -> dict[str, object]:
+    """The fields of `kind`'s create: each the request sent, else the idea's description and priority.
+
+    A field left unsent stays out, so the create's default applies, and its tags and pursuits keep what the record holds.
+    """
+    sent = request.model_dump(include=set(FIELDS_OF_KIND[kind] | SHARED_FIELDS), exclude_unset=True, exclude_none=True)
+    return {'description': promoted.description, 'priority': promoted.priority, **sent}
 
 
 def promote_to_initiative(
@@ -223,18 +235,7 @@ def promote_to_initiative(
     promoted = turn_idea_into(session, idea, Kind.INITIATIVE, actor, now)
     initiative = new_initiative(
         session,
-        schemas.InitiativeCreate.model_validate(
-            {
-                'name': request.name or promoted.title,
-                'summary': request.summary,
-                'description': promoted.description if request.description is None else request.description,
-                'status': request.status,
-                'priority': promoted.priority if request.priority is None else request.priority,
-                'autofix': request.autofix,
-                'not_planned_steps': request.not_planned_steps,
-                **kept_unless_sent(request, 'tags', 'pursuits'),
-            }
-        ),
+        schemas.InitiativeCreate.model_validate({'name': promoted.title, **create_fields(request, 'initiative', promoted)}),
         from_idea=promoted,
     )
     if initiative.status != 'active':
@@ -264,20 +265,7 @@ def promote_to_issue(
     promoted = turn_idea_into(session, idea, Kind.ISSUE, actor, now)
     issue = new_issue(
         session,
-        schemas.IssueCreate.model_validate(
-            {
-                'title': promoted.title,
-                'description': promoted.description if request.description is None else request.description,
-                'acceptance': request.acceptance,
-                'repo': request.repo,
-                'paths': request.paths,
-                'type': request.type,
-                'priority': promoted.priority if request.priority is None else request.priority,
-                'initiative': request.initiative,
-                'parent': request.parent,
-                **kept_unless_sent(request, 'tags'),
-            }
-        ),
+        schemas.IssueCreate.model_validate({'title': promoted.title, **create_fields(request, 'issue', promoted)}),
         actor,
         effects,
         from_idea=promoted,
