@@ -2,8 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"io"
-	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -11,7 +9,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/datapointchris/gotermboard"
-	"github.com/pkg/browser"
 	"go.opentelemetry.io/otel/baggage"
 
 	"github.com/datapointchris/slate/cli/internal/repos"
@@ -128,36 +125,12 @@ func (b *initiativesBoard) repoOf(kind string, number int) string {
 	return ""
 }
 
-// webLink says whether link opens a web page, the one kind of link the board hands on.
-// A worklog's link is free text any writer sets, and a desktop opener honors file, ssh and
-// every scheme an app registers.
-func webLink(link string) bool {
-	parsed, err := url.Parse(link)
-	return err == nil && (parsed.Scheme == "https" || parsed.Scheme == "http") && parsed.Host != ""
-}
-
 // openInBrowser is o on a pull request's row.
 func (b *initiativesBoard) openInBrowser(m *gotermboard.Model) tea.Cmd {
 	if link, ok := pullRequestAt(m.Cursor()); ok {
-		openWebLink(m, link)
+		return openWebLink(m, link)
 	}
 	return nil
-}
-
-// openWebLink opens link in the browser where it is a web link, and otherwise names it, as o
-// does on any tab.
-func openWebLink(m *gotermboard.Model, link string) {
-	if !webLink(link) {
-		m.Say(fmt.Sprintf("%s is not a web link, so nothing opened it", link))
-		return
-	}
-	// The browser's own output would draw over the board.
-	browser.Stdout, browser.Stderr = io.Discard, io.Discard
-	if err := browser.OpenURL(link); err != nil {
-		m.Say(fmt.Sprintf("no browser opened %s: %v", pullRequestName(link), err))
-		return
-	}
-	m.Say("opened " + pullRequestName(link) + " in the browser")
 }
 
 // pullRequestKeyPrefix leads a pull request row's key, which ends in the link as recorded.
@@ -182,22 +155,4 @@ func pullRequestAt(key string) (string, bool) {
 func onPullRequest(m *gotermboard.Model) bool {
 	_, ok := pullRequestAt(m.Cursor())
 	return ok
-}
-
-// pullRequestName is a pull request's link as owner/name#number, where its path reads as
-// GitHub's, Bitbucket Cloud's or Bitbucket Server's does, with or without a tab after the
-// number, and otherwise the link whole.
-func pullRequestName(link string) string {
-	parsed, err := url.Parse(link)
-	if err != nil {
-		return link
-	}
-	parts := strings.Split(strings.Trim(parsed.Path, "/"), "/")
-	switch {
-	case len(parts) >= 6 && parts[0] == "projects" && parts[2] == "repos" && parts[4] == "pull-requests":
-		return parts[1] + "/" + parts[3] + "#" + parts[5]
-	case len(parts) >= 4 && (parts[2] == "pull" || parts[2] == "pull-requests"):
-		return parts[0] + "/" + parts[1] + "#" + parts[3]
-	}
-	return link
 }

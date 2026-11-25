@@ -178,9 +178,10 @@ func newTUICommand() *cobra.Command {
 			"last day. tui-pursuits.schema.json in slate's cli/internal/cli holds the shape\n" +
 			"--json prints of it.\n\n" +
 			"worklogs is the live worklogs, the expired ones whose claim ran out, and the\n" +
-			fmt.Sprintf("newest %d ended, each with its step, stage, start, sessions, holder and what its\n", endedWorklogsStep) +
-			fmt.Sprintf("claim waits on. + and - read %d ended more or fewer, up to %d. enter unfolds a\n", endedWorklogsStep, worklogsReadMost) +
-			"worklog into its sessions and the commits, pull requests and landings it links.\n" +
+			fmt.Sprintf("%d that ended last, each with its step, stage, when it came to that state,\n", endedWorklogsStep) +
+			fmt.Sprintf("sessions, holder and what its claim waits on. + and - read %d ended more or\n", endedWorklogsStep) +
+			fmt.Sprintf("fewer, up to %d. enter unfolds a worklog into its sessions and the commits,\n", worklogsReadMost) +
+			"pull requests and landings it links.\n" +
 			"enter on a pull request opens `prs tui` on it, and o opens a web link in the\n" +
 			"browser and names any other. The panel holds the claim and its waits, each\n" +
 			"session's span, the links and the document versions it wrote, then its tokens by\n" +
@@ -188,8 +189,10 @@ func newTUICommand() *cobra.Command {
 			"them. tui-worklogs.schema.json in slate's cli/internal/cli holds the shape --json\n" +
 			"prints of it.\n\n" +
 			"t on a row goes to another tab that draws what the row names, where one does, and\n" +
-			"esc comes back. t on a pull request opens `prs tui` on it. * locks every tab to the\n" +
-			"lines naming what the row names, such as one pursuit, and lifts the lock.\n\n" +
+			"esc comes back. Where a row names two such things, t asks which. t on a pull\n" +
+			"request opens `prs tui` on it, and asks first where the row names its worklog\n" +
+			"too. * locks every tab to the lines naming what the row names, such as one\n" +
+			"pursuit, and lifts the lock.\n\n" +
 			"The next run opens on the tab last moved to, unless --view names one. Each tab\n" +
 			"keeps its p panel, f summaries, v grouping, and the groups and rows folded and\n" +
 			"opened, in $XDG_STATE_HOME/slate/tui-display.json. A run --grouping names keeps none.\n\n" +
@@ -281,7 +284,7 @@ func tuiTabList(in tabInputs) []gotermboard.Tab {
 	return list
 }
 
-// openTabs is the program of tabs, opening on view, where t on a pull request opens prs.
+// openTabs is the program of tabs, opening on view, where a jump to a pull request opens prs.
 func openTabs(tabs []gotermboard.Tab, view string) (*gotermboard.Tabs, error) {
 	program, err := gotermboard.NewTabs(tabs, gotermstyle.PaletteFor(os.Stdout), view)
 	if err != nil {

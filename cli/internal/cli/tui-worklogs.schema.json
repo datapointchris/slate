@@ -2,10 +2,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:slate:tui:worklogs:v1",
   "title": "The live, expired and newest ended worklogs that the worklogs tab of slate tui draws",
-  "description": "What `slate tui --view worklogs --json` prints: the live worklogs, the expired ones whose claim ran out, and the newest ended, each under the names and values that `slate worklogs list --json` gives it. Each read names its state and a limit, so a list that reached its limit leaves older worklogs unread. A worklog that changed state between two reads sits once, under the read that landed last. cursor_record_totals is what the panel draws of the record holding the cursor's worklog, under the names that `slate totals --json` gives them. This read writes nothing.",
+  "description": "What `slate tui --view worklogs --json` prints: the live worklogs, the expired ones whose claim ran out, and the newest ended, each under the names and values that `slate worklogs list --json` gives it. Each read names its state and a limit, so a list that reached its limit leaves older worklogs unread. A worklog that changed state between two reads sits once, under the read that landed last. cursor_worklog names the worklog under the cursor, and cursor_record_totals is what the panel draws of its record. This read writes nothing.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "taken_at", "tab", "live", "expired", "ended", "cursor_record_totals", "reads"],
+  "required": ["schema_version", "taken_at", "tab", "live", "expired", "ended", "cursor_worklog", "cursor_record_totals", "reads"],
   "properties": {
     "schema_version": {"const": 1},
     "taken_at": {"type": "string", "format": "date-time"},
@@ -16,25 +16,28 @@
       "items": {"$ref": "#/definitions/worklog"}
     },
     "expired": {
-      "description": "The worklogs whose claim ran out with no write ending them, the latest started first.",
+      "description": "The worklogs whose claim ran out with no write ending them, the latest to run out first.",
       "type": "array",
       "items": {"$ref": "#/definitions/worklog"}
     },
     "ended": {
-      "description": "The newest ended worklogs, the latest started first, as many as the ended read asked for.",
+      "description": "The newest ended worklogs, the latest ended first, as many as the ended read asked for.",
       "type": "array",
       "items": {"$ref": "#/definitions/worklog"}
     },
+    "cursor_worklog": {
+      "description": "The worklog under the cursor, which --json puts on the first live one. Null where no worklog is live.",
+      "type": ["string", "null"]
+    },
     "cursor_record_totals": {
-      "description": "The record holding the worklog under the cursor, which --json puts on the first live one, with its tokens by kind over all its work and the estimate its latest preflight set. Null where no worklog is live, or before its read lands.",
+      "description": "The record holding cursor_worklog, with its tokens by kind over all its work and the estimate its latest preflight set. tokens and estimate carry the names and values `slate totals --json` gives them, and record is that answer's scope.record. Null where no worklog is live, or before its read lands.",
       "oneOf": [
         {"type": "null"},
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["worklog", "record", "tokens", "estimate"],
+          "required": ["record", "tokens", "estimate"],
           "properties": {
-            "worklog": {"description": "The worklog under the cursor.", "type": "string"},
             "record": {"$ref": "#/definitions/record"},
             "tokens": {
               "description": "Every token the record's worklogs and those of every record under it hold. Null while none was reported.",
@@ -191,12 +194,12 @@
       }
     },
     "worklog": {
-      "description": "One go at one record, named <record>.<sequence>. state, stage and tokens are derived on every read, and tokens sums its spans' as each session last reported them.",
+      "description": "One go at one record, named <record>.<sequence>. state, stage, held_until and tokens are derived on every read, and tokens sums its spans' as each session last reported them.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "name", "former_names", "record_number", "sequence", "record", "opened_by", "step", "estimate",
-        "started_ts", "ended_ts", "outcome", "ended_by", "flow_id", "state", "stage", "claim", "waits",
+        "started_ts", "ended_ts", "outcome", "ended_by", "flow_id", "held_until", "state", "stage", "claim", "waits",
         "tokens", "spans", "links", "document_versions"
       ],
       "properties": {
@@ -216,6 +219,10 @@
         "outcome": {"type": ["string", "null"]},
         "ended_by": {"type": ["string", "null"]},
         "flow_id": {"type": ["string", "null"]},
+        "held_until": {
+          "description": "When it stopped being under way: its end, else where its claim ran out or ended. Null while live.",
+          "type": ["string", "null"], "format": "date-time"
+        },
         "state": {"enum": ["live", "expired", "ended"]},
         "stage": {"enum": ["started", "planned", "committed", "pull_request", "landed"]},
         "claim": {"oneOf": [{"type": "null"}, {"$ref": "#/definitions/claim"}]},

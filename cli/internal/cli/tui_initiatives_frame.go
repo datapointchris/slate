@@ -719,51 +719,10 @@ func pullRequestRow(issue int, placement string, worklog api.Worklog, link api.W
 				{},
 				plainLine(fmt.Sprintf("in %s, linked %s ago by %s", worklog.Name, ageOf(&link.LinkedTS, now), link.LinkedBy)),
 				{},
-				dimLine("enter opens it in prs, and o in the browser"),
+				dimLine(pullRequestOpens),
 			}
 		},
 	}
-}
-
-// workedSession is one session's spans in one worklog, summed.
-type workedSession struct {
-	id        string
-	directory string
-	started   time.Time
-	ended     *time.Time
-	tokens    *api.Tokens
-}
-
-// sessionsIn is each session that joined the worklog, in the order each first joined. A
-// session that left and joined again is one, ended only where its every span is.
-func sessionsIn(worklog api.Worklog) []workedSession {
-	var sessions []workedSession
-	at := map[string]int{}
-	for _, span := range worklog.Spans {
-		i, seen := at[span.Session]
-		if !seen {
-			at[span.Session] = len(sessions)
-			sessions = append(sessions, workedSession{id: span.Session, directory: strValue(span.Directory), started: span.StartedTS, ended: span.EndedTS})
-			i = len(sessions) - 1
-		}
-		session := &sessions[i]
-		switch {
-		case span.EndedTS == nil:
-			session.ended = nil
-		case session.ended != nil && span.EndedTS.After(*session.ended):
-			session.ended = span.EndedTS
-		}
-		if span.Tokens != nil {
-			if session.tokens == nil {
-				session.tokens = &api.Tokens{}
-			}
-			session.tokens.UncachedInput += span.Tokens.UncachedInput
-			session.tokens.CacheWrite += span.Tokens.CacheWrite
-			session.tokens.CacheRead += span.Tokens.CacheRead
-			session.tokens.Output += span.Tokens.Output
-		}
-	}
-	return sessions
 }
 
 func sessionRow(issue int, placement string, worklog api.Worklog, session workedSession, now time.Time) gotermboard.Row {
@@ -779,9 +738,7 @@ func sessionRow(issue int, placement string, worklog api.Worklog, session worked
 		lines = append(lines, dimLine(session.directory))
 	}
 	if session.tokens != nil {
-		lines = append(lines, plainLine(fmt.Sprintf("uncached input %s · cache write %s · cache read %s · output %s",
-			groupedDigits(session.tokens.UncachedInput), groupedDigits(session.tokens.CacheWrite),
-			groupedDigits(session.tokens.CacheRead), groupedDigits(session.tokens.Output))))
+		lines = append(lines, plainLine(kindsThenCounts(mapped(session.tokens.ByKind(), groupedDigits))))
 	}
 	return gotermboard.Row{
 		Key:      fmt.Sprintf("session:%d%s:%s:%s", issue, placement, worklog.Name, session.id),
@@ -794,12 +751,6 @@ func sessionRow(issue int, placement string, worklog api.Worklog, session worked
 		Text:     session.id + " " + session.directory,
 		Document: func(int) []gotermboard.Line { return lines },
 	}
-}
-
-// shortSession is a session id's first group, as a person tells sessions apart.
-func shortSession(id string) string {
-	first, _, _ := strings.Cut(id, "-")
-	return first
 }
 
 // workCount is what a folded issue says its worklogs hold.

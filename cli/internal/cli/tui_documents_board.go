@@ -68,7 +68,7 @@ type documentFault struct {
 }
 
 // documentsBoard is the documents tab. Its reads run off the program's goroutine and touch only
-// their sources, the atomics and readFailure. The keys and Frame run on it.
+// their sources, the atomics and their own failures. The keys and Frame run on it.
 type documentsBoard struct {
 	client *api.Client
 	// records is the bound the next list read asks for, which + and - move.
@@ -81,8 +81,9 @@ type documentsBoard struct {
 	cursor    atomic.Pointer[string]
 	bodyFault atomic.Pointer[documentFault]
 	markdown  *markdown.Renderer
-	// readFailure is the list read's last failure, for --once and --json to exit on.
-	readFailure error
+	// readFailure and bodyFailure are the list's and the body's last failures, for --once and
+	// --json to exit on.
+	readFailure, bodyFailure error
 }
 
 func newDocumentsBoard(client *api.Client) *documentsBoard {
@@ -121,6 +122,7 @@ func (b *documentsBoard) readCursorDocument(ctx context.Context) (documentBodies
 		return held, "", nil
 	}
 	document, err := b.client.GetDocument(ctx, strconv.Itoa(listed.RecordNumber), listed.Name, nil)
+	b.bodyFailure = err
 	if err != nil {
 		b.bodyFault.Store(&documentFault{address: listed.Address, fault: err.Error()})
 		return held, "", err
@@ -188,7 +190,7 @@ func (b *documentsBoard) readOnce(ctx context.Context) error {
 		b.cursor.Store(&opening)
 		b.bodies.Refresh(ctx)
 	}
-	return nil
+	return b.bodyFailure
 }
 
 // recordDocuments is one record's documents, as a group of the tab.

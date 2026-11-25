@@ -68,9 +68,11 @@ func newWorklogsListCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List worklogs, latest started first: the live ones by default",
+		Short: "List worklogs, latest first: the live ones by default",
 		Long: "--state live is what is under way now. expired is the worklogs whose claim ran\n" +
 			"out and no write has ended yet. ended is history, and all is every worklog.\n" +
+			"live and all list the latest started first, and expired and ended the latest to\n" +
+			"stop first, so --limit keeps what ran out or ended most recently.\n" +
 			"STAGE is the furthest it reached: started, planned once it wrote a plan\n" +
 			"document, then committed, pull_request and landed as its links reach them.",
 		Example: "  slate worklogs list\n" +

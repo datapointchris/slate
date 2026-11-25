@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strconv"
 	"sync/atomic"
@@ -479,19 +478,6 @@ func outputCell(tokens float64) gotermboard.Cell {
 		return gotermboard.C(noFigure, dimCode)
 	}
 	return gotermboard.C(shortTokenCount(tokens), "")
-}
-
-// shortTokenCount writes a count of tokens short, as 19.9k, 1.2M or 1.2B.
-func shortTokenCount(tokens float64) string {
-	switch {
-	case tokens >= 1e9:
-		return strconv.FormatFloat(tokens/1e9, 'f', 1, 64) + "B"
-	case tokens >= 1e6:
-		return strconv.FormatFloat(tokens/1e6, 'f', 1, 64) + "M"
-	case tokens >= 1e3:
-		return strconv.FormatFloat(tokens/1e3, 'f', 1, 64) + "k"
-	}
-	return strconv.FormatFloat(math.Round(tokens), 'f', 0, 64)
 }
 
 func touchedCell(touched *time.Time, now time.Time) gotermboard.Cell {

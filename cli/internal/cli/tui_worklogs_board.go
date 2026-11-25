@@ -39,7 +39,7 @@ var worklogColumns = []gotermboard.Column{
 	{Title: "WORKLOG"},
 	{Title: "STEP"},
 	{Title: "STAGE"},
-	{Title: "STARTED"},
+	{Title: "SINCE"},
 	{Title: "SESS", Right: true},
 	{Title: "HOLDER"},
 	{Title: "WAITS ON", Max: waitsOnShown},
@@ -47,7 +47,7 @@ var worklogColumns = []gotermboard.Column{
 }
 
 // The keys of the tab's lines. Each line under a worklog carries the worklog's name second, so
-// the cursor's record is read from its key alone.
+// no two worklogs' lines share a key.
 const (
 	worklogKeyPrefix        = "worklog:"
 	worklogSessionKeyPrefix = "worklog-session:"
@@ -67,17 +67,6 @@ func worklogLinkKey(name string, link api.WorklogLink) string {
 	return worklogLinkKeyPrefix + name + ":" + link.Kind + ":" + link.Ref
 }
 
-// worklogOfKey is the name of the worklog holding the line that key names.
-func worklogOfKey(key string) (string, bool) {
-	for _, prefix := range []string{worklogKeyPrefix, worklogSessionKeyPrefix, worklogLinkKeyPrefix, worklogEmptyKeyPrefix} {
-		if rest, ok := strings.CutPrefix(key, prefix); ok {
-			name, _, _ := strings.Cut(rest, ":")
-			return name, name != ""
-		}
-	}
-	return "", false
-}
-
 // linkOfKey is the kind and ref a link row's key holds. A ref may hold colons, so it is the rest.
 func linkOfKey(key string) (kind, ref string, ok bool) {
 	rest, found := strings.CutPrefix(key, worklogLinkKeyPrefix)
@@ -91,11 +80,10 @@ func linkOfKey(key string) (kind, ref string, ok bool) {
 	return parts[1], parts[2], true
 }
 
-// worklogRecord is the number of the record holding a worklog, which leads its name.
-func worklogRecord(name string) (int, bool) {
-	number, _, _ := strings.Cut(name, ".")
-	n, err := strconv.Atoi(number)
-	return n, err == nil
+// cursorWorklog is the worklog holding the cursor's line, and its record.
+type cursorWorklog struct {
+	name   string
+	record int
 }
 
 // endedRead is one read of the newest ended worklogs, with the limit it asked for.
@@ -116,16 +104,22 @@ type totalsFault struct {
 // worklogsBoard is the worklogs tab. Its reads run off the program's goroutine and touch only
 // their sources, the atomics and their own failure. The keys and Frame run on it.
 type worklogsBoard struct {
-	client          *api.Client
-	live, expired   *gotermboard.Source[[]api.Worklog]
-	ended           *gotermboard.Source[endedRead]
+	client        *api.Client
+	live, expired *gotermboard.Source[[]api.Worklog]
+	ended         *gotermboard.Source[endedRead]
+	// found is a jump's sought worklog, where none of the bounded reads holds it.
+	found           *gotermboard.Source[[]api.Worklog]
 	totals          *gotermboard.Source[recordTotals]
 	endedLimit      atomic.Int64
-	cursor          atomic.Pointer[string]
+	sought          atomic.Pointer[string]
+	cursor          atomic.Pointer[cursorWorklog]
 	lastTotalsFault atomic.Pointer[totalsFault]
-	liveFailure     error
-	expiredFailure  error
-	endedFailure    error
+	// lines is each line's worklog as the last Frame drew it, which CursorOn looks the cursor up in.
+	lines          map[string]cursorWorklog
+	liveFailure    error
+	expiredFailure error
+	endedFailure   error
+	totalsFailure  error
 }
 
 func newWorklogsBoard(client *api.Client) *worklogsBoard {
@@ -147,8 +141,33 @@ func newWorklogsBoard(client *api.Client) *worklogsBoard {
 		b.endedFailure = err
 		return endedRead{worklogs: worklogs, limit: limit}, "", err
 	})
+	b.found = gotermboard.NewSource("sought worklog", boardTextReadEvery, b.readSought)
 	b.totals = gotermboard.NewSource("cursor's record totals", boardTextReadEvery, b.readCursorTotals)
 	return b
+}
+
+// readSought reads a jump's sought worklog by its name, where none of the bounded reads
+// holds it, so a jump to one that ended long ago lands on its row.
+func (b *worklogsBoard) readSought(ctx context.Context) ([]api.Worklog, string, error) {
+	name := b.sought.Load()
+	if name == nil || b.listsHold(*name) {
+		return nil, "", nil
+	}
+	worklog, err := b.client.GetWorklog(ctx, *name)
+	var refused *api.APIError
+	if errors.As(err, &refused) && refused.NotFound() {
+		return nil, "", nil
+	}
+	if err != nil {
+		return b.found.Value(), "", err
+	}
+	return []api.Worklog{worklog}, "", nil
+}
+
+func (b *worklogsBoard) listsHold(name string) bool {
+	named := func(worklog api.Worklog) bool { return worklog.Name == name }
+	return slices.ContainsFunc(b.live.Value(), named) || slices.ContainsFunc(b.expired.Value(), named) ||
+		slices.ContainsFunc(b.ended.Value().worklogs, named)
 }
 
 func (b *worklogsBoard) list(ctx context.Context, state string, limit int) ([]api.Worklog, error) {
@@ -159,11 +178,13 @@ func (b *worklogsBoard) list(ctx context.Context, state string, limit int) ([]ap
 // the record's spend and estimate. It reads again each tick while the cursor stays there.
 func (b *worklogsBoard) readCursorTotals(ctx context.Context) (recordTotals, string, error) {
 	held := b.totals.Value()
-	record, ok := b.cursorRecord()
-	if !ok {
+	cursor := b.cursor.Load()
+	if cursor == nil {
 		return held, "", nil
 	}
+	record := cursor.record
 	totals, err := b.client.GetTotals(ctx, api.TotalsFilter{Record: strconv.Itoa(record)}, api.Window{})
+	b.totalsFailure = err
 	if err != nil {
 		b.lastTotalsFault.Store(&totalsFault{record: record, fault: err.Error()})
 		return held, "", err
@@ -175,22 +196,9 @@ func (b *worklogsBoard) readCursorTotals(ctx context.Context) (recordTotals, str
 	return next, "", nil
 }
 
-// cursorRecord is the number of the record holding the cursor's worklog.
-func (b *worklogsBoard) cursorRecord() (int, bool) {
-	key := b.cursor.Load()
-	if key == nil {
-		return 0, false
-	}
-	name, ok := worklogOfKey(*key)
-	if !ok {
-		return 0, false
-	}
-	return worklogRecord(name)
-}
-
 // Sources is gotermboard.Board's.
 func (b *worklogsBoard) Sources() []gotermboard.Refresher {
-	return []gotermboard.Refresher{b.live, b.expired, b.ended, b.totals}
+	return []gotermboard.Refresher{b.live, b.expired, b.ended, b.found, b.totals}
 }
 
 // Groupings is gotermboard.Board's.
@@ -199,20 +207,29 @@ func (b *worklogsBoard) Groupings() []string { return nil }
 // CursorOn is gotermboard.CursorBoard's. A record's totals read on the next tick where none is
 // held, so holding a key down reads only the record it stops on.
 func (b *worklogsBoard) CursorOn(key string) {
-	b.cursor.Store(&key)
-	if record, ok := b.cursorRecord(); ok {
-		if _, held := b.totals.Value()[record]; !held {
-			b.totals.Force()
-		}
+	at, ok := b.lines[key]
+	if !ok {
+		b.cursor.Store(nil)
+		return
+	}
+	b.cursor.Store(&at)
+	if _, held := b.totals.Value()[at.record]; !held {
+		b.totals.Force()
 	}
 }
 
 // EntityKinds is gotermboard.EntityBoard's.
 func (b *worklogsBoard) EntityKinds() []string { return []string{entityKindWorklog} }
 
-// ShowEntity is gotermboard.EntityBoard's. A worklog past the ended read's bound is not read,
-// so the seek names it as one the tab lacks.
-func (b *worklogsBoard) ShowEntity(gotermboard.EntityRef) bool { return false }
+// ShowEntity is gotermboard.EntityBoard's. A worklog none of the bounded reads holds is read by
+// its name, and drawn under its state until a later jump seeks another.
+func (b *worklogsBoard) ShowEntity(ref gotermboard.EntityRef) bool {
+	if ref.Kind == entityKindWorklog {
+		b.sought.Store(&ref.ID)
+		b.found.Force()
+	}
+	return false
+}
 
 // readOnce is every read a printed frame draws from, the opening worklog's record totals last,
 // because the lists say which worklog that is.
@@ -221,11 +238,11 @@ func (b *worklogsBoard) readOnce(ctx context.Context) error {
 	if err := errors.Join(b.liveFailure, b.expiredFailure, b.endedFailure); err != nil {
 		return err
 	}
-	if opening := openingWorklog(b.groups()); opening != "" {
-		b.cursor.Store(&opening)
+	if live := b.groups()[0].worklogs; len(live) > 0 {
+		b.cursor.Store(&cursorWorklog{name: live[0].Name, record: live[0].RecordNumber})
 		b.totals.Refresh(ctx)
 	}
-	return nil
+	return b.totalsFailure
 }
 
 // worklogGroup is one read's worklogs, under the state that read asked for.
@@ -261,6 +278,12 @@ func (b *worklogsBoard) groups() []worklogGroup {
 	}
 	for at := range groups {
 		groups[at].worklogs = slices.DeleteFunc(slices.Clone(groups[at].worklogs), func(worklog api.Worklog) bool { return placedIn[worklog.Name] != at })
+	}
+	for _, worklog := range b.found.Value() {
+		at := slices.IndexFunc(groups, func(group worklogGroup) bool { return group.state == worklog.State })
+		if _, placed := placedIn[worklog.Name]; !placed && at >= 0 {
+			groups[at].worklogs = append(groups[at].worklogs, worklog)
+		}
 	}
 	return groups
 }
@@ -305,7 +328,7 @@ func (b *worklogsBoard) Actions() []gotermboard.Action {
 			Keys: []string{"o"}, Label: "open the link in the browser, where it is a web link", Footer: "o browser",
 			Run: func(m *gotermboard.Model) tea.Cmd {
 				if _, ref, ok := linkOfKey(m.Cursor()); ok {
-					openWebLink(m, ref)
+					return openWebLink(m, ref)
 				}
 				return nil
 			},
@@ -325,6 +348,12 @@ func (b *worklogsBoard) Actions() []gotermboard.Action {
 	}
 }
 
+// Receive is gotermboard.ReceivingBoard's.
+func (b *worklogsBoard) Receive(m *gotermboard.Model, msg tea.Msg) tea.Cmd {
+	sayLinkOpened(m, msg)
+	return nil
+}
+
 // moreEnded says the ended read answered all it asked for, and the bound can grow.
 func (b *worklogsBoard) moreEnded() bool {
 	read := b.ended.Value()
@@ -335,9 +364,11 @@ func (b *worklogsBoard) moreEnded() bool {
 func (b *worklogsBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 	groups := b.groups()
 	frame := gotermboard.Frame{Columns: worklogColumns, Strip: []gotermboard.Line{b.stripLine(now, groups), {}}}
+	lines := map[string]cursorWorklog{}
 	for _, group := range groups {
-		frame.Groups = append(frame.Groups, b.stateGroup(group, now))
+		frame.Groups = append(frame.Groups, b.stateGroup(group, now, lines))
 	}
+	b.lines = lines
 	frame.StartAt = openingWorklog(groups)
 	return frame
 }
@@ -358,16 +389,17 @@ func (b *worklogsBoard) stripLine(now time.Time, groups []worklogGroup) gotermbo
 	if len(counts) > 0 {
 		line = append(line, gotermboard.C(strings.Join(counts, " · "), ""), gotermboard.C("   ", ""))
 	}
-	// The totals read ticks without reading while the cursor is on no worklog, so only its
-	// fault reaches the strip, and the age is the lists'.
-	totals := b.totals.Status()
-	totals.ReadAt = time.Time{}
-	return append(line, gotermboard.ReadStatus([]gotermboard.Status{b.live.Status(), b.expired.Status(), b.ended.Status(), totals}, now)...)
+	// The totals and the sought worklog tick without reading while there is nothing to read, so
+	// only their faults reach the strip, and the age is the lists'.
+	totals, found := b.totals.Status(), b.found.Status()
+	totals.ReadAt, found.ReadAt = time.Time{}, time.Time{}
+	return append(line, gotermboard.ReadStatus([]gotermboard.Status{b.live.Status(), b.expired.Status(), b.ended.Status(), found, totals}, now)...)
 }
 
 // stateGroup is one state's worklogs, the live open and the rest folded. Its title is a Span,
-// so its count never widens the column of worklog names under it.
-func (b *worklogsBoard) stateGroup(group worklogGroup, now time.Time) gotermboard.Group {
+// so its count never widens the column of worklog names under it. Each line under a worklog
+// goes into lines with that worklog.
+func (b *worklogsBoard) stateGroup(group worklogGroup, now time.Time, lines map[string]cursorWorklog) gotermboard.Group {
 	span := gotermboard.Line{gotermboard.C(group.state, tierTone)}
 	switch {
 	case group.cut:
@@ -391,7 +423,13 @@ func (b *worklogsBoard) stateGroup(group worklogGroup, now time.Time) gotermboar
 		g.Below = []gotermboard.Line{dimLine("reading…")}
 	}
 	for _, worklog := range group.worklogs {
-		g.Groups = append(g.Groups, b.worklogGroup(worklog, now))
+		drawn := b.worklogGroup(worklog, now)
+		at := cursorWorklog{name: worklog.Name, record: worklog.RecordNumber}
+		lines[drawn.Key] = at
+		for _, row := range drawn.Rows {
+			lines[row.Key] = at
+		}
+		g.Groups = append(g.Groups, drawn)
 	}
 	return g
 }
@@ -404,10 +442,15 @@ func endedBoundNote(limit int) string {
 	return fmt.Sprintf("+ reads %d more", endedWorklogsStep)
 }
 
+// worklogRefs is what every line under a worklog names: the worklog and its record.
+func worklogRefs(worklog api.Worklog) []gotermboard.EntityRef {
+	return []gotermboard.EntityRef{{Kind: entityKindWorklog, ID: worklog.Name}, recordEntity(worklog.Record.Kind, worklog.RecordNumber)}
+}
+
 // worklogEntities is what a worklog's line names: the worklog, its record, and each pull request
 // it links, so t goes to the record's tab or to prs.
 func worklogEntities(worklog api.Worklog) []gotermboard.EntityRef {
-	refs := []gotermboard.EntityRef{{Kind: entityKindWorklog, ID: worklog.Name}, recordEntity(worklog.Record.Kind, worklog.RecordNumber)}
+	refs := worklogRefs(worklog)
 	for _, link := range worklog.Links {
 		if link.Kind == api.WorklogLinkPullRequest {
 			refs = append(refs, gotermboard.EntityRef{Kind: entityKindPullRequest, ID: link.Ref})
@@ -441,7 +484,7 @@ func (b *worklogsBoard) worklogGroup(worklog api.Worklog, now time.Time) gotermb
 		Cells: []gotermboard.Cell{
 			step,
 			gotermboard.C(worklog.Stage, ""),
-			gotermboard.C(localClock(worklog.StartedTS, now), dimCode),
+			sinceCell(worklog, now),
 			gotermboard.C(strconv.Itoa(len(sessions)), ""),
 			gotermboard.C(worklogHolder(worklog), ""),
 			gotermboard.C(waiting, gotermboard.Yellow),
@@ -452,6 +495,19 @@ func (b *worklogsBoard) worklogGroup(worklog api.Worklog, now time.Time) gotermb
 		Text:   strings.Join(text, " "),
 		Panel:  func(int) []gotermboard.Line { return b.worklogPanel(worklog, sessions, now) },
 	}
+}
+
+// sinceCell is when the worklog came to its state: its start while live, and where it stopped
+// being under way once it ran out or ended.
+func sinceCell(worklog api.Worklog, now time.Time) gotermboard.Cell {
+	since := worklog.HeldUntil
+	if worklog.State == api.WorklogStateLive {
+		since = &worklog.StartedTS
+	}
+	if since == nil {
+		return gotermboard.C("—", dimCode)
+	}
+	return gotermboard.C(localClock(*since, now), dimCode)
 }
 
 // worklogHolder is who holds the worklog's claim, as a person tells holders apart: its session's
@@ -490,7 +546,7 @@ const shortHashLength = 7
 
 // worklogRows is a row for each session that joined the worklog, then for each thing it links.
 func worklogRows(worklog api.Worklog, sessions []workedSession, now time.Time) []gotermboard.Row {
-	refs := []gotermboard.EntityRef{{Kind: entityKindWorklog, ID: worklog.Name}, recordEntity(worklog.Record.Kind, worklog.RecordNumber)}
+	refs := worklogRefs(worklog)
 	var rows []gotermboard.Row
 	for _, session := range sessions {
 		rows = append(rows, worklogSessionRow(worklog, session, refs, now))
@@ -541,7 +597,7 @@ func worklogLinkRow(worklog api.Worklog, link api.WorklogLink, refs []gotermboar
 	code, opens := "", "o names it, since it is no web link"
 	switch {
 	case link.Kind == api.WorklogLinkPullRequest:
-		code, opens = gotermboard.Magenta, "enter opens it in prs, and o in the browser"
+		code, opens = gotermboard.Magenta, pullRequestOpens
 		refs = append(slices.Clone(refs), gotermboard.EntityRef{Kind: entityKindPullRequest, ID: link.Ref})
 	case webLink(link.Ref):
 		opens = "o opens it in the browser"
@@ -644,9 +700,6 @@ func claimLines(worklog api.Worklog, now time.Time) []gotermboard.Line {
 	return lines
 }
 
-// tokenKindTitles head the panel's columns of tokens, one per kind, in Tokens' order.
-var tokenKindTitles = []string{"uncached", "cache write", "cache read", "output"}
-
 // tokenRow is one line of the panel's table of tokens: a count per kind, or what it says in
 // their place.
 type tokenRow struct {
@@ -655,28 +708,23 @@ type tokenRow struct {
 	said  gotermboard.Cell
 }
 
+func shortCount(count int) string { return shortTokenCount(float64(count)) }
+
 func spentRow(label string, tokens *api.Tokens) tokenRow {
 	if tokens == nil {
 		return tokenRow{label: label, said: gotermboard.C("none reported", dimCode)}
 	}
-	counts := []int{tokens.UncachedInput, tokens.CacheWrite, tokens.CacheRead, tokens.Output}
-	row := tokenRow{label: label}
-	for _, count := range counts {
-		row.kinds = append(row.kinds, shortTokenCount(float64(count)))
-	}
-	return row
+	return tokenRow{label: label, kinds: mapped(tokens.ByKind(), shortCount)}
 }
 
 // estimatedRow is an estimate's counts, with a dash for a kind not estimated.
 func estimatedRow(label string, estimate api.TokenEstimate) tokenRow {
-	row := tokenRow{label: label}
-	for _, count := range []*int{estimate.UncachedInput, estimate.CacheWrite, estimate.CacheRead, estimate.Output} {
-		row.kinds = append(row.kinds, "—")
-		if count != nil {
-			row.kinds[len(row.kinds)-1] = shortTokenCount(float64(*count))
+	return tokenRow{label: label, kinds: mapped(estimate.ByKind(), func(count *int) string {
+		if count == nil {
+			return "—"
 		}
-	}
-	return row
+		return shortCount(*count)
+	})}
 }
 
 // tokenLines is a table of tokens by kind: the worklog's own, its own estimate where it holds
@@ -711,22 +759,28 @@ func (b *worklogsBoard) tokenLines(worklog api.Worklog) []gotermboard.Line {
 	default:
 		rows = append(rows, tokenRow{label: number + " all its work", said: gotermboard.C("reading…", dimCode)})
 	}
-	labelWidth := len("tokens")
-	widths := make([]int, len(tokenKindTitles))
-	for at, title := range tokenKindTitles {
-		widths[at] = len(title)
+	// Each kind's title takes two lines, its key's first word over the rest, so the table fits a
+	// panel a third of a 200-column screen wide.
+	firsts, rests := make([]string, len(api.TokenKinds)), make([]string, len(api.TokenKinds))
+	widths := make([]int, len(api.TokenKinds))
+	for at, kind := range api.TokenKinds {
+		firsts[at], rests[at], _ = strings.Cut(kind, "_")
+		widths[at] = max(len(firsts[at]), len(rests[at]))
 	}
+	labelWidth := len("tokens")
 	for _, row := range rows {
 		labelWidth = max(labelWidth, len(row.label))
 		for at, count := range row.kinds {
 			widths[at] = max(widths[at], utf8.RuneCountInString(count))
 		}
 	}
-	header := gotermboard.Line{gotermboard.C(padRight("tokens", labelWidth), gotermboard.Bold)}
-	for at, title := range tokenKindTitles {
-		header = append(header, gotermboard.C("  "+padLeft(title, widths[at]), dimCode))
+	over := gotermboard.Line{gotermboard.C(padRight("tokens", labelWidth), gotermboard.Bold)}
+	under := gotermboard.Line{gotermboard.C(padRight("", labelWidth), "")}
+	for at := range api.TokenKinds {
+		over = append(over, gotermboard.C("  "+padLeft(firsts[at], widths[at]), dimCode))
+		under = append(under, gotermboard.C("  "+padLeft(rests[at], widths[at]), dimCode))
 	}
-	lines := []gotermboard.Line{{}, header}
+	lines := []gotermboard.Line{{}, over, under}
 	for _, row := range rows {
 		line := gotermboard.Line{gotermboard.C(padRight(row.label, labelWidth), "")}
 		for at, count := range row.kinds {
@@ -746,9 +800,7 @@ func shortTokensOrNone(tokens *api.Tokens) string {
 	if tokens == nil {
 		return "none reported"
 	}
-	return fmt.Sprintf("uncached input %s · cache write %s · cache read %s · output %s",
-		shortTokenCount(float64(tokens.UncachedInput)), shortTokenCount(float64(tokens.CacheWrite)),
-		shortTokenCount(float64(tokens.CacheRead)), shortTokenCount(float64(tokens.Output)))
+	return kindsThenCounts(mapped(tokens.ByKind(), shortCount))
 }
 
 // worklogsSnapshot is what --json prints, as tui-worklogs.schema.json describes it.
@@ -759,14 +811,14 @@ type worklogsSnapshot struct {
 	Live               []api.Worklog        `json:"live"`
 	Expired            []api.Worklog        `json:"expired"`
 	Ended              []api.Worklog        `json:"ended"`
+	CursorWorklog      *string              `json:"cursor_worklog"`
 	CursorRecordTotals *cursorRecordTotals  `json:"cursor_record_totals"`
 	Reads              []gotermboard.Status `json:"reads"`
 }
 
-// cursorRecordTotals is what the panel draws of the cursor's worklog's record, under the names
-// `slate totals --json` gives them.
+// cursorRecordTotals is what the panel draws of the cursor's worklog's record. Tokens and
+// Estimate are `slate totals --json`'s, and Record is that answer's scope.record.
 type cursorRecordTotals struct {
-	Worklog  string                 `json:"worklog"`
 	Record   api.RecordSummary      `json:"record"`
 	Tokens   *api.Tokens            `json:"tokens"`
 	Estimate *api.PreflightEstimate `json:"estimate"`
@@ -778,13 +830,12 @@ func (b *worklogsBoard) Snapshot(now time.Time) worklogsSnapshot {
 	snapshot := worklogsSnapshot{
 		SchemaVersion: worklogsSchemaVersion, TakenAt: now, Tab: tabWorklogs,
 		Live: printedWorklogs(groups[0].worklogs), Expired: printedWorklogs(groups[1].worklogs), Ended: printedWorklogs(groups[2].worklogs),
-		Reads: []gotermboard.Status{b.live.Status(), b.expired.Status(), b.ended.Status(), b.totals.Status()},
+		Reads: []gotermboard.Status{b.live.Status(), b.expired.Status(), b.ended.Status(), b.found.Status(), b.totals.Status()},
 	}
-	if key := b.cursor.Load(); key != nil {
-		name, _ := worklogOfKey(*key)
-		record, _ := worklogRecord(name)
-		if totals, read := b.totals.Value()[record]; read && totals.Scope.Record != nil {
-			snapshot.CursorRecordTotals = &cursorRecordTotals{Worklog: name, Record: *totals.Scope.Record, Tokens: totals.Tokens, Estimate: totals.Estimate}
+	if cursor := b.cursor.Load(); cursor != nil {
+		snapshot.CursorWorklog = &cursor.name
+		if totals, read := b.totals.Value()[cursor.record]; read && totals.Scope.Record != nil {
+			snapshot.CursorRecordTotals = &cursorRecordTotals{Record: *totals.Scope.Record, Tokens: totals.Tokens, Estimate: totals.Estimate}
 		}
 	}
 	return snapshot

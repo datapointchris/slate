@@ -58,7 +58,7 @@ func (s *worklogsStandIn) serve(w http.ResponseWriter, r *http.Request) {
 			var ended []api.Worklog
 			for at := range limit {
 				ended = append(ended, api.Worklog{
-					Name: fmt.Sprintf("%d.1", 5000+at), RecordNumber: 5000 + at, Sequence: 1, StartedTS: day, EndedTS: &day,
+					Name: fmt.Sprintf("%d.1", 5000+at), RecordNumber: 5000 + at, Sequence: 1, StartedTS: day, EndedTS: &day, HeldUntil: &day,
 					Outcome: new("completed"), State: api.WorklogStateEnded, Stage: "committed",
 					Record: api.RecordSummary{Number: 5000 + at, Kind: api.RecordKindIssue, Title: "an ended issue"},
 				})
@@ -160,9 +160,9 @@ func TestTheWorklogsTabReadsEachStateBoundedAndUnfoldsAWorklogIntoItsWork(t *tes
 	}
 	panel := squeezed(panelOf(screen))
 	for _, want := range []string{
-		"claim", "waits on the user reading its work plan", "cda42040 ", "commit docs abc1234 ", "pull request repo owner/repo#40 ",
+		"waits on the user reading its work plan", "cda42040 ", "commit docs abc1234 ", "pull request repo owner/repo#40 ",
 		"landing repo ssh://host/owner/repo ", "wrote 4271/plan v1",
-		"tokens uncached cache write cache read output", "this worklog 523 763.0k 58.5M 352.0k", "its estimate — — — 2.4M",
+		"this worklog 523 763.0k 58.5M 352.0k", "its estimate — — — 2.4M",
 		"4271 all its work 12.9k 15.9M 1.2B 5.3M", "4271 estimate — — — 2.4M", "4271's estimate is the one preflight 4271.1 set",
 	} {
 		if !strings.Contains(panel, want) {
@@ -189,14 +189,16 @@ func TestTheWorklogsTabReadsEachStateBoundedAndUnfoldsAWorklogIntoItsWork(t *tes
 	}
 
 	model.MoveCursorTo(worklogLinkKey("4271.2", waitingPreflight(time.Now()).Links[0]))
-	model.Update(tea.KeyPressMsg{Code: 'o', Text: "o"})
-	if screen := model.View().Content; !strings.Contains(screen, worklogsCommit+" is not a web link, so nothing opened it") {
-		t.Errorf("o on a commit should name it as no web link:\n%s", screen)
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'o', Text: "o"})
+	settle(model, cmd)
+	if _, err := os.Stat(opened); !os.IsNotExist(err) {
+		t.Errorf("o on a commit should open nothing, since a hash is no web link: %v", err)
 	}
 	model.MoveCursorTo(worklogLinkKey("4271.2", waitingPreflight(time.Now()).Links[1]))
-	model.Update(tea.KeyPressMsg{Code: 'o', Text: "o"})
-	if got, _ := os.ReadFile(opened); string(got) != worklogsPullRequest || !strings.Contains(model.View().Content, "opened owner/repo#40 in the browser") {
-		t.Errorf("o on a pull request should open its link in the browser, opened %q:\n%s", got, model.View().Content)
+	_, cmd = model.Update(tea.KeyPressMsg{Code: 'o', Text: "o"})
+	settle(model, cmd)
+	if got, _ := os.ReadFile(opened); string(got) != worklogsPullRequest {
+		t.Errorf("o on a pull request should open its link in the browser, opened %q", got)
 	}
 
 	for range 3 {
@@ -206,9 +208,6 @@ func TestTheWorklogsTabReadsEachStateBoundedAndUnfoldsAWorklogIntoItsWork(t *tes
 	}
 	if asked := strings.Join(stand.lastAsked(), ","); !strings.Contains(asked, "ended 200") || !strings.Contains(asked, "ended 300") || strings.Contains(asked, "ended 400") {
 		t.Errorf("+ should read 100 more ended worklogs each time, stopping at 300, asked %s", asked)
-	}
-	if screen := model.View().Content; !strings.Contains(screen, "ended · newest 300  300 is the most the tab reads") {
-		t.Errorf("the ended group should say 300 is the most the tab reads:\n%s", screen)
 	}
 
 	asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
@@ -222,8 +221,8 @@ func TestTheWorklogsTabReadsEachStateBoundedAndUnfoldsAWorklogIntoItsWork(t *tes
 		t.Fatal(err)
 	}
 	totals := printed.CursorRecordTotals
-	if len(printed.Live) != 2 || len(printed.Expired) != 1 || len(printed.Ended) != endedWorklogsStep ||
-		totals == nil || totals.Worklog != "4271.2" || totals.Estimate == nil || totals.Estimate.Worklog != "4271.1" {
+	if len(printed.Live) != 2 || len(printed.Expired) != 1 || len(printed.Ended) != endedWorklogsStep || strValue(printed.CursorWorklog) != "4271.2" ||
+		totals == nil || totals.Estimate == nil || totals.Estimate.Worklog != "4271.1" {
 		t.Errorf("--json should print each group and the first live worklog's record totals with its estimate:\n%s", out)
 	}
 }

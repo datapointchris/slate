@@ -193,12 +193,9 @@ func tokenLines(totals api.WorkTotals) []gotermboard.Line {
 	if tokens := totals.Tokens; tokens == nil {
 		lines = append(lines, dimLine("None reported."))
 	} else {
-		lines = append(lines,
-			plainLine("uncached input "+groupedDigits(tokens.UncachedInput)),
-			plainLine("cache write "+groupedDigits(tokens.CacheWrite)),
-			plainLine("cache read "+groupedDigits(tokens.CacheRead)),
-			plainLine("output "+groupedDigits(tokens.Output)),
-		)
+		for at, count := range tokens.ByKind() {
+			lines = append(lines, plainLine(tokenKindWord(api.TokenKinds[at])+" "+groupedDigits(count)))
+		}
 	}
 	return append(lines, plainLine(fmt.Sprintf("%d %s · %d %s",
 		totals.WorklogCount, plural(totals.WorklogCount, "worklog", "worklogs"),

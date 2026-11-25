@@ -201,15 +201,40 @@ func reportedTokens(t *api.Tokens) string {
 
 // tokensLine names each kind's count, never a total across them.
 func tokensLine(t api.Tokens) string {
-	return fmt.Sprintf("%s uncached input · %s cache write · %s cache read · %s output",
-		groupedDigits(t.UncachedInput), groupedDigits(t.CacheWrite), groupedDigits(t.CacheRead), groupedDigits(t.Output))
+	return countsThenKinds(mapped(t.ByKind(), groupedDigits))
 }
 
 // estimateLine names each kind's estimate as tokensLine does, with a dash for
 // a kind not estimated.
 func estimateLine(e api.TokenEstimate) string {
-	return fmt.Sprintf("%s uncached input · %s cache write · %s cache read · %s output",
-		countOrDash(e.UncachedInput), countOrDash(e.CacheWrite), countOrDash(e.CacheRead), countOrDash(e.Output))
+	return countsThenKinds(mapped(e.ByKind(), countOrDash))
+}
+
+func tokenKindWord(kind string) string { return strings.ReplaceAll(kind, "_", " ") }
+
+// countsThenKinds takes one count per kind, in api.TokenKinds' order.
+func countsThenKinds(counts []string) string {
+	parts := make([]string, len(counts))
+	for at, count := range counts {
+		parts[at] = count + " " + tokenKindWord(api.TokenKinds[at])
+	}
+	return strings.Join(parts, " · ")
+}
+
+func kindsThenCounts(counts []string) string {
+	parts := make([]string, len(counts))
+	for at, count := range counts {
+		parts[at] = tokenKindWord(api.TokenKinds[at]) + " " + count
+	}
+	return strings.Join(parts, " · ")
+}
+
+func mapped[T any](values []T, write func(T) string) []string {
+	written := make([]string, len(values))
+	for at, value := range values {
+		written[at] = write(value)
+	}
+	return written
 }
 
 func countOrDash(n *int) string {

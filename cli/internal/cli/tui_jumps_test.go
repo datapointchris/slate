@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -49,6 +50,13 @@ func (s *jumpAPI) serve(w http.ResponseWriter, r *http.Request) {
 			read.Totals.InitiativeCount++
 		}
 		answer = read
+	case "/api/v1/worklogs/50.2":
+		ended := day.Add(-24 * time.Hour)
+		answer = api.Worklog{
+			Name: "50.2", RecordNumber: 50, Sequence: 2, StartedTS: ended.Add(-time.Hour), EndedTS: &ended, HeldUntil: &ended,
+			Outcome: ptr("completed"), State: api.WorklogStateEnded, Stage: "landed",
+			Record: api.RecordSummary{Number: 50, Kind: api.RecordKindIssue, Title: "Rotate the keys"},
+		}
 	case "/api/v1/worklogs":
 		if state := r.URL.Query().Get("state"); state == api.WorklogStateExpired || state == api.WorklogStateEnded {
 			answer = []api.Worklog{}
@@ -124,10 +132,13 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		return &ref
 	}
 	onIssue50 := recordEntity(entityKindIssue, 50)
+	onEndedWorklog := gotermboard.EntityRef{Kind: entityKindWorklog, ID: "50.2"}
 	for _, test := range []struct {
 		name    string
 		opensOn string
 		goTo    *gotermboard.EntityRef
+		// goToTab is the tab goTo jumps to, the initiatives where empty.
+		goToTab string
 		// keys are pressed in order. "show <tab>" presses tab until that tab shows, so a row reads
 		// no tab order.
 		keys []string
@@ -137,6 +148,8 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		// cursorOn is in the line under the cursor, and shows and hides each in the screen or not.
 		cursorOn     string
 		shows, hides []string
+		// on is the tab showing once the keys are pressed, unchecked where empty.
+		on string
 		// handsOver says whether the last key handed the terminal to a program, unchecked where nil.
 		handsOver *bool
 		// readsAt is the status the newest board read asked for, empty for active.
@@ -157,19 +170,23 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		},
 		{
 			name: "t on a pull request asks between prs and its worklog's row", opensOn: tabInitiatives,
-			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, pullRequest: webLink, shows: []string{"go to 1 to 2:", "worklogs  worklog 50.1"},
+			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, pullRequest: webLink, shows: []string{"worklogs  worklog 50.1"},
 		},
 		{
 			name: "t on an issue's session lands on its worklog's row", opensOn: tabInitiatives,
-			goTo: &onIssue50, keys: []string{"enter", "j", "j", "t"}, pullRequest: webLink, cursorOn: "50.1", shows: []string{"slate · worklogs"},
+			goTo: &onIssue50, keys: []string{"enter", "j", "j", "t"}, pullRequest: webLink, cursorOn: "50.1", on: tabWorklogs,
+		},
+		{
+			name: "t to a worklog that ended past the bounded reads reads it by name and lands on its row", opensOn: tabInitiatives,
+			goTo: &onEndedWorklog, goToTab: tabWorklogs, pullRequest: webLink, cursorOn: "50.2", on: tabWorklogs,
 		},
 		{
 			name: "t from a worklog lands on its record", opensOn: tabWorklogs,
-			keys: []string{"t", "1", "enter"}, pullRequest: webLink, cursorOn: "Rotate the keys", shows: []string{"slate · initiatives"},
+			keys: []string{"t", "1", "enter"}, pullRequest: webLink, cursorOn: "Rotate the keys", on: tabInitiatives,
 		},
 		{
 			name: "esc from the record comes back to the worklog", opensOn: tabWorklogs,
-			keys: []string{"t", "1", "enter", "esc"}, pullRequest: webLink, cursorOn: "50.1", shows: []string{"slate · worklogs"},
+			keys: []string{"t", "1", "enter", "esc"}, pullRequest: webLink, cursorOn: "50.1", on: tabWorklogs,
 		},
 		{
 			name: "* on a pursuit narrows the ideas tab to the ideas in it", opensOn: tabIdeas,
@@ -204,7 +221,7 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 		},
 		{
 			name: "t on an initiative lands on its pursuit's row", opensOn: tabIdeas,
-			goTo: initiative(1), keys: []string{"t"}, pullRequest: webLink, cursorOn: "Grow the garden", shows: []string{"slate · pursuits"},
+			goTo: initiative(1), keys: []string{"t"}, pullRequest: webLink, cursorOn: "Grow the garden", on: tabPursuits,
 		},
 		{
 			name: "esc from the pursuit comes back to the initiative", opensOn: tabIdeas,
@@ -222,7 +239,7 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 			stand := &jumpAPI{pullRequest: test.pullRequest}
 			tabs := openJumpTabs(t, stand, test.opensOn)
 			if test.goTo != nil {
-				settle(tabs, gotermboard.GoTo(tabInitiatives, *test.goTo))
+				settle(tabs, gotermboard.GoTo(cmp.Or(test.goToTab, tabInitiatives), *test.goTo))
 			}
 			var last tea.Cmd
 			for _, key := range test.keys {
@@ -236,6 +253,9 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 			screen := tabs.View().Content
 			if test.cursorOn != "" && !strings.Contains(cursorLine(screen), test.cursorOn) {
 				t.Errorf("the cursor is on %q, want the line naming %q:\n%s", cursorLine(screen), test.cursorOn, screen)
+			}
+			if test.on != "" && tabs.ReopensOn() != test.on {
+				t.Errorf("the %s tab shows, want %s:\n%s", tabs.ReopensOn(), test.on, screen)
 			}
 			for _, want := range test.shows {
 				if !strings.Contains(screen, want) {

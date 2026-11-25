@@ -98,6 +98,7 @@ func (ended writeEnded) sentence() string {
 // changed what it shows, so its handback reads the board again, before the model runs the
 // key's own then. A Claude session that held the terminal reads it again the same way.
 func (b *initiativesBoard) Receive(m *gotermboard.Model, msg tea.Msg) tea.Cmd {
+	sayLinkOpened(m, msg)
 	switch msg := msg.(type) {
 	case writeEnded:
 		if msg.board != b {
