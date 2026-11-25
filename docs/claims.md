@@ -91,8 +91,7 @@ else it finds, and the answer carries a warning for each thing:
 | `open_dependency` | the issue depends on an unclosed issue, one warning each |
 | `initiative_waits` | the issue's open initiative waits on an open initiative or issue, one warning each |
 | `open_children` | the issue has open children |
-| `idea_promoted` | the idea was promoted; the warning names its initiative |
-| `claimed_initiative` | another holder claims the issue's initiative, an initiative whose plan holds the issue, or the initiative that an idea became |
+| `claimed_initiative` | another holder claims the issue's initiative, or an initiative whose plan holds the issue |
 | `claimed_parent`, `claimed_child`, `claimed_dependent` | another holder claims an issue beside it |
 | `claimed_issue_in_initiative` | another holder claims an issue in the plan of the initiative held |
 | `claimed_overlapping_paths` | another holder claims an issue on the same repo whose paths meet this issue's, one warning each |

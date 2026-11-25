@@ -1,5 +1,3 @@
-from uuid import UUID
-
 import pytest
 from fastapi import status
 from sqlalchemy import func
@@ -74,6 +72,20 @@ def test_promotion_changes_the_kind_and_keeps_every_row(client, txn_api_logged_i
     )
     record = session.get(models.Record, number)
     assert (record.promoted_by, record.promoted_ts is not None) == (TEST_PERSON.actor, True)
+    assert number not in {item['number'] for item in ok(client.get(IDEAS))}
+    listed = {item['number']: item for item in ok(client.get(IDEAS, params={'state': 'ended'}))}[number]
+    assert (listed['id'], listed['became'], listed['initiative']['number']) == (
+        idea['id'],
+        {
+            'how': 'promoted',
+            'kind': 'initiative',
+            'number': number,
+            'at': record.promoted_ts.isoformat().replace('+00:00', 'Z'),
+            'title': idea['title'],
+            'status': 'active',
+        },
+        number,
+    )
 
     written = {(row['table_name'], row['operation']) for row in ok(client.get(f'/records/{number}/changes'))}
     assert {('ideas', 'insert'), ('ideas', 'delete'), ('records', 'update'), ('initiatives', 'insert')} <= written
@@ -227,13 +239,6 @@ def test_fold_refuses_what_it_cannot_move(client, txn_api_logged_in):
     refused(client.post(f'{IDEAS}/{target}/fold', json={'into': idea}), 'is an initiative')
     refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': pursuit['number']}), 'is a pursuit')
     refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': idea}), 'itself')
-    # `slate ideas fold <idea> --into <initiative>` on a pair promoted before the number was kept,
-    # whose initiative names the idea in `idea_id`.
-    named = new_idea(client)
-    pair = new_initiative(client, name='Made before the number was kept')['number']
-    session.scalars(select(models.Initiative).where(models.Initiative.number == pair)).one().idea_id = UUID(named['id'])
-    session.flush()
-    refused(client.post(f'{IDEAS}/{named["number"]}/fold', json={'into': pair}), 'names it as where that work came from')
     for held in (idea, target):
         ok(client.post('/claims', json={'record': held, 'holder': 'claude-code/other'}))
         refused(client.post(f'{IDEAS}/{idea}/fold', json={'into': target, 'holder': FOLDER}), 'claude-code/other holds')

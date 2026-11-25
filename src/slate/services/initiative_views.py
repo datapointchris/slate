@@ -1,11 +1,10 @@
-"""Build the initiative read shape: the initiative, its issues' counts, its claim, its idea, its steps, tags, pursuits and refs."""
+"""Build the initiative read shape: the initiative, its issues' counts, its claim, its steps, tags, pursuits and refs."""
 
 from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Sequence
 from typing import Any
-from uuid import UUID
 
 from sqlalchemy import distinct
 from sqlalchemy import func
@@ -45,7 +44,6 @@ def initiative_view(
     initiative: models.Initiative,
     counts: Sequence[Any],
     claim: schemas.Claim | None,
-    idea: schemas.RecordSummary | None,
     depends_on: list[schemas.RecordSummary],
     waiting: list[schemas.RecordSummary],
     steps: schemas.InitiativeSteps,
@@ -85,7 +83,6 @@ def initiative_view(
         claim=claim,
         last_check=last_check,
         check_request=check_request,
-        idea=idea,
         depends_on=depends_on,
         waiting_initiatives=waiting,
         **dict(steps),
@@ -93,7 +90,7 @@ def initiative_view(
 
 
 def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, Sequence[Any]]]) -> list[schemas.Initiative]:
-    """Each initiative beside its row of `issue_count_columns()`, with its claim, the idea it came from and its waits either way."""
+    """Each initiative beside its row of `issue_count_columns()`, with its claim and its waits either way."""
     claims = unended_claim_views(session, [initiative.number for initiative, _ in rows], dt.datetime.now(dt.UTC))
     depends_on = waited_on(session, [initiative.id for initiative, _ in rows])
     waiting = waiting_initiatives(session, [initiative.number for initiative, _ in rows])
@@ -103,19 +100,11 @@ def initiative_views(session: Session, rows: Sequence[tuple[models.Initiative, S
     refs = refs_of(session, [initiative.number for initiative, _ in rows])
     checks = latest_checks(session, [initiative.number for initiative, _ in rows])
     requests = check_requests(session, [initiative.number for initiative, _ in rows])
-    idea_ids = [initiative.idea_id for initiative, _ in rows if initiative.idea_id is not None]
-    ideas = {
-        idea_id: schemas.RecordSummary(number=number, kind=models.Idea.RECORD_KIND, title=title)
-        for idea_id, number, title in session.execute(
-            select(models.Idea.id, models.Idea.number, models.Idea.title).where(models.Idea.id.in_(idea_ids))
-        ).all()
-    }
     return [
         initiative_view(
             initiative,
             counts,
             claims.get(initiative.number),
-            ideas.get(initiative.idea_id) if initiative.idea_id else None,
             depends_on.get(initiative.id, []),
             waiting.get(initiative.number, []),
             steps[initiative.number],
@@ -152,18 +141,3 @@ def initiative_detail(session: Session, initiative: models.Initiative) -> schema
         **counted(session, initiative).model_dump(),
         **record_parts(session, initiative.number, dt.datetime.now(dt.UTC)).model_dump(),
     )
-
-
-def initiatives_of_ideas(session: Session, idea_ids: Sequence[UUID]) -> dict[UUID, schemas.Initiative]:
-    """The initiative each idea was promoted into, counted, in one query for every idea."""
-    if not idea_ids:
-        return {}
-    query = (
-        select(models.Initiative, *issue_count_columns())
-        .outerjoin(models.Issue, models.Issue.initiative_id == models.Initiative.id)
-        .where(models.Initiative.idea_id.in_(idea_ids))
-        .group_by(models.Initiative.id)
-    )
-    rows = [(row[0], row[1:]) for row in session.execute(query).all()]
-    views = initiative_views(session, rows)
-    return {initiative.idea_id: view for (initiative, _), view in zip(rows, views, strict=True) if initiative.idea_id is not None}

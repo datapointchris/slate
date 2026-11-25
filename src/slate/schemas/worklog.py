@@ -84,10 +84,12 @@ class Worklog(RecordModel):
     `document_versions` is every version a session wrote while in it, oldest first. `step` is the
     step of its record's life it performed, null where it names none. `estimate` is the tokens by
     kind its record's work is expected to spend, null where no kind is estimated. `flow_id` is its
-    record's flow, whatever flow the session that opened it worked under.
+    record's flow, whatever flow the session that opened it worked under. `former_names` is each
+    name it held before a fold moved it to another record, oldest first, and each still reads it.
     """
 
     name: str
+    former_names: list[str] = []
     record_number: int
     sequence: int
     record: RecordSummary

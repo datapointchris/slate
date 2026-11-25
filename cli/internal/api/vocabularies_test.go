@@ -22,6 +22,7 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 	for name, copied := range map[string][]string{
 		"claim_states":               ClaimStates,
 		"worklog_states":             WorklogStates,
+		"idea_states":                IdeaStates,
 		"worklog_steps":              WorklogSteps,
 		"worklog_link_kinds":         WorklogLinkKinds,
 		"issue_statuses":             IssueStatuses,
@@ -40,6 +41,7 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		"promote_initiative_fields":  PromoteFieldsOfKind[PromotedToInitiative],
 		"promote_issue_fields":       PromoteFieldsOfKind[PromotedToIssue],
 		"promote_shared_fields":      PromoteSharedFields,
+		"idea_endings":               IdeaEndings,
 	} {
 		var theirs []string
 		if err := json.Unmarshal(api[name], &theirs); err != nil {

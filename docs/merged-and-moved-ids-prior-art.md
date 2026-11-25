@@ -53,7 +53,7 @@ Taken 2026-11-24 against slate's API.
 | `slate worklogs list --record <n> --state all --json \| jq length`, summed over the promoted ideas | 8, each a shape step |
 | `slate show <n> --json \| jq '.record.claims \| length'`, summed over the promoted ideas | 8, all ended |
 | `slate show <n> --json \| jq '.record.comments \| length'`, summed over the promoted ideas | 1 |
-| The same reads of refs, tags and pursuits on the promoted ideas | 3, 4 and 6, each copied to its initiative at promotion |
+| The same reads of refs, tags and pursuits on the promoted ideas | 3, 4 and 6. Each tag and pursuit was copied to its initiative at promotion, and none of the 3 refs was |
 
 ## Sources
 

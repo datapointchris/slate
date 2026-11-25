@@ -11,8 +11,8 @@ the same number.
 
 An idea carries its own priority on the scale every record shares. A
 high-priority idea is one worth deciding on soon. Nothing about being an idea
-caps how urgent it can be. `slate next` lists an unpromoted idea at step
-`discuss`, at its priority, and `slate ideas reorder` places it.
+caps how urgent it can be. `slate next` lists every idea at step `discuss`, at
+its priority, and `slate ideas reorder` places it.
 
 This is product discovery, as Jira Product Discovery runs it: an idea collects
 its insights, and once committed it links the delivery work, whose progress
@@ -62,7 +62,7 @@ too, each named as `worklog_ended`. Promoting into `someday` clears the pin, as
 shelving an initiative does, and answers `pin_cleared`.
 
 The initiative's answer also carries `idea`, the idea as it was, with
-`idea.initiative` naming the record itself. CLI releases through `cli/v0.66.0`
+`idea.became` and `idea.initiative` naming the record itself. CLI releases through `cli/v0.66.0`
 read a promotion's answer from that member. A promoted idea's UUID names the
 new kind's row, so a read or a promotion by that UUID answers as one by its
 number does.
@@ -76,12 +76,56 @@ issue.
   to keep level with the schema, and the work changed numbers at the moment it
   started. `merged-and-moved-ids-prior-art.md` gives what other trackers do.
 
-### An initiative that names an idea in `idea_id` holds its work under another number
+### An idea promoted before the number was kept was folded into its initiative
 
-An initiative whose `idea_id` is set came from that idea under a number of its
-own, and reads it back as `idea`. Promoting such an idea again answers 409
-naming that initiative. A claim on it goes through with an `idea_promoted`
-warning naming the initiative, because the work lives there.
+Before a promotion kept the idea's number, it created an initiative under a
+number of its own, which named the idea in `idea_id`. Migration `86158442774b`
+folded each such idea into its initiative by the fold's steps below. Each
+redirect reads `promoted` rather than `folded`, and is dated at the
+initiative's `created_ts`. The initiative's `records.promoted_ts` is that same
+moment, and `promoted_by` is whoever created the initiative. So the idea's
+number leads to the initiative, and its shape worklog reads under the
+initiative's number with the old name in `former_names`. Its refs, tags and
+pursuits moved where the initiative lacked them, and went as duplicates where
+the promotion had copied them. The check `ck_initiatives_initiative_idea_id_unset`
+holds `idea_id` null since, and `idea` on an initiative read is always null.
+
+## `GET /ideas` lists the open ideas, and `state` adds every number that ended, saying what it became
+
+`GET /ideas` lists the ideas in `state`, most urgent first, then by number.
+`open`, the default, is the ideas still open. `ended` is every number that was
+an idea and was promoted or folded. `all` is both, each number once. A released
+reader that knows no `state` asks for nothing, so it gets the open ideas it
+always read. Each item carries `became`: null for an open idea, otherwise
+`{how, kind, number, at, title, status}`. `how` is `promoted` or `folded`, and
+`slate vocabulary` lists both as `idea_endings`. `title` and `status` are the
+record's as it stands now. An idea has no status, so a fold into one reads
+`status` null. Every reader takes how an idea ended from `how`, and none
+compares two numbers to infer it.
+
+| Field | Open idea | Promoted in place | Folded, or a promoted pair |
+| --- | --- | --- | --- |
+| `id`, `number` | the `ideas` row | the kind row, which kept the idea's `id` | the redirect's `former_id` and `number` |
+| `title`, `priority` | the `ideas` row | the initiative's `name` or the issue's `title`, and its priority | `former_title`, `former_priority` |
+| `rank`, pin, `flow_id` | `records` | `records` | null, none, `former_flow_id` |
+| `created_ts` | the `ideas` row | the kind row, which kept the idea's | `former_created_ts` |
+| `updated_ts` | the `ideas` row | an issue's own, or an initiative's `promoted_ts` | `redirected_ts` |
+| `description`, `tags`, `pursuits`, `refs`, `claim` | the idea's | the record's | empty, because they moved |
+| `became` | null | the record itself, at `promoted_ts` | the redirect's target, at `redirected_ts` |
+
+A pair's initiative never was an idea, so its own number is not listed. A
+`tag`, `pursuit` or `ref` filter narrows an open idea or a promoted record by
+its own. A retired number's rows moved to its redirect's target, so it narrows
+by the target's, through the same `narrowed_to_groupings` every list uses.
+
+`initiative` stays on each item while a released reader still takes what an
+idea became from it. It is the initiative that `became` names, and null where
+`became` names an issue or an idea.
+
+`slate ideas list --state` sends `state`, and its default is `open`. `BECAME`
+prints from `how`: `initiative #3500` for a promotion, `folded into #3410` for
+a fold, and `—` for an open idea. The ideas tab of `slate tui` reads the
+default, so it lists only the open ideas.
 
 ## Folding an idea moves every row on it to the work that covers it, and its number leads there
 
@@ -97,9 +141,7 @@ One transaction does the whole fold:
    over the same pair then queue rather than deadlock.
 2. **It refuses with 409** a record that is not an idea, a pursuit as `into`,
    the idea as its own `into`, and another holder's live claim on either
-   record. It refuses an idea that an initiative's `idea_id` names, as the
-   delete does, because that initiative names it as where its work came from.
-   A closed `into` is taken, because the idea's work may already have shipped
+   record. A closed `into` is taken, because the idea's work may already have shipped
    there.
 3. **It settles the claims.** A claim whose lease ran out ends as `expired`.
    The holder's claim on the idea moves to the record. Where the holder holds
@@ -152,14 +194,10 @@ numbers folded into the deleted record.
   skip the stub. A redirect row is read only where a number misses.
   `merged-and-moved-ids-prior-art.md` gives what other trackers do.
 
-## Deleting an idea takes its refs, and an idea that names its initiative is refused
+## Deleting an idea takes its refs, its claims and its worklogs
 
 An idea has no status to close it, so an idea recorded by mistake leaves the
 queue only by its delete. `DELETE /ideas/{id}` deletes the idea's record, as
 `records.md` describes for every kind. Its refs, its pin, and every claim
 and worklog on it go with it. The answer names the claims and worklogs as
 `claims_deleted` and `worklogs_deleted`.
-
-An idea that an initiative names in `idea_id` answers 409 naming that
-initiative. The initiative's `idea_id` is where its work came from, and would
-quietly set to null if the idea went.

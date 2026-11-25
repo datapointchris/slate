@@ -123,6 +123,7 @@ func newIdeasReorderCommand() *cobra.Command {
 func newIdeasListCommand() *cobra.Command {
 	var (
 		asJSON  bool
+		state   string
 		tag     string
 		pursuit string
 		ref     string
@@ -130,24 +131,33 @@ func newIdeasListCommand() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List every idea, most urgent first",
-		Long: "Priority none sorts after every level. A promoted idea is its initiative or\n" +
-			"issue under the same number, so it is not listed, and `slate show <n>` reads it.\n" +
-			"INITIATIVE is the initiative that names an idea in its idea_id, under a number\n" +
-			"of its own.",
-		Example:     "  slate ideas list\n  slate ideas list --tag security\n  slate ideas list --ref capture/\n  slate ideas list --json",
+		Short: "List the open ideas, or those that ended, most urgent first",
+		Long: "Priority none sorts after every level. --state ended lists every number that\n" +
+			"was an idea and ended, and --state all lists both, each number once. BECAME\n" +
+			"names what an idea turned into: the initiative or issue it was promoted to, or\n" +
+			"the record it folded into, and — while it is open. --json carries it as\n" +
+			"became, with how it ended and that record as it stands. --tag, --pursuit and\n" +
+			"--ref narrow an ended idea by the record BECAME names, which holds its rows.",
+		Example: "  slate ideas list\n  slate ideas list --state all\n  slate ideas list --tag security\n" +
+			"  slate ideas list --ref capture/\n  slate ideas list --json",
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if state != "" && !slices.Contains(api.IdeaStates, state) {
+				return goclikit.UsageError(fmt.Errorf("unknown state %q — one of: %s", state, strings.Join(api.IdeaStates, ", ")))
+			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			ideas, err := client.ListIdeas(cmd.Context(), api.IdeaFilter{Tag: tag, Pursuit: pursuit, Ref: ref}, limitFlag(cmd))
+			filter := api.IdeaFilter{State: state, Tag: tag, Pursuit: pursuit, Ref: ref}
+			ideas, err := client.ListIdeas(cmd.Context(), filter, limitFlag(cmd))
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
-			if err := honoredGroupings(groupingFilter{tag, pursuit, ref}, ideas, ideaGrouped); err != nil {
+			// An ended idea's rows moved to the record it became, so only an open one carries the grouping itself.
+			stillOpen := slices.DeleteFunc(slices.Clone(ideas), func(idea api.Idea) bool { return idea.Became != nil })
+			if err := honoredGroupings(groupingFilter{tag, pursuit, ref}, stillOpen, ideaGrouped); err != nil {
 				return err
 			}
 			if asJSON {
@@ -158,6 +168,7 @@ func newIdeasListCommand() *cobra.Command {
 		},
 	}
 	addLimitFlag(cmd, &limit)
+	cmd.Flags().StringVar(&state, "state", "", "One of: "+strings.Join(api.IdeaStates, ", ")+" (default open)")
 	cmd.Flags().StringVar(&tag, "tag", "", tagFilterHelp)
 	cmd.Flags().StringVar(&pursuit, "pursuit", "", pursuitFilterHelp)
 	cmd.Flags().StringVar(&ref, "ref", "", refFilterHelp)
@@ -700,15 +711,26 @@ func printIdeasTable(out io.Writer, ideas []api.Idea) {
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "IDEA\tPRIORITY\tREFS\tINITIATIVE\tTITLE")
+	_, _ = fmt.Fprintln(tw, "IDEA\tPRIORITY\tREFS\tBECAME\tTITLE")
 	for _, idea := range ideas {
-		initiative := "—"
-		if idea.Initiative != nil {
-			initiative = "#" + strconv.Itoa(idea.Initiative.Number)
-		}
-		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%d\t%s\t%s\n", idea.Number, priorityName(idea.Priority), len(idea.Refs), initiative, idea.Title)
+		_, _ = fmt.Fprintf(tw, "#%d\t%s\t%d\t%s\t%s\n", idea.Number, priorityName(idea.Priority), len(idea.Refs), becameCell(idea.Became), idea.Title)
 	}
 	_ = tw.Flush()
+}
+
+// becameCell names what an idea became: the kind and number it was promoted
+// to, the record it folded into, or a dash while it is open.
+func becameCell(became *api.Became) string {
+	switch {
+	case became == nil:
+		return "—"
+	case became.How == api.IdeaPromoted:
+		return fmt.Sprintf("%s #%d", became.Kind, became.Number)
+	case became.How == api.IdeaFolded:
+		return fmt.Sprintf("folded into #%d", became.Number)
+	default:
+		return fmt.Sprintf("%s #%d", became.How, became.Number)
+	}
 }
 
 func printIdeaDetail(out io.Writer, idea api.IdeaDetail, now time.Time) {

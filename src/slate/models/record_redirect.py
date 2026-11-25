@@ -33,6 +33,7 @@ from slate.database.base import Base
 RedirectReason = Literal['folded', 'promoted']
 REDIRECT_REASONS: list[str] = list(get_args(RedirectReason))
 FOLDED: RedirectReason = 'folded'
+PROMOTED: RedirectReason = 'promoted'
 
 
 class RecordRedirect(Base):

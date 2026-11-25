@@ -11,6 +11,11 @@
     "ended",
     "all"
   ],
+  "idea_states": [
+    "open",
+    "ended",
+    "all"
+  ],
   "worklog_steps": [
     "shape",
     "design",
@@ -122,6 +127,10 @@
     "description",
     "priority",
     "tags"
+  ],
+  "idea_endings": [
+    "folded",
+    "promoted"
   ],
   "record_limit_max": 500
 }

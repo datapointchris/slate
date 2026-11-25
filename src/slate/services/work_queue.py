@@ -246,11 +246,11 @@ def queue_as_measured(
         if work is not None:
             query = query.where(models.Idea.number == work.number)
         ideas = session.scalars(query).all()
-        for idea_view in idea_views(session, ideas):
+        for idea, idea_view in zip(ideas, idea_views(session, ideas), strict=True):
             idea_row = IdeaRow(
                 number=idea_view.number, title=idea_view.title, step='discuss', priority=idea_view.priority, record=idea_view
             )
-            place(readiness.record_sort_key(idea_view.number, idea_view.priority, idea_view.rank), idea_row)
+            place(readiness.record_sort_key(idea.number, idea.priority, idea.rank), idea_row)
 
     queue = [row for _, row in sorted(queued, key=lambda pair: pair[0])]
     return schemas.Queue(

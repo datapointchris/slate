@@ -1,8 +1,8 @@
 """The records a record's work reaches through to, which every total of that work counts.
 
 A record always reaches itself. An issue reaches every issue under it, at any depth, because a
-parent is work too large for one issue, split into its children. An initiative reaches the idea it
-was promoted from, every issue in it, and every issue under those. A child does not take its
+parent is work too large for one issue, split into its children. An initiative reaches every
+issue in it, and every issue under those. A child does not take its
 parent's initiative, so without that walk an issue's work could exceed its initiative's. A
 pursuit reaches each idea and initiative in it, and what each of those initiatives reaches.
 
@@ -35,11 +35,10 @@ def issue_tree_numbers(roots: Select) -> Select:
 
 
 def initiatives_reach(initiatives: Select, number: SQLCoreOperations[int]) -> ColumnElement[bool]:
-    """Whether `number` names an initiative whose id `initiatives` selects, the idea it came from, or an issue in its tree."""
-    chosen = select(models.Initiative.number, models.Initiative.idea_id).where(models.Initiative.id.in_(initiatives)).subquery()
-    promoted_from = select(models.Idea.number).where(models.Idea.id.in_(select(chosen.c.idea_id)))
+    """Whether `number` names an initiative whose id `initiatives` selects, or an issue in its tree."""
+    chosen = select(models.Initiative.number).where(models.Initiative.id.in_(initiatives))
     issues = select(models.Issue.id).where(models.Issue.initiative_id.in_(initiatives))
-    return or_(number.in_(select(chosen.c.number)), number.in_(promoted_from), number.in_(issue_tree_numbers(issues)))
+    return or_(number.in_(chosen), number.in_(issue_tree_numbers(issues)))
 
 
 def within_reach(record: models.Record, number: SQLCoreOperations[int]) -> ColumnElement[bool]:

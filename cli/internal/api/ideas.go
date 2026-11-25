@@ -7,15 +7,18 @@ import (
 	"time"
 )
 
-// Idea is work nobody has taken on yet. Initiative is the one it was promoted
-// into, with that initiative's progress, and nil until then.
+// Idea is a number that is or was an idea. Became is nil for an open idea, and
+// otherwise says how it ended and names the record that carries its work.
+// Rank is nil for a number a fold retired, which holds no place in the queue.
+// Initiative is the initiative Became names, and nil where Became names an
+// issue or an idea. Became is the field to read.
 type Idea struct {
 	ID            string     `json:"id"`
 	Number        int        `json:"number"`
 	Title         string     `json:"title"`
 	Description   *string    `json:"description"`
 	Priority      int        `json:"priority"`
-	Rank          float64    `json:"rank"`
+	Rank          *float64   `json:"rank"`
 	PinnedTS      *time.Time `json:"pinned_ts"`
 	PinnedBy      *string    `json:"pinned_by"`
 	PinnedSession *string    `json:"pinned_session"`
@@ -26,8 +29,39 @@ type Idea struct {
 	// InPursuits holds each pursuit the idea is in.
 	InPursuits
 	Refs       []RecordRef `json:"refs"`
+	Became     *Became     `json:"became"`
 	Initiative *Initiative `json:"initiative"`
 	Claim      *Claim      `json:"claim"`
+}
+
+// How an idea ended, as Became.How names it.
+const (
+	IdeaPromoted = "promoted"
+	IdeaFolded   = "folded"
+)
+
+// IdeaEndings are each way an idea ends.
+var IdeaEndings = []string{IdeaFolded, IdeaPromoted}
+
+// A list of ideas reads those still open, those that ended, or both.
+const (
+	IdeaStateOpen  = "open"
+	IdeaStateEnded = "ended"
+	IdeaStateAll   = "all"
+)
+
+// IdeaStates is what `ideas list --state` accepts.
+var IdeaStates = []string{IdeaStateOpen, IdeaStateEnded, IdeaStateAll}
+
+// Became is how an idea ended, at At, and the record carrying its work now:
+// its Kind, Number, Title and Status as it stands. Status is nil for an idea.
+type Became struct {
+	How    string    `json:"how"`
+	Kind   string    `json:"kind"`
+	Number int       `json:"number"`
+	At     time.Time `json:"at"`
+	Title  string    `json:"title"`
+	Status *string   `json:"status"`
 }
 
 // IdeaDetail is an idea with its claims, comments and documents.
@@ -113,18 +147,22 @@ func ideaPath(ref string) string {
 	return "/ideas/" + url.PathEscape(ref)
 }
 
-// IdeaFilter narrows a list of ideas. A zero field narrows nothing. Ref is a
-// prefix: the ideas carrying a ref that starts with it.
+// IdeaFilter narrows a list of ideas. A zero field narrows nothing, except an
+// empty State, which the API reads as open. Ref is a prefix: the ideas
+// carrying a ref that starts with it.
 type IdeaFilter struct {
+	State   string
 	Tag     string
 	Pursuit string
 	Ref     string
 }
 
-// ListIdeas returns every idea, most urgent first. A promoted idea is its
-// initiative or issue under the same number, so it is not listed.
+// ListIdeas returns the ideas in the filter's state, most urgent first.
 func (c *Client) ListIdeas(ctx context.Context, filter IdeaFilter, limit *int) ([]Idea, error) {
 	query := url.Values{}
+	if filter.State != "" {
+		query.Set("state", filter.State)
+	}
 	if filter.Tag != "" {
 		query.Set("tag", filter.Tag)
 	}

@@ -19,7 +19,7 @@ import (
 const tabIdeas = "ideas"
 
 // ideasSchemaVersion is the shape tui-ideas.schema.json describes, which --json prints.
-const ideasSchemaVersion = 1
+const ideasSchemaVersion = 2
 
 // noneMark stands in a cell for a pursuit or tag the idea has none of.
 const noneMark = "—"
@@ -36,7 +36,7 @@ var ideaColumns = []gotermboard.Column{
 	{Title: "TITLE"},
 }
 
-// ideasBoard is the ideas tab: every unpromoted idea, newest first. Its read runs off the
+// ideasBoard is the ideas tab: every open idea, newest first. Its read runs off the
 // program's goroutine and touches only its source and readFailure. The keys and Frame run on it.
 type ideasBoard struct {
 	ideas    *gotermboard.Source[[]api.Idea]
@@ -87,10 +87,10 @@ func (b *ideasBoard) ShowEntity(ref gotermboard.EntityRef) bool {
 	return false
 }
 
-// unpromotedNewestFirst leaves out each idea promoted to an initiative, whose work is the
-// initiative's, and puts the newest first.
-func unpromotedNewestFirst(read []api.Idea) []api.Idea {
-	ideas := slices.DeleteFunc(slices.Clone(read), func(idea api.Idea) bool { return idea.Initiative != nil })
+// newestFirst puts the newest idea first. The tab reads the open ideas alone,
+// which `GET /ideas` lists when the read names no state.
+func newestFirst(read []api.Idea) []api.Idea {
+	ideas := slices.Clone(read)
 	slices.SortStableFunc(ideas, func(a, b api.Idea) int {
 		return cmp.Or(b.CreatedTS.Compare(a.CreatedTS), cmp.Compare(b.Number, a.Number))
 	})
@@ -105,18 +105,18 @@ func (b *ideasBoard) holds(idea api.Idea) bool {
 	return b.tag == "" || slices.Contains(idea.Tags, b.tag)
 }
 
-// shown is the unpromoted ideas newest first, and those the narrowing leaves.
-func (b *ideasBoard) shown() (unpromoted, narrowed []api.Idea) {
-	unpromoted = unpromotedNewestFirst(b.ideas.Value())
-	for _, idea := range unpromoted {
+// shown is the open ideas newest first, and those the narrowing leaves.
+func (b *ideasBoard) shown() (open, narrowed []api.Idea) {
+	open = newestFirst(b.ideas.Value())
+	for _, idea := range open {
 		if b.holds(idea) {
 			narrowed = append(narrowed, idea)
 		}
 	}
-	return unpromoted, narrowed
+	return open, narrowed
 }
 
-// pursuitChoices is every pursuit that holds an unpromoted idea, by name.
+// pursuitChoices is every pursuit that holds an open idea, by name.
 func pursuitChoices(ideas []api.Idea) []api.PursuitSummary {
 	var pursuits []api.PursuitSummary
 	for _, idea := range ideas {
@@ -132,7 +132,7 @@ func pursuitChoices(ideas []api.Idea) []api.PursuitSummary {
 	return pursuits
 }
 
-// tagChoices is every tag that an unpromoted idea carries, by name.
+// tagChoices is every tag that an open idea carries, by name.
 func tagChoices(ideas []api.Idea) []string {
 	var tags []string
 	for _, idea := range ideas {
@@ -157,8 +157,8 @@ func (b *ideasBoard) Actions() []gotermboard.Action {
 		{
 			Keys: []string{"u"}, Label: "narrow to the next pursuit that holds an idea, and after the last to every pursuit", Footer: "u pursuit",
 			Run: func(m *gotermboard.Model) tea.Cmd {
-				unpromoted, _ := b.shown()
-				choices := pursuitChoices(unpromoted)
+				open, _ := b.shown()
+				choices := pursuitChoices(open)
 				at := -1
 				if b.pursuit != nil {
 					at = slices.IndexFunc(choices, func(p api.PursuitSummary) bool { return p.Number == b.pursuit.Number })
@@ -174,8 +174,8 @@ func (b *ideasBoard) Actions() []gotermboard.Action {
 		{
 			Keys: []string{"#"}, Label: "narrow to the next tag that an idea carries, and after the last to every tag", Footer: "# tag",
 			Run: func(m *gotermboard.Model) tea.Cmd {
-				unpromoted, _ := b.shown()
-				choices := tagChoices(unpromoted)
+				open, _ := b.shown()
+				choices := tagChoices(open)
 				next := nextChoice(slices.Index(choices, b.tag), len(choices))
 				b.tag = ""
 				if next >= 0 {
@@ -212,11 +212,11 @@ func (b *ideasBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 		frame.Strip = []gotermboard.Line{b.stripLine(now, 0)}
 		return frame
 	}
-	unpromoted, narrowed := b.shown()
-	frame.Strip = []gotermboard.Line{b.stripLine(now, len(unpromoted)), {}}
-	title := strconv.Itoa(len(unpromoted)) + " ideas"
+	open, narrowed := b.shown()
+	frame.Strip = []gotermboard.Line{b.stripLine(now, len(open)), {}}
+	title := strconv.Itoa(len(open)) + " ideas"
 	if b.pursuit != nil || b.tag != "" {
-		title = fmt.Sprintf("%d of %d ideas", len(narrowed), len(unpromoted))
+		title = fmt.Sprintf("%d of %d ideas", len(narrowed), len(open))
 	}
 	group := gotermboard.Group{
 		Key:     "ideas",
@@ -234,11 +234,11 @@ func (b *ideasBoard) Frame(now time.Time, _ string) gotermboard.Frame {
 	return frame
 }
 
-func (b *ideasBoard) stripLine(now time.Time, unpromoted int) gotermboard.Line {
+func (b *ideasBoard) stripLine(now time.Time, open int) gotermboard.Line {
 	line := gotermboard.Line{
 		gotermboard.C("slate · ideas", gotermboard.Bold),
 		gotermboard.C("   "+now.Format("15:04:05")+"   ", ""),
-		gotermboard.C(fmt.Sprintf("%d unpromoted · newest first   ", unpromoted), ""),
+		gotermboard.C(fmt.Sprintf("%d open · newest first   ", open), ""),
 		gotermboard.C("pursuit ", dimCode),
 		gotermboard.C(b.pursuitLabel(), narrowingCode(b.pursuit != nil)),
 		gotermboard.C("  tag ", dimCode),
@@ -252,13 +252,13 @@ func (b *ideasBoard) stripLine(now time.Time, unpromoted int) gotermboard.Line {
 func (b *ideasBoard) nothingShown() string {
 	switch {
 	case b.pursuit != nil && b.tag != "":
-		return "No unpromoted idea in " + b.pursuit.Name + " carries " + b.tag + "."
+		return "No open idea in " + b.pursuit.Name + " carries " + b.tag + "."
 	case b.pursuit != nil:
-		return "No unpromoted idea is in " + b.pursuit.Name + "."
+		return "No open idea is in " + b.pursuit.Name + "."
 	case b.tag != "":
-		return "No unpromoted idea carries " + b.tag + "."
+		return "No open idea carries " + b.tag + "."
 	}
-	return "No unpromoted idea."
+	return "No open idea."
 }
 
 func ideaKey(number int) string { return "idea:" + strconv.Itoa(number) }
@@ -335,7 +335,7 @@ type ideasSnapshot struct {
 	Tab           string               `json:"tab"`
 	Pursuit       *api.PursuitSummary  `json:"pursuit"`
 	Tag           *string              `json:"tag"`
-	Unpromoted    int                  `json:"unpromoted"`
+	Open          int                  `json:"open"`
 	Rows          []ideaSnapshotRow    `json:"rows"`
 	Reads         []gotermboard.Status `json:"reads"`
 }
@@ -353,22 +353,25 @@ type ideaSnapshotRow struct {
 	Tags        []string             `json:"tags"`
 	Refs        []api.RecordRef      `json:"refs"`
 	RefCount    int                  `json:"ref_count"`
+	// Became is null on every row, because the tab lists only the ideas still open.
+	Became *api.Became `json:"became"`
 }
 
 // Snapshot is what --json prints of the tab.
 func (b *ideasBoard) Snapshot(now time.Time) ideasSnapshot {
-	unpromoted, narrowed := b.shown()
+	open, narrowed := b.shown()
 	rows := make([]ideaSnapshotRow, 0, len(narrowed))
 	for _, idea := range narrowed {
 		rows = append(rows, ideaSnapshotRow{
 			Number: idea.Number, Title: idea.Title, Description: idea.Description, Priority: idea.Priority,
 			CreatedTS: idea.CreatedTS, UpdatedTS: idea.UpdatedTS,
 			Pursuits: listed(idea.Pursuits), Tags: listed(idea.Tags), Refs: listed(idea.Refs), RefCount: len(idea.Refs),
+			Became: idea.Became,
 		})
 	}
 	snapshot := ideasSnapshot{
 		SchemaVersion: ideasSchemaVersion, TakenAt: now, Tab: tabIdeas, Pursuit: b.pursuit,
-		Unpromoted: len(unpromoted), Rows: rows, Reads: []gotermboard.Status{b.ideas.Status()},
+		Open: len(open), Rows: rows, Reads: []gotermboard.Status{b.ideas.Status()},
 	}
 	if b.tag != "" {
 		snapshot.Tag = &b.tag

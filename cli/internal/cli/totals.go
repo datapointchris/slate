@@ -30,8 +30,8 @@ func newTotalsCommand() *cobra.Command {
 			"step of the worklog that held them.\n" +
 			"\n" +
 			"A number totals that record and everything under it. An issue reaches the\n" +
-			"issues under it. An initiative reaches the idea it was promoted from, every\n" +
-			"issue in it and every issue under those. A worklog name, such as 412.2,\n" +
+			"issues under it. An initiative reaches every issue in it and every issue\n" +
+			"under those. A worklog name, such as 412.2,\n" +
 			"totals that worklog. --repo totals the worklogs of that repo's issues. Named\n" +
 			"together, they narrow together.\n" +
 			"\n" +

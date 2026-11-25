@@ -40,7 +40,7 @@ A row is a record and what taking it means:
 
 | Step | Row |
 | --- | --- |
-| `discuss` | an idea that nobody has promoted |
+| `discuss` | an idea, which a promotion or a fold ends |
 | `shape`, `design`, `preflight` | an active initiative, at the first of them it plans past its furthest checked step, unless it checked none and holds an unclosed issue |
 | `decide` | a ready `decision` issue |
 | `build` | any other ready issue, or a held initiative whose issues are being built or that has no step left to offer |
@@ -321,8 +321,8 @@ any kind, through one rule in `services/queue_moves.py`:
 - An issue sorting ahead of what waits on it moves with that, so it is placed
   only beside another issue sorting there.
 - A record that has no place in the queue neither moves nor is moved beside:
-  a closed issue, a someday or finished initiative, a promoted idea. The
-  readiness result is the one place that says which records hold a place.
+  a closed issue, a someday or finished initiative. Every idea holds a place.
+  The readiness result is the one place that says which records hold a place.
 
 A move that would land anywhere but beside the record named answers 409,
 saying why. One across priorities names both, because changing the priority is
@@ -363,8 +363,8 @@ high    idea 60
   the number, and promoting into `someday` clears it as shelving does.
   Reopening restores no pin.
 - **A record that the queue would not show is refused with 409:** a closed
-  issue, an issue in a `someday` initiative, an initiative that is not active,
-  and a promoted idea.
+  issue, an issue in a `someday` initiative, and an initiative that is not
+  active.
 - **A move across the pin answers 409,** as one across priorities does. Pinning or
   unpinning is what moves a record past that line.
 
@@ -475,8 +475,7 @@ so a program reads it and the schema holds its shape, where a parse would have t
 guess which words were meant as the summary.
 
 **An initiative reads which steps of its life it went through.** Every read of
-one answers `steps`, each step a worklog of it or of its idea checked, in
-position order, with that worklog's name, when it ended and the first session
+one answers `steps`, each step a worklog of it checked, in position order, with that worklog's name, when it ended and the first session
 in it. `stage` is the
 furthest, or `idea` before any. `services/record_steps.py` derives both on every
 read from the worklogs, so no stage is set by hand and none goes stale.

@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "urn:slate:tui:ideas:v1",
+  "$id": "urn:slate:tui:ideas:v2",
   "title": "The ideas that the ideas tab of slate tui lists",
-  "description": "What `slate tui --view ideas --json` prints: every idea not promoted to an initiative, newest first, narrowed by the pursuit and the tag in force. A row's fields carry the names and values that `slate ideas list --json` gives the same idea, and ref_count is how many refs the row draws. This read writes nothing.",
+  "description": "What `slate tui --view ideas --json` prints: every open idea, whose `became` in `slate ideas list --json` is null, newest first, narrowed by the pursuit and the tag in force. A row's fields carry the names and values that `slate ideas list --json` gives the same idea, and ref_count is how many refs the row draws. This read writes nothing.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "taken_at", "tab", "pursuit", "tag", "unpromoted", "rows", "reads"],
+  "required": ["schema_version", "taken_at", "tab", "pursuit", "tag", "open", "rows", "reads"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "taken_at": {"type": "string", "format": "date-time"},
     "tab": {"const": "ideas"},
     "pursuit": {
@@ -18,18 +18,18 @@
       "description": "The tag that narrows the rows, which # cycles. Null narrows nothing.",
       "type": ["string", "null"]
     },
-    "unpromoted": {
-      "description": "How many ideas are not promoted to an initiative, before the pursuit and the tag narrow them.",
+    "open": {
+      "description": "How many ideas are open, before the pursuit and the tag narrow them.",
       "type": "integer",
       "minimum": 0
     },
     "rows": {
-      "description": "The unpromoted ideas in the pursuit and carrying the tag, newest created first, the higher number first on a tie.",
+      "description": "The open ideas in the pursuit and carrying the tag, newest created first, the higher number first on a tie.",
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["number", "title", "description", "priority", "created_ts", "updated_ts", "pursuits", "tags", "refs", "ref_count"],
+        "required": ["number", "title", "description", "priority", "created_ts", "updated_ts", "pursuits", "tags", "refs", "ref_count", "became"],
         "properties": {
           "number": {"type": "integer", "minimum": 1},
           "title": {"type": "string"},
@@ -64,7 +64,8 @@
               }
             }
           },
-          "ref_count": {"description": "How many refs the idea carries, which its row draws.", "type": "integer", "minimum": 0}
+          "ref_count": {"description": "How many refs the idea carries, which its row draws.", "type": "integer", "minimum": 0},
+          "became": {"description": "How the idea ended, which is null on every row, because the tab lists only open ideas.", "type": "null"}
         }
       }
     },

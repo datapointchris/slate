@@ -1,0 +1,716 @@
+[
+  {
+    "name": "4318.5",
+    "former_names": [
+      "4272.1"
+    ],
+    "record_number": 4318,
+    "sequence": 5,
+    "record": {
+      "number": 4318,
+      "kind": "initiative",
+      "title": "Neutral title 15",
+      "status": "active"
+    },
+    "opened_by": "claude-code/13cb8a46-1923-4bbb-bc8c-050458aa2a7a",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-24T20:45:43.766563Z",
+    "ended_ts": "2026-11-24T21:05:59.731949Z",
+    "outcome": "promoted",
+    "ended_by": "a-person",
+    "flow_id": "51dbba484d85703035034e5f406069ff",
+    "state": "ended",
+    "stage": "committed",
+    "claim": {
+      "id": 1560,
+      "record_number": 4318,
+      "holder": "claude-code/13cb8a46-1923-4bbb-bc8c-050458aa2a7a",
+      "session": "13cb8a46-1923-4bbb-bc8c-050458aa2a7a",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 1",
+      "started_ts": "2026-11-24T20:45:43.766563Z",
+      "expires_ts": "2026-11-25T20:45:43.766563Z",
+      "ended_ts": "2026-11-24T21:05:59.731949Z",
+      "ending": "promoted",
+      "ended_by": "a-person",
+      "flow_id": "d93a4487480258f1bd363bbbab5f7ff5",
+      "state": "ended",
+      "worklog": "4318.5",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": {
+      "uncached_input": 108,
+      "cache_write": 104136,
+      "cache_read": 6454600,
+      "output": 50163
+    },
+    "spans": [
+      {
+        "session": "13cb8a46-1923-4bbb-bc8c-050458aa2a7a",
+        "directory": "Neutral directory 1",
+        "started_ts": "2026-11-24T20:45:43.766563Z",
+        "ended_ts": "2026-11-24T21:05:59.731949Z",
+        "tokens": {
+          "uncached_input": 108,
+          "cache_write": 104136,
+          "cache_read": 6454600,
+          "output": 50163
+        }
+      }
+    ],
+    "links": [
+      {
+        "kind": "commit",
+        "ref": "commit/8",
+        "repo": "repo-1",
+        "session": "13cb8a46-1923-4bbb-bc8c-050458aa2a7a",
+        "linked_ts": "2026-11-24T20:56:51.557652Z",
+        "linked_by": "claude-code/13cb8a46-1923-4bbb-bc8c-050458aa2a7a"
+      },
+      {
+        "kind": "commit",
+        "ref": "commit/9",
+        "repo": "repo-1",
+        "session": "13cb8a46-1923-4bbb-bc8c-050458aa2a7a",
+        "linked_ts": "2026-11-24T20:57:34.063827Z",
+        "linked_by": "claude-code/13cb8a46-1923-4bbb-bc8c-050458aa2a7a"
+      }
+    ],
+    "document_versions": []
+  },
+  {
+    "name": "4302.4",
+    "former_names": [
+      "4300.1"
+    ],
+    "record_number": 4302,
+    "sequence": 4,
+    "record": {
+      "number": 4302,
+      "kind": "initiative",
+      "title": "Neutral title 29",
+      "status": "active"
+    },
+    "opened_by": "claude-code/9601d9ae-d65f-48b2-a4a8-5a089a4ba580",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-24T19:47:14.962357Z",
+    "ended_ts": "2026-11-24T20:04:14.772736Z",
+    "outcome": "promoted",
+    "ended_by": "a-person",
+    "flow_id": "86d6ec66dc5c57d2868859a4d24b46d3",
+    "state": "ended",
+    "stage": "started",
+    "claim": {
+      "id": 1553,
+      "record_number": 4302,
+      "holder": "claude-code/9601d9ae-d65f-48b2-a4a8-5a089a4ba580",
+      "session": "9601d9ae-d65f-48b2-a4a8-5a089a4ba580",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 1",
+      "started_ts": "2026-11-24T19:47:14.962357Z",
+      "expires_ts": "2026-11-25T19:47:14.962357Z",
+      "ended_ts": "2026-11-24T20:04:14.772736Z",
+      "ending": "promoted",
+      "ended_by": "a-person",
+      "flow_id": "86d6ec66dc5c57d2868859a4d24b46d3",
+      "state": "ended",
+      "worklog": "4302.4",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": {
+      "uncached_input": 72,
+      "cache_write": 103247,
+      "cache_read": 4695801,
+      "output": 46874
+    },
+    "spans": [
+      {
+        "session": "9601d9ae-d65f-48b2-a4a8-5a089a4ba580",
+        "directory": "Neutral directory 1",
+        "started_ts": "2026-11-24T19:47:14.962357Z",
+        "ended_ts": "2026-11-24T20:04:14.772736Z",
+        "tokens": {
+          "uncached_input": 72,
+          "cache_write": 103247,
+          "cache_read": 4695801,
+          "output": 46874
+        }
+      }
+    ],
+    "links": [],
+    "document_versions": []
+  },
+  {
+    "name": "4271.4",
+    "former_names": [
+      "4164.1"
+    ],
+    "record_number": 4271,
+    "sequence": 4,
+    "record": {
+      "number": 4271,
+      "kind": "initiative",
+      "title": "Neutral title 46",
+      "status": "active"
+    },
+    "opened_by": "claude-code/cda42040-8d12-4c30-9d5f-f1d9325ef5af",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-24T15:07:18.046159Z",
+    "ended_ts": "2026-11-24T15:39:49.188663Z",
+    "outcome": "promoted",
+    "ended_by": "a-person",
+    "flow_id": "7314660aafd4f4483b6118936f85c434",
+    "state": "ended",
+    "stage": "committed",
+    "claim": {
+      "id": 1547,
+      "record_number": 4271,
+      "holder": "claude-code/cda42040-8d12-4c30-9d5f-f1d9325ef5af",
+      "session": "cda42040-8d12-4c30-9d5f-f1d9325ef5af",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 4",
+      "started_ts": "2026-11-24T15:07:18.046159Z",
+      "expires_ts": "2026-11-25T15:07:18.046159Z",
+      "ended_ts": "2026-11-24T15:39:49.188663Z",
+      "ending": "promoted",
+      "ended_by": "a-person",
+      "flow_id": "987ec162b4c6658fcbbcae23ed0fb1cb",
+      "state": "ended",
+      "worklog": "4271.4",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": {
+      "uncached_input": 56,
+      "cache_write": 80771,
+      "cache_read": 4868678,
+      "output": 48358
+    },
+    "spans": [
+      {
+        "session": "cda42040-8d12-4c30-9d5f-f1d9325ef5af",
+        "directory": "Neutral directory 4",
+        "started_ts": "2026-11-24T15:07:18.046159Z",
+        "ended_ts": "2026-11-24T15:39:49.188663Z",
+        "tokens": {
+          "uncached_input": 56,
+          "cache_write": 80771,
+          "cache_read": 4868678,
+          "output": 48358
+        }
+      }
+    ],
+    "links": [
+      {
+        "kind": "commit",
+        "ref": "commit/10",
+        "repo": "repo-1",
+        "session": "cda42040-8d12-4c30-9d5f-f1d9325ef5af",
+        "linked_ts": "2026-11-24T15:39:12.694546Z",
+        "linked_by": "claude-code/cda42040-8d12-4c30-9d5f-f1d9325ef5af"
+      }
+    ],
+    "document_versions": []
+  },
+  {
+    "name": "4203.5",
+    "former_names": [
+      "4196.1"
+    ],
+    "record_number": 4203,
+    "sequence": 5,
+    "record": {
+      "number": 4203,
+      "kind": "initiative",
+      "title": "Neutral title 48",
+      "status": "completed"
+    },
+    "opened_by": "claude-code/b4b8ea3b-09d0-4bf9-9cef-a2689345f212",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-22T23:01:20.455962Z",
+    "ended_ts": "2026-11-22T23:42:28.845753Z",
+    "outcome": "promoted",
+    "ended_by": "a-person",
+    "flow_id": "7ff64efdbf8e97ebc28cb5540a95c80d",
+    "state": "ended",
+    "stage": "committed",
+    "claim": {
+      "id": 1480,
+      "record_number": 4203,
+      "holder": "claude-code/b4b8ea3b-09d0-4bf9-9cef-a2689345f212",
+      "session": "b4b8ea3b-09d0-4bf9-9cef-a2689345f212",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 5",
+      "started_ts": "2026-11-22T23:01:20.455962Z",
+      "expires_ts": "2026-11-23T23:01:20.455962Z",
+      "ended_ts": "2026-11-22T23:42:28.845753Z",
+      "ending": "promoted",
+      "ended_by": "a-person",
+      "flow_id": "7ff64efdbf8e97ebc28cb5540a95c80d",
+      "state": "ended",
+      "worklog": "4203.5",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": {
+      "uncached_input": 106,
+      "cache_write": 136838,
+      "cache_read": 7350646,
+      "output": 71383
+    },
+    "spans": [
+      {
+        "session": "b4b8ea3b-09d0-4bf9-9cef-a2689345f212",
+        "directory": "Neutral directory 5",
+        "started_ts": "2026-11-22T23:01:20.455962Z",
+        "ended_ts": "2026-11-22T23:42:28.845753Z",
+        "tokens": {
+          "uncached_input": 106,
+          "cache_write": 136838,
+          "cache_read": 7350646,
+          "output": 71383
+        }
+      }
+    ],
+    "links": [
+      {
+        "kind": "commit",
+        "ref": "commit/11",
+        "repo": "repo-1",
+        "session": "b4b8ea3b-09d0-4bf9-9cef-a2689345f212",
+        "linked_ts": "2026-11-22T23:06:47.399702Z",
+        "linked_by": "claude-code/b4b8ea3b-09d0-4bf9-9cef-a2689345f212"
+      }
+    ],
+    "document_versions": []
+  },
+  {
+    "name": "1112.1",
+    "former_names": [
+      "3692.1"
+    ],
+    "record_number": 1112,
+    "sequence": 1,
+    "record": {
+      "number": 1112,
+      "kind": "issue",
+      "title": "Neutral title 42",
+      "status": "open"
+    },
+    "opened_by": "claude-code/5a718745-da69-4d7c-8566-12070de03227",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-18T03:23:23.356386Z",
+    "ended_ts": "2026-11-18T03:25:19.115354Z",
+    "outcome": "released",
+    "ended_by": "claude-code/5a718745-da69-4d7c-8566-12070de03227",
+    "flow_id": "b848a9d059c336846894041bccf2fd00",
+    "state": "ended",
+    "stage": "started",
+    "claim": {
+      "id": 1010,
+      "record_number": 1112,
+      "holder": "claude-code/5a718745-da69-4d7c-8566-12070de03227",
+      "session": "5a718745-da69-4d7c-8566-12070de03227",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 6",
+      "started_ts": "2026-11-18T03:23:23.356386Z",
+      "expires_ts": "2026-11-19T03:23:23.356386Z",
+      "ended_ts": "2026-11-18T03:25:19.115354Z",
+      "ending": "released",
+      "ended_by": "claude-code/5a718745-da69-4d7c-8566-12070de03227",
+      "flow_id": "b848a9d059c336846894041bccf2fd00",
+      "state": "ended",
+      "worklog": "1112.1",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": {
+      "uncached_input": 14,
+      "cache_write": 13606,
+      "cache_read": 1818755,
+      "output": 7060
+    },
+    "spans": [
+      {
+        "session": "5a718745-da69-4d7c-8566-12070de03227",
+        "directory": "Neutral directory 6",
+        "started_ts": "2026-11-18T03:23:23.356386Z",
+        "ended_ts": "2026-11-18T03:25:19.115354Z",
+        "tokens": {
+          "uncached_input": 14,
+          "cache_write": 13606,
+          "cache_read": 1818755,
+          "output": 7060
+        }
+      }
+    ],
+    "links": [],
+    "document_versions": []
+  },
+  {
+    "name": "3563.5",
+    "former_names": [
+      "3562.1"
+    ],
+    "record_number": 3563,
+    "sequence": 5,
+    "record": {
+      "number": 3563,
+      "kind": "initiative",
+      "title": "Neutral title 38",
+      "status": "completed"
+    },
+    "opened_by": "claude-code/90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-16T17:10:14.964076Z",
+    "ended_ts": "2026-11-16T17:10:16.566397Z",
+    "outcome": "promoted",
+    "ended_by": "a-person",
+    "flow_id": "20244a35815247efaea36397e49d10e4",
+    "state": "ended",
+    "stage": "started",
+    "claim": {
+      "id": 874,
+      "record_number": 3563,
+      "holder": "claude-code/90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+      "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 6",
+      "started_ts": "2026-11-16T17:10:14.964076Z",
+      "expires_ts": "2026-11-17T17:10:14.964076Z",
+      "ended_ts": "2026-11-16T17:10:16.566397Z",
+      "ending": "promoted",
+      "ended_by": "a-person",
+      "flow_id": null,
+      "state": "ended",
+      "worklog": "3563.5",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": null,
+    "spans": [
+      {
+        "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+        "directory": "Neutral directory 6",
+        "started_ts": "2026-11-16T17:10:14.964076Z",
+        "ended_ts": "2026-11-16T17:10:16.566397Z",
+        "tokens": null
+      }
+    ],
+    "links": [],
+    "document_versions": []
+  },
+  {
+    "name": "3479.1",
+    "former_names": [
+      "3478.1"
+    ],
+    "record_number": 3479,
+    "sequence": 1,
+    "record": {
+      "number": 3479,
+      "kind": "initiative",
+      "title": "Neutral title 36",
+      "status": "active"
+    },
+    "opened_by": "claude-code/c2aa6ccf-8ca5-4241-ac5a-4b45df75a768",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-15T20:18:34.750651Z",
+    "ended_ts": "2026-11-15T20:18:40.874432Z",
+    "outcome": "promoted",
+    "ended_by": "a-person",
+    "flow_id": "8ce2fea0d5204cb8969e9be792636f96",
+    "state": "ended",
+    "stage": "started",
+    "claim": {
+      "id": 827,
+      "record_number": 3479,
+      "holder": "claude-code/c2aa6ccf-8ca5-4241-ac5a-4b45df75a768",
+      "session": "c2aa6ccf-8ca5-4241-ac5a-4b45df75a768",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 4",
+      "started_ts": "2026-11-15T20:18:34.750651Z",
+      "expires_ts": "2026-11-16T20:18:34.750651Z",
+      "ended_ts": "2026-11-15T20:18:40.874432Z",
+      "ending": "promoted",
+      "ended_by": "a-person",
+      "flow_id": null,
+      "state": "ended",
+      "worklog": "3479.1",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": {
+      "uncached_input": 2,
+      "cache_write": 279,
+      "cache_read": 263834,
+      "output": 450
+    },
+    "spans": [
+      {
+        "session": "c2aa6ccf-8ca5-4241-ac5a-4b45df75a768",
+        "directory": "Neutral directory 4",
+        "started_ts": "2026-11-15T20:18:34.750651Z",
+        "ended_ts": "2026-11-15T20:18:40.874432Z",
+        "tokens": {
+          "uncached_input": 2,
+          "cache_write": 279,
+          "cache_read": 263834,
+          "output": 450
+        }
+      }
+    ],
+    "links": [],
+    "document_versions": []
+  },
+  {
+    "name": "3390.8",
+    "former_names": [
+      "3388.1"
+    ],
+    "record_number": 3390,
+    "sequence": 8,
+    "record": {
+      "number": 3390,
+      "kind": "initiative",
+      "title": "Neutral title 32",
+      "status": "completed"
+    },
+    "opened_by": "claude-code/90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-15T07:25:07.348097Z",
+    "ended_ts": "2026-11-15T07:37:37.97392Z",
+    "outcome": "promoted",
+    "ended_by": "a-person",
+    "flow_id": "176a64f7b11744c58553ec85caa6ddcb",
+    "state": "ended",
+    "stage": "committed",
+    "claim": {
+      "id": 793,
+      "record_number": 3390,
+      "holder": "claude-code/90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+      "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 6",
+      "started_ts": "2026-11-15T07:25:07.348097Z",
+      "expires_ts": "2026-11-16T07:25:07.348097Z",
+      "ended_ts": "2026-11-15T07:37:37.97392Z",
+      "ending": "promoted",
+      "ended_by": "a-person",
+      "flow_id": null,
+      "state": "ended",
+      "worklog": "3390.8",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": {
+      "uncached_input": 36,
+      "cache_write": 39273,
+      "cache_read": 3537312,
+      "output": 24532
+    },
+    "spans": [
+      {
+        "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+        "directory": "Neutral directory 6",
+        "started_ts": "2026-11-15T07:25:07.348097Z",
+        "ended_ts": "2026-11-15T07:37:37.97392Z",
+        "tokens": {
+          "uncached_input": 36,
+          "cache_write": 39273,
+          "cache_read": 3537312,
+          "output": 24532
+        }
+      }
+    ],
+    "links": [
+      {
+        "kind": "commit",
+        "ref": "commit/12",
+        "repo": "repo-1",
+        "session": "90e9bde8-ab22-4d33-bb8b-097e13d4e4b1",
+        "linked_ts": "2026-11-15T07:27:41.889853Z",
+        "linked_by": "claude-code/90e9bde8-ab22-4d33-bb8b-097e13d4e4b1"
+      }
+    ],
+    "document_versions": []
+  },
+  {
+    "name": "3176.5",
+    "former_names": [
+      "3175.1"
+    ],
+    "record_number": 3176,
+    "sequence": 5,
+    "record": {
+      "number": 3176,
+      "kind": "initiative",
+      "title": "Neutral title 2",
+      "status": "completed"
+    },
+    "opened_by": "claude-code/1a4e34f0-3a98-4a90-a10a-136a392708ea",
+    "step": "shape",
+    "estimate": null,
+    "started_ts": "2026-11-14T15:26:45.651077Z",
+    "ended_ts": "2026-11-14T15:39:07.946588Z",
+    "outcome": "promoted",
+    "ended_by": "a-person",
+    "flow_id": "698dc4de24fc44b6b2754f3511bd43c4",
+    "state": "ended",
+    "stage": "started",
+    "claim": {
+      "id": 732,
+      "record_number": 3176,
+      "holder": "claude-code/1a4e34f0-3a98-4a90-a10a-136a392708ea",
+      "session": "1a4e34f0-3a98-4a90-a10a-136a392708ea",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 4",
+      "started_ts": "2026-11-14T15:26:45.651077Z",
+      "expires_ts": "2026-11-15T15:26:45.651077Z",
+      "ended_ts": "2026-11-14T15:39:07.946588Z",
+      "ending": "promoted",
+      "ended_by": "a-person",
+      "flow_id": null,
+      "state": "ended",
+      "worklog": "3176.5",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": {
+      "uncached_input": 12,
+      "cache_write": 21624,
+      "cache_read": 892285,
+      "output": 18263
+    },
+    "spans": [
+      {
+        "session": "1a4e34f0-3a98-4a90-a10a-136a392708ea",
+        "directory": "Neutral directory 4",
+        "started_ts": "2026-11-14T15:26:45.651077Z",
+        "ended_ts": "2026-11-14T15:39:07.946588Z",
+        "tokens": {
+          "uncached_input": 12,
+          "cache_write": 21624,
+          "cache_read": 892285,
+          "output": 18263
+        }
+      }
+    ],
+    "links": [],
+    "document_versions": []
+  },
+  {
+    "name": "4330.1",
+    "former_names": [],
+    "record_number": 4330,
+    "sequence": 1,
+    "record": {
+      "number": 4330,
+      "kind": "issue",
+      "title": "Neutral title 50",
+      "status": "open"
+    },
+    "opened_by": "a-person",
+    "step": "build",
+    "estimate": null,
+    "started_ts": "2026-11-25T02:19:07.138132Z",
+    "ended_ts": null,
+    "outcome": null,
+    "ended_by": null,
+    "flow_id": "51dbba484d85703035034e5f406069ff",
+    "state": "live",
+    "stage": "started",
+    "claim": {
+      "id": 1607,
+      "record_number": 4330,
+      "holder": "a-person",
+      "session": "3591e380-40d5-4a8d-a52a-114e9bfb7a20",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 7",
+      "started_ts": "2026-11-25T02:19:07.138132Z",
+      "expires_ts": "2026-11-26T02:19:07.138132Z",
+      "ended_ts": null,
+      "ending": null,
+      "ended_by": null,
+      "flow_id": "51dbba484d85703035034e5f406069ff",
+      "state": "live",
+      "worklog": "4330.1",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": null,
+    "spans": [
+      {
+        "session": "3591e380-40d5-4a8d-a52a-114e9bfb7a20",
+        "directory": "Neutral directory 7",
+        "started_ts": "2026-11-25T02:19:07.138132Z",
+        "ended_ts": null,
+        "tokens": null
+      }
+    ],
+    "links": [],
+    "document_versions": []
+  },
+  {
+    "name": "4326.1",
+    "former_names": [],
+    "record_number": 4326,
+    "sequence": 1,
+    "record": {
+      "number": 4326,
+      "kind": "issue",
+      "title": "Neutral title 51",
+      "status": "open"
+    },
+    "opened_by": "a-person",
+    "step": "build",
+    "estimate": null,
+    "started_ts": "2026-11-25T02:19:05.567381Z",
+    "ended_ts": null,
+    "outcome": null,
+    "ended_by": null,
+    "flow_id": "51dbba484d85703035034e5f406069ff",
+    "state": "live",
+    "stage": "started",
+    "claim": {
+      "id": 1606,
+      "record_number": 4326,
+      "holder": "a-person",
+      "session": "953247c6-ba16-4a62-9e6e-5cebacafb80c",
+      "host": "Neutral host 1",
+      "directory": "Neutral directory 8",
+      "started_ts": "2026-11-25T02:19:05.567381Z",
+      "expires_ts": "2026-11-26T02:19:05.567381Z",
+      "ended_ts": null,
+      "ending": null,
+      "ended_by": null,
+      "flow_id": "51dbba484d85703035034e5f406069ff",
+      "state": "live",
+      "worklog": "4326.1",
+      "waiting": null
+    },
+    "waits": [],
+    "tokens": null,
+    "spans": [
+      {
+        "session": "953247c6-ba16-4a62-9e6e-5cebacafb80c",
+        "directory": "Neutral directory 8",
+        "started_ts": "2026-11-25T02:19:05.567381Z",
+        "ended_ts": null,
+        "tokens": null
+      }
+    ],
+    "links": [],
+    "document_versions": []
+  }
+]

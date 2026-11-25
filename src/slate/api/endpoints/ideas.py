@@ -9,9 +9,8 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter
 from fastapi import Depends
-from fastapi import HTTPException
+from fastapi import Query
 from fastapi import status
-from sqlalchemy import case
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 
@@ -27,6 +26,7 @@ from slate.models.record import Kind
 from slate.models.record_redirect import FOLDED
 from slate.schemas.idea import FIELDS_OF_KIND
 from slate.schemas.idea import SHARED_FIELDS
+from slate.schemas.idea import IdeaStateFilter
 from slate.schemas.idea import PromotedKind
 from slate.services.claims import end_with_record
 from slate.services.idea_folds import fold_rows_into
@@ -36,22 +36,19 @@ from slate.services.idea_folds import settle_claims
 from slate.services.idea_promotion import PromotedIdea
 from slate.services.idea_promotion import idea_held_for_write
 from slate.services.idea_promotion import lock_idea
-from slate.services.idea_promotion import refuse_named_by_initiative
 from slate.services.idea_promotion import turn_idea_into
 from slate.services.idea_views import idea_detail
 from slate.services.idea_views import idea_view
-from slate.services.idea_views import idea_views
+from slate.services.idea_views import listed_ideas
 from slate.services.idea_views import promoted_idea_view
 from slate.services.initiative_views import counted
 from slate.services.initiatives import new_initiative
-from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.issue_views import fresh_issue_detail
 from slate.services.issues import new_issue
 from slate.services.likely_duplicates import warn_likely_duplicates
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_record_parts_deleted
 from slate.services.record_groupings import GroupingsQuery
-from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_lookup import REQUEST_WRITES
 from slate.services.record_lookup import resolve_idea
 from slate.services.record_pins import clear_pin_on_close
@@ -65,7 +62,6 @@ from slate.services.record_summaries import record_summaries
 from slate.services.record_tags import resolve_tags
 from slate.services.record_tags import set_record_tags
 from slate.services.row_limit import RowLimit
-from slate.services.row_limit import apply_row_limit
 from slate.services.write_effects import Effects
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
@@ -91,17 +87,19 @@ IdeaFromPath = Annotated[models.Idea, Depends(path_idea)]
 def read_many(
     session: DbSession,
     groupings: GroupingsQuery,
+    state: Annotated[IdeaStateFilter, Query(description='open is still an idea; ended was promoted or folded')] = 'open',
     limit: RowLimit = None,
 ):
-    """Every idea, most urgent first. Priority 0 is no priority and sorts last.
+    """The ideas in `state`, most urgent first. Priority 0 is no priority and sorts last.
 
-    A promotion turns the idea into its initiative or issue under the same number, so a promoted
-    number is no longer listed. An idea that an initiative names in `idea_id` is listed with it.
+    `open` lists the ideas still open, each with `became` null. `ended` lists every number that was
+    an idea and ended, and `all` lists both, each number once. An ended item's `became` says how it
+    ended and names the record carrying its work, as that record stands. A promoted record reads as
+    the idea it was. A number a fold retired reads from its redirect, and so does an idea promoted
+    before promotion kept the number. A tag, a pursuit or a ref narrows an ended number by the
+    record `became` names, because the idea's rows moved there.
     """
-    urgency = case((models.Idea.priority == 0, NO_PRIORITY_URGENCY), else_=models.Idea.priority)
-    query = select(models.Idea).order_by(urgency.asc(), models.Idea.number.asc())
-    query = narrowed_to_groupings(query, Kind.IDEA, groupings, session)
-    return idea_views(session, session.scalars(apply_row_limit(query, limit)).all())
+    return listed_ideas(session, groupings, state, limit)
 
 
 @router.post('', response_model=schemas.IdeaWritten, status_code=status.HTTP_201_CREATED)
@@ -134,11 +132,6 @@ def rank(idea: IdeaFromPath, move: schemas.RecordRankMove, session: DbSession, z
 @router.post('/{id}/pin', response_model=schemas.IdeaWritten, status_code=status.HTTP_200_OK)
 def pin(idea: IdeaFromPath, request: schemas.RecordPin, session: DbSession, caller: CurrentCaller, effects: Effects):
     """Hold this idea ahead of every priority in the queue, a person's choice alone, until unpinned. A promotion keeps it on the number."""
-    if idea.initiative is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'#{idea.number} was promoted to initiative #{idea.initiative.number}, so pin that instead.',
-        )
     pin_record(session, idea.record, request, caller_actor(caller), effects)
     session.commit()
     session.refresh(idea)
@@ -176,11 +169,7 @@ def update(idea: IdeaFromPath, changes: schemas.IdeaUpdate, session: DbSession, 
 
 @router.delete('/{id}', response_model=schemas.RecordDeleted, status_code=status.HTTP_200_OK)
 def delete(idea: IdeaFromPath, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Delete the idea's record, which takes the idea, its refs, pin, claims, worklogs, documents and comments with it.
-
-    A promoted idea is refused with 409, because its initiative names it as where that work came from.
-    """
-    refuse_named_by_initiative(idea)
+    """Delete the idea's record, which takes the idea, its refs, pin, claims, worklogs, documents and comments with it."""
     deleted = record_summaries(session, [idea.number])[idea.number]
     name_record_parts_deleted(session, idea.number, caller_actor(caller), dt.datetime.now(dt.UTC), effects)
     session.execute(sql_delete(models.Record).where(models.Record.number == idea.number))
@@ -211,16 +200,10 @@ def promote(
     record's age counts from the idea. A field the request leaves out keeps what the record holds.
     The claim and each open worklog end as `promoted`, which closes the shape step, and the answer
     names each. An issue holds no pursuits, so a promotion to one drops the idea's and warns
-    `pursuits_dropped` for each. A number another kind holds answers 409, and so does an idea that
-    an initiative names in `idea_id`.
+    `pursuits_dropped` for each. A number another kind holds answers 409.
     """
     idea = lock_idea(session, id)
     name_record(idea.number)
-    if idea.initiative is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'#{idea.number} was already promoted to initiative #{idea.initiative.number} {idea.initiative.name!r}.',
-        )
     now = dt.datetime.now(dt.UTC)
     actor = caller_actor(caller)
     end_with_record(session, idea.number, 'promoted', now, actor, effects)
@@ -300,8 +283,8 @@ def fold(id: str, request: schemas.IdeaFold, session: DbSession, zone: RequestZo
 
     Another session's live claim on either record answers 409 naming its holder. `holder`'s claim
     on the idea moves to the target, or ends as released where `holder` holds the target too. Left
-    out, `holder` is the caller. A non-idea, a pursuit, the idea itself, an idea that an initiative
-    names in `idea_id` and a number a fold already retired each answer 409. The answer is the
+    out, `holder` is the caller. A non-idea, a pursuit, the idea itself and a number a fold already
+    retired each answer 409. The answer is the
     target's own kind's envelope, naming each row moved in `side_effects`.
     """
     idea, target = lock_fold(session, id, request.into)
