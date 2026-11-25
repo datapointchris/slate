@@ -105,8 +105,8 @@ carries only what a board draws, and no `record`:
 - `kind`, `number`, `title`, `step`, `priority`, `pinned`, `placed_by` and
   `raised_by`, as `GET /queue` spells them
 - `own_priority`, the record's own, beside the `priority` by which it sorts
-- an issue's `initiative`, in the shape an issue's read gives it, and `repos`:
-  an issue's repo, or each repo that an initiative's issues name
+- an issue's `initiative`, in the same shape as on the issue's own read, and
+  `repos`: an issue's repo, or each repo that an initiative's issues name
 - `pursuits`: an issue's initiative's, else the record's own
 - an initiative's `open_count`, and an issue's `overlaps`
 - on a claimed row, `holder`, `held_through`, and the claim's `expires_ts` and
