@@ -81,7 +81,7 @@ func openJumpTabs(t *testing.T, stand *jumpAPI, view string) *gotermboard.Tabs {
 	initiatives := newInitiativesBoard(client, "", boardScope{kind: scopePerTier, perTier: defaultBoardPerTier}, "")
 	initiatives.CursorOn(issueKey(50))
 	initiatives.cursorRow.Refresh(context.Background())
-	tabs, err := openTabs(tuiTabList(client, initiatives), view)
+	tabs, err := openTabs(tuiTabList(tabInputs{client: client, initiatives: func() *initiativesBoard { return initiatives }}), view)
 	if err != nil {
 		t.Fatal(err)
 	}

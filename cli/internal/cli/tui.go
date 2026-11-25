@@ -25,10 +25,63 @@ const (
 	onceFallbackHeight = 88
 )
 
-// The tabs, in the order Tab cycles them.
 const tabInitiatives = "initiatives"
 
-func tuiTabs() []string { return []string{tabInitiatives, tabRepos, tabIdeas} }
+// tuiTab is one tab: its name, its board in the live program, and its print for --once and --json.
+type tuiTab struct {
+	name  string
+	board func(in tabInputs) gotermboard.Board
+	print func(cmd *cobra.Command, asJSON bool, in tabInputs) error
+}
+
+// tabInputs is what the tabs' boards are built from. The initiatives board is built only where
+// its tab is printed or opened.
+type tabInputs struct {
+	client      *api.Client
+	initiatives func() *initiativesBoard
+}
+
+// tuiTabs is every tab, in the order Tab cycles them.
+func tuiTabs() []tuiTab {
+	return []tuiTab{
+		{
+			name:  tabInitiatives,
+			board: func(in tabInputs) gotermboard.Board { return in.initiatives() },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				if err := readAndPrintTab(cmd, asJSON, in.initiatives()); err != nil {
+					return err
+				}
+				if !cmd.Flags().Changed("status") {
+					noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
+				}
+				return nil
+			},
+		},
+		{
+			name:  tabRepos,
+			board: func(in tabInputs) gotermboard.Board { return newReposBoard(in.client) },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				return readAndPrintTab(cmd, asJSON, newReposBoard(in.client))
+			},
+		},
+		{
+			name:  tabIdeas,
+			board: func(in tabInputs) gotermboard.Board { return newIdeasBoard(in.client) },
+			print: func(cmd *cobra.Command, asJSON bool, in tabInputs) error {
+				return readAndPrintTab(cmd, asJSON, newIdeasBoard(in.client))
+			},
+		},
+	}
+}
+
+func tuiTabNames() []string {
+	tabs := tuiTabs()
+	names := make([]string, len(tabs))
+	for i, tab := range tabs {
+		names[i] = tab.name
+	}
+	return names
+}
 
 // onTerminal is whether a person holds the keyboard and sees the screen.
 func onTerminal() bool {
@@ -110,7 +163,7 @@ func newTUICommand() *cobra.Command {
 		Args:        cobra.NoArgs,
 		Annotations: scopesForService(scopeRecordsRead),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := gotermboard.RefuseUnknownView(view, tuiTabs()); err != nil {
+			if err := gotermboard.RefuseUnknownView(view, tuiTabNames()); err != nil {
 				return goclikit.UsageError(err)
 			}
 			if grouping != "" && !slices.Contains(initiativeGroupings, grouping) {
@@ -137,12 +190,13 @@ func newTUICommand() *cobra.Command {
 			if cmd.Flags().Changed("limit") {
 				scope.kind = scopeFirstInList
 			}
+			in := tabInputs{client: client, initiatives: func() *initiativesBoard {
+				return newInitiativesBoard(client, initiativeStatus, scope, grouping)
+			}}
 			if printing {
-				return printOpeningTab(cmd, view, asJSON, client, func() *initiativesBoard {
-					return newInitiativesBoard(client, initiativeStatus, scope, grouping)
-				})
+				return printOpeningTab(cmd, view, asJSON, in)
 			}
-			tabs, err := openTabs(tuiTabList(client, newInitiativesBoard(client, initiativeStatus, scope, grouping)), view)
+			tabs, err := openTabs(tuiTabList(in), view)
 			if err != nil {
 				return err
 			}
@@ -154,8 +208,8 @@ func newTUICommand() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().StringVar(&view, "view", "", "Open on this tab: "+strings.Join(tuiTabs(), ", "))
-	withFlagValues(cmd, "view", tuiTabs()...)
+	cmd.Flags().StringVar(&view, "view", "", "Open on this tab: "+strings.Join(tuiTabNames(), ", "))
+	withFlagValues(cmd, "view", tuiTabNames()...)
 	cmd.Flags().StringVar(&grouping, "grouping", "", "Open the initiatives tab grouped by: "+strings.Join(initiativeGroupings, ", ")+" (default tier)")
 	withFlagValues(cmd, "grouping", initiativeGroupings...)
 	cmd.Flags().BoolVar(&once, "once", false, "Print one frame of the tab at COLUMNS by LINES, then exit")
@@ -168,13 +222,14 @@ func newTUICommand() *cobra.Command {
 	return cmd
 }
 
-// tuiTabList is every tab, in tuiTabs' order, the initiatives tab on the board its flags built.
-func tuiTabList(client *api.Client, initiatives *initiativesBoard) []gotermboard.Tab {
-	return []gotermboard.Tab{
-		{Name: tabInitiatives, Board: initiatives},
-		{Name: tabRepos, Board: newReposBoard(client)},
-		{Name: tabIdeas, Board: newIdeasBoard(client)},
+// tuiTabList is every tab with its live board.
+func tuiTabList(in tabInputs) []gotermboard.Tab {
+	tabs := tuiTabs()
+	list := make([]gotermboard.Tab, len(tabs))
+	for i, tab := range tabs {
+		list[i] = gotermboard.Tab{Name: tab.name, Board: tab.board(in)}
 	}
+	return list
 }
 
 // openTabs is the program of tabs, opening on view, where t on a pull request opens prs.
@@ -187,21 +242,12 @@ func openTabs(tabs []gotermboard.Tab, view string) (*gotermboard.Tabs, error) {
 	return program, nil
 }
 
-// printOpeningTab reads the one tab --view names, and builds no other.
-func printOpeningTab(cmd *cobra.Command, view string, asJSON bool, client *api.Client, initiatives func() *initiativesBoard) error {
-	switch view {
-	case tabRepos:
-		return readAndPrintTab(cmd, asJSON, newReposBoard(client))
-	case tabIdeas:
-		return readAndPrintTab(cmd, asJSON, newIdeasBoard(client))
-	}
-	if err := readAndPrintTab(cmd, asJSON, initiatives()); err != nil {
-		return err
-	}
-	if !cmd.Flags().Changed("status") {
-		noteHiddenByStatus(cmd, "Someday, completed and dropped initiatives")
-	}
-	return nil
+// printOpeningTab reads the one tab --view names, the first where it names none, and builds no
+// other.
+func printOpeningTab(cmd *cobra.Command, view string, asJSON bool, in tabInputs) error {
+	tabs := tuiTabs()
+	at := slices.IndexFunc(tabs, func(tab tuiTab) bool { return tab.name == view })
+	return tabs[max(at, 0)].print(cmd, asJSON, in)
 }
 
 // printableTab is a tab's board that --once and --json read once and print.
