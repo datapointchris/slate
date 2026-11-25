@@ -157,7 +157,9 @@ have waited. Its ideas tab lists every open idea, newest first, narrowed
 by pursuit or tag. Its documents tab groups every document under its record, the
 newest written first, and opens a document's latest version with its line comments.
 Its pursuits tab is each pursuit's standing against the focus, and charts each
-pursuit's usage by day beside its share. From the board you move, pin and reorder work, open a Claude session
+pursuit's usage by day beside its share. Its worklogs tab lists the live, the expired
+and the newest ended worklogs, and unfolds each into its sessions and links beside its
+tokens and its record's estimate. From the board you move, pin and reorder work, open a Claude session
 on a row, and open a pull request an issue's worklogs hold in `prs`.
 `docs/live-board.md` says why it has that shape.
 

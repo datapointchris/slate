@@ -478,12 +478,14 @@ func outputCell(tokens float64) gotermboard.Cell {
 	if tokens <= 0 {
 		return gotermboard.C(noFigure, dimCode)
 	}
-	return gotermboard.C(outputTokens(tokens), "")
+	return gotermboard.C(shortTokenCount(tokens), "")
 }
 
-// outputTokens writes a count of output tokens short, as 19.9k or 1.2M.
-func outputTokens(tokens float64) string {
+// shortTokenCount writes a count of tokens short, as 19.9k, 1.2M or 1.2B.
+func shortTokenCount(tokens float64) string {
 	switch {
+	case tokens >= 1e9:
+		return strconv.FormatFloat(tokens/1e9, 'f', 1, 64) + "B"
 	case tokens >= 1e6:
 		return strconv.FormatFloat(tokens/1e6, 'f', 1, 64) + "M"
 	case tokens >= 1e3:
@@ -688,8 +690,8 @@ func (b *pursuitsBoard) totalPanel(view pursuitsView, now time.Time) gotermboard
 		if standing := b.standing.Value(); view.viewing == 0 && view.read {
 			unattributed := standing.Unattributed
 			lines = append(lines, gotermboard.Line{}, heading("Reaching no pursuit"), plainLine(fmt.Sprintf("%s output in %d %s · %s in no worklog",
-				outputTokens(float64(unattributed.OutputTokens)), unattributed.WorklogCount, plural(unattributed.WorklogCount, "worklog", "worklogs"),
-				outputTokens(float64(unattributed.OutsideWorklogsOutputTokens)))))
+				shortTokenCount(float64(unattributed.OutputTokens)), unattributed.WorklogCount, plural(unattributed.WorklogCount, "worklog", "worklogs"),
+				shortTokenCount(float64(unattributed.OutsideWorklogsOutputTokens)))))
 		}
 		return lines
 	}

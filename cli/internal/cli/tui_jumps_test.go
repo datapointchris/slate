@@ -19,9 +19,10 @@ import (
 )
 
 // jumpAPI stands in for slate's API under every tab. At active it reads sevenHighAndTwoLow, with
-// initiative 1 in pursuit 3010 and holding issue 50, whose worklog links one pull request. Every
-// status adds completed initiative 20, which holds the one document, its retro. Idea 4100 is in
-// pursuit 3010, and idea 4000 in none. No focus is in force, and 3010 is the one pursuit.
+// initiative 1 in pursuit 3010 and holding issue 50, whose live worklog 50.1 holds one session
+// and links one pull request. Every status adds completed initiative 20, which holds the one
+// document, its retro. Idea 4100 is in pursuit 3010, and idea 4000 in none. No focus is in force,
+// and 3010 is the one pursuit. No worklog has expired or ended.
 type jumpAPI struct {
 	pullRequest string
 	mu          sync.Mutex
@@ -49,9 +50,16 @@ func (s *jumpAPI) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		answer = read
 	case "/api/v1/worklogs":
-		answer = []api.Worklog{{Name: "50.1", RecordNumber: 50, Sequence: 1, StartedTS: day, Links: []api.WorklogLink{
-			{Kind: api.WorklogLinkPullRequest, Ref: s.pullRequest, LinkedTS: day, LinkedBy: "someone"},
-		}}}
+		if state := r.URL.Query().Get("state"); state == api.WorklogStateExpired || state == api.WorklogStateEnded {
+			answer = []api.Worklog{}
+			break
+		}
+		answer = []api.Worklog{{
+			Name: "50.1", RecordNumber: 50, Sequence: 1, StartedTS: day, State: api.WorklogStateLive, Stage: "pull_request",
+			Record: api.RecordSummary{Number: 50, Kind: api.RecordKindIssue, Title: "Rotate the keys"},
+			Spans:  []api.WorklogSpan{{Session: "5e179cd4-1340", StartedTS: day}},
+			Links:  []api.WorklogLink{{Kind: api.WorklogLinkPullRequest, Ref: s.pullRequest, LinkedTS: day, LinkedBy: "someone"}},
+		}}
 	case "/api/v1/ideas":
 		answer = []api.Idea{
 			{Number: 4100, Title: "Compost the kitchen scraps", CreatedTS: day, UpdatedTS: day, InPursuits: api.InPursuits{Pursuits: []api.PursuitSummary{garden}}},
@@ -136,16 +144,32 @@ func TestEachKindLandsWhereItsTabDrawsItWhole(t *testing.T) {
 	}{
 		{
 			name: "t on a pull request with a web link and prs on PATH opens prs", opensOn: tabInitiatives,
-			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, prsOnPath: true, pullRequest: webLink, handsOver: new(true),
+			goTo: &onIssue50, keys: []string{"enter", "j", "t", "1", "enter"}, prsOnPath: true, pullRequest: webLink, handsOver: new(true),
 		},
 		{
 			name: "t on a pull request with no prs on PATH opens nothing", opensOn: tabInitiatives,
-			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, pullRequest: webLink, handsOver: new(false),
+			goTo: &onIssue50, keys: []string{"enter", "j", "t", "1", "enter"}, pullRequest: webLink, handsOver: new(false),
 		},
 		{
 			name: "t on a pull request that is no web link opens nothing", opensOn: tabInitiatives,
-			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, prsOnPath: true, pullRequest: "ssh://host/owner/repo/pull/40",
+			goTo: &onIssue50, keys: []string{"enter", "j", "t", "1", "enter"}, prsOnPath: true, pullRequest: "ssh://host/owner/repo/pull/40",
 			handsOver: new(false),
+		},
+		{
+			name: "t on a pull request asks between prs and its worklog's row", opensOn: tabInitiatives,
+			goTo: &onIssue50, keys: []string{"enter", "j", "t"}, pullRequest: webLink, shows: []string{"go to 1 to 2:", "worklogs  worklog 50.1"},
+		},
+		{
+			name: "t on an issue's session lands on its worklog's row", opensOn: tabInitiatives,
+			goTo: &onIssue50, keys: []string{"enter", "j", "j", "t"}, pullRequest: webLink, cursorOn: "50.1", shows: []string{"slate · worklogs"},
+		},
+		{
+			name: "t from a worklog lands on its record", opensOn: tabWorklogs,
+			keys: []string{"t", "1", "enter"}, pullRequest: webLink, cursorOn: "Rotate the keys", shows: []string{"slate · initiatives"},
+		},
+		{
+			name: "esc from the record comes back to the worklog", opensOn: tabWorklogs,
+			keys: []string{"t", "1", "enter", "esc"}, pullRequest: webLink, cursorOn: "50.1", shows: []string{"slate · worklogs"},
 		},
 		{
 			name: "* on a pursuit narrows the ideas tab to the ideas in it", opensOn: tabIdeas,

@@ -138,22 +138,26 @@ func webLink(link string) bool {
 
 // openInBrowser is o on a pull request's row.
 func (b *initiativesBoard) openInBrowser(m *gotermboard.Model) tea.Cmd {
-	link, ok := pullRequestAt(m.Cursor())
-	if !ok {
-		return nil
+	if link, ok := pullRequestAt(m.Cursor()); ok {
+		openWebLink(m, link)
 	}
+	return nil
+}
+
+// openWebLink opens link in the browser where it is a web link, and otherwise names it, as o
+// does on any tab.
+func openWebLink(m *gotermboard.Model, link string) {
 	if !webLink(link) {
 		m.Say(fmt.Sprintf("%s is not a web link, so nothing opened it", link))
-		return nil
+		return
 	}
 	// The browser's own output would draw over the board.
 	browser.Stdout, browser.Stderr = io.Discard, io.Discard
 	if err := browser.OpenURL(link); err != nil {
 		m.Say(fmt.Sprintf("no browser opened %s: %v", pullRequestName(link), err))
-		return nil
+		return
 	}
 	m.Say("opened " + pullRequestName(link) + " in the browser")
-	return nil
 }
 
 // pullRequestKeyPrefix leads a pull request row's key, which ends in the link as recorded.
