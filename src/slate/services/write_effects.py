@@ -32,10 +32,7 @@ class WriteEffectCode(enum.StrEnum):
     ANCESTOR_REOPENED = 'ancestor_reopened'
     CLAIM_ENDED = 'claim_ended'
     EXPIRED_CLAIM_ENDED = 'expired_claim_ended'
-    INITIATIVE_CREATED = 'initiative_created'
     PIN_CLEARED = 'pin_cleared'
-    PIN_CARRIED = 'pin_carried'
-    REFS_CARRIED = 'refs_carried'
 
     # Warnings on a pin write that changed nothing.
     ALREADY_PINNED = 'already_pinned'
@@ -86,6 +83,9 @@ class WriteEffectCode(enum.StrEnum):
 
     # A warning on linking a ref that a record already carries.
     REF_ALREADY_LINKED = 'ref_already_linked'
+
+    # A warning on promoting an idea to an issue, which reads its pursuits from its initiative and holds none.
+    PURSUITS_DROPPED = 'pursuits_dropped'
 
     # A warning on creating a record whose title reads like an open record's.
     POSSIBLE_DUPLICATE = 'possible_duplicate'

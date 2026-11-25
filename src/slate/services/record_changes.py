@@ -1,4 +1,4 @@
-"""One record's changes: every audit row on the record, and on each row hanging off it.
+"""One record's changes: every audit row on the record, on each kind row that held its `id`, and on each row hanging off it.
 
 A row hangs off a record when single-column `ON DELETE CASCADE` foreign keys lead to it from the
 record, through any number of rows: a claim on the record's number, then a wait on that claim.
@@ -96,7 +96,7 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
     """Every write to `record` and to each row hanging off it, newest first, the latest `limit` of them."""
     kind_model = models.KIND_MODELS[record.kind]
     record_id = str(session.scalars(select(kind_model.id).where(kind_model.number == record.number)).one())
-    own = {(models.Record.__tablename__, str(record.number)), (kind_model.__tablename__, record_id)}
+    own = {(models.Record.__tablename__, str(record.number)), (kind_model.__tablename__, record_id)} | former_kind_rows(session, record_id)
     if (former := FORMER_KIND_TABLES.get(kind_model.__tablename__)) is not None:
         own.add((former, record_id))
     written = set(own)
@@ -124,6 +124,13 @@ def record_changes(session: Session, record: models.Record, limit: int | None) -
         for row in session.scalars(apply_row_limit(query, limit))
     ]
     return with_referenced_names(session, changes)
+
+
+def former_kind_rows(session: Session, record_id: str) -> set[tuple[str, str]]:
+    """Each kind table that holds or held a row under `record_id`. A promoted record's `ideas` row is among them."""
+    tables = [model.__tablename__ for model in models.KIND_MODELS.values()]
+    held = session.scalars(select(Change.table_name).distinct().where(Change.table_name.in_(tables), Change.record_id == record_id))
+    return {(table, record_id) for table in held}
 
 
 @dataclass(frozen=True)

@@ -84,12 +84,15 @@ lead to it from the record, through any number of rows: a claim on the
 record's number, then a wait on that claim. Deleting the record deletes the
 row, so the row is part of it. The read takes that list from the schema's
 foreign keys, so a table added later is read with no change to the read.
-Three cases are set by hand in `services/record_changes.py`:
+These cases are set by hand in `services/record_changes.py`:
 
 - A worklog's spans are left out. Each is a session joining or leaving the
   worklog, and every hold and resume writes several.
-- An idea's changes hold the insert of the initiative promoting it, and no
-  later write to that initiative. Those are the initiative's own.
+- A record reads every kind row that held its `id`. A promotion keeps the
+  idea's `id` on the new kind's row, so the idea's writes stay in the number's
+  history.
+- An idea that an initiative names in `idea_id` holds that initiative's
+  insert, and no later write to it. Those are the initiative's own.
 - An issue's comments in `issue_comments`, a table imported rows name and no
   model maps, are read by the issue each one names.
 
@@ -122,8 +125,7 @@ that reason.
 - *Rejected:* the changes inside each kind's read. An issue's writes answer
   that read, so every write would read its whole audit trail back.
 - *Rejected:* a hand-written list of the tables hanging off each kind. Nothing
-  kept it level with the schema, and it missed the initiative that a promotion
-  creates.
+  kept it level with the schema.
 
 ## A search reads every kind and every status, and a number names its record
 
@@ -176,7 +178,7 @@ true of finished work.
 list row or a written record not carrying the tag fails the command. A hold
 whose issue lacks it is released.
 `tags` on a create sets the record's own, and `tags` on an update replaces the
-whole set. A promotion gives the initiative the idea's tags unless the request
+whole set. A promotion keeps the idea's tags on the number unless the request
 names its own. `GET /tags` lists each tag with how many open records of each
 kind carry it themselves, and `GET /vocabulary` carries the same list.
 Deleting a tag takes it off every record, closed ones included, and the answer
@@ -225,8 +227,8 @@ as tags do, so `slate show` prints each link among the record's changes. A
   already carries keeps its note and linker, and the answer warns
   `ref_already_linked`. A service reaches these through `slate.refs.write`,
   and a `linked_by` naming anyone but its client id is refused.
-- A promotion copies each of the idea's refs onto its initiative as it was
-  linked, named as `refs_carried`. The idea keeps them too.
+- A promotion keeps every ref where it is, because each row keys on the
+  number that the promotion keeps.
 - Every read of the three kinds carries `refs`, oldest first.
 
 The CLI checks every answer to a `--ref` it sent, as it does for `--tag`. An
@@ -236,8 +238,8 @@ record missing a ref that it was sent. Without the check, a caller asking
 whether any record already names its key would read every record as naming it.
 
 - *Rejected:* a refs table per kind. The three kinds share one number
-  sequence, so one key on the number serves them all. One prefix index, one
-  link path and one promote copy then serve every kind.
+  sequence, so one key on the number serves them all. One prefix index and one
+  link path then serve every kind, and a promotion moves no row.
 - *Rejected:* finding keys in descriptions. A key written in prose is easily
   shortened, and a shortened key matches nothing.
 
@@ -292,12 +294,13 @@ Pursuit 'Mobile App' is dropped. Reopen it before placing work in it.
 ```
 
 A record already in it stays, so an edit to that record still goes through. A
-promotion carrying the idea's pursuits meets the same refusal.
+promotion naming pursuits meets the same refusal.
 
 `--pursuit` takes a number or the exact name. The CLI reads a name's number
 with `GET /pursuits/{ref}` before the write, which is why `slate.records.plan`
-reaches that read. A promotion gives the initiative the idea's pursuits unless
-the request names its own.
+reaches that read. A promotion to an initiative keeps the idea's pursuits
+unless the request names its own. A promotion to an issue drops them, with a
+`pursuits_dropped` warning naming each, because an issue holds none.
 
 `pursuit` narrows `GET /ideas`, `GET /initiatives`, `GET /issues` through each
 issue's initiative, and every read `ReadyFilter` filters, such as `GET /queue`

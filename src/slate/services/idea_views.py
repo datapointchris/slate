@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.services.claim_views import unended_claim_views
+from slate.services.idea_promotion import PromotedIdea
 from slate.services.initiative_views import initiatives_of_ideas
 from slate.services.record_parts import record_parts
 from slate.services.record_pursuits import pursuits_of
@@ -49,6 +50,31 @@ def idea_views(session: Session, ideas: Sequence[models.Idea]) -> list[schemas.I
 
 def idea_view(session: Session, idea: models.Idea) -> schemas.Idea:
     return idea_views(session, [idea])[0]
+
+
+def promoted_idea_view(promoted: PromotedIdea, initiative: schemas.Initiative, now: dt.datetime) -> schemas.Idea:
+    """The idea in the shape that CLI releases through `cli/v0.66.0` read from a promotion, naming the initiative it became.
+
+    The initiative holds the number's parts, so the view reads them from it.
+    """
+    return schemas.Idea(
+        id=promoted.id,
+        number=initiative.number,
+        title=promoted.title,
+        description=promoted.description,
+        priority=promoted.priority,
+        rank=initiative.rank,
+        pinned_ts=initiative.pinned_ts,
+        pinned_by=initiative.pinned_by,
+        pinned_session=initiative.pinned_session,
+        flow_id=initiative.flow_id,
+        created_ts=promoted.created_ts,
+        updated_ts=now,
+        tags=initiative.tags,
+        pursuits=initiative.pursuits,
+        refs=initiative.refs,
+        initiative=initiative,
+    )
 
 
 def idea_detail(session: Session, idea: models.Idea) -> schemas.IdeaDetail:

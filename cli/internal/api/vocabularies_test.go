@@ -36,6 +36,10 @@ func TestVocabularies_EachCopyHoldsWhatTheAPITakes(t *testing.T) {
 		"record_kinds":               RecordKinds,
 		"document_kinds":             DocumentKinds,
 		"queue_steps":                QueueSteps,
+		"promote_kinds":              PromoteKinds,
+		"promote_initiative_fields":  PromoteFieldsOfKind[PromotedToInitiative],
+		"promote_issue_fields":       PromoteFieldsOfKind[PromotedToIssue],
+		"promote_shared_fields":      PromoteSharedFields,
 	} {
 		var theirs []string
 		if err := json.Unmarshal(api[name], &theirs); err != nil {

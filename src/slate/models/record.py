@@ -6,7 +6,9 @@ class table inheritance. A claim, and anything else that attaches to "a record",
 `records` whatever the kind.
 
 Each kind's table carries the kind it is beside the number, and references `records` on both. So
-the database refuses an issue whose number is recorded as an initiative's.
+the database refuses an issue whose number is recorded as an initiative's. A promotion changes an
+idea's kind in place, the subtype change of class table inheritance: the `ideas` row goes, the
+`records` row takes the new kind, and the new kind's row takes the idea's number and `id`.
 
 `rank` is every record's place in the one order `slate next` reads, so ideas, initiatives and
 issues are placed against each other in one space. `services/fractional_rank.py` moves it.
@@ -84,6 +86,9 @@ class Record(Base):
     check_requested_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # The flow of the work that created the record, set once by the write that created it.
     flow_id: Mapped[str | None] = mapped_column(Text, nullable=True, server_default=WRITERS_FLOW)
+    # When a person promoted the idea holding this number into the kind it holds now, and who.
+    promoted_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    promoted_by: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # The pair each kind's table references, so the kind it declares is the kind recorded here.
     __table_args__ = (

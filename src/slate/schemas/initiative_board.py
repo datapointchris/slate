@@ -113,8 +113,8 @@ class BoardInitiative(BoardCounts, InPursuits, InitiativeSteps):
     `by_repo` cuts those issues by the repo each names, most open first and no repo last. An
     initiative with no issues has one empty cut on no repo, so every initiative sits under some repo.
     Its steps, `tags` and `pursuits` are the initiative read's.
-    `touched_ts` is the latest of when it was created, when a claim on it or one of its issues
-    started, and when one of its issues closed.
+    `touched_ts` is the latest of when it was created, when it was promoted from an idea, when a
+    claim on it or one of its issues started, and when one of its issues closed.
     """
 
     number: int

@@ -516,6 +516,6 @@ def test_a_step_not_planned_is_set_whole_by_each_write_never_preflight_or_build_
 
     idea = wrote(client.post('/ideas', json={'title': 'Skip the shaping'}), 'idea', status.HTTP_201_CREATED)
     promoted = wrote(
-        client.post(f'/ideas/{idea["number"]}/promote', json={'summary': 'It is done.', 'not_planned_steps': ['shape']}), 'idea'
+        client.post(f'/ideas/{idea["number"]}/promote', json={'summary': 'It is done.', 'not_planned_steps': ['shape']}), 'initiative'
     )
-    assert promoted['initiative']['not_planned_steps'] == ['shape']
+    assert promoted['not_planned_steps'] == ['shape']

@@ -27,7 +27,6 @@ from slate.api.exceptions import Refusal
 from slate.api.oidc_auth import ScopedClient
 from slate.api.request_zone import RequestZone
 from slate.api.time_window import TimeWindowQuery
-from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
 from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.issue import ISSUE_STATUSES
 from slate.models.record import Kind
@@ -42,7 +41,12 @@ from slate.services.issue_views import calendar_now
 from slate.services.issue_views import fresh_issue_detail
 from slate.services.issue_views import issue_views
 from slate.services.issue_views import list_order
-from slate.services.likely_duplicates import warn_likely_duplicates
+from slate.services.issues import ensure_initiative_open
+from slate.services.issues import ensure_parent_open
+from slate.services.issues import ensure_paths_have_a_repo
+from slate.services.issues import new_issue
+from slate.services.issues import set_labels
+from slate.services.issues import unprocessable
 from slate.services.queue_moves import move_in_queue
 from slate.services.record_deletes import name_issue_delete
 from slate.services.record_dependencies import add_issue_dependency
@@ -52,7 +56,6 @@ from slate.services.record_groupings import narrowed_to_groupings
 from slate.services.record_lists import word_matches
 from slate.services.record_lookup import resolve_initiative
 from slate.services.record_lookup import resolve_issue
-from slate.services.record_lookup import resolve_labels
 from slate.services.record_pins import clear_pin_on_close
 from slate.services.record_pins import pin_record
 from slate.services.record_pins import unpin_record
@@ -76,9 +79,6 @@ router = APIRouter()
 # Not a status, so it is not in the lookup table: `all` is the absence of the
 # filter, and storing it would make it assignable to an issue.
 ALL_STATUSES = 'all'
-
-# The statuses a new issue may start in. Anything later is reached by working it.
-CREATE_STATUSES = ('incoming', 'open')
 
 
 def path_issue(id: str, session: DbSession) -> models.Issue:
@@ -112,37 +112,6 @@ def refuse_loop_on_change(
     refuse_wait_loop(graph, *([] if adopted_by is None else [adopted_by.number]), issue.number, *reopened)
 
 
-def ensure_initiative_open(initiative: models.Initiative) -> None:
-    if initiative.status in TERMINAL_INITIATIVE_STATUSES:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'Initiative {initiative.name!r} is {initiative.status}. Reopen it before filing work into it.',
-        )
-
-
-def set_labels(session: Session, issue: models.Issue, slugs: list[str]) -> None:
-    """Make the issue's labels exactly `slugs`, keeping the assignment rows that stay."""
-    wanted = {label.id for label in resolve_labels(session, slugs)}
-    kept = [assignment for assignment in issue.label_assignments if assignment.label_id in wanted]
-    held = {assignment.label_id for assignment in kept}
-    issue.label_assignments = kept + [models.IssueLabelAssignment(label_id=label_id) for label_id in sorted(wanted - held)]
-
-
-def ensure_paths_have_a_repo(repo: str | None, paths: list[str]) -> None:
-    """A path is read in the issue's repo, so on no repo it names nothing to compare."""
-    if paths and repo is None:
-        raise unprocessable(f"Paths are relative to the issue's repo, and this issue is on none: {', '.join(paths)}. Give it a repo.")
-
-
-def ensure_parent_open(parent: models.Issue) -> None:
-    """A closed issue takes no unclosed children: a completed one would be finished with work still open."""
-    if parent.is_closed:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f'#{parent.number} is {parent.status}. Reopen it before filing work under it.',
-        )
-
-
 def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime, effects: WriteEffects) -> list[int]:
     """Return each completed ancestor to open, because a completed issue never holds open work, and answer their numbers."""
     reopened = []
@@ -164,10 +133,6 @@ def reopen_completed_ancestors(issue: models.Issue, now: dt.datetime, effects: W
 
 def numbered(issues: list[models.Issue]) -> str:
     return ', '.join(f'#{issue.number}' for issue in sorted(issues, key=lambda issue: issue.number))
-
-
-def unprocessable(detail: str) -> HTTPException:
-    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail)
 
 
 def resulting_duplicate(session: Session, issue: models.Issue, update_data: dict, target: str) -> UUID | None:
@@ -343,53 +308,8 @@ def refuse_all_but_an_incoming_filing(issue: schemas.IssueCreate) -> None:
 def create(issue: schemas.IssueCreate, session: DbSession, zone: RequestZone, caller: CurrentCaller, effects: Effects):
     if isinstance(caller, ScopedClient):
         refuse_all_but_an_incoming_filing(issue)
-    if issue.status not in CREATE_STATUSES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f'A new issue starts as {" or ".join(CREATE_STATUSES)}, not {issue.status!r}',
-        )
-    validate_lookup(session, models.IssueType, issue.type, 'issue type')
-    ensure_paths_have_a_repo(issue.repo, issue.paths)
-    tags = resolve_tags(session, issue.tags)
-
-    db_issue = models.Issue(
-        title=issue.title,
-        description=issue.description,
-        acceptance=issue.acceptance,
-        repo=issue.repo,
-        paths=issue.paths,
-        type=issue.type,
-        status=issue.status,
-        priority=issue.priority,
-        deferred_until_date=issue.deferred_until_date,
-        autofix=issue.autofix,
-    )
-    if issue.initiative is not None:
-        initiative = resolve_initiative(session, issue.initiative)
-        ensure_initiative_open(initiative)
-        db_issue.initiative_id = initiative.id
-    if issue.parent is not None:
-        parent = resolve_issue(session, issue.parent)
-        ensure_parent_open(parent)
-        db_issue.parent_id = parent.id
-    if issue.discovered_from is not None:
-        db_issue.discovered_from_id = resolve_issue(session, issue.discovered_from).id
-    depends_on = [resolve_issue(session, ref) for ref in dict.fromkeys(issue.depends_on)]
-    session.add(db_issue)
-    set_labels(session, db_issue, issue.labels)
-    session.flush()
+    db_issue = new_issue(session, issue, caller_actor(caller), effects)
     name_record(db_issue.number)
-    set_record_tags(session, db_issue.number, tags)
-    link_refs(session, db_issue.number, issue.refs, None, caller_actor(caller), effects)
-    # Every edge the new issue brings touches it, so any loop they close runs through it.
-    graph = read_wait_graph(session)
-    for blocker in depends_on:
-        graph.add_dependency(db_issue.number, blocker.number)
-    refuse_wait_loop(graph, db_issue.number)
-    for blocker in depends_on:
-        session.add(models.IssueDependency(issue_id=db_issue.id, depends_on_id=blocker.id))
-    session.flush()
-    warn_likely_duplicates(session, db_issue.number, db_issue.title, db_issue.repo, effects)
     session.commit()
     logger.info('issue_created', number=db_issue.number, repo=db_issue.repo)
     return effects.answer(schemas.IssueWritten, issue=fresh_issue_detail(session, db_issue, zone))

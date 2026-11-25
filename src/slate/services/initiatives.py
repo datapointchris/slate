@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from slate import models
 from slate import schemas
 from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
+from slate.services.idea_promotion import PromotedIdea
+from slate.services.idea_promotion import in_place_of
 from slate.services.issue_readiness import NO_PRIORITY_URGENCY
 from slate.services.issue_readiness import PINNED
 from slate.services.issue_readiness import UNPINNED
@@ -112,11 +114,12 @@ def ensure_active_name_available(session: Session, name: str, exclude_id: UUID |
         )
 
 
-def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea: models.Idea | None = None) -> models.Initiative:
+def new_initiative(session: Session, initiative: schemas.InitiativeCreate, from_idea: PromotedIdea | None = None) -> models.Initiative:
     """Add an initiative after every check a create makes.
 
-    Promoted from `idea`, it takes the idea's place in the queue and the idea's flow, since it carries
-    the idea's work on. Otherwise its record goes last and takes its writer's flow, as every new one does.
+    Its record goes last and takes its writer's flow, as every new one does. In place of an idea, it
+    keeps the idea's record, `id` and `created_ts`, with the place, pin and flow the record holds.
+    A record keeps its tags and pursuits where `initiative` names none, and a new one holds none.
     """
     refuse_number_shaped_name(initiative.name)
     refuse_routed_name(initiative.name)
@@ -135,15 +138,15 @@ def new_initiative(session: Session, initiative: schemas.InitiativeCreate, idea:
         status_reason=initiative.status_reason,
         priority=initiative.priority,
         autofix=initiative.autofix,
-        idea=idea,
-        rank=None if idea is None else idea.rank,
-        flow_id=None if idea is None else idea.flow_id,
+        **in_place_of(from_idea),
     )
     if db_obj.status in TERMINAL_INITIATIVE_STATUSES:
         db_obj.closed_ts = dt.datetime.now(dt.UTC)
     session.add(db_obj)
     session.flush()
-    set_record_tags(session, db_obj.number, tags)
-    set_record_pursuits(session, db_obj.number, pursuits)
+    if 'tags' in initiative.model_fields_set:
+        set_record_tags(session, db_obj.number, tags)
+    if 'pursuits' in initiative.model_fields_set:
+        set_record_pursuits(session, db_obj.number, pursuits)
     set_steps_not_planned(session, db_obj.id, initiative.not_planned_steps)
     return db_obj

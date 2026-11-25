@@ -49,7 +49,8 @@ func (c *Client) UnpinInitiative(ctx context.Context, ref string) (InitiativeWri
 	return written, nil
 }
 
-// PinIdea holds an idea ahead of every priority until it is unpinned or promoted.
+// PinIdea holds an idea ahead of every priority until it is unpinned. A
+// promotion keeps the pin on the number.
 func (c *Client) PinIdea(ctx context.Context, ref string, pin PinInput) (IdeaWritten, error) {
 	var written IdeaWritten
 	if err := c.send(ctx, http.MethodPost, ideaPath(ref)+"/pin", pin, &written); err != nil {

@@ -38,7 +38,7 @@ func newInitiativesCommand() *cobra.Command {
 			"except one that work outside someday depends on. An initiative starts with\n" +
 			"autofix off, so an unattended fix never lands one of its steps alone.\n" +
 			"An initiative shares its number sequence with ideas and issues,\n" +
-			"and an idea's promotion creates one.",
+			"and promoting an idea turns it into one under the same number.",
 		Example: "  slate initiatives list                         the active ones, in the order to work them\n" +
 			"  slate initiatives progress \"Ship the tracker\"  its bar, what runs, waits and comes next\n" +
 			"  slate initiatives show 1501                    its claims, unclosed issues and changes\n" +

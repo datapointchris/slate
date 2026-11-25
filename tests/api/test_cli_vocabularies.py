@@ -21,8 +21,12 @@ from slate.models.record import Kind
 from slate.models.worklog import OPTIONAL_STEPS
 from slate.models.worklog import WORKLOG_LINK_KINDS
 from slate.models.worklog import WORKLOG_STEPS
+from slate.schemas.idea import FIELDS_OF_KIND
+from slate.schemas.idea import SHARED_FIELDS
+from slate.schemas.idea import PromotedKind
 from slate.schemas.queue import Step
 from slate.services import initiatives
+from slate.services.issues import CREATE_STATUSES
 
 VOCABULARIES_DOCUMENT = Path(__file__).parent / 'testdata' / 'cli-vocabularies.json'
 
@@ -38,7 +42,7 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'worklog_steps': WORKLOG_STEPS,
         'worklog_link_kinds': WORKLOG_LINK_KINDS,
         'issue_statuses': [*ISSUE_STATUSES, issues.ALL_STATUSES],
-        'issue_create_statuses': list(issues.CREATE_STATUSES),
+        'issue_create_statuses': list(CREATE_STATUSES),
         'issue_types': ISSUE_TYPES,
         'priority_names': [PRIORITIES[value] for value in sorted(PRIORITIES)],
         'initiative_statuses': [*INITIATIVE_STATUSES, initiatives.ALL_STATUSES],
@@ -49,6 +53,10 @@ def test_the_document_the_cli_reads_holds_the_vocabularies_it_copies():
         'record_kinds': [kind.value for kind in Kind],
         'document_kinds': DOCUMENT_KINDS,
         'queue_steps': list(get_args(Step)),
+        'promote_kinds': list(get_args(PromotedKind)),
+        'promote_initiative_fields': sorted(FIELDS_OF_KIND['initiative']),
+        'promote_issue_fields': sorted(FIELDS_OF_KIND['issue']),
+        'promote_shared_fields': sorted(SHARED_FIELDS),
     }
     document = json.dumps(table, indent=2) + '\n'
     if not VOCABULARIES_DOCUMENT.exists() or VOCABULARIES_DOCUMENT.read_text() != document:

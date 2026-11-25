@@ -271,10 +271,19 @@ def last_claimed(session: Session, initiatives: Sequence[models.Initiative]) -> 
 def last_touched(session: Session, initiatives: Sequence[models.Initiative]) -> dict[int, dt.datetime]:
     """When each initiative was last touched, by its number.
 
-    A touch is its creation, a claim starting on it or one of its issues, or one of its issues
-    closing. Every read of a touch asks this, so the board and the focus agree on one.
+    A touch is its creation, its promotion from an idea, a claim starting on it or one of its
+    issues, or one of its issues closing. A promotion keeps the idea's `created_ts`, so the
+    promotion is the touch that says when it became an initiative. Every read of a touch asks
+    this, so the board and the focus agree on one.
     """
     claimed = last_claimed(session, initiatives)
+    promoted = dict(
+        session.execute(
+            select(models.Record.number, models.Record.promoted_ts).where(
+                models.Record.number.in_([initiative.number for initiative in initiatives]), models.Record.promoted_ts.is_not(None)
+            )
+        ).all()
+    )
     closed = dict(
         session.execute(
             select(models.Initiative.number, func.max(models.Issue.closed_ts))
@@ -285,7 +294,7 @@ def last_touched(session: Session, initiatives: Sequence[models.Initiative]) -> 
     )
     touched = {}
     for initiative in initiatives:
-        moments = (initiative.created_ts, closed.get(initiative.number), claimed.get(initiative.number))
+        moments = (initiative.created_ts, promoted.get(initiative.number), closed.get(initiative.number), claimed.get(initiative.number))
         touched[initiative.number] = max(moment for moment in moments if moment is not None)
     return touched
 

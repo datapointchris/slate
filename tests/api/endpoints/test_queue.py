@@ -72,20 +72,6 @@ def test_each_initiatives_issues_run_together_and_move_with_it(client):
     assert [title for title, _, _ in rows(client)] == exporter_first
 
 
-def test_ideas_promote_after_ideas_reorder_keeps_the_place_the_reorder_gave(client):
-    first, _, moved = (
-        ok(client.post('/ideas', json={'title': title, 'priority': 2}), status.HTTP_201_CREATED)['idea']['number']
-        for title in ('Schedule review rounds', 'Mirror the backups', 'Trim the test suite')
-    )
-    ok(client.post(f'/ideas/{moved}/rank', json={'before': first}))
-    ok(client.post(f'/ideas/{moved}/promote', json={'summary': 'It is done.'}))
-    assert rows(client) == [
-        ('Trim the test suite', 'shape', 2),
-        ('Schedule review rounds', 'discuss', 2),
-        ('Mirror the backups', 'discuss', 2),
-    ]
-
-
 def test_an_initiative_lists_at_the_step_after_its_furthest_checked_one_beside_its_issues_at_build(client):
     shaped = initiative(client, 'Ship the importer', priority=1)
     designed = initiative(client, 'Ship the exporter', priority=2)
@@ -233,10 +219,9 @@ def test_a_pin_ends_with_the_record_and_each_ending_says_so(client):
 
     idea = ok(client.post('/ideas', json={'title': 'Try a layout'}), status.HTTP_201_CREATED)['idea']['number']
     pin(client, 'ideas', idea)
-    promoted = ok(client.post(f'/ideas/{idea}/promote', json={'summary': 'It is done.'}))
-    assert 'pin_carried' in [effect['code'] for effect in promoted['side_effects']]
-    assert promoted['idea']['pinned_ts'] is None
-    assert promoted['idea']['initiative']['pinned_ts'] is not None
+    promoted = ok(client.post(f'/ideas/{idea}/promote', json={'summary': 'It is done.', 'status': 'someday'}))
+    assert promoted['initiative']['pinned_ts'] is None
+    assert [effect['code'] for effect in promoted['side_effects']] == ['pin_cleared']
 
 
 def test_a_move_across_the_pin_and_a_pin_on_what_the_queue_cannot_hold_are_refused(client):

@@ -80,9 +80,3 @@ def test_a_rename_keeps_every_carrier_and_a_delete_names_each_it_came_off(client
 def test_a_tag_body_refuses_a_field_it_does_not_have(client):
     response = client.post(TAGS, json={'name': 'agents', 'description': 'Agent sessions', 'descripton': 'typo'})
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, show_status_and_response(response)
-
-
-def test_a_promoted_idea_hands_its_tags_to_the_initiative(client):
-    idea = created(client, '/ideas', {'title': 'Sign every image', 'tags': ['security']})['idea']
-    promoted = ok(client.post(f'/ideas/{idea["number"]}/promote', json={'summary': 'Every image is signed'}))['idea']
-    assert promoted['initiative']['tags'] == ['security']
