@@ -193,6 +193,46 @@ func (c *Client) ResumeClaim(ctx context.Context, record, holder string, place A
 	return written, nil
 }
 
+// ClaimAdvanceInput moves the holder's claim to a new worklog of Step. Minutes
+// is how long the claim holds again where it had run out, and a zero takes the
+// API's default. The place's session moves into the new worklog.
+type ClaimAdvanceInput struct {
+	Holder  string `json:"holder"`
+	Step    string `json:"step"`
+	Minutes int    `json:"minutes,omitempty"`
+	AgentPlace
+}
+
+// AdvanceClaim ends the worklog the holder's claim on record is on, opens one
+// of the next step following it, and moves the claim and the session there, in
+// one transaction.
+func (c *Client) AdvanceClaim(ctx context.Context, record string, in ClaimAdvanceInput, zone DayZone) (ClaimWritten, error) {
+	var written ClaimWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(claimPath(record, "advance"), zoneQuery(zone)), in, &written); err != nil {
+		return ClaimWritten{}, err
+	}
+	return written, nil
+}
+
+// ClaimAdoptInput takes over FromSession's claim, for Holder and the place's
+// session.
+type ClaimAdoptInput struct {
+	Holder      string `json:"holder"`
+	FromSession string `json:"from_session"`
+	Minutes     int    `json:"minutes,omitempty"`
+	AgentPlace
+}
+
+// AdoptClaim ends FromSession's claim on record as adopted, and holds the
+// record for Holder at the same step, in one transaction.
+func (c *Client) AdoptClaim(ctx context.Context, record string, in ClaimAdoptInput, zone DayZone) (ClaimWritten, error) {
+	var written ClaimWritten
+	if err := c.send(ctx, http.MethodPost, withQuery(claimPath(record, "adopt"), zoneQuery(zone)), in, &written); err != nil {
+		return ClaimWritten{}, err
+	}
+	return written, nil
+}
+
 // ReleaseClaim ends the record's claim as released by releasedBy. The
 // answer's messages give each time in zone.
 func (c *Client) ReleaseClaim(ctx context.Context, record, releasedBy string, zone DayZone) (ClaimWritten, error) {

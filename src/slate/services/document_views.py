@@ -62,6 +62,7 @@ def version_summary(version: models.DocumentVersion, worklogs: dict[int, str]) -
         written_ts=version.written_ts,
         flow_id=version.flow_id,
         line_count=len(version.lines),
+        fields=version.fields,
     )
 
 
@@ -157,17 +158,18 @@ def record_documents(session: Session, number: int) -> list[schemas.DocumentSumm
 
 
 def worklog_document_versions(session: Session, worklog_ids: Iterable[int]) -> dict[int, list[schemas.DocumentVersionRef]]:
-    """The document versions written in each worklog, oldest first."""
+    """The document versions written in each worklog, oldest first, each with its fields."""
+    version = models.DocumentVersion
     rows = session.execute(
-        select(models.DocumentVersion.worklog_id, models.DocumentVersion.version, models.DocumentVersion.written_ts, models.Document)
-        .join(models.Document, models.Document.id == models.DocumentVersion.document_id)
-        .where(models.DocumentVersion.worklog_id.in_(list(worklog_ids)))
-        .order_by(models.DocumentVersion.written_ts, models.Document.id, models.DocumentVersion.version)
+        select(version.worklog_id, version.version, version.written_ts, version.fields, models.Document)
+        .join(models.Document, models.Document.id == version.document_id)
+        .where(version.worklog_id.in_(list(worklog_ids)))
+        .order_by(version.written_ts, models.Document.id, version.version)
     )
     written: dict[int, list[schemas.DocumentVersionRef]] = defaultdict(list)
-    for worklog_id, version, written_ts, document in rows:
+    for worklog_id, number, written_ts, fields, document in rows:
         # The filter on worklog_id leaves no null one.
         written[cast(int, worklog_id)].append(
-            schemas.DocumentVersionRef(address=document.address, kind=document.kind, version=version, written_ts=written_ts)
+            schemas.DocumentVersionRef(address=document.address, kind=document.kind, version=number, written_ts=written_ts, fields=fields)
         )
     return written

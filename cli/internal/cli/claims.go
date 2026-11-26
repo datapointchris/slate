@@ -46,10 +46,14 @@ func newClaimsCommand() *cobra.Command {
 			"\n" +
 			"A holder parked on something, such as a merge, says so with `wait`, and every\n" +
 			"read of the claim shows it until `resume`. A waiting claim still holds its\n" +
-			"record.",
+			"record.\n" +
+			"\n" +
+			"`advance` moves a claim from one step of the record's life to another in one\n" +
+			"write, and `adopt` takes over the claim of a session that died.",
 		Example: "  slate claims hold 412                           take a record before the first edit on it\n" +
 			"  slate claims hold --next                        take the head of the queue\n" +
 			"  slate claims wait 412 --on \"slate#3 to merge\"   say what the work is parked on\n" +
+			"  slate claims advance 2804 --step build          end preflight and start the build\n" +
 			"  slate claims release 412                        hand the work back unfinished\n" +
 			"  slate claims list                               every claim held now",
 	})
@@ -61,6 +65,8 @@ func newClaimsCommand() *cobra.Command {
 		goclikit.WithRecoveryHints(newClaimsExtendCommand(), claimHints...),
 		goclikit.WithRecoveryHints(newClaimsWaitCommand(), claimHints...),
 		goclikit.WithRecoveryHints(newClaimsResumeCommand(), claimHints...),
+		goclikit.WithRecoveryHints(newClaimsAdvanceCommand(), claimHints...),
+		goclikit.WithRecoveryHints(newClaimsAdoptCommand(), claimHints...),
 		goclikit.WithRecoveryHints(newClaimsReleaseCommand(), claimHints...),
 	)...)
 	return cmd
@@ -327,6 +333,112 @@ func newClaimsResumeCommand() *cobra.Command {
 	return cmd
 }
 
+func newClaimsAdvanceCommand() *cobra.Command {
+	var (
+		asJSON bool
+		holder string
+		step   string
+	)
+	cmd := &cobra.Command{
+		Use:   "advance <record> --step <step>",
+		Short: "Move your claim to another step of the record, ending the one it is on, in one write",
+		Long: "Ends the worklog your claim is on, opens one for --step that follows it, and\n" +
+			"moves the claim and this session there, all in one transaction. So the record\n" +
+			"is never unclaimed between two steps, and no step is left without a worklog.\n" +
+			"\n" +
+			"A later step ends the worklog finished, which checks its step. An earlier one\n" +
+			"ends it moved_back, which checks nothing, so the step left reads as not done.\n" +
+			"An open wait ends, as `resume` ends it. A claim of yours that ran out is held\n" +
+			"again for a day, with a warning that it had run out.\n" +
+			"\n" +
+			"Refused on an idea, which `slate ideas promote` moves to design, on a closed\n" +
+			"record, where --holder holds no claim on the record, and where the claim is\n" +
+			"already at --step. Each refusal names the command that would succeed, or who\n" +
+			"holds the record.\n" +
+			"\n" +
+			"--holder " + narrowedActorHelp,
+		Example: "  slate claims advance 2804 --step build\n" +
+			"  slate claims advance 2804 --step design      move back, leaving preflight undone",
+		Args:        cobra.ExactArgs(1),
+		Annotations: scopesForService(scopeClaimsHold),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if step == "" {
+				return goclikit.UsageError(errors.New("--step is required — name the step the claim moves to, one of: " + strings.Join(api.WorklogSteps, ", ")))
+			}
+			if err := validStep(step); err != nil {
+				return err
+			}
+			holder, err := narrowedActor(cmd, "holder", holder)
+			if err != nil {
+				return err
+			}
+			client, err := newAPIClient(cmd)
+			if err != nil {
+				return handleAPIError(err)
+			}
+			in := api.ClaimAdvanceInput{Holder: holder, Step: step, Minutes: defaultClaimMinutes, AgentPlace: agentPlace(os.Getenv(claudeCodeSessionEnv))}
+			written, err := client.AdvanceClaim(cmd.Context(), args[0], in, issueZone())
+			if err != nil {
+				return handleArgumentAPIError(err)
+			}
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, claimStepSummary("Advanced", written.Claim, step, time.Now()))
+		},
+	}
+	cmd.Flags().StringVar(&holder, "holder", actorIdentity(), "Who holds the claim")
+	addStepFlag(cmd, &step, "The step the claim moves to (required)")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
+	return cmd
+}
+
+func newClaimsAdoptCommand() *cobra.Command {
+	var (
+		asJSON bool
+		holder string
+		from   string
+	)
+	cmd := &cobra.Command{
+		Use:   "adopt <record> --from <session>",
+		Short: "Take over the claim of a session that died, at the step it was on",
+		Long: "Ends the claim that --from's session holds on the record as adopted, which\n" +
+			"checks nothing, and holds the record for --holder with a worklog of the same\n" +
+			"step that follows the one ended. This session joins it. All of it is one\n" +
+			"transaction. A claim that ran out has already ended as expired at its expiry,\n" +
+			"and keeps that ending.\n" +
+			"\n" +
+			"Refused where the record holds no claim, or where by then another session\n" +
+			"holds it. Only a person adopts, because only a person can tell that a session\n" +
+			"is dead, so a service client is refused.\n" +
+			"\n" +
+			"--holder defaults to who is running slate: the Claude Code session, the worker\n" +
+			"$" + actorWorkerEnv + " names, or user@host.",
+		Example:     "  slate claims adopt 2804 --from 261e29ae-c059-47af-a34a-3e703076e891",
+		Args:        cobra.ExactArgs(1),
+		Annotations: personOnly(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(from) == "" {
+				return goclikit.UsageError(errors.New("--from is required — name the session whose claim this takes over"))
+			}
+			if strings.TrimSpace(holder) == "" {
+				return goclikit.UsageError(errors.New("--holder cannot be empty — the claim names who holds it"))
+			}
+			client, err := newAPIClient(cmd)
+			if err != nil {
+				return handleAPIError(err)
+			}
+			in := api.ClaimAdoptInput{Holder: holder, FromSession: from, Minutes: defaultClaimMinutes, AgentPlace: agentPlace(os.Getenv(claudeCodeSessionEnv))}
+			written, err := client.AdoptClaim(cmd.Context(), args[0], in, issueZone())
+			if err != nil {
+				return handleArgumentAPIError(err)
+			}
+			return reportWrite(cmd, asJSON, written, written.WriteEffects, claimSummary("Adopted", written.Claim, time.Now()))
+		},
+	}
+	cmd.Flags().StringVar(&from, "from", "", "The session whose claim this takes over (required)")
+	cmd.Flags().StringVar(&holder, "holder", actorIdentity(), "Who holds the claim")
+	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
+	return cmd
+}
+
 func newClaimsReleaseCommand() *cobra.Command {
 	var (
 		asJSON     bool
@@ -489,6 +601,16 @@ func claimSummary(verb string, claim *api.ClaimOnRecord, now time.Time) string {
 		return line + ", held by " + claim.Holder
 	}
 	return line + " as " + claim.Holder + " until " + localClock(claim.ExpiresTS, now)
+}
+
+// claimStepSummary is claimSummary's line, naming the step the claim moved to
+// and its worklog.
+func claimStepSummary(verb string, claim *api.ClaimOnRecord, step string, now time.Time) string {
+	line := claimSummary(verb, claim, now)
+	if line == "" {
+		return ""
+	}
+	return line + ", at " + step + " in worklog " + strValue(claim.Worklog)
 }
 
 // claimWaitSummary is the line naming what a claim waits on, and that it

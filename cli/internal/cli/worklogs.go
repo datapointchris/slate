@@ -188,9 +188,12 @@ func newWorklogsStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start <record>",
 		Short: "Open a worklog on a record with no hold, and put this session in it",
-		Long: "For a go at a record no hold opens, such as discussing an idea, or the next\n" +
-			"step of a record this session holds. The session joins it, leaving any other\n" +
-			"worklog it was in, which is printed under the line. Where this session holds\n" +
+		Long: "For a go at a record no hold opens, such as discussing an idea. The next step\n" +
+			"of a record this session holds is `slate claims advance`, which ends the step\n" +
+			"before it in the same write.\n" +
+			"\n" +
+			"This session joins the worklog `start` opens, leaving any other worklog it\n" +
+			"was in, which is printed under the line. Where this session holds\n" +
 			"the record's claim, the claim moves to the new worklog, so releasing the\n" +
 			"claim ends it. Each worklog already open on the record goes through with a\n" +
 			"warning, since joining it may be what you meant. Completing, canceling,\n" +
@@ -510,7 +513,8 @@ func newWorklogsFinishCommand() *cobra.Command {
 // stepHelp says what a step is, for each command whose --step names one.
 const stepHelp = "--step names the step of the record's life the worklog performs, which\n" +
 	"`slate vocabulary` lists in order. A step is checked on the record once that\n" +
-	"worklog ends, unless its claim ran out or the record was dropped or canceled.\n" +
+	"worklog ends, unless its claim ran out or was adopted, `slate claims advance`\n" +
+	"moved back from it, or the record was dropped or canceled.\n" +
 	"`slate show` of an initiative prints its steps with its idea's."
 
 func addStepFlag(cmd *cobra.Command, step *string, usage string) {
@@ -577,6 +581,9 @@ func printWorklogDetail(out io.Writer, worklog api.Worklog, now time.Time) {
 	}
 	if step := strValue(worklog.Step); step != "" {
 		_, _ = fmt.Fprintf(out, "  step:      %s\n", step)
+	}
+	if follows := strValue(worklog.Follows); follows != "" {
+		_, _ = fmt.Fprintf(out, "  follows:   %s\n", follows)
 	}
 	if worklog.EndedTS != nil {
 		ended := localClock(*worklog.EndedTS, now)

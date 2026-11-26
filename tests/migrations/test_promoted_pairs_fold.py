@@ -84,6 +84,13 @@ def test_promoted_pairs_fold_into_their_initiatives(scratch_database, api):
         idea, initiative = seed_pair(connection)
         last_seeded = returned(connection, 'SELECT max(id) FROM audit_trail')
 
+    # Read before head, because each later migration that writes rows signs them as its own revision.
+    command.upgrade(config, FOLDING_REVISION)
+    with engine.connect() as connection:
+        signers = (
+            connection.execute(text('SELECT DISTINCT actor FROM audit_trail WHERE id > :seeded'), {'seeded': last_seeded}).scalars().all()
+        )
+    assert signers == [f'alembic/{FOLDING_REVISION}']
     command.upgrade(config, 'head')
 
     with transactional_api_client(api, caller=lambda: TEST_PERSON, engine=engine) as (client, _):
@@ -126,7 +133,3 @@ def test_promoted_pairs_fold_into_their_initiatives(scratch_database, api):
             {'n': idea},
         ).scalar_one()
         assert left == 0
-        signers = (
-            connection.execute(text('SELECT DISTINCT actor FROM audit_trail WHERE id > :seeded'), {'seeded': last_seeded}).scalars().all()
-        )
-        assert signers == [f'alembic/{FOLDING_REVISION}']

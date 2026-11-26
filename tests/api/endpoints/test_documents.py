@@ -128,3 +128,39 @@ def test_slate_documents_write_design_kind_plan_is_refused_so_record_design_is_a
     record = bug(client)
     ok(client.put(f'/documents/{record}/design', json={'kind': 'plan', 'body': PLAN}), status.HTTP_422_UNPROCESSABLE_CONTENT)
     assert ok(client.get('/documents', params={'record': record})) == []
+
+
+def test_a_version_written_with_fields_returns_them_in_its_read_the_list_and_its_worklog(client):
+    record = bug(client)
+    worklog = hold(client, record, 's7')
+    fields = {'built_on': {'design': 4}, 'go': True}
+    written = ok(client.put(f'/documents/{record}/plan', json={'kind': 'plan', 'body': PLAN, 'fields': fields, 'session': 's7'}), 201)
+
+    assert written['document']['version']['fields'] == fields
+    assert ok(client.get(f'/documents/{record}/plan'))['version']['fields'] == fields
+    (listed,) = ok(client.get('/documents', params={'record': record}))
+    assert listed['latest']['fields'] == fields
+    (version,) = ok(client.get(f'/worklogs/{worklog}'))['document_versions']
+    assert (version['address'], version['fields']) == (f'{record}/plan', fields)
+
+    refused = client.put(f'/documents/{record}/plan', json={'body': PLAN, 'fields': ['not', 'an', 'object']})
+    assert refused.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, show_status_and_response(refused)
+
+
+@pytest.mark.parametrize(
+    ('body', 'fields', 'versions'),
+    [
+        (PLAN, {'go': False}, 1),
+        (PLAN, {'go': True}, 2),
+        (PLAN + '4. Ship it\n', {'go': False}, 2),
+        (PLAN + '4. Ship it\n', {'go': True}, 2),
+    ],
+    ids=['same-body-same-fields', 'same-body-new-fields', 'new-body-same-fields', 'new-body-new-fields'],
+)
+def test_a_write_matching_the_latest_versions_body_and_fields_writes_nothing_and_any_other_writes_a_version(client, body, fields, versions):
+    record = bug(client)
+    ok(client.put(f'/documents/{record}/plan', json={'kind': 'plan', 'body': PLAN, 'fields': {'go': False}}), status.HTTP_201_CREATED)
+
+    answer = ok(client.put(f'/documents/{record}/plan', json={'body': body, 'fields': fields}))
+    assert (len(answer['document']['versions']), answer['document']['version']['fields']) == (versions, fields)
+    assert ('document_unchanged' in [warning['code'] for warning in answer['warnings']]) == (versions == 1)

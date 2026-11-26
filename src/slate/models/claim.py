@@ -46,9 +46,17 @@ if TYPE_CHECKING:
     from slate.models.worklog import Worklog
 
 # How a claim ended. `released` is its holder or a person letting go, `expired` is its lease
-# running out first, and `promoted` is an idea becoming its initiative. The rest are the record
-# closing under it, named for the closing status it reached.
-CLAIM_ENDINGS = ['released', 'expired', 'promoted', *dict.fromkeys([*CLOSED_ISSUE_STATUSES, *TERMINAL_INITIATIVE_STATUSES])]
+# running out first, `promoted` is an idea becoming its initiative, and `adopted` is another
+# session taking over the claim of one that died. The rest are the record closing under it, named
+# for the closing status it reached.
+CLAIM_ADOPTED = 'adopted'
+CLAIM_ENDINGS = [
+    'released',
+    'expired',
+    'promoted',
+    CLAIM_ADOPTED,
+    *dict.fromkeys([*CLOSED_ISSUE_STATUSES, *TERMINAL_INITIATIVE_STATUSES]),
+]
 
 # The partial unique index that settles two holds racing for one record.
 ONE_UNENDED_CLAIM_PER_RECORD = 'uq_claims_one_unended_per_record'
@@ -143,12 +151,15 @@ class ClaimWait(Base):
     """A stretch of a claim's life its holder spent waiting on something, such as a merge or another record.
 
     The claim still holds its record while it waits. The wait ends when its holder resumes, or when
-    the claim ends.
+    the claim ends. It stays on the claim's worklog at its start, so a claim moving across steps
+    leaves each step's waits on that step's worklog.
     """
 
     __tablename__ = 'claim_waits'
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     claim_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('claims.id', ondelete='CASCADE'), nullable=False)
+    # The claim's worklog when the wait began. Null where the claim had none.
+    worklog_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('worklogs.id', ondelete='SET NULL'), nullable=True)
     waiting_on: Mapped[str] = mapped_column(Text, nullable=False)
     started_ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text('now()'))
     ended_ts: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -161,4 +172,5 @@ class ClaimWait(Base):
         CheckConstraint('ended_by IS NULL OR ended_ts IS NOT NULL', name='wait_ended_by_only_when_ended'),
         Index(ONE_OPEN_WAIT_PER_CLAIM, 'claim_id', unique=True, postgresql_where=text('ended_ts IS NULL')),
         Index('idx_claim_waits_claim_id', 'claim_id'),
+        Index('idx_claim_waits_worklog_id', 'worklog_id'),
     )

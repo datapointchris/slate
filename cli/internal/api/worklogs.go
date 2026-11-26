@@ -25,8 +25,8 @@ var WorklogStates = []string{WorklogStateLive, WorklogStateExpired, WorklogState
 var WorklogSteps = []string{"shape", "design", "preflight", "build", "retro"}
 
 // CheckedStep is a step checked on a record, read from the latest worklog of
-// that step that ended by any outcome but expired. Session is the first agent
-// session that worked in it, nil where none did.
+// that step whose ending performed it. Session is the first agent session that
+// worked in it, nil where none did.
 type CheckedStep struct {
 	Step    string    `json:"step"`
 	Worklog string    `json:"worklog"`
@@ -66,8 +66,9 @@ type WorklogLink struct {
 }
 
 // Worklog is one go at one record, named <record>.<sequence>. State, Stage
-// and Tokens are derived by the API on every read. Claim is the claim whose
-// hold opened it, and Waits every stretch its holder spent waiting. Tokens
+// and Tokens are derived by the API on every read. Claim is the claim it is
+// worked under, and Waits every stretch that claim's holder began waiting
+// while the claim was on it. Tokens
 // sums its spans', as each session last reported them, and is nil while none
 // of its spans holds a reported message.
 type Worklog struct {
@@ -79,6 +80,9 @@ type Worklog struct {
 	Record       RecordSummary `json:"record"`
 	OpenedBy     string        `json:"opened_by"`
 	Step         *string       `json:"step"`
+	// Follows names the worklog that `claims advance` or `claims adopt` ended
+	// to open this one, nil where none did.
+	Follows *string `json:"follows"`
 	// Estimate is nil where it estimates no kind.
 	Estimate  *TokenEstimate `json:"estimate"`
 	StartedTS time.Time      `json:"started_ts"`

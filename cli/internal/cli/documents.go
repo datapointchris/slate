@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -169,17 +172,22 @@ func newDocumentsShowCommand() *cobra.Command {
 
 func newDocumentsWriteCommand() *cobra.Command {
 	var (
-		asJSON  bool
-		file    string
-		kind    string
-		session string
+		asJSON     bool
+		file       string
+		fieldsFile string
+		kind       string
+		session    string
 	)
 	cmd := &cobra.Command{
 		Use:   "write <record> <name>",
 		Short: "Write a document's next version from a file or stdin, creating it on its first",
 		Long: "The body is --file, or stdin when --file is - or absent, kept exactly as given\n" +
-			"so its lines number as the file's do. A body matching the latest version writes\n" +
-			"nothing and warns.\n" +
+			"so its lines number as the file's do. --fields names a file holding a JSON\n" +
+			"object, kept beside the body for a program to read in place of the text, and\n" +
+			"slate reads nothing in it. A write whose body and fields both match the latest\n" +
+			"version's writes nothing and warns. The same body with other fields, or none,\n" +
+			"writes a version. A write whose answer lacks the fields it sent fails, since\n" +
+			"an API that predates fields drops them.\n" +
 			"\n" +
 			"--kind is one of " + strings.Join(api.DocumentKinds, ", ") + ", and the write that creates a\n" +
 			"document needs it. A name that is a kind holds only that kind, so\n" +
@@ -192,6 +200,7 @@ func newDocumentsWriteCommand() *cobra.Command {
 			"and the worklog it is in. A session in no worklog warns, since the version then\n" +
 			"names no go at the record.",
 		Example: "  slate documents write 412 plan --file plan.md\n" +
+			"  slate documents write 412 plan --file plan.md --fields plan-fields.json\n" +
 			"  slate documents write 412 phase-2-review --kind review --file review.md\n" +
 			"  slate documents write 412 humanlayer --kind research < research.md",
 		Args:        cobra.ExactArgs(2),
@@ -211,8 +220,12 @@ func newDocumentsWriteCommand() *cobra.Command {
 			if strings.TrimSpace(body) == "" {
 				return goclikit.UsageError(errors.New("the body is blank; a document version holds text"))
 			}
+			sent, err := readFieldsFile(fieldsFile)
+			if err != nil {
+				return err
+			}
 			place := agentPlace(session)
-			in := api.DocumentWriteInput{Body: body, Kind: nonEmpty(kind), Session: place.Session, Host: place.Host}
+			in := api.DocumentWriteInput{Body: body, Fields: sent, Kind: nonEmpty(kind), Session: place.Session, Host: place.Host}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
@@ -221,11 +234,15 @@ func newDocumentsWriteCommand() *cobra.Command {
 			if err != nil {
 				return handleArgumentAPIError(err)
 			}
+			if err := fieldsKept(sent, written.Document); err != nil {
+				return err
+			}
 			return reportWrite(cmd, asJSON, written, written.WriteEffects, documentWriteSummary(written))
 		},
 	}
 	f := cmd.Flags()
 	f.StringVar(&file, "file", "", "The file holding the body, or - for stdin (default stdin)")
+	f.StringVar(&fieldsFile, "fields", "", "A file holding a JSON object to keep beside the body")
 	f.StringVar(&kind, "kind", "", "One of: "+strings.Join(api.DocumentKinds, ", ")+" (default the name, when it is one)")
 	addActingSessionFlag(f, &session, agentSessionHelp+", which wrote it")
 	f.BoolVar(&asJSON, "json", false, writtenJSONHelp)
@@ -252,6 +269,45 @@ func readBodyFlag(cmd *cobra.Command, flag, file string) (string, error) {
 		return "", fmt.Errorf("read the body from stdin: %w", err)
 	}
 	return string(raw), nil
+}
+
+// readFieldsFile reads the JSON object --fields names, or nil where it names none.
+func readFieldsFile(file string) (json.RawMessage, error) {
+	if file == "" {
+		return nil, nil
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return nil, goclikit.UsageError(fmt.Errorf("read --fields: %w", err))
+	}
+	var object map[string]any
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return nil, goclikit.UsageError(fmt.Errorf("--fields %s holds no JSON object: %w", file, err))
+	}
+	if object == nil {
+		return nil, goclikit.UsageError(fmt.Errorf("--fields %s holds null — a document's fields are one JSON object", file))
+	}
+	return json.RawMessage(raw), nil
+}
+
+// fieldsKept fails a write whose returned version does not carry the fields it
+// sent. An API that predates fields ignores the key and answers 200, so a
+// caller would otherwise believe they were stored.
+func fieldsKept(sent json.RawMessage, document api.Document) error {
+	if sent == nil {
+		return nil
+	}
+	version := document.Version
+	returned := bytes.TrimSpace(version.Fields)
+	if len(returned) == 0 || bytes.Equal(returned, []byte("null")) {
+		return fmt.Errorf("slate's API predates document fields: version %d of %s came back without the fields sent, so they were not stored",
+			version.Version, document.Address)
+	}
+	var want, got any
+	if json.Unmarshal(sent, &want) != nil || json.Unmarshal(returned, &got) != nil || !reflect.DeepEqual(want, got) {
+		return fmt.Errorf("version %d of %s came back holding other fields than were sent: %s", version.Version, document.Address, returned)
+	}
+	return nil
 }
 
 // documentWriteSummary names the version written, or that none was.
@@ -300,7 +356,12 @@ func printDocument(out io.Writer, document api.Document, now time.Time) {
 	shown := document.Version
 	_, _ = fmt.Fprintf(out, "%s  %s, version %d of %d  %s %s\n", p.Cyan(document.Address), document.Kind,
 		shown.Version, len(document.Versions), p.Cyan("#"+strconv.Itoa(document.Record.Number)), p.Bold(document.Record.Title))
-	_, _ = fmt.Fprintf(out, "  written:  %s\n\n", versionByline(shown.DocumentVersionSummary, now))
+	_, _ = fmt.Fprintf(out, "  written:  %s\n", versionByline(shown.DocumentVersionSummary, now))
+	var fields bytes.Buffer
+	if json.Compact(&fields, shown.Fields) == nil && fields.String() != "null" && fields.Len() > 0 {
+		_, _ = fmt.Fprintf(out, "  fields:   %s\n", fields.String())
+	}
+	_, _ = fmt.Fprintln(out)
 
 	under := map[int][]api.PlacedComment{}
 	var changed []api.PlacedComment

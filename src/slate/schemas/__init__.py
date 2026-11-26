@@ -4,6 +4,8 @@ from slate.schemas.agent_session import SessionSpan
 from slate.schemas.agent_session import SessionUsageReport
 from slate.schemas.agent_session import SessionWritten
 from slate.schemas.claim import Claim
+from slate.schemas.claim import ClaimAdopt
+from slate.schemas.claim import ClaimAdvance
 from slate.schemas.claim import ClaimExtend
 from slate.schemas.claim import ClaimHold
 from slate.schemas.claim import ClaimHoldNext
@@ -180,6 +182,8 @@ __all__ = [
     'CheckRequestWritten',
     'CheckedStep',
     'Claim',
+    'ClaimAdopt',
+    'ClaimAdvance',
     'ClaimExtend',
     'ClaimHold',
     'ClaimHoldNext',

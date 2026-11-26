@@ -61,9 +61,11 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('GET', f'{API_PREFIX}/worklogs/{{name}}'),
         }
     ),
-    # Holding, extending, waiting on and releasing a claim, for a job holding a record while an
-    # agent carries it. A hold opens the claim's worklog. The handlers let a scoped client act only
-    # under its own client id and release only a claim that id holds.
+    # Holding, extending, waiting on, advancing and releasing a claim, for a job holding a record
+    # while an agent carries it through its steps. A hold opens the claim's worklog, and an advance
+    # opens the next step's. The handlers let a scoped client act only under its own client id and
+    # release only a claim that id holds. Adopting another session's claim is in no scope, because
+    # only a person decides that a session is dead.
     'slate.claims.hold': frozenset(
         {
             ('POST', f'{API_PREFIX}/claims'),
@@ -71,6 +73,7 @@ SCOPE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ('POST', f'{API_PREFIX}/claims/{{record}}/extend'),
             ('POST', f'{API_PREFIX}/claims/{{record}}/wait'),
             ('POST', f'{API_PREFIX}/claims/{{record}}/resume'),
+            ('POST', f'{API_PREFIX}/claims/{{record}}/advance'),
             ('POST', f'{API_PREFIX}/claims/{{record}}/release'),
         }
     ),

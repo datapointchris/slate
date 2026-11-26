@@ -41,7 +41,7 @@ class WorklogStep(RecordModel):
 
 
 class CheckedStep(RecordModel):
-    """A step checked on a record, read from the latest worklog of that step that ended by any outcome but `expired`.
+    """A step checked on a record, read from the latest worklog of that step whose ending performed it.
 
     `session` is the first agent session that worked in that worklog, null where none did.
     """
@@ -80,8 +80,9 @@ class Worklog(RecordModel):
 
     `state`, `stage`, `held_until` and `tokens` are derived on every read. `held_until` is when it
     stopped being under way: its end, else where its claim ran out or ended, and null while live.
-    `claim` is the claim whose hold opened
-    it, and `waits` every stretch that claim's holder spent waiting. `tokens` sums its spans', as
+    `claim` is the claim it is worked under, and `waits` every stretch that claim's holder began
+    waiting while the claim was on it. `follows` names the worklog that `claims advance` or
+    `claims adopt` ended to open it, null where none did. `tokens` sums its spans', as
     each session last reported them, and is null while none of its spans holds a reported message.
     `document_versions` is every version a session wrote while in it, oldest first. `step` is the
     step of its record's life it performed, null where it names none. `estimate` is the tokens by
@@ -97,6 +98,7 @@ class Worklog(RecordModel):
     record: RecordSummary
     opened_by: str
     step: str | None = None
+    follows: str | None = None
     estimate: TokenEstimate | None = None
     started_ts: dt.datetime
     ended_ts: dt.datetime | None = None

@@ -1,11 +1,13 @@
-"""Hold, extend, release, wait on and end claims. `claim_views` reads them back.
+"""Hold, extend, release, wait on, advance, adopt and end claims. `claim_views` reads them back.
 
 Another holder's live claim refuses a hold, and so does a pursuit, which holds no work. A hold
 names everything else worth a look through `claim_neighbors.neighbor_warner`. Each write here also
 names every claim it ends beyond the one it was asked about.
 
 A hold opens a worklog, and `end_claim` is the one way a claim ends, so its worklog and its open
-wait end with it at the same moment.
+wait end with it at the same moment. `advance` moves a claim to the next step's worklog, and
+`adopt` ends a dead session's claim and holds its step again, each in one transaction, so no
+moment between two calls leaves the record unclaimed or its step without a worklog.
 
 A claim whose lease ran out before any write ended it ends as `expired`, at its expiry, whichever
 write finds it. So a claim's history says when it stopped holding, not when someone noticed.
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Mapping
+from typing import cast
 
 import structlog
 from fastapi import HTTPException
@@ -25,13 +28,22 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
+from slate.models.claim import CLAIM_ADOPTED
 from slate.models.claim import ONE_UNENDED_CLAIM_PER_RECORD
+from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
+from slate.models.issue import CLOSED_ISSUE_STATUSES
+from slate.models.record import Kind
+from slate.models.worklog import WORKLOG_FINISHED
+from slate.models.worklog import WORKLOG_MOVED_BACK
+from slate.models.worklog import WORKLOG_STEPS
+from slate.models.worklog import StepName
 from slate.services import worklogs
 from slate.services.claim_neighbors import neighbor_warner
 from slate.services.claim_neighbors import warn_about_passed_over
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
 from slate.services.claim_views import unended_claims
+from slate.services.record_summaries import record_summaries
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -78,7 +90,14 @@ def end_with_record(session: Session, number: int, ending: str, now: dt.datetime
     worklogs.end_with_record(session, number, ending, now, ended_by, effects)
 
 
-def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datetime, effects: WriteEffects) -> models.Claim:
+def take(
+    session: Session,
+    number: int,
+    lease: schemas.ClaimLease,
+    now: dt.datetime,
+    effects: WriteEffects,
+    follows: models.Worklog | None = None,
+) -> models.Claim:
     current = unended_claims(session, [number]).get(number)
     if current is not None:
         live = current.is_live(now)
@@ -115,14 +134,24 @@ def take(session: Session, number: int, lease: schemas.ClaimLease, now: dt.datet
     session.add(claim)
     session.flush()
     logger.info('claim_held', record=number, holder=lease.holder, expires_ts=claim.expires_ts.isoformat())
-    worklog = worklogs.open_worklog(session, number, lease.holder, now, claim=claim, step=lease.step)
-    opened = f'Opened worklog {worklog.name}' + (f' for step {lease.step}' if lease.step is not None else '')
+    worklog = worklogs.open_worklog(session, number, lease.holder, now, claim=claim, step=lease.step, follows=follows)
+    opened = opened_line(worklog, follows)
     if lease.session is None:
         effects.did(WriteEffectCode.WORKLOG_OPENED, f'{opened}.', number)
         return claim
     effects.did(WriteEffectCode.WORKLOG_OPENED, f'{opened}, with session {lease.session} in it.', number)
     worklogs.join(session, worklog, lease.session, lease.host, lease.directory, now, effects)
     return claim
+
+
+def opened_line(worklog: models.Worklog, follows: models.Worklog | None) -> str:
+    """The side effect naming a worklog opened, its step, and the worklog it follows."""
+    line = f'Opened worklog {worklog.name}'
+    if worklog.step is not None:
+        line += f' for step {worklog.step}'
+    if follows is not None:
+        line += f', following {follows.name}'
+    return line
 
 
 def kept_step(claim: models.Claim, step: str | None) -> str:
@@ -139,8 +168,8 @@ def kept_step(claim: models.Claim, step: str | None) -> str:
         )
     held = f'ended as {worklog.outcome}' if worklog.ended_ts is not None else f'carries step {worklog.step}'
     return (
-        f' Its worklog {worklog.name} {held}. POST /worklogs with step {step} and this session opens one for {step}, '
-        f'which `slate worklogs start {claim.record_number} --step {step}` sends, and the claim moves to it.'
+        f' Its worklog {worklog.name} {held}. `slate claims advance {claim.record_number} --step {step}` opens one for {step} '
+        'and moves the claim and this session to it.'
     )
 
 
@@ -283,7 +312,8 @@ def wait(session: Session, number: int, holder: str, waiting_on: str, now: dt.da
             number,
         )
         session.flush()
-    current.waits.append(models.ClaimWait(waiting_on=waiting_on, started_ts=now))
+    worklog_id = current.worklog.id if current.worklog is not None else None
+    current.waits.append(models.ClaimWait(waiting_on=waiting_on, started_ts=now, worklog_id=worklog_id))
     logger.info('claim_waiting', record=number, holder=holder, waiting_on=waiting_on)
     return current
 
@@ -300,3 +330,153 @@ def resume(session: Session, number: int, request: schemas.ClaimResume, now: dt.
     if request.session is not None and current.worklog is not None:
         worklogs.return_to(session, current.worklog, request.session, request.host, request.directory, now, effects)
     return current
+
+
+class StepMoveRefused(HTTPException):
+    """A move between steps that slate refuses, naming the command that would succeed or the holder."""
+
+    def __init__(self, detail: str):
+        super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
+
+
+def refuse_moving_steps(session: Session, record: models.Record, step: str) -> None:
+    """An idea moves to design by its promote, and a closed record has no step left to work."""
+    number = record.number
+    if record.kind == Kind.IDEA:
+        raise StepMoveRefused(f'#{number} is an idea, which reaches design by becoming an initiative: `slate ideas promote {number}`.')
+    summary = record_summaries(session, [number]).get(number)
+    if summary is not None and summary.status in (CLOSED_ISSUE_STATUSES if record.kind == Kind.ISSUE else TERMINAL_INITIATIVE_STATUSES):
+        noun = 'issues' if record.kind == Kind.ISSUE else 'initiatives'
+        raise StepMoveRefused(
+            f'#{number} is {summary.status}, so it has no step left to work. `slate {noun} reopen {number}` opens it again.'
+        )
+
+
+def advancing_claim(session: Session, number: int, holder: str, step: str, effects: WriteEffects, now: dt.datetime) -> models.Claim:
+    """The holder's unended claim on the record, refused where it holds none or another holder's claim is there."""
+    current = unended_claims(session, [number]).get(number)
+    hold_it = f'`slate claims hold {number} --step {step}` holds it at {step}.'
+    if current is None:
+        raise StepMoveRefused(f'{holder} holds no claim on #{number}. {hold_it}')
+    if current.holder == holder:
+        return current
+    if current.is_live(now):
+        raise StepMoveRefused(f'#{number} is claimed by {held_by(current, effects)}, not {holder}.')
+    raise StepMoveRefused(
+        f"{holder} holds no claim on #{number}: {current.holder}'s ran out at {effects.moment(current.expires_ts)}. {hold_it}"
+    )
+
+
+def outcome_toward(left: models.Worklog | None, step: str) -> str:
+    """`finished` for a move to a later step, or from a worklog of none, and `moved_back` for one to an earlier step."""
+    if left is None or left.step is None or WORKLOG_STEPS.index(step) > WORKLOG_STEPS.index(left.step):
+        return WORKLOG_FINISHED
+    return WORKLOG_MOVED_BACK
+
+
+def advance(
+    session: Session, record: models.Record, request: schemas.ClaimAdvance, now: dt.datetime, effects: WriteEffects
+) -> models.Claim:
+    """Move the holder's claim to a new worklog of `request.step`, ending the one it is on, in the request's one transaction.
+
+    A move to a later step ends that worklog `finished`, which checks its step. A move to an earlier
+    one ends it `moved_back`, which checks nothing. The new worklog follows the one ended, and takes
+    the claim and the holder's session. An open wait ends, as a resume ends it. The holder's own
+    claim that ran out holds again for `request.minutes`, as an extend holds it.
+    """
+    number = record.number
+    refuse_moving_steps(session, record, request.step)
+    current = advancing_claim(session, number, request.holder, request.step, effects, now)
+    left = current.worklog
+    if left is not None and left.ended_ts is None and left.step == request.step:
+        raise StepMoveRefused(
+            f'Worklog {left.name} on #{number} already carries step {request.step}, so the claim is at it. '
+            f'`slate claims resume {number}` puts this session back in it.'
+        )
+    if current.is_expired(now):
+        effects.warn(
+            WriteEffectCode.CLAIM_HAD_EXPIRED,
+            f'The claim on #{number} had expired at {effects.moment(current.expires_ts)}. Nobody held #{number} since, so it holds again.',
+            number,
+        )
+        current.expires_ts = now + dt.timedelta(minutes=request.minutes)
+    waiting = current.open_wait
+    if waiting is not None:
+        waiting.ended_ts, waiting.ended_by = now, request.holder
+        effects.did(
+            WriteEffectCode.WAIT_ENDED,
+            f'Ended the wait on {waiting.waiting_on!r}, which began at {effects.moment(waiting.started_ts)}.',
+            number,
+        )
+    outcome = outcome_toward(left, request.step)
+    if left is not None:
+        if left.ended_ts is None:
+            worklogs.end_worklog(left, outcome, now, request.holder)
+            worklogs.name_worklog_ended(left, effects)
+        left.claim = None
+        session.flush()
+    worklog = worklogs.open_worklog(session, number, request.holder, now, claim=current, step=request.step, follows=left)
+    effects.did(WriteEffectCode.WORKLOG_OPENED, f'{opened_line(worklog, left)}.', number)
+    origin = f' from worklog {left.name}' if left is not None else ''
+    effects.did(
+        WriteEffectCode.CLAIM_MOVED_TO_WORKLOG, f"{current.holder}'s claim on #{number} moved{origin} to worklog {worklog.name}.", number
+    )
+    if request.session is not None:
+        worklogs.join(session, worklog, request.session, request.host, request.directory, now, effects)
+    logger.info(
+        'claim_advanced',
+        record=number,
+        holder=request.holder,
+        step=request.step,
+        left=left.name if left is not None else None,
+        outcome=outcome if left is not None else None,
+        worklog=worklog.name,
+    )
+    return current
+
+
+def adopt(session: Session, record: models.Record, request: schemas.ClaimAdopt, now: dt.datetime, effects: WriteEffects) -> models.Claim:
+    """End the claim `request.from_session` holds as `adopted`, and give the holder a claim at the same step, in one transaction.
+
+    The new claim's worklog follows the one ended, so the step goes on without being checked. A claim
+    that ran out has already ended as expired at its expiry, and keeps that ending. The insert runs in
+    a savepoint, so a hold landing first refuses this one, as it refuses a racing hold.
+    """
+    number = record.number
+    current = unended_claims(session, [number]).get(number)
+    if current is None:
+        raise StepMoveRefused(f'#{number} holds no claim, so there is none to adopt. `slate claims hold {number}` holds it.')
+    if current.session != request.from_session:
+        holding = f'in session {current.session}' if current.session is not None else 'in no session'
+        raise StepMoveRefused(f'#{number} is claimed by {held_by(current, effects)} {holding}, not by session {request.from_session}.')
+    if request.session is not None and request.session == current.session:
+        raise StepMoveRefused(
+            f'Session {request.session} holds the claim on #{number} already. `slate claims resume {number}` puts it back in the worklog.'
+        )
+    left = current.worklog
+    lease = schemas.ClaimLease(
+        holder=request.holder,
+        minutes=request.minutes,
+        session=request.session,
+        host=request.host,
+        directory=request.directory,
+        step=cast(StepName, left.step) if left is not None else None,
+    )
+    attempt = effects.attempt()
+    try:
+        with session.begin_nested():
+            if current.is_expired(now):
+                ended = f'which had expired at {attempt.moment(current.expires_ts)}, so it ended as expired rather than adopted'
+            else:
+                ended = f'as adopted by {request.holder}'
+            attempt.did(WriteEffectCode.CLAIM_ENDED, f"Ended {current.holder}'s claim on #{number}, {ended}.", number)
+            end_claim(current, CLAIM_ADOPTED, now, request.holder, attempt)
+            session.flush()
+            claim = take(session, number, lease, now, attempt, follows=left)
+    except IntegrityError as exc:
+        if not lost_the_race(exc):
+            raise
+        raise ClaimRefused(f'#{number} was taken by a hold that landed first.') from None
+    effects.merge(attempt)
+    logger.info('claim_adopted', record=number, holder=request.holder, from_session=request.from_session, step=lease.step)
+    return claim

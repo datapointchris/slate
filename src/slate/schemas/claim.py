@@ -2,6 +2,7 @@ import datetime as dt
 from typing import Annotated
 from typing import Literal
 
+from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import StringConstraints
 from pydantic import model_validator
@@ -69,6 +70,37 @@ class ClaimResume(RecordModel):
     """End the wait. A `session` named here goes back into the claim's worklog."""
 
     holder: Actor
+    session: str | None = None
+    host: str | None = None
+    directory: str | None = None
+
+
+class ClaimAdvance(RecordModel):
+    """Move the holder's claim to a worklog of `step`, ending the one it is on. A field it does not name is refused.
+
+    `session` moves into the new worklog. `minutes` is how long the claim holds again where it had run out.
+    """
+
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
+
+    holder: Actor
+    step: StepName
+    minutes: ClaimMinutes = DEFAULT_CLAIM_MINUTES
+    session: str | None = None
+    host: str | None = None
+    directory: str | None = None
+
+
+class ClaimAdopt(RecordModel):
+    """Take over the claim that `from_session` holds, at the step its worklog performs. A field it does not name is refused."""
+
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
+
+    holder: Actor
+    from_session: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1), Field(description='The session whose claim it takes')
+    ]
+    minutes: ClaimMinutes = DEFAULT_CLAIM_MINUTES
     session: str | None = None
     host: str | None = None
     directory: str | None = None

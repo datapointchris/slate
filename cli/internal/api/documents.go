@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,15 +15,17 @@ var DocumentKinds = []string{"research", "design", "plan", "review", "retro"}
 
 // DocumentVersionSummary is one version of a document: who wrote it, the agent
 // session that did, the worklog that session was in, and the flow it wrote
-// under.
+// under. Fields is the JSON object written beside its text, null where the
+// write sent none, and absent from an API that predates them.
 type DocumentVersionSummary struct {
-	Version   int       `json:"version"`
-	WrittenBy string    `json:"written_by"`
-	Session   *string   `json:"session"`
-	Worklog   *string   `json:"worklog"`
-	WrittenTS time.Time `json:"written_ts"`
-	FlowID    *string   `json:"flow_id"`
-	LineCount int       `json:"line_count"`
+	Version   int             `json:"version"`
+	WrittenBy string          `json:"written_by"`
+	Session   *string         `json:"session"`
+	Worklog   *string         `json:"worklog"`
+	WrittenTS time.Time       `json:"written_ts"`
+	FlowID    *string         `json:"flow_id"`
+	LineCount int             `json:"line_count"`
+	Fields    json.RawMessage `json:"fields"`
 }
 
 // DocumentVersion is one version with its body, and the body's lines as the
@@ -46,12 +49,13 @@ type DocumentSummary struct {
 }
 
 // DocumentVersionRef is a version a worklog wrote, named by its document's
-// address.
+// address, with the fields written beside its text.
 type DocumentVersionRef struct {
-	Address   string    `json:"address"`
-	Kind      string    `json:"kind"`
-	Version   int       `json:"version"`
-	WrittenTS time.Time `json:"written_ts"`
+	Address   string          `json:"address"`
+	Kind      string          `json:"kind"`
+	Version   int             `json:"version"`
+	WrittenTS time.Time       `json:"written_ts"`
+	Fields    json.RawMessage `json:"fields"`
 }
 
 // Document is one version of a document, with every version listed and every
@@ -68,12 +72,14 @@ type Document struct {
 }
 
 // DocumentWriteInput is the body for PUT /documents/{record}/{name}. Kind is
-// needed to create the document, and must be its own when given after.
+// needed to create the document, and must be its own when given after. Fields
+// is a JSON object kept beside the body, and nil sends none.
 type DocumentWriteInput struct {
-	Body    string  `json:"body"`
-	Kind    *string `json:"kind,omitempty"`
-	Session *string `json:"session,omitempty"`
-	Host    *string `json:"host,omitempty"`
+	Body    string          `json:"body"`
+	Fields  json.RawMessage `json:"fields,omitempty"`
+	Kind    *string         `json:"kind,omitempty"`
+	Session *string         `json:"session,omitempty"`
+	Host    *string         `json:"host,omitempty"`
 }
 
 // DocumentWritten is the answer to writing a version.

@@ -1,6 +1,7 @@
 """A document's read, the summary a record's read lists, and the request that writes a version."""
 
 import datetime as dt
+from typing import Any
 from typing import Self
 
 from pydantic import model_validator
@@ -14,7 +15,10 @@ from slate.schemas.write_effects import Written
 
 
 class DocumentVersionSummary(RecordModel):
-    """One version: who wrote it, the agent session that did, the worklog that session was in, and the flow it wrote under."""
+    """One version: who wrote it, the agent session that did, the worklog that session was in, and the flow it wrote under.
+
+    `fields` is the JSON object written beside its text, null where the write sent none.
+    """
 
     version: int
     written_by: str
@@ -23,6 +27,7 @@ class DocumentVersionSummary(RecordModel):
     written_ts: dt.datetime
     flow_id: str | None = None
     line_count: int
+    fields: dict[str, Any] | None = None
 
 
 class DocumentVersion(DocumentVersionSummary):
@@ -51,12 +56,13 @@ class ListedDocument(DocumentSummary):
 
 
 class DocumentVersionRef(RecordModel):
-    """A version a worklog wrote, named by its document's address."""
+    """A version a worklog wrote, named by its document's address, with the fields written beside its text."""
 
     address: str
     kind: str
     version: int
     written_ts: dt.datetime
+    fields: dict[str, Any] | None = None
 
 
 class Document(RecordModel):
@@ -80,11 +86,13 @@ class DocumentWrite(RecordModel):
     """Write the next version of the document the path names, creating it on its first write.
 
     `kind` is needed to create one, and must be the document's own when given after. The body is
-    kept as given, so its lines number as the writer's file did. `session` is the agent session
-    writing it, and the version names the worklog that session is in.
+    kept as given, so its lines number as the writer's file did. `fields` is a JSON object kept
+    beside it, which slate stores and never reads. `session` is the agent session writing it, and
+    the version names the worklog that session is in.
     """
 
     body: str
+    fields: dict[str, Any] | None = None
     kind: DocumentKindName | None = None
     session: NonBlank | None = None
     host: str | None = None

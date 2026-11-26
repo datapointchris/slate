@@ -82,7 +82,9 @@ def write_version(
     """Write the document's next version, creating the document on its first, and say whether it was created.
 
     The record's row is locked while the version is counted, so two writes on one record never draw
-    the same number or both create the document. A body matching the latest version writes nothing.
+    the same number or both create the document. A write whose body and fields both match the
+    latest version's writes nothing. The same body with other fields writes a version, because a
+    reader acts on the fields, such as an agreement recorded on text that did not change.
     """
     session.execute(select(models.Record.number).where(models.Record.number == number).with_for_update(key_share=True))
     document = find_document(session, number, name)
@@ -107,10 +109,10 @@ def write_version(
             detail=f'{document.address} is a {document.kind} document, not a {request.kind}; name another to write a {request.kind}',
         )
     latest = document.versions[-1] if document.versions else None
-    if latest is not None and latest.body == request.body:
+    if latest is not None and latest.body == request.body and latest.fields == request.fields:
         effects.warn(
             WriteEffectCode.DOCUMENT_UNCHANGED,
-            f'Version {latest.version} of {document.address} already reads exactly this, so no version was written.',
+            f'Version {latest.version} of {document.address} already reads exactly this, with the same fields, so no version was written.',
             number,
         )
         return document, created
@@ -119,6 +121,7 @@ def write_version(
         document=document,
         version=(latest.version if latest is not None else 0) + 1,
         body=request.body,
+        fields=request.fields,
         written_by=written_by,
         session_id=agent_session,
         worklog_id=worklog.id if worklog is not None else None,

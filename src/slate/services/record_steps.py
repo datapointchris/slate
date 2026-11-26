@@ -1,8 +1,10 @@
 """Each initiative's checked steps and its stage, derived on every read from the worklogs that performed them.
 
-A step is checked on a record once a worklog naming it ended because its go did: finished by hand,
-released, or ended by its record completing or its idea being promoted. A claim that ran out ended
-nobody's go, and a record dropped or canceled abandoned it, so neither checks a step. An idea is
+A step is checked on a record once a worklog naming it ended because its go did: finished by hand
+or by advancing to a later step, released, or ended by its record completing or its idea being
+promoted. A claim that ran out ended nobody's go, and a record dropped or canceled abandoned it, so
+neither checks a step. Neither does a move back to an earlier step, which leaves the step to do
+again, nor another session adopting a dead one's claim, which goes on with the step. An idea is
 shaped under the number its initiative keeps, so the shape step is the initiative's own worklog.
 Steps come in `WORKLOG_STEPS` order, which `worklog_steps.position` mirrors, and the stage is the
 furthest of them. A step it marks as not planned stays checked.
@@ -21,12 +23,14 @@ from sqlalchemy.orm import Session
 
 from slate import models
 from slate import schemas
+from slate.models.claim import CLAIM_ADOPTED
+from slate.models.worklog import WORKLOG_MOVED_BACK
 from slate.models.worklog import WORKLOG_STEPS
 from slate.models.worklog import StepName
 from slate.services.steps_not_planned import steps_not_planned
 
 # The endings that stopped a go without its step being done.
-UNPERFORMED_OUTCOMES = ('expired', 'dropped', 'canceled')
+UNPERFORMED_OUTCOMES = ('expired', 'dropped', 'canceled', WORKLOG_MOVED_BACK, CLAIM_ADOPTED)
 
 
 def checked_steps(session: Session, numbers: Collection[int]) -> dict[int, dict[str, schemas.CheckedStep]]:

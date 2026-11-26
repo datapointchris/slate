@@ -22,9 +22,11 @@ documents write 412 cli-plan --kind plan` writes a second plan.
 
 `PUT /documents/{record}/{name}` writes the next version. The write that
 creates the document names its kind and answers 201. A later write naming
-another kind answers 409, since its body belongs in another document. A body
-matching the latest version exactly writes nothing and warns
-`document_unchanged`, so repeating a write changes nothing.
+another kind answers 409, since its body belongs in another document. A write
+whose body and `fields` both match the latest version's writes nothing and
+warns `document_unchanged`, so repeating a write changes nothing. A change to
+either one writes a version, and so does leaving out `fields` that the latest
+version holds.
 
 That is how S3 keeps a versioned object. Every PUT adds a version, a read
 answers the latest, and an earlier one stays readable by its id.
@@ -37,6 +39,26 @@ The body is kept as given. Its lines are what lies between newlines, and a
 final newline ends the last line rather than starting another. A version's
 read answers them as `lines`, and the CLI prints those. So the number that a
 reader sees is the one `POST /comments` takes.
+
+## A version carries structured fields beside its body, for a program to read
+
+A version's `fields` is a JSON object, or null where the write sent none. It
+holds what a program reads off the document, such as a preflight's verdict, so
+no reader parses the body's prose for it. `slate documents write --fields
+<file>` sends a file's object. The API answers 422 to anything but an object,
+and checks nothing inside it, so each kind of document sets its own keys.
+
+`fields` comes back on every read of a version:
+
+| Read | Where |
+| --- | --- |
+| `slate documents show <record> <name> --json` | `version.fields` |
+| `slate documents list --json` | each document's `latest.fields` |
+| a worklog's read | each entry of `document_versions` |
+
+An API one release older drops `fields` and still answers 200. So the CLI
+compares the version it gets back with what it sent, and fails with `slate's
+API predates document fields` where they differ.
 
 ## The list bounds records rather than rows, so the bound never half lists a record
 
