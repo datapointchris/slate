@@ -31,6 +31,12 @@ then drops what is left. The SDK's own shutdown takes no timeout, and against a
 receiver that is down it outlasts the time a stopping pod has before it is
 killed.
 
+A few events are OTLP log records as well, such as a hard-to-read-sentence
+check that got no answer. They export over OTLP/HTTP where
+`OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` names a
+receiver, and are dropped otherwise. A stopping API flushes them as it flushes
+its spans. Every other log line goes to stdout alone.
+
 slate sets `OTEL_SEMCONV_STABILITY_OPT_IN=http,database` where a deployment
 leaves it unset. A deployment's own value outranks it. Under that default:
 

@@ -90,7 +90,15 @@ spec:
             - configMapRef:
                 name: slate-settings
           # POSTGRES_PORT may be left out of the Secret, and then reads as 5432.
+          # FLEET_CLIENT_SECRET signs in the client that files a flagged title's
+          # report. A cluster with no Secret fleet-client files none.
           env:
+            - name: FLEET_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: fleet-client
+                  key: FLEET_CLIENT_SECRET
+                  optional: true
             - name: POSTGRES_HOST
               valueFrom:
                 secretKeyRef:

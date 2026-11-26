@@ -18,6 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from fastapi.utils import is_body_allowed_for_status_code
+from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk.trace import TracerProvider
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
@@ -48,6 +49,8 @@ from slate.api.endpoints import tags
 from slate.api.endpoints import totals
 from slate.api.endpoints import vocabulary
 from slate.api.endpoints import worklogs
+from slate.api.hard_to_read_sentence_checks import check_sender
+from slate.api.hard_to_read_sentence_checks import watch_text_written
 from slate.api.protected_resource import add_protected_resource_route
 from slate.api.request_logging import RequestLoggingMiddleware
 from slate.api.retired_record_refusal import refusal_behind_a_fold
@@ -55,7 +58,9 @@ from slate.config import Settings
 from slate.config import get_settings
 from slate.database.session import get_db_engine
 from slate.database.unavailable import postgres_unavailable
+from slate.logger import initialize_log_export
 from slate.logger import initialize_logging
+from slate.logger import shut_down_log_export
 from slate.tracing.tracer_provider import initialize_tracing
 from slate.tracing.tracer_provider import instrument_api
 from slate.tracing.tracer_provider import shut_down_tracing
@@ -63,6 +68,10 @@ from slate.tracing.tracer_provider import shut_down_tracing
 logger = structlog.get_logger()
 
 VALIDATION_SCOPES = ('body', 'query', 'path', 'header', 'cookie')
+
+# How long a stopping API keeps sending the checks it queued. The pod's grace period also covers
+# uvicorn's drain and the flush of its spans and log records.
+SENTENCE_CHECKS_STOP_SECONDS = 2
 
 # Every resource router and the prefix it serves under `API_PREFIX`, one noun each.
 RESOURCE_ROUTERS: tuple[tuple[str, APIRouter], ...] = (
@@ -221,18 +230,23 @@ def add_probe_routes(api: FastAPI, settings: Settings) -> None:
     api.add_api_route('/ready', ready, methods=['GET'], include_in_schema=False)
 
 
-def create_api(settings: Settings, tracer_provider: TracerProvider | None = None) -> FastAPI:
-    """The API, its spans made by `tracer_provider`, else by whichever provider the process installed."""
+def create_api(settings: Settings, tracer_provider: TracerProvider | None = None, logger_provider: LoggerProvider | None = None) -> FastAPI:
+    """The API, its spans and log records made by the providers given, else by whichever the process installed."""
+    sentence_checks = check_sender(settings, logger_provider)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.settings = settings
-        logger.info('api_started')
+        logger.info('api_started', sentence_checks=settings.hard_to_read_sentences.url)
         yield
         # uvicorn has stopped accepting connections and drained in-flight requests by now.
         get_db_engine(settings).dispose()
+        if sentence_checks is not None:
+            await run_in_threadpool(sentence_checks.stop, SENTENCE_CHECKS_STOP_SECONDS)
         if tracer_provider is not None:
             shut_down_tracing(tracer_provider)
+        if logger_provider is not None:
+            shut_down_log_export(logger_provider)
         logger.info('api_stopped')
 
     api = FastAPI(
@@ -245,12 +259,13 @@ def create_api(settings: Settings, tracer_provider: TracerProvider | None = None
     )
     api.add_middleware(RequestLoggingMiddleware)
 
-    every_route = [Depends(mark_request_on_session), Depends(get_current_caller)]
+    every_route = [Depends(mark_request_on_session), Depends(get_current_caller), Depends(watch_text_written)]
     v1 = APIRouter(prefix=API_PREFIX)
     for prefix, router in RESOURCE_ROUTERS:
         v1.include_router(router, prefix=prefix, dependencies=every_route)
     api.include_router(v1)
     api.state.route_templates = route_templates(RESOURCE_ROUTERS)
+    api.state.hard_to_read_sentence_checks = sentence_checks
     add_probe_routes(api, settings)
     if settings.fastapi.public_url:
         add_protected_resource_route(api, settings.fastapi.public_url, settings.oidc.issuer)
@@ -266,4 +281,4 @@ def create_api(settings: Settings, tracer_provider: TracerProvider | None = None
 def create_app() -> FastAPI:
     """The uvicorn factory: `uvicorn --factory slate.api.main:create_app`."""
     initialize_logging()
-    return create_api(get_settings(), initialize_tracing())
+    return create_api(get_settings(), initialize_tracing(), initialize_log_export())

@@ -68,7 +68,12 @@ directory is read first where one exists, and the environment outranks it.
 | `LOG_FORMAT` | `json` | `json` for one object per line, `console` for a terminal |
 | `LOG_LEVEL` | `INFO` | A Python logging level name |
 | `OTEL_TRACES_EXPORTER` | unset | The exporters to run, from those `docs/tracing.md` lists. Unset, `otlp` where an OTLP endpoint is set, else nothing exports |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | The OTLP/HTTP receiver that takes the spans. Every other `OTEL_*` variable that the SDK reads applies too |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | The OTLP/HTTP receiver that takes the spans and log records. Every other `OTEL_*` variable that the SDK reads applies too |
+| `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | unset | The receiver that takes the log records alone, such as a sentence check that got no answer |
+| `HARD_TO_READ_SENTENCES_URL` | unset | The service that scores each title and summary after the API writes it. Unset, nothing is scored |
+| `FLEET_API_URL` | unset | The inbox that takes the `flagged-text` report in a check's answer, at `POST /inbox/reports` |
+| `FLEET_CLIENT_ID` | unset | The client that files that report, signing in at `OIDC_ISSUER` with the client-credentials grant |
+| `FLEET_CLIENT_SECRET` | unset | That client's secret. With any of the three unset, the API logs each report and files none |
 
 Each request continues the caller's `traceparent`, and its span names the
 record its route is about. `docs/tracing.md` says what each span carries.

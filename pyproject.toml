@@ -21,6 +21,8 @@ dependencies = [
   "opentelemetry-sdk>=1.45.2",
   # [binary] carries its own libpq, so the image installs no system Postgres packages.
   "psycopg[binary]>=3.1.19",
+  # Its client-credentials token source, which keeps the inbox client's token in memory and asks for a new one when it lapses.
+  "pyclilogin>=0.2.4",
   "pydantic>=2.7.1",
   # [crypto] pulls `cryptography`, which PyJWT needs to verify RS256 access tokens.
   "pyjwt[crypto]>=2.8.0",

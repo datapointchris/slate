@@ -80,12 +80,37 @@ class CheckSettings:
         self.days: int = int(os.environ.get('SLATE_CHECK_DAYS') or 30)
 
 
+class HardToReadSentencesSettings:
+    """Where the API sends each title and summary it writes, to be scored for hard-to-read sentences.
+
+    `url` is the hard-to-read-sentences service, which answers `POST /find`. Unset, nothing is sent.
+    """
+
+    def __init__(self) -> None:
+        self.url: str | None = (os.environ.get('HARD_TO_READ_SENTENCES_URL') or '').rstrip('/') or None
+
+
+class ReportInboxSettings:
+    """Where the API files the `flagged-text` report in a check's answer: an inbox that takes `POST /inbox/reports`.
+
+    The API signs in to it at `OIDC_ISSUER` as `client_id`, with the client-credentials grant. With
+    any of the three unset, the API logs each report and files none.
+    """
+
+    def __init__(self) -> None:
+        self.api_url: str | None = (os.environ.get('FLEET_API_URL') or '').rstrip('/') or None
+        self.client_id: str | None = os.environ.get('FLEET_CLIENT_ID') or None
+        self.client_secret: str | None = os.environ.get('FLEET_CLIENT_SECRET') or None
+
+
 class Settings:
     def __init__(self) -> None:
         self.fastapi = FastAPISettings()
         self.oidc = OIDCSettings()
         self.postgres = PostgresSettings()
         self.checks = CheckSettings()
+        self.hard_to_read_sentences = HardToReadSentencesSettings()
+        self.report_inbox = ReportInboxSettings()
 
 
 @functools.cache

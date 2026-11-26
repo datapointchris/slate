@@ -12,6 +12,7 @@ from slate.api import API_PREFIX
 from slate.api.callers import get_current_caller
 from slate.api.main import create_api
 from slate.api.oidc_auth import OIDCIdentity
+from slate.api.oidc_auth import ScopedClient
 from slate.config import get_settings
 from slate.database.session import get_db_engine
 from slate.database.session import get_sqlalchemy_session
@@ -49,7 +50,7 @@ def api(private_services):
 
 
 @contextmanager
-def transactional_api_client(api, caller: Callable[[], OIDCIdentity] | None, engine: Engine | None = None):
+def transactional_api_client(api, caller: Callable[[], OIDCIdentity | ScopedClient] | None, engine: Engine | None = None):
     """A client and a session sharing one transaction, which is rolled back when the test ends.
 
     `engine` defaults to the session's database.

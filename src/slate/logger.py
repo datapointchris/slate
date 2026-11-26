@@ -5,15 +5,25 @@
 
 A line written under a span carries `trace_id`, `span_id` and `trace_flags`, the fields an
 OpenTelemetry Collector's filelog receiver reads a line's trace from.
+
+A few events are also OTLP log records, each emitted through the process's `LoggerProvider`, such
+as a hard-to-read-sentence check that got no answer. The provider exports over OTLP/HTTP where
+`OTEL_EXPORTER_OTLP_ENDPOINT` or `OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` names a receiver, and drops
+them otherwise.
 """
 
 import functools
 import logging
 import os
 import sys
+import threading
 
 import structlog
 from opentelemetry import trace
+from opentelemetry._logs import set_logger_provider
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.trace import format_span_id
 from opentelemetry.trace import format_trace_id
 from structlog.processors import CallsiteParameter
@@ -22,11 +32,18 @@ from structlog.typing import EventDict
 from structlog.typing import Processor
 from structlog.typing import WrappedLogger
 
+from slate.tracing.tracer_provider import service_resource
+
 QUIET_LIBRARIES = {
     'httpcore': logging.INFO,
     'httpx': logging.WARNING,
     'urllib3': logging.INFO,
 }
+
+OTLP_LOG_ENDPOINT_VARIABLES = ('OTEL_EXPORTER_OTLP_ENDPOINT', 'OTEL_EXPORTER_OTLP_LOGS_ENDPOINT')
+
+# A receiver that is down never takes the records, so a longer wait only holds a stopping pod.
+SHUTDOWN_FLUSH_SECONDS = 5
 
 
 def add_trace_context(_logger: WrappedLogger, _method: str, event_dict: EventDict) -> EventDict:
@@ -71,3 +88,30 @@ def initialize_logging() -> None:
     for name in ('uvicorn', 'uvicorn.error'):
         logging.getLogger(name).handlers.clear()
         logging.getLogger(name).propagate = True
+
+
+def new_logger_provider(exporters: list[OTLPLogExporter]) -> LoggerProvider:
+    """Log records under slate's service resource, handed to every exporter in batches."""
+    provider = LoggerProvider(resource=service_resource())
+    for exporter in exporters:
+        provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+    return provider
+
+
+@functools.cache
+def initialize_log_export() -> LoggerProvider:
+    """Install the process's logger provider, exporting over OTLP/HTTP only where an endpoint is set."""
+    exporting = any(os.environ.get(variable) for variable in OTLP_LOG_ENDPOINT_VARIABLES)
+    provider = new_logger_provider([OTLPLogExporter()] if exporting else [])
+    set_logger_provider(provider)
+    structlog.get_logger().info('log_export_initialized', exporting=exporting)
+    return provider
+
+
+def shut_down_log_export(provider: LoggerProvider) -> None:
+    """Export what is queued and stop, waiting `SHUTDOWN_FLUSH_SECONDS` at most, as the tracer's shutdown does."""
+    flushing = threading.Thread(target=provider.shutdown, name='log-flush', daemon=True)
+    flushing.start()
+    flushing.join(SHUTDOWN_FLUSH_SECONDS)
+    if flushing.is_alive():
+        structlog.get_logger().warning('log_flush_abandoned', waited_seconds=SHUTDOWN_FLUSH_SECONDS)
