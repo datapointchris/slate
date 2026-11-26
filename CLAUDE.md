@@ -109,6 +109,12 @@ A new command takes a noun unless no one noun owns what it reads.
   id, set per transaction by `bind_actor`. `message_tokens` opts out, because
   its rows mirror a transcript, and each report that changes them is audited
   on `agent_sessions`.
+- **Every committed title and summary is scored for hard-to-read sentences
+  after the write**, by a session listener in
+  `hard_to_read_sentence_checks/written_text.py`, so no write path calls it.
+  `CHECKED_TEXT` there names each kind's checked columns, so a new kind with a
+  title joins it. `docs/hard-to-read-sentence-checks.md` says why the write
+  never waits on the answer.
 - **A record's changes reach a new table through its single-column `ON DELETE
   CASCADE` key** onto the record or a row hanging off it. `slate show` reads
   that list from the models. A table linked any other way is added by hand in
