@@ -10,6 +10,7 @@ the moment the worklog stopped holding its record.
 
 A claim follows its session. Where the session holding a record's live claim starts or joins another
 worklog on that record, `move_claim_to` makes it the claim's, so the claim names the go under way.
+`move_claim` is every move of a claim between worklogs, `claims advance` included.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ from slate.api.exceptions import NotFoundException
 from slate.models.worklog import PREFLIGHT
 from slate.models.worklog import WORKLOG_FINISHED
 from slate.models.worklog import estimate_column
-from slate.services.claim_views import live_claims
+from slate.services.claim_views import locked_unended_claim
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
 
@@ -79,7 +80,7 @@ def open_worklog(
     step: str | None = None,
     follows: models.Worklog | None = None,
 ) -> models.Worklog:
-    """Open the record's next worklog, in the record's flow, following the worklog `follows` names where one ended to open it.
+    """Open the record's next worklog, in the record's flow, following the worklog that `follows` names.
 
     The record's row is locked while the sequence is counted, so two openings on one record never
     draw the same one. `FOR NO KEY UPDATE` leaves the row free for the key-share lock every foreign
@@ -160,28 +161,44 @@ def join(
     return span
 
 
-def move_claim_to(session: Session, worklog: models.Worklog, session_id: str, now: dt.datetime, effects: WriteEffects) -> None:
-    """Make the worklog its record's live claim's, where that claim's own session is the one entering it.
+def move_claim(
+    session: Session, claim: models.Claim, worklog: models.Worklog, effects: WriteEffects, *, why: str = '', opened: bool = False
+) -> None:
+    """Make the worklog the claim's, and name the move. Every move of a claim between worklogs is this one.
 
-    The worklog the claim leaves keeps its state. One still open then ends by hand or with its
-    record, as one `worklogs start` opened does.
+    A claim is on one worklog at a time, so the worklog it leaves lets go of it first, and keeps its
+    state. A worklog `opened` for the move follows the one the claim left. `why` ends the clause
+    naming the move.
     """
-    claim = live_claims(session, [worklog.record_number], now).get(worklog.record_number)
-    if claim is None or claim.session != session_id or worklog.claim_id is not None:
-        return
     left = claim.worklog
     if left is not None:
         left.claim = None
         session.flush()
+        if opened and worklog.follows_id is None:
+            worklog.follows_id = left.id
     worklog.claim = claim
     session.flush()
     number = worklog.record_number
     origin = f' from worklog {left.name}' if left is not None else ''
-    message = f"{claim.holder}'s claim on #{number} moved{origin} to worklog {worklog.name}, the one its session {session_id} is in."
+    message = f"{claim.holder}'s claim on #{number} moved{origin} to worklog {worklog.name}{why}."
     if left is not None and left.ended_ts is None:
         message += f' {left.name} stays open until it is finished or #{number} closes.'
     effects.did(WriteEffectCode.CLAIM_MOVED_TO_WORKLOG, message, number)
     logger.info('claim_moved_to_worklog', record=number, claim=claim.id, worklog=worklog.name, left=left.name if left is not None else None)
+
+
+def move_claim_to(
+    session: Session, worklog: models.Worklog, session_id: str, now: dt.datetime, effects: WriteEffects, *, opened: bool = False
+) -> None:
+    """Make the worklog its record's live claim's, where that claim's own session is the one entering it.
+
+    The worklog the claim leaves keeps its state. One still open then ends by hand or with its
+    record, as one `worklogs start` opened does. Where the session `opened` the worklog, it follows the one left.
+    """
+    claim = locked_unended_claim(session, worklog.record_number)
+    if claim is None or not claim.is_live(now) or claim.session != session_id or worklog.claim_id is not None:
+        return
+    move_claim(session, claim, worklog, effects, why=f', the one its session {session_id} is in', opened=opened)
 
 
 def return_to(

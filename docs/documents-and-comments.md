@@ -26,7 +26,12 @@ another kind answers 409, since its body belongs in another document. A write
 whose body and `fields` both match the latest version's writes nothing and
 warns `document_unchanged`, so repeating a write changes nothing. A change to
 either one writes a version, and so does leaving out `fields` that the latest
-version holds.
+version holds. The two `fields` match as JSON, so `true` and `1` differ.
+
+The route answers 422 to a body field that it does not read, so a client built
+ahead of the API learns that the field was not stored. So does a NUL
+character or an unpaired surrogate in the body or in `fields`, and a number that
+is not finite, since Postgres stores none of them.
 
 That is how S3 keeps a versioned object. Every PUT adds a version, a read
 answers the latest, and an earlier one stays readable by its id.
@@ -56,7 +61,7 @@ and checks nothing inside it, so each kind of document sets its own keys.
 | `slate documents list --json` | each document's `latest.fields` |
 | a worklog's read | each entry of `document_versions` |
 
-An API one release older drops `fields` and still answers 200. So the CLI
+An API that predates `fields` drops them and still answers 200. So the CLI
 compares the version it gets back with what it sent, and fails with `slate's
 API predates document fields` where they differ.
 

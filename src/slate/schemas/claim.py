@@ -92,7 +92,10 @@ class ClaimAdvance(RecordModel):
 
 
 class ClaimAdopt(RecordModel):
-    """Take over the claim that `from_session` holds, at the step its worklog performs. A field it does not name is refused."""
+    """Take over the claim that `from_session` holds, at `step`, else the step its unended worklog performs.
+
+    A field it does not name is refused.
+    """
 
     model_config = ConfigDict(from_attributes=True, extra='forbid')
 
@@ -100,6 +103,7 @@ class ClaimAdopt(RecordModel):
     from_session: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1), Field(description='The session whose claim it takes')
     ]
+    step: StepName | None = None
     minutes: ClaimMinutes = DEFAULT_CLAIM_MINUTES
     session: str | None = None
     host: str | None = None

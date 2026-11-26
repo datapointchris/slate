@@ -30,8 +30,6 @@ from slate import models
 from slate import schemas
 from slate.models.claim import CLAIM_ADOPTED
 from slate.models.claim import ONE_UNENDED_CLAIM_PER_RECORD
-from slate.models.initiative import TERMINAL_INITIATIVE_STATUSES
-from slate.models.issue import CLOSED_ISSUE_STATUSES
 from slate.models.record import Kind
 from slate.models.worklog import WORKLOG_FINISHED
 from slate.models.worklog import WORKLOG_MOVED_BACK
@@ -42,7 +40,8 @@ from slate.services.claim_neighbors import neighbor_warner
 from slate.services.claim_neighbors import warn_about_passed_over
 from slate.services.claim_views import held_by
 from slate.services.claim_views import live_claims
-from slate.services.claim_views import unended_claims
+from slate.services.claim_views import locked_unended_claim
+from slate.services.open_records import status_is_open
 from slate.services.record_summaries import record_summaries
 from slate.services.write_effects import WriteEffectCode
 from slate.services.write_effects import WriteEffects
@@ -78,7 +77,7 @@ def end_claim(claim: models.Claim, ending: str, now: dt.datetime, ended_by: str 
 
 def end_with_record(session: Session, number: int, ending: str, now: dt.datetime, ended_by: str | None, effects: WriteEffects) -> None:
     """End the record's claim and its open worklogs because the record reached `ending`, a closing status or `promoted`, and name each."""
-    claim = unended_claims(session, [number]).get(number)
+    claim = locked_unended_claim(session, number)
     if claim is not None:
         if claim.is_expired(now):
             message = f"Ended {claim.holder}'s claim on #{number}, which had expired at {effects.moment(claim.expires_ts)}."
@@ -98,7 +97,7 @@ def take(
     effects: WriteEffects,
     follows: models.Worklog | None = None,
 ) -> models.Claim:
-    current = unended_claims(session, [number]).get(number)
+    current = locked_unended_claim(session, number)
     if current is not None:
         live = current.is_live(now)
         if live and current.holder == lease.holder:
@@ -227,19 +226,10 @@ def hold_next(
 
 def extend(session: Session, number: int, holder: str, minutes: int, now: dt.datetime, effects: WriteEffects) -> models.Claim:
     """Move the holder's own claim's expiry to `minutes` from now, never earlier. Extending is never done by a hold."""
-    current = unended_claims(session, [number]).get(number)
-    if current is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} holds no claim to extend. Hold it instead.')
-    if current.holder != holder:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=f'#{number} is claimed by {held_by(current, effects)}, not {holder}.'
-        )
-    if current.is_expired(now):
-        effects.warn(
-            WriteEffectCode.CLAIM_HAD_EXPIRED,
-            f'The claim on #{number} had expired at {effects.moment(current.expires_ts)}. Nobody held #{number} since, so it holds again.',
-            number,
-        )
+    current = holders_claim(session, number, holder, now, effects)
+    if hold_lapsed_claim_again(current, minutes, now, effects):
+        logger.info('claim_extended', record=number, holder=holder, expires_ts=current.expires_ts.isoformat())
+        return current
     wanted = now + dt.timedelta(minutes=minutes)
     if current.expires_ts >= wanted:
         effects.warn(
@@ -255,7 +245,7 @@ def extend(session: Session, number: int, holder: str, minutes: int, now: dt.dat
 
 def release(session: Session, number: int, released_by: str, now: dt.datetime, effects: WriteEffects) -> models.Claim | None:
     """End the record's unended claim as released. A person may release another holder's, which it warns about."""
-    current = unended_claims(session, [number]).get(number)
+    current = locked_unended_claim(session, number)
     if current is None:
         effects.warn(WriteEffectCode.NOTHING_TO_RELEASE, f'#{number} holds no claim, so nothing was released.', number)
         return None
@@ -276,21 +266,43 @@ def release(session: Session, number: int, released_by: str, now: dt.datetime, e
     return current
 
 
-def holders_claim(session: Session, number: int, holder: str, effects: WriteEffects) -> models.Claim:
-    """The holder's unended claim on the record, refused with 409 when the record has none or another holds it."""
-    current = unended_claims(session, [number]).get(number)
+def holders_claim(
+    session: Session, number: int, holder: str, now: dt.datetime, effects: WriteEffects, hold_it: str = 'Hold it first.'
+) -> models.Claim:
+    """The holder's unended claim on the record, locked, refused with 409 where the record holds none of the holder's.
+
+    `hold_it` names the hold that would succeed, where nobody else's live claim is in the way.
+    """
+    current = locked_unended_claim(session, number)
     if current is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} holds no claim. Hold it first.')
-    if current.holder != holder:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f'#{number} holds no claim. {hold_it}')
+    if current.holder == holder:
+        return current
+    if current.is_live(now):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=f'#{number} is claimed by {held_by(current, effects)}, not {holder}.'
         )
-    return current
+    ran_out = f"{current.holder}'s ran out at {effects.moment(current.expires_ts)}"
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"#{number} holds no claim of {holder}'s: {ran_out}. {hold_it}")
+
+
+def hold_lapsed_claim_again(claim: models.Claim, minutes: int, now: dt.datetime, effects: WriteEffects) -> bool:
+    """Hold the holder's own claim that ran out again for `minutes` from now, warning that it had run out. False on a live one."""
+    if not claim.is_expired(now):
+        return False
+    number = claim.record_number
+    effects.warn(
+        WriteEffectCode.CLAIM_HAD_EXPIRED,
+        f'The claim on #{number} had expired at {effects.moment(claim.expires_ts)}. Nobody held #{number} since, so it holds again.',
+        number,
+    )
+    claim.expires_ts = now + dt.timedelta(minutes=minutes)
+    return True
 
 
 def wait(session: Session, number: int, holder: str, waiting_on: str, now: dt.datetime, effects: WriteEffects) -> models.Claim:
     """Mark the holder's claim as waiting on something. The claim still holds its record while it waits."""
-    current = holders_claim(session, number, holder, effects)
+    current = holders_claim(session, number, holder, now, effects)
     if current.is_expired(now):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -320,7 +332,7 @@ def wait(session: Session, number: int, holder: str, waiting_on: str, now: dt.da
 
 def resume(session: Session, number: int, request: schemas.ClaimResume, now: dt.datetime, effects: WriteEffects) -> models.Claim:
     """End the wait on the holder's claim, which reads as worked again, and put the holder's session back in its worklog."""
-    current = holders_claim(session, number, request.holder, effects)
+    current = holders_claim(session, number, request.holder, now, effects)
     waiting = current.open_wait
     if waiting is None:
         effects.warn(WriteEffectCode.NOT_WAITING, f'The claim on #{number} waits on nothing, so no wait ended.', number)
@@ -339,32 +351,30 @@ class StepMoveRefused(HTTPException):
         super().__init__(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
 
-def refuse_moving_steps(session: Session, record: models.Record, step: str) -> None:
-    """An idea moves to design by its promote, and a closed record has no step left to work."""
+def pursuit_holds_no_work(record: models.Record) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail=f'#{record.number} is a pursuit, which holds no work, so no claim holds it.',
+    )
+
+
+def refuse_moving_steps(session: Session, record: models.Record) -> None:
+    """An idea moves to design by its promote, a pursuit holds no work, and a closed record has no step left to work."""
     number = record.number
-    if record.kind == Kind.IDEA:
-        raise StepMoveRefused(f'#{number} is an idea, which reaches design by becoming an initiative: `slate ideas promote {number}`.')
+    match record.kind:
+        case Kind.IDEA:
+            raise StepMoveRefused(f'#{number} is an idea, which reaches design by becoming an initiative: `slate ideas promote {number}`.')
+        case Kind.PURSUIT:
+            raise pursuit_holds_no_work(record)
+        case Kind.ISSUE:
+            noun = 'issues'
+        case Kind.INITIATIVE:
+            noun = 'initiatives'
     summary = record_summaries(session, [number]).get(number)
-    if summary is not None and summary.status in (CLOSED_ISSUE_STATUSES if record.kind == Kind.ISSUE else TERMINAL_INITIATIVE_STATUSES):
-        noun = 'issues' if record.kind == Kind.ISSUE else 'initiatives'
+    if summary is not None and not status_is_open(record.kind, summary.status):
         raise StepMoveRefused(
             f'#{number} is {summary.status}, so it has no step left to work. `slate {noun} reopen {number}` opens it again.'
         )
-
-
-def advancing_claim(session: Session, number: int, holder: str, step: str, effects: WriteEffects, now: dt.datetime) -> models.Claim:
-    """The holder's unended claim on the record, refused where it holds none or another holder's claim is there."""
-    current = unended_claims(session, [number]).get(number)
-    hold_it = f'`slate claims hold {number} --step {step}` holds it at {step}.'
-    if current is None:
-        raise StepMoveRefused(f'{holder} holds no claim on #{number}. {hold_it}')
-    if current.holder == holder:
-        return current
-    if current.is_live(now):
-        raise StepMoveRefused(f'#{number} is claimed by {held_by(current, effects)}, not {holder}.')
-    raise StepMoveRefused(
-        f"{holder} holds no claim on #{number}: {current.holder}'s ran out at {effects.moment(current.expires_ts)}. {hold_it}"
-    )
 
 
 def outcome_toward(left: models.Worklog | None, step: str) -> str:
@@ -385,21 +395,16 @@ def advance(
     claim that ran out holds again for `request.minutes`, as an extend holds it.
     """
     number = record.number
-    refuse_moving_steps(session, record, request.step)
-    current = advancing_claim(session, number, request.holder, request.step, effects, now)
+    refuse_moving_steps(session, record)
+    hold_it = f'`slate claims hold {number} --step {request.step}` holds it at {request.step}.'
+    current = holders_claim(session, number, request.holder, now, effects, hold_it)
     left = current.worklog
     if left is not None and left.ended_ts is None and left.step == request.step:
         raise StepMoveRefused(
             f'Worklog {left.name} on #{number} already carries step {request.step}, so the claim is at it. '
             f'`slate claims resume {number}` puts this session back in it.'
         )
-    if current.is_expired(now):
-        effects.warn(
-            WriteEffectCode.CLAIM_HAD_EXPIRED,
-            f'The claim on #{number} had expired at {effects.moment(current.expires_ts)}. Nobody held #{number} since, so it holds again.',
-            number,
-        )
-        current.expires_ts = now + dt.timedelta(minutes=request.minutes)
+    hold_lapsed_claim_again(current, request.minutes, now, effects)
     waiting = current.open_wait
     if waiting is not None:
         waiting.ended_ts, waiting.ended_by = now, request.holder
@@ -409,18 +414,12 @@ def advance(
             number,
         )
     outcome = outcome_toward(left, request.step)
-    if left is not None:
-        if left.ended_ts is None:
-            worklogs.end_worklog(left, outcome, now, request.holder)
-            worklogs.name_worklog_ended(left, effects)
-        left.claim = None
-        session.flush()
-    worklog = worklogs.open_worklog(session, number, request.holder, now, claim=current, step=request.step, follows=left)
+    if left is not None and left.ended_ts is None:
+        worklogs.end_worklog(left, outcome, now, request.holder)
+        worklogs.name_worklog_ended(left, effects)
+    worklog = worklogs.open_worklog(session, number, request.holder, now, step=request.step, follows=left)
     effects.did(WriteEffectCode.WORKLOG_OPENED, f'{opened_line(worklog, left)}.', number)
-    origin = f' from worklog {left.name}' if left is not None else ''
-    effects.did(
-        WriteEffectCode.CLAIM_MOVED_TO_WORKLOG, f"{current.holder}'s claim on #{number} moved{origin} to worklog {worklog.name}.", number
-    )
+    worklogs.move_claim(session, current, worklog, effects)
     if request.session is not None:
         worklogs.join(session, worklog, request.session, request.host, request.directory, now, effects)
     logger.info(
@@ -435,15 +434,35 @@ def advance(
     return current
 
 
+def adopted_step(number: int, left: models.Worklog | None, request: schemas.ClaimAdopt) -> StepName | None:
+    """The step an adopt takes: the one asked for, else the step of the worklog the dead session left unfinished.
+
+    A worklog that already ended did its step, so taking that step again would hand its check to the
+    adopter's worklog. The adopter names the next step instead.
+    """
+    if request.step is not None:
+        return request.step
+    if left is None or left.step is None:
+        return None
+    if left.ended_ts is not None:
+        raise StepMoveRefused(
+            f'Worklog {left.name} on #{number} ended as {left.outcome}, so step {left.step} is done. '
+            f'`slate claims adopt {number} --from {request.from_session} --step <step>` takes the claim at the step that comes next.'
+        )
+    return cast(StepName, left.step)
+
+
 def adopt(session: Session, record: models.Record, request: schemas.ClaimAdopt, now: dt.datetime, effects: WriteEffects) -> models.Claim:
-    """End the claim `request.from_session` holds as `adopted`, and give the holder a claim at the same step, in one transaction.
+    """End the claim `request.from_session` holds as `adopted`, and give the holder a claim at its step, in one transaction.
 
     The new claim's worklog follows the one ended, so the step goes on without being checked. A claim
     that ran out has already ended as expired at its expiry, and keeps that ending. The insert runs in
     a savepoint, so a hold landing first refuses this one, as it refuses a racing hold.
     """
     number = record.number
-    current = unended_claims(session, [number]).get(number)
+    if record.kind == Kind.PURSUIT:
+        raise pursuit_holds_no_work(record)
+    current = locked_unended_claim(session, number)
     if current is None:
         raise StepMoveRefused(f'#{number} holds no claim, so there is none to adopt. `slate claims hold {number}` holds it.')
     if current.session != request.from_session:
@@ -460,7 +479,7 @@ def adopt(session: Session, record: models.Record, request: schemas.ClaimAdopt, 
         session=request.session,
         host=request.host,
         directory=request.directory,
-        step=cast(StepName, left.step) if left is not None else None,
+        step=adopted_step(number, left, request),
     )
     attempt = effects.attempt()
     try:

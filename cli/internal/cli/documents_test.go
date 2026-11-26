@@ -116,8 +116,8 @@ func TestDocumentsShow_PrintsALineCommentUnderItsLineAndOneWhoseLineChangedAfter
 	}
 }
 
-// An API one release behind ignores the fields key and answers 200, so only
-// the answer shows whether the fields were stored.
+// An API that predates fields ignores the key and answers 200, so only the
+// answer shows whether the fields were stored.
 func TestDocumentsWrite_FailsWhereTheVersionItGetsBackLacksTheFieldsItSent(t *testing.T) {
 	dir := t.TempDir()
 	plan, fields := dir+"/plan.md", dir+"/fields.json"
@@ -137,7 +137,7 @@ func TestDocumentsWrite_FailsWhereTheVersionItGetsBackLacksTheFieldsItSent(t *te
 	asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
 
 	for _, run := range []struct{ answer, refused string }{
-		{"", "slate's API predates document fields: version 2 of 412/plan came back without the fields sent"},
+		{"", "slate's API predates document fields"},
 		{`,"fields":{"built_on":{"design":4},"go":true}`, ""},
 	} {
 		answer = run.answer

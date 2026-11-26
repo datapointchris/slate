@@ -77,14 +77,24 @@ command that would succeed, or the holder:
 | another holder's live claim | the holder and its expiry |
 | the claim's open worklog already at `<step>` | `slate claims resume <record>` |
 
+A pursuit holds no work, so `advance` answers it 422.
+
 `slate claims adopt <record> --from <session>` takes over the claim of a
 session that died. In one transaction it ends that claim `adopted`, which checks
 nothing, and holds the record for the caller with a worklog of the same step,
 whose `follows` names the one ended. A claim that ran out has already ended as
 `expired` at its expiry, so it keeps that ending, and the caller still takes the
-step. It answers 409 where the record holds no claim, or where by then a
-session other than `--from` holds it. Only a person adopts, because only a
-person can tell that a session is dead. So no scope reaches the route.
+step.
+
+A dead session may have finished its worklog by hand before it died. That step
+is then done, and taking it again would move its check to the caller's worklog.
+So where the claim's worklog has ended, adopt answers 409 unless `--step` names
+the step to take. `--step` also overrides the step of an open worklog.
+
+It answers 409 where the record holds no claim, or where by then a session
+other than `--from` holds it, and 422 on a pursuit. Only a person adopts,
+because only a person can tell that a session is dead. So no scope reaches the
+route.
 
 - *Rejected:* `slate worklogs finish`, `slate claims release` and the next
   hold, run in turn. Nobody holds the record between the release and the
@@ -125,7 +135,9 @@ commits go to the second. Coming back sends them to the first again.
 
 A partial unique index allows one unended claim per record. Two holds racing on
 one record are settled by that index: the loser's insert fails, and it answers
-409 naming the holder that won. `POST /claims/next` holds the head of the ready
+409 naming the holder that won. Every write that decides from a record's
+unended claim locks its row first, with `SELECT ... FOR UPDATE`. So two such
+writes take turns, and the second reads the claim as the first left it. `POST /claims/next` holds the head of the ready
 issues this way, moving to the next issue when it loses one.
 
 That 409 is the only refusal of a hold on work. A pursuit holds none, so a

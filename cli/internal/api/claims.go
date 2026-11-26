@@ -215,11 +215,12 @@ func (c *Client) AdvanceClaim(ctx context.Context, record string, in ClaimAdvanc
 }
 
 // ClaimAdoptInput takes over FromSession's claim, for Holder and the place's
-// session.
+// session. A nil Step takes the step of the claim's open worklog.
 type ClaimAdoptInput struct {
-	Holder      string `json:"holder"`
-	FromSession string `json:"from_session"`
-	Minutes     int    `json:"minutes,omitempty"`
+	Holder      string  `json:"holder"`
+	FromSession string  `json:"from_session"`
+	Step        *string `json:"step,omitempty"`
+	Minutes     int     `json:"minutes,omitempty"`
 	AgentPlace
 }
 

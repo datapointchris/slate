@@ -25,7 +25,7 @@ are rows of `worklog_spans`, and its links rows of `worklog_links`.
 
 ## A hold opens one, and the claim's ending ends it
 
-Three things open a worklog:
+These open a worklog:
 
 - **A hold.** Each claim opens its own worklog, and the hold's answer names it
   as `worklog_opened`. Every ending of the claim ends the worklog at the same
@@ -33,15 +33,12 @@ Three things open a worklog:
 - **`slate claims advance <record> --step <step>`**, for the next step of a
   record that the session holds. It ends the claim's worklog and opens one of
   `<step>` in the same transaction, and the claim and the session move into it.
-  `slate claims adopt` opens one the same way, for the step of a dead session's
-  claim.
+- **`slate claims adopt <record> --from <session>`**, for the claim of a dead
+  session. It ends that claim and holds the record for the caller, with a
+  worklog of the step that the dead session was on, or of `--step`.
 - **`slate worklogs start <record>`**, for a go that no claim makes, such as
   discussing an idea. Each worklog already open on the record goes through with
   an `open_worklog` warning, since joining it may be what was meant.
-
-A worklog that `advance` or `adopt` opens names the one it took over from as
-`follows`, null on every other. So a record's steps read as one chain from its
-first hold to its last step, whichever sessions worked them.
 
 A claim is on one worklog at a time, and follows the session that holds it.
 Where that session starts or joins another worklog on the record, the claim
@@ -49,6 +46,13 @@ moves to it, and the answer names that as `claim_moved_to_worklog`. Joining
 moves it even when the session was in that worklog already. The worklog that the
 claim left keeps its state. One still open ends by hand or with its record, as
 one `start` opened does.
+
+A worklog names the one it took over from as `follows`. The worklogs that
+`advance` and `adopt` open each follow the one that they end. So does one that
+the holder's session starts, where the claim moves into it from another. A
+hold's worklog follows none, and a join leaves `follows` as it was. So the
+worklogs that one claim moves through read as a chain, whichever sessions worked
+them. A new hold starts a new chain.
 
 A worklog's `outcome` says which ending it reached:
 

@@ -7,6 +7,8 @@ which is the one a commit made at the same moment would be stamped with.
 from __future__ import annotations
 
 import datetime as dt
+import json
+from typing import Any
 
 import structlog
 from fastapi import HTTPException
@@ -70,6 +72,11 @@ def session_worklog(
     return request_session, current_worklog(session, request_session, now)
 
 
+def same_json(stored: Any, sent: Any) -> bool:
+    """Whether two values read as the same JSON. Python's `==` holds `true` equal to `1`, where JSON does not."""
+    return json.dumps(stored, sort_keys=True) == json.dumps(sent, sort_keys=True)
+
+
 def write_version(
     session: Session,
     number: int,
@@ -109,7 +116,7 @@ def write_version(
             detail=f'{document.address} is a {document.kind} document, not a {request.kind}; name another to write a {request.kind}',
         )
     latest = document.versions[-1] if document.versions else None
-    if latest is not None and latest.body == request.body and latest.fields == request.fields:
+    if latest is not None and latest.body == request.body and same_json(latest.fields, request.fields):
         effects.warn(
             WriteEffectCode.DOCUMENT_UNCHANGED,
             f'Version {latest.version} of {document.address} already reads exactly this, with the same fields, so no version was written.',

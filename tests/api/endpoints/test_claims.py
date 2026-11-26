@@ -343,6 +343,23 @@ def test_adopting_a_dead_sessions_design_claim_holds_design_again_without_checki
     assert checked(client, initiative) == []
 
 
+def test_adopting_a_claim_whose_session_finished_preflight_then_died_takes_the_step_named_and_leaves_preflight_on_its_worklog(client):
+    """A skill finishes preflight, then starts build in a second call, and its session dies between the two."""
+    initiative = new_initiative(client, 'Died between finish and start')
+    preflight = hold(client, initiative, 'claude-code/dead', session='dead', step='preflight')['claim']['worklog']
+    ok(client.post(f'/worklogs/{preflight}/finish', json={'finished_by': 'claude-code/dead'}))
+    adopting = {'holder': 'claude-code/alive', 'session': 'alive', 'from_session': 'dead'}
+
+    refused = client.post(f'{CLAIMS}/{initiative}/adopt', json=adopting)
+    assert refused.status_code == status.HTTP_409_CONFLICT, show_status_and_response(refused)
+    assert '--step <step>`' in refused.json()['message']
+
+    build = ok(client.post(f'{CLAIMS}/{initiative}/adopt', json={**adopting, 'step': 'build'}))['claim']['worklog']
+    assert (ok(client.get(f'/worklogs/{build}'))['step'], ok(client.get(f'/worklogs/{build}'))['follows']) == ('build', preflight)
+    steps = ok(client.get(f'{INITIATIVES}/{initiative}'))['steps']
+    assert [(step['step'], step['worklog']) for step in steps] == [('preflight', preflight)]
+
+
 def lapse(session, claim_id: int) -> None:
     now = dt.datetime.now(dt.UTC)
     held_from, lapsed = now - dt.timedelta(hours=2), now - dt.timedelta(minutes=1)
@@ -357,7 +374,7 @@ def lapse(session, claim_id: int) -> None:
     ('case', 'step', 'answered', 'names'),
     [
         ('no claim', 'build', status.HTTP_409_CONFLICT, '`slate claims hold'),
-        ('same step', 'preflight', status.HTTP_409_CONFLICT, 'already carries step preflight'),
+        ('same step', 'preflight', status.HTTP_409_CONFLICT, '`slate claims resume'),
         ('own expired claim', 'build', status.HTTP_200_OK, 'claim_had_expired'),
         ('another holder', 'build', status.HTTP_409_CONFLICT, 'claude-code/other'),
         ('closed record', 'build', status.HTTP_409_CONFLICT, '`slate issues reopen'),

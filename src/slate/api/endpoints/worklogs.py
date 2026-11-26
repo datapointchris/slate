@@ -187,7 +187,7 @@ def start(request: schemas.WorklogStart, session: DbSession, caller: CurrentCall
     name_worklog(worklog)
     if request.session is not None:
         join(session, worklog, request.session, request.host, request.directory, now, effects)
-        move_claim_to(session, worklog, request.session, now, effects)
+        move_claim_to(session, worklog, request.session, now, effects, opened=True)
     return written(session, worklog, now, effects)
 
 

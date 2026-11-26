@@ -348,8 +348,9 @@ func newClaimsAdvanceCommand() *cobra.Command {
 			"\n" +
 			"A later step ends the worklog finished, which checks its step. An earlier one\n" +
 			"ends it moved_back, which checks nothing, so the step left reads as not done.\n" +
-			"An open wait ends, as `resume` ends it. A claim of yours that ran out is held\n" +
-			"again for a day, with a warning that it had run out.\n" +
+			"An open wait ends, as `resume` ends it. A claim of yours that ran out holds\n" +
+			"again for the default lease of `slate claims hold`, with a warning that it had\n" +
+			"run out.\n" +
 			"\n" +
 			"Refused on an idea, which `slate ideas promote` moves to design, on a closed\n" +
 			"record, where --holder holds no claim on the record, and where the claim is\n" +
@@ -395,23 +396,29 @@ func newClaimsAdoptCommand() *cobra.Command {
 		asJSON bool
 		holder string
 		from   string
+		step   string
 	)
 	cmd := &cobra.Command{
-		Use:   "adopt <record> --from <session>",
+		Use:   "adopt <record> --from <session> [--step <step>]",
 		Short: "Take over the claim of a session that died, at the step it was on",
 		Long: "Ends the claim that --from's session holds on the record as adopted, which\n" +
-			"checks nothing, and holds the record for --holder with a worklog of the same\n" +
-			"step that follows the one ended. This session joins it. All of it is one\n" +
-			"transaction. A claim that ran out has already ended as expired at its expiry,\n" +
-			"and keeps that ending.\n" +
+			"checks nothing, and holds the record for --holder with a worklog that follows\n" +
+			"the one ended. This session joins it. All of it is one transaction. A claim\n" +
+			"that ran out has already ended as expired at its expiry, and keeps that ending.\n" +
 			"\n" +
-			"Refused where the record holds no claim, or where by then another session\n" +
-			"holds it. Only a person adopts, because only a person can tell that a session\n" +
-			"is dead, so a service client is refused.\n" +
+			"The new worklog takes --step, else the step of the worklog the dead session was\n" +
+			"on. Where that worklog already ended, its step is done, so --step names the\n" +
+			"next one.\n" +
+			"\n" +
+			"Refused where the record holds no claim, where by then another session holds\n" +
+			"it, and where its worklog ended with no --step named. Only a person adopts,\n" +
+			"because only a person can tell that a session is dead, so a service client is\n" +
+			"refused.\n" +
 			"\n" +
 			"--holder defaults to who is running slate: the Claude Code session, the worker\n" +
 			"$" + actorWorkerEnv + " names, or user@host.",
-		Example:     "  slate claims adopt 2804 --from 261e29ae-c059-47af-a34a-3e703076e891",
+		Example: "  slate claims adopt 2804 --from 261e29ae-c059-47af-a34a-3e703076e891\n" +
+			"  slate claims adopt 2804 --from 261e29ae-c059-47af-a34a-3e703076e891 --step build",
 		Args:        cobra.ExactArgs(1),
 		Annotations: personOnly(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -421,19 +428,29 @@ func newClaimsAdoptCommand() *cobra.Command {
 			if strings.TrimSpace(holder) == "" {
 				return goclikit.UsageError(errors.New("--holder cannot be empty — the claim names who holds it"))
 			}
+			in := api.ClaimAdoptInput{Holder: holder, FromSession: from, Minutes: defaultClaimMinutes, AgentPlace: agentPlace(os.Getenv(claudeCodeSessionEnv))}
+			if step != "" {
+				if err := validStep(step); err != nil {
+					return err
+				}
+				in.Step = &step
+			}
 			client, err := newAPIClient(cmd)
 			if err != nil {
 				return handleAPIError(err)
 			}
-			in := api.ClaimAdoptInput{Holder: holder, FromSession: from, Minutes: defaultClaimMinutes, AgentPlace: agentPlace(os.Getenv(claudeCodeSessionEnv))}
 			written, err := client.AdoptClaim(cmd.Context(), args[0], in, issueZone())
 			if err != nil {
 				return handleArgumentAPIError(err)
+			}
+			if step != "" {
+				return reportWrite(cmd, asJSON, written, written.WriteEffects, claimStepSummary("Adopted", written.Claim, step, time.Now()))
 			}
 			return reportWrite(cmd, asJSON, written, written.WriteEffects, claimSummary("Adopted", written.Claim, time.Now()))
 		},
 	}
 	cmd.Flags().StringVar(&from, "from", "", "The session whose claim this takes over (required)")
+	addStepFlag(cmd, &step, "The step the claim takes, where the dead session's worklog already ended")
 	cmd.Flags().StringVar(&holder, "holder", actorIdentity(), "Who holds the claim")
 	cmd.Flags().BoolVar(&asJSON, "json", false, writtenJSONHelp)
 	return cmd

@@ -13,6 +13,8 @@ from collections.abc import Collection
 from itertools import chain
 from typing import cast
 
+from sqlalchemy import and_
+from sqlalchemy import or_
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
@@ -143,18 +145,24 @@ def worklog_views(session: Session, worklogs: list[models.Worklog], now: dt.date
 
 
 def worklog_waits(session: Session, worklog_ids: Collection[int]) -> dict[int, list[models.ClaimWait]]:
-    """Each worklog's waits by its id, oldest first: each wait that began while its claim was on that worklog."""
+    """Each worklog's waits by its id, oldest first: each wait that began while its claim was on that worklog.
+
+    A wait that names no worklog lists on its claim's current worklog. The release before this column
+    writes such waits while it still serves beside the one that reads it.
+    """
     if not worklog_ids:
         return {}
-    rows = session.scalars(
-        select(models.ClaimWait)
-        .where(models.ClaimWait.worklog_id.in_(list(worklog_ids)))
+    named = models.ClaimWait.worklog_id == models.Worklog.id
+    unnamed = and_(models.ClaimWait.worklog_id.is_(None), models.ClaimWait.claim_id == models.Worklog.claim_id)
+    rows = session.execute(
+        select(models.Worklog.id, models.ClaimWait)
+        .join(models.Worklog, or_(named, unnamed))
+        .where(models.Worklog.id.in_(list(worklog_ids)))
         .order_by(models.ClaimWait.started_ts, models.ClaimWait.id)
     )
     waits: dict[int, list[models.ClaimWait]] = defaultdict(list)
-    for wait in rows:
-        # The filter on worklog_id leaves no null one.
-        waits[cast(int, wait.worklog_id)].append(wait)
+    for worklog_id, wait in rows:
+        waits[worklog_id].append(wait)
     return dict(waits)
 
 

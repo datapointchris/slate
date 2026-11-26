@@ -52,6 +52,10 @@ from slate.models.record import Record
 WORKLOG_FINISHED = 'finished'
 WORKLOG_MOVED_BACK = 'moved_back'
 WORKLOG_OUTCOMES = [WORKLOG_FINISHED, WORKLOG_MOVED_BACK, *CLAIM_ENDINGS]
+# The outcomes that end a worklog with its step done, so the step reads as checked: finished, its
+# claim released, its idea promoted, or its record completed. Every other outcome checks nothing,
+# so an outcome added to the vocabulary checks nothing until it is named here.
+STEP_PERFORMING_OUTCOMES = (WORKLOG_FINISHED, 'released', 'promoted', 'completed')
 
 # The step of a record's life a worklog performed, in the order `worklog_steps.position` holds.
 StepName = Literal['shape', 'design', 'preflight', 'build', 'retro']

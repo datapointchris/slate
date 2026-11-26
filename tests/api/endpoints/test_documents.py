@@ -143,8 +143,9 @@ def test_a_version_written_with_fields_returns_them_in_its_read_the_list_and_its
     (version,) = ok(client.get(f'/worklogs/{worklog}'))['document_versions']
     assert (version['address'], version['fields']) == (f'{record}/plan', fields)
 
-    refused = client.put(f'/documents/{record}/plan', json={'body': PLAN, 'fields': ['not', 'an', 'object']})
-    assert refused.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, show_status_and_response(refused)
+    for unstorable in ({'fields': ['not', 'an', 'object']}, {'fields': {'note': 'a\x00b'}}, {'fields': fields, 'field': fields}):
+        refused = client.put(f'/documents/{record}/plan', json={'body': PLAN, **unstorable})
+        assert refused.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT, show_status_and_response(refused)
 
 
 @pytest.mark.parametrize(
@@ -152,10 +153,11 @@ def test_a_version_written_with_fields_returns_them_in_its_read_the_list_and_its
     [
         (PLAN, {'go': False}, 1),
         (PLAN, {'go': True}, 2),
+        (PLAN, {'go': 0}, 2),
         (PLAN + '4. Ship it\n', {'go': False}, 2),
         (PLAN + '4. Ship it\n', {'go': True}, 2),
     ],
-    ids=['same-body-same-fields', 'same-body-new-fields', 'new-body-same-fields', 'new-body-new-fields'],
+    ids=['same-body-same-fields', 'same-body-new-fields', 'same-body-zero-for-false', 'new-body-same-fields', 'new-body-new-fields'],
 )
 def test_a_write_matching_the_latest_versions_body_and_fields_writes_nothing_and_any_other_writes_a_version(client, body, fields, versions):
     record = bug(client)

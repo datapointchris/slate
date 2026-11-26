@@ -179,7 +179,7 @@ def advance_claim(record: RecordFromPath, request: schemas.ClaimAdvance, session
     and a `session` named, move into it, and an open wait ends. The holder's own claim that ran out
     holds again, and warns `claim_had_expired`. 409 on an idea, a closed record, a record with no
     claim of the holder's, and a worklog already at `step`, each naming the command that would
-    succeed or the holder.
+    succeed or the holder. 422 on a pursuit, which holds no work.
     """
     refuse_claiming_for_another(caller, request.holder)
     name_agent_session(request.session)
@@ -189,13 +189,15 @@ def advance_claim(record: RecordFromPath, request: schemas.ClaimAdvance, session
 
 @router.post('/{record}/adopt', response_model=schemas.ClaimWritten, status_code=status.HTTP_200_OK)
 def adopt_claim(record: RecordFromPath, request: schemas.ClaimAdopt, session: DbSession, caller: CurrentCaller, effects: Effects):
-    """Take over the claim that `from_session` holds, for a session that died, at the step its worklog performs.
+    """Take over the claim that `from_session` holds, for a session that died, at `step` or the step its worklog performs.
 
     In one transaction it ends that claim `adopted`, which checks nothing, and holds the record for
-    `holder` with a worklog of the same step following the one ended. A claim that ran out has
-    already ended as expired at its expiry, and keeps that ending. 409 where the record holds no
-    claim, or another session holds it by then. No scope reaches this route, so a service client
-    is refused it: only a person decides that a session is dead.
+    `holder` with a worklog following the one ended. Without `step`, the new worklog takes the step
+    of the old one where that is still open. A claim that ran out has already ended as expired at
+    its expiry, and keeps that ending. 409 where the record holds no claim, another session holds it
+    by then, or its worklog already ended with no `step` named. 422 on a pursuit, which holds no
+    work. No scope reaches this route, so a service client is refused it: only a person decides that
+    a session is dead.
     """
     name_agent_session(request.session)
     now = dt.datetime.now(dt.UTC)

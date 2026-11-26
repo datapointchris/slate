@@ -163,14 +163,13 @@ def test_a_claim_moves_to_the_worklog_its_session_starts_or_joins_so_a_hold_and_
 
     retro = {'record': initiative, 'opened_by': 'claude-code/s5', 'step': 'retro', 'session': 's5'}
     started = ok(client.post(WORKLOGS, json=retro), status.HTTP_201_CREATED)
-    assert ('claim_moved_to_worklog', initiative) in codes(started['side_effects'])
+    assert (('claim_moved_to_worklog', initiative) in codes(started['side_effects']), started['worklog']['follows']) == (
+        True,
+        f'{initiative}.1',
+    )
     held = ok(client.post('/claims', json={'record': initiative, 'step': 'retro', **holder}))
     (already,) = (warning['message'] for warning in held['warnings'] if warning['code'] == 'already_held')
-    assert (held['claim']['worklog'], f'{initiative}.2 carries step retro' in already, 'release' in already.lower()) == (
-        f'{initiative}.2',
-        True,
-        False,
-    )
+    assert (held['claim']['worklog'], f'{initiative}.2 carries step retro' in already) == (f'{initiative}.2', True)
 
     # A claim still on its ended preflight while its session works the retro worklog, which a join corrects.
     session.execute(update(models.Worklog).where(models.Worklog.record_number == initiative).values(claim_id=None))
