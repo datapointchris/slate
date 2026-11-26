@@ -30,3 +30,16 @@ def is_open(kind: Kind, entity: Any = None) -> ColumnElement[bool]:
             return true()
         case Kind.PURSUIT:
             return (entity or models.Pursuit).status.not_in(TERMINAL_PURSUIT_STATUSES)
+
+
+def status_is_open(kind: Kind, status: str | None) -> bool:
+    """`is_open` for a status already read, such as a record summary's."""
+    match kind:
+        case Kind.ISSUE:
+            return status not in CLOSED_ISSUE_STATUSES
+        case Kind.INITIATIVE:
+            return status not in TERMINAL_INITIATIVE_STATUSES
+        case Kind.IDEA:
+            return True
+        case Kind.PURSUIT:
+            return status not in TERMINAL_PURSUIT_STATUSES

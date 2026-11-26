@@ -21,9 +21,10 @@ has seen. A hold names it from `CLAUDE_CODE_SESSION_ID` when the CLI runs under
 one, and the same row joins the session to its worklogs.
 
 `ending` is a row of `claim_endings`. `released` is a holder or a person
-letting go, `expired` is the lease running out first, and `promoted` is an idea
-becoming its initiative. The rest name the closing status that the record
-reached. `ended_ts` and `ending` are set together or not at all.
+letting go, `expired` is the lease running out first, `promoted` is an idea
+becoming its initiative, and `adopted` is another session taking over the claim
+of one that died. The rest name the closing status that the record reached.
+`ended_ts` and `ending` are set together or not at all.
 
 A claim holds no work, only the fact that someone is doing it. Whether an issue
 is open or closed is its status. Whether anyone is working it is its claim. So
@@ -47,6 +48,61 @@ record later, so `worklog` names the go under way rather than the one that the
 hold opened. A reader matching a run's worklog against the claim's then finds
 the step the holder is on.
 
+## A move between steps is one write, and so is taking over a dead session's claim
+
+`slate claims advance <record> --step <step>` moves the holder's claim to
+another step of the record's life. In one transaction it ends the worklog that
+the claim is on, opens one for `<step>` whose `follows` names the one ended, and
+moves the claim and the caller's session into it. An open wait ends, as a
+resume ends it. So nothing between two calls leaves the record unclaimed, or
+its claim on a step that no worklog is open for.
+
+| Move | The worklog it leaves ends as | Its step |
+| --- | --- | --- |
+| to a later step, or from a worklog naming none | `finished` | checked |
+| to an earlier step | `moved_back` | unchecked, so the step reads as still to do |
+
+`moved_back` is a worklog outcome and never a claim's ending, because the claim
+goes on. The holder's own claim that ran out holds again for the request's
+`minutes`, as an extend holds it, and the answer warns `claim_had_expired`.
+
+`advance` answers 409 in each case where it would move nothing, naming the
+command that would succeed, or the holder:
+
+| Case | The refusal names |
+| --- | --- |
+| an idea | `slate ideas promote <record>`, which takes an idea to design |
+| a closed record | `slate issues reopen` or `slate initiatives reopen` |
+| no claim, or another holder's that ran out | `slate claims hold <record> --step <step>` |
+| another holder's live claim | the holder and its expiry |
+| the claim's open worklog already at `<step>` | `slate claims resume <record>` |
+
+A pursuit holds no work, so `advance` answers it 422.
+
+`slate claims adopt <record> --from <session>` takes over the claim of a
+session that died. In one transaction it ends that claim `adopted`, which checks
+nothing, and holds the record for the caller with a worklog of the same step,
+whose `follows` names the one ended. A claim that ran out has already ended as
+`expired` at its expiry, so it keeps that ending, and the caller still takes the
+step.
+
+A dead session may have finished its worklog by hand before it died. That step
+is then done, and taking it again would move its check to the caller's worklog.
+So where the claim's worklog has ended, adopt answers 409 unless `--step` names
+the step to take. `--step` also overrides the step of an open worklog.
+
+It answers 409 where the record holds no claim, or where by then a session
+other than `--from` holds it, and 422 on a pursuit. Only a person adopts,
+because only a person can tell that a session is dead. So no scope reaches the
+route.
+
+- *Rejected:* `slate worklogs finish`, `slate claims release` and the next
+  hold, run in turn. Nobody holds the record between the release and the
+  hold, and a session that dies between a finish and a start leaves a claim
+  with no live step worklog.
+- *Rejected:* releasing a dead session's claim and holding it again. The
+  release checks a step that the dead session never finished.
+
 ## A waiting claim still holds its record
 
 A holder parks its claim with `slate claims wait <record> --on <what>`, and
@@ -66,6 +122,11 @@ Waiting on the same thing again warns `already_waiting`. Resuming a claim that
 waits on nothing warns `not_waiting`. Ending the claim ends its open wait with
 it.
 
+A wait records the worklog that the claim is on as it begins, in
+`claim_waits.worklog_id`. A worklog's read lists its own waits by that column.
+So a claim that moves across every step leaves each step's waits on that
+step's worklog, rather than every wait on the last.
+
 Resuming puts the holder's session back in the claim's worklog, and so does
 holding the record again. A session parks one claim and holds the next, so its
 commits go to the second. Coming back sends them to the first again.
@@ -74,7 +135,9 @@ commits go to the second. Coming back sends them to the first again.
 
 A partial unique index allows one unended claim per record. Two holds racing on
 one record are settled by that index: the loser's insert fails, and it answers
-409 naming the holder that won. `POST /claims/next` holds the head of the ready
+409 naming the holder that won. Every write that decides from a record's
+unended claim locks its row first, with `SELECT ... FOR UPDATE`. So two such
+writes take turns, and the second reads the claim as the first left it. `POST /claims/next` holds the head of the ready
 issues this way, moving to the next issue when it loses one.
 
 That 409 is the only refusal of a hold on work. A pursuit holds none, so a
@@ -162,7 +225,8 @@ A write that ends a claim beyond the one it was asked about names it in
 - `session_rejoined_worklog` when a resume, or a hold of a record that the
   holder already holds, puts the session back in the claim's worklog.
 - `claim_moved_to_worklog` when the holder's session starts or joins another
-  worklog on the record, and the claim moves to it.
+  worklog on the record, or an advance opens one, and the claim moves to it.
+- `wait_ended` when an advance ends the claim's open wait.
 
 Deleting an issue, an initiative or an idea deletes every claim it has had,
 live or ended. The answer names them as `claims_deleted`, and warns
@@ -197,8 +261,9 @@ leaves a week-long lease on a parked claim alone.
 
 ## A service claims under its own client id
 
-`slate.claims.hold` reaches the hold, extend, release, wait and resume routes,
-and the hold of the ready queue's head. A scoped client acts on claims only
+`slate.claims.hold` reaches the hold, extend, release, wait, resume and
+advance routes, and the hold of the ready queue's head. No scope reaches
+adopt. A scoped client acts on claims only
 under its own client id, because its token says which service it is and
 nothing says which of its workers acted. It releases only a claim that id
 holds. `slate.records.read` reaches the claims list, so a service finds what it

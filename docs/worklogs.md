@@ -25,32 +25,44 @@ are rows of `worklog_spans`, and its links rows of `worklog_links`.
 
 ## A hold opens one, and the claim's ending ends it
 
-Two things open a worklog:
+These open a worklog:
 
 - **A hold.** Each claim opens its own worklog, and the hold's answer names it
   as `worklog_opened`. Every ending of the claim ends the worklog at the same
   moment with the same outcome. [claims.md](claims.md) covers those endings.
-- **`slate worklogs start <record>`**, for a go that no hold opens, such as
-  discussing an idea, or the next step of a record that the session already
-  holds. Each worklog already open on the record goes through with an
-  `open_worklog` warning, since joining it may be what was meant.
+- **`slate claims advance <record> --step <step>`**, for the next step of a
+  record that the session holds. It ends the claim's worklog and opens one of
+  `<step>` in the same transaction, and the claim and the session move into it.
+- **`slate claims adopt <record> --from <session>`**, for the claim of a dead
+  session. It ends that claim and holds the record for the caller, with a
+  worklog of the step that the dead session was on, or of `--step`.
+- **`slate worklogs start <record>`**, for a go that no claim makes, such as
+  discussing an idea. Each worklog already open on the record goes through with
+  an `open_worklog` warning, since joining it may be what was meant.
 
 A claim is on one worklog at a time, and follows the session that holds it.
 Where that session starts or joins another worklog on the record, the claim
 moves to it, and the answer names that as `claim_moved_to_worklog`. Joining
-moves it even when the session was in that worklog already. So a holder that
-finishes its preflight worklog and starts one for `build` keeps its claim, the
-claim's `worklog` names the build's, and releasing the claim ends that one. The
-worklog that the claim left keeps its state. One still open ends by hand or with
-its record, as one `start` opened does.
+moves it even when the session was in that worklog already. The worklog that the
+claim left keeps its state. One still open ends by hand or with its record, as
+one `start` opened does.
+
+A worklog names the one it took over from as `follows`. The worklogs that
+`advance` and `adopt` open each follow the one that they end. So does one that
+the holder's session starts, where the claim moves into it from another. A
+hold's worklog follows none, and a join leaves `follows` as it was. So the
+worklogs that one claim moves through read as a chain, whichever sessions worked
+them. A new hold starts a new chain.
 
 A worklog's `outcome` says which ending it reached:
 
 | Outcome | Means |
 | --- | --- |
-| `finished` | `slate worklogs finish` ended it by hand |
+| `finished` | `slate worklogs finish` ended it by hand, or `claims advance` moved its claim to a later step |
+| `moved_back` | `claims advance` moved its claim to an earlier step |
 | `released` | its claim was released |
 | `expired` | its claim's lease ran out, and it ended at the claim's `expires_ts` |
+| `adopted` | `claims adopt` gave its claim to another session |
 | `completed`, `canceled`, `dropped` | the record reached that closing status |
 | `promoted` | the idea became an initiative or an issue under its number |
 
@@ -167,15 +179,18 @@ warns `already_linked`.
 A worklog's `stage` is the furthest it reached, derived on every read:
 `started`, then `planned` once it wrote a plan document, then `committed`,
 `pull_request` and `landed` as its links reach them. Its read lists every
-document version written in it as `document_versions`.
+document version written in it as `document_versions`, each with its `fields`.
 [documents-and-comments.md](documents-and-comments.md) covers how a version
-names its worklog.
+names its worklog. It lists as `waits` each wait that began while its claim was
+on it, so a wait that began on a preflight worklog stays on that worklog after
+the claim moves to build.
 
 ## A worklog names the step of its record's life it performed
 
 A worklog's `step` is one of the rows of `worklog_steps`, such as `design`,
 which `slate vocabulary` lists in `position` order with each description.
 `slate claims hold <record> --step <step>` sets it on the worklog that the hold
+opens, `slate claims advance <record> --step <step>` on the one that the move
 opens, and `slate worklogs start <record> --step <step>` on one with no claim.
 `slate worklogs edit <worklog> --step <step>` corrects it, and `--step ""`
 clears it. No step is required. Both writes refuse a field they do not name
@@ -185,13 +200,18 @@ A hold of a record that its holder already holds opens no worklog, so it keeps
 the step the claim's worklog has. Where that worklog is open and carries the
 step asked for, the `already_held` warning says so. Where it names no step, the
 warning names the edit that sets it. Where it carries another, or has ended,
-the warning names `slate worklogs start <record> --step <step>`, which opens a
-worklog of that step for the claim to move to.
+the warning names `slate claims advance <record> --step <step>`, which opens a
+worklog of that step and moves the claim and the session to it.
 
 A step is checked on a record once a worklog of that step ended because its go
-did: finished by hand, released, or ended by the record completing or the idea
-being promoted. A claim that ran out ended nobody's go, and a record dropped or
-canceled abandoned it, so `expired`, `dropped` and `canceled` check nothing.
+did: finished by hand or by a move forward, released, or ended by the record
+completing or the idea being promoted. These outcomes check nothing:
+
+- `expired`, because a claim that ran out ended nobody's go
+- `dropped` and `canceled`, because the record abandoned it
+- `moved_back`, because the holder went back to an earlier step and left this
+  one unfinished
+- `adopted`, because the session that worked it died before it finished
 
 An initiative's read derives `steps`, each checked step from its latest such
 worklog: the worklog's name, when it ended, and the first session in it. A

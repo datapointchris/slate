@@ -13,6 +13,8 @@ from collections.abc import Collection
 from itertools import chain
 from typing import cast
 
+from sqlalchemy import and_
+from sqlalchemy import or_
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
@@ -32,6 +34,7 @@ from slate.services.document_views import worklog_document_versions
 from slate.services.record_summaries import record_summaries
 from slate.services.session_usage import summed
 from slate.services.session_usage import tokens_by_span
+from slate.services.worklog_names import worklog_names
 from slate.services.worklogs import open_span
 
 WORKLOG_LOAD_OPTIONS = (
@@ -71,6 +74,8 @@ def worklog_view(
     versions: list[schemas.DocumentVersionRef],
     now: dt.datetime,
     former_names: list[str],
+    waits: list[models.ClaimWait],
+    follows: str | None,
 ) -> schemas.Worklog:
     claim = worklog.claim
     spans = [
@@ -91,6 +96,7 @@ def worklog_view(
         record=record,
         opened_by=worklog.opened_by,
         step=worklog.step,
+        follows=follows,
         estimate=worklog_estimate(worklog),
         started_ts=worklog.started_ts,
         ended_ts=worklog.ended_ts,
@@ -101,7 +107,7 @@ def worklog_view(
         state=worklog_state(worklog, now),
         stage=worklog_stage(worklog, versions),
         claim=claim_view(claim, now) if claim is not None else None,
-        waits=[schemas.ClaimWait.model_validate(wait) for wait in claim.waits] if claim is not None else [],
+        waits=[schemas.ClaimWait.model_validate(wait) for wait in waits],
         tokens=summed(span.tokens for span in spans),
         spans=spans,
         links=[
@@ -118,12 +124,46 @@ def worklog_views(session: Session, worklogs: list[models.Worklog], now: dt.date
     summaries = record_summaries(session, [worklog.record_number for worklog in worklogs])
     spans = chain.from_iterable(worklog.spans for worklog in worklogs)
     span_tokens = tokens_by_span(session, (span.id for span in spans))
-    versions = worklog_document_versions(session, [worklog.id for worklog in worklogs])
-    former = former_names(session, [worklog.id for worklog in worklogs])
+    ids = [worklog.id for worklog in worklogs]
+    versions = worklog_document_versions(session, ids)
+    former = former_names(session, ids)
+    waits = worklog_waits(session, ids)
+    followed = worklog_names(session, (worklog.follows_id for worklog in worklogs))
     return [
-        worklog_view(worklog, summaries[worklog.record_number], span_tokens, versions.get(worklog.id, []), now, former.get(worklog.id, []))
+        worklog_view(
+            worklog,
+            summaries[worklog.record_number],
+            span_tokens,
+            versions.get(worklog.id, []),
+            now,
+            former.get(worklog.id, []),
+            waits.get(worklog.id, []),
+            followed.get(worklog.follows_id) if worklog.follows_id is not None else None,
+        )
         for worklog in worklogs
     ]
+
+
+def worklog_waits(session: Session, worklog_ids: Collection[int]) -> dict[int, list[models.ClaimWait]]:
+    """Each worklog's waits by its id, oldest first: each wait that began while its claim was on that worklog.
+
+    A wait that names no worklog lists on its claim's current worklog. The release before this column
+    writes such waits while it still serves beside the one that reads it.
+    """
+    if not worklog_ids:
+        return {}
+    named = models.ClaimWait.worklog_id == models.Worklog.id
+    unnamed = and_(models.ClaimWait.worklog_id.is_(None), models.ClaimWait.claim_id == models.Worklog.claim_id)
+    rows = session.execute(
+        select(models.Worklog.id, models.ClaimWait)
+        .join(models.Worklog, or_(named, unnamed))
+        .where(models.Worklog.id.in_(list(worklog_ids)))
+        .order_by(models.ClaimWait.started_ts, models.ClaimWait.id)
+    )
+    waits: dict[int, list[models.ClaimWait]] = defaultdict(list)
+    for worklog_id, wait in rows:
+        waits[worklog_id].append(wait)
+    return dict(waits)
 
 
 def former_names(session: Session, worklog_ids: Collection[int]) -> dict[int, list[str]]:

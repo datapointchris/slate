@@ -8,6 +8,7 @@ was in, so a later go at the record reads which go produced which version.
 from __future__ import annotations
 
 import datetime as dt
+from typing import Any
 from typing import Literal
 from typing import get_args
 
@@ -21,6 +22,7 @@ from sqlalchemy import Integer
 from sqlalchemy import Text
 from sqlalchemy import UniqueConstraint
 from sqlalchemy import text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
@@ -78,6 +80,9 @@ class DocumentVersion(Base):
     document_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('documents.id', ondelete='CASCADE'), primary_key=True)
     version: Mapped[int] = mapped_column(Integer, primary_key=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    # A JSON object stored beside the text, such as a review's verdict, for programs to read in
+    # place of parsing the text. slate reads nothing in it. Null where the write sent none.
+    fields: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     # The caller's actor, as `bind_actor` records it.
     written_by: Mapped[str] = mapped_column(Text, nullable=False)
     session_id: Mapped[str | None] = mapped_column(Text, ForeignKey('agent_sessions.id'), nullable=True)

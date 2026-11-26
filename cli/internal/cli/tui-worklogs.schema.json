@@ -185,12 +185,13 @@
     "documentVersion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["address", "kind", "version", "written_ts"],
+      "required": ["address", "kind", "version", "written_ts", "fields"],
       "properties": {
         "address": {"description": "The record's number and the document's name, as 4271/plan.", "type": "string"},
         "kind": {"type": "string"},
         "version": {"type": "integer", "minimum": 1},
-        "written_ts": {"type": "string", "format": "date-time"}
+        "written_ts": {"type": "string", "format": "date-time"},
+        "fields": {"description": "The JSON object written beside the version's text, null where the write sent none.", "type": ["object", "null"]}
       }
     },
     "worklog": {
@@ -198,7 +199,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "name", "former_names", "record_number", "sequence", "record", "opened_by", "step", "estimate",
+        "name", "former_names", "record_number", "sequence", "record", "opened_by", "step", "follows", "estimate",
         "started_ts", "ended_ts", "outcome", "ended_by", "flow_id", "held_until", "state", "stage", "claim", "waits",
         "tokens", "spans", "links", "document_versions"
       ],
@@ -210,6 +211,10 @@
         "record": {"$ref": "#/definitions/record"},
         "opened_by": {"type": "string"},
         "step": {"description": "The step of its record's life it performed, null where it names none.", "type": ["string", "null"]},
+        "follows": {
+          "description": "The worklog that `slate claims advance` or `slate claims adopt` ended to open this one, null where none did.",
+          "type": ["string", "null"]
+        },
         "estimate": {
           "description": "The tokens by kind its record's work is expected to spend, which only a preflight worklog sets. Null where it estimates no kind.",
           "oneOf": [{"type": "null"}, {"$ref": "#/definitions/estimate"}]

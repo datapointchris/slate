@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import status
+from sqlalchemy import select
 from sqlalchemy import update
 
 from slate import models
@@ -272,3 +273,133 @@ def test_the_list_reads_who_holds_what_by_holder_prefix_and_state(client):
     live = ok(client.get(CLAIMS, params={'holder': 'claude-code/'}))
     assert [(claim['record']['number'], claim['record']['kind'], claim['state']) for claim in live] == [(bug, 'issue', 'live')]
     assert [claim['holder'] for claim in ok(client.get(CLAIMS, params={'state': 'ended'}))] == ['worker/fix']
+
+
+def new_initiative(client, name: str) -> int:
+    return ok(client.post(INITIATIVES, json={'name': name, 'summary': 'It moves through its steps.'}), status.HTTP_201_CREATED)[
+        'initiative'
+    ]['number']
+
+
+def checked(client, initiative: int) -> list[str]:
+    return [step['step'] for step in ok(client.get(f'{INITIATIVES}/{initiative}'))['steps']]
+
+
+def advance(client, record: int, holder: str, step: str, **fields):
+    return client.post(f'{CLAIMS}/{record}/advance', json={'holder': holder, 'step': step, **fields})
+
+
+def test_advancing_from_preflight_to_build_moves_the_claim_and_the_session_and_leaves_the_preflight_wait_on_preflight(client):
+    initiative = new_initiative(client, 'Advance to build')
+    preflight = hold(client, initiative, 'claude-code/s1', session='s1', step='preflight')['claim']['worklog']
+    ok(client.post(f'{CLAIMS}/{initiative}/wait', json={'holder': 'claude-code/s1', 'waiting_on': 'the plan review'}))
+
+    moved = ok(advance(client, initiative, 'claude-code/s1', 'build', session='s1'))
+    build = moved['claim']['worklog']
+    assert codes(moved['side_effects']) == [
+        ('wait_ended', initiative),
+        ('worklog_ended', initiative),
+        ('worklog_opened', initiative),
+        ('claim_moved_to_worklog', initiative),
+    ]
+    ended, opened = ok(client.get(f'/worklogs/{preflight}')), ok(client.get(f'/worklogs/{build}'))
+    assert (ended['outcome'], ended['claim'], [wait['waiting_on'] for wait in ended['waits']]) == ('finished', None, ['the plan review'])
+    assert (opened['step'], opened['follows'], opened['claim']['id'], opened['waits']) == ('build', preflight, moved['claim']['id'], [])
+    assert [(span['session'], span['ended_ts']) for span in opened['spans']] == [('s1', None)]
+    assert ok(client.get('/worklogs/current', params={'session': 's1'}))['name'] == build
+    assert checked(client, initiative) == ['preflight']
+
+
+def test_moving_back_from_preflight_to_design_ends_preflight_moved_back_and_leaves_it_unchecked(client):
+    initiative = new_initiative(client, 'Back to design')
+    hold(client, initiative, 'claude-code/s2', session='s2', step='design')
+    preflight = ok(advance(client, initiative, 'claude-code/s2', 'preflight', session='s2'))['claim']['worklog']
+
+    back = ok(advance(client, initiative, 'claude-code/s2', 'design', session='s2'))
+    assert ok(client.get(f'/worklogs/{preflight}'))['outcome'] == 'moved_back'
+    assert ok(client.get(f'/worklogs/{back["claim"]["worklog"]}'))['follows'] == preflight
+    assert checked(client, initiative) == ['design']
+
+
+def test_adopting_a_dead_sessions_design_claim_holds_design_again_without_checking_it(client):
+    initiative = new_initiative(client, 'Adopted at design')
+    dead = hold(client, initiative, 'claude-code/dead', session='dead', step='design')['claim']
+    adopting = {'holder': 'claude-code/alive', 'session': 'alive'}
+
+    refused = client.post(f'{CLAIMS}/{initiative}/adopt', json={**adopting, 'from_session': 'another'})
+    assert refused.status_code == status.HTTP_409_CONFLICT, show_status_and_response(refused)
+    assert 'claude-code/dead' in refused.json()['message']
+
+    adopted = ok(client.post(f'{CLAIMS}/{initiative}/adopt', json={**adopting, 'from_session': 'dead'}))['claim']
+    worklog = ok(client.get(f'/worklogs/{adopted["worklog"]}'))
+    assert (adopted['holder'], worklog['step'], worklog['follows'], worklog['spans'][0]['session']) == (
+        'claude-code/alive',
+        'design',
+        dead['worklog'],
+        'alive',
+    )
+    first = ok(client.get(f'/worklogs/{dead["worklog"]}'))
+    assert (first['outcome'], first['ended_by']) == ('adopted', 'claude-code/alive')
+    assert checked(client, initiative) == []
+
+
+def test_adopting_a_claim_whose_session_finished_preflight_then_died_takes_the_step_named_and_leaves_preflight_on_its_worklog(client):
+    """A skill finishes preflight, then starts build in a second call, and its session dies between the two."""
+    initiative = new_initiative(client, 'Died between finish and start')
+    preflight = hold(client, initiative, 'claude-code/dead', session='dead', step='preflight')['claim']['worklog']
+    ok(client.post(f'/worklogs/{preflight}/finish', json={'finished_by': 'claude-code/dead'}))
+    adopting = {'holder': 'claude-code/alive', 'session': 'alive', 'from_session': 'dead'}
+
+    refused = client.post(f'{CLAIMS}/{initiative}/adopt', json=adopting)
+    assert refused.status_code == status.HTTP_409_CONFLICT, show_status_and_response(refused)
+    assert '--step <step>`' in refused.json()['message']
+
+    build = ok(client.post(f'{CLAIMS}/{initiative}/adopt', json={**adopting, 'step': 'build'}))['claim']['worklog']
+    assert (ok(client.get(f'/worklogs/{build}'))['step'], ok(client.get(f'/worklogs/{build}'))['follows']) == ('build', preflight)
+    steps = ok(client.get(f'{INITIATIVES}/{initiative}'))['steps']
+    assert [(step['step'], step['worklog']) for step in steps] == [('preflight', preflight)]
+
+
+def lapse(session, claim_id: int) -> None:
+    now = dt.datetime.now(dt.UTC)
+    held_from, lapsed = now - dt.timedelta(hours=2), now - dt.timedelta(minutes=1)
+    session.execute(update(models.Claim).where(models.Claim.id == claim_id).values(started_ts=held_from, expires_ts=lapsed))
+    worklog_ids = session.scalars(select(models.Worklog.id).where(models.Worklog.claim_id == claim_id)).all()
+    session.execute(update(models.Worklog).where(models.Worklog.id.in_(worklog_ids)).values(started_ts=held_from))
+    session.execute(update(models.WorklogSpan).where(models.WorklogSpan.worklog_id.in_(worklog_ids)).values(started_ts=held_from))
+    session.flush()
+
+
+@pytest.mark.parametrize(
+    ('case', 'step', 'answered', 'names'),
+    [
+        ('no claim', 'build', status.HTTP_409_CONFLICT, '`slate claims hold'),
+        ('same step', 'preflight', status.HTTP_409_CONFLICT, '`slate claims resume'),
+        ('own expired claim', 'build', status.HTTP_200_OK, 'claim_had_expired'),
+        ('another holder', 'build', status.HTTP_409_CONFLICT, 'claude-code/other'),
+        ('closed record', 'build', status.HTTP_409_CONFLICT, '`slate issues reopen'),
+        ('move back', 'design', status.HTTP_200_OK, 'moved_back'),
+        ('idea', 'design', status.HTTP_409_CONFLICT, '`slate ideas promote'),
+    ],
+)
+def test_advance_moves_the_holders_own_claim_and_refuses_every_other_case_naming_what_would_succeed(seeded, case, step, answered, names):
+    client, session = seeded
+    record = new_initiative(client, 'Decided by case')
+    holder = 'claude-code/s9'
+    if case == 'closed record':
+        record = number(client, 'Completed feature')
+    elif case == 'idea':
+        record = ok(client.post('/ideas', json={'title': 'Not yet an initiative'}), status.HTTP_201_CREATED)['idea']['number']
+    if case != 'no claim':
+        held = hold(client, record, 'claude-code/other' if case == 'another holder' else holder, step='preflight')['claim']
+        if case == 'own expired claim':
+            lapse(session, held['id'])
+
+    answer = advance(client, record, holder, step)
+    assert answer.status_code == answered, show_status_and_response(answer)
+    if answered != status.HTTP_200_OK:
+        assert names in answer.json()['message']
+        return
+    assert answer.json()['claim']['state'] == 'live'
+    left = ok(client.get(f'/worklogs/{record}.1'))
+    assert names in [left['outcome'], *(warning['code'] for warning in answer.json()['warnings'])]

@@ -2,8 +2,9 @@
 
 A worklog is named under its record's number, so `1991.2` is the second worklog on 1991. Holding a
 claim opens one, and `worklogs start` opens one with no hold. A claim is on one worklog at a time, and
-moves to one its session starts or joins on the record. The claim ending, the record closing or
-`worklogs finish` ends it, and `outcome` says which.
+moves to one its session starts or joins on the record, or to the next step's that `claims advance`
+opens. The claim ending, the record closing, `claims advance` or `worklogs finish` ends it, and
+`outcome` says which.
 
 A session joins a worklog for a span of time. A session is in at most one worklog at a time, so its
 spans never overlap, and its time outside every span is its own. `services/worklogs.py` holds every
@@ -44,10 +45,17 @@ from slate.models.claim import CLAIM_ENDINGS
 from slate.models.claim import Claim
 from slate.models.record import Record
 
-# `finished` is `worklogs finish` ending it by hand. Every other outcome is the ending of the claim
-# that opened it, or the closing status its record reached.
+# `finished` is `worklogs finish`, or `claims advance` to a later step, ending it with its step
+# done. `moved_back` is `claims advance` to an earlier step ending it with its step undone, while
+# the claim goes on. Every other outcome is the ending of the claim it was on, or the closing status
+# its record reached.
 WORKLOG_FINISHED = 'finished'
-WORKLOG_OUTCOMES = [WORKLOG_FINISHED, *CLAIM_ENDINGS]
+WORKLOG_MOVED_BACK = 'moved_back'
+WORKLOG_OUTCOMES = [WORKLOG_FINISHED, WORKLOG_MOVED_BACK, *CLAIM_ENDINGS]
+# The outcomes that end a worklog with its step done, so the step reads as checked: finished, its
+# claim released, its idea promoted, or its record completed. Every other outcome checks nothing,
+# so an outcome added to the vocabulary checks nothing until it is named here.
+STEP_PERFORMING_OUTCOMES = (WORKLOG_FINISHED, 'released', 'promoted', 'completed')
 
 # The step of a record's life a worklog performed, in the order `worklog_steps.position` holds.
 StepName = Literal['shape', 'design', 'preflight', 'build', 'retro']
@@ -115,6 +123,8 @@ class Worklog(Base):
     claim_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('claims.id', ondelete='CASCADE'), nullable=True, unique=True)
     opened_by: Mapped[str] = mapped_column(Text, nullable=False)
     step: Mapped[str | None] = mapped_column(Text, ForeignKey('worklog_steps.name'), nullable=True)
+    # The worklog that `claims advance` or `claims adopt` ended to open this one, under the same claim's work.
+    follows_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('worklogs.id', ondelete='SET NULL'), nullable=True)
     # The tokens by kind the work is expected to spend, as a preflight estimates them. Null is no
     # estimate of that kind, which differs from an estimate of zero.
     estimated_uncached_input_tokens: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

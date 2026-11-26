@@ -1,4 +1,4 @@
-"""Claims, the leases on records of any kind: held, extended, waited on, resumed and released here, and listed.
+"""Claims, the leases on records of any kind: held, extended, waited on, resumed, advanced, adopted and released here, and listed.
 
 Every write answers the claim beside its side effects and warnings. A scoped client acts only
 under its own client id, and releases only a claim that id holds.
@@ -28,6 +28,8 @@ from slate.api.oidc_auth import ScopedClient
 from slate.api.request_zone import RequestZone
 from slate.services.claim_views import claims_on_records
 from slate.services.claim_views import unended_claims
+from slate.services.claims import adopt
+from slate.services.claims import advance
 from slate.services.claims import extend
 from slate.services.claims import hold
 from slate.services.claims import hold_next
@@ -166,6 +168,40 @@ def resume_claim(record: RecordFromPath, request: schemas.ClaimResume, session: 
     name_agent_session(request.session)
     now = dt.datetime.now(dt.UTC)
     return written(session, resume(session, record.number, request, now, effects), now, effects)
+
+
+@router.post('/{record}/advance', response_model=schemas.ClaimWritten, status_code=status.HTTP_200_OK)
+def advance_claim(record: RecordFromPath, request: schemas.ClaimAdvance, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Move the holder's claim to a new worklog of `step`, ending the one it is on, in one transaction.
+
+    A later step ends that worklog `finished`, which checks its step, and an earlier one ends it
+    `moved_back`, which checks nothing. The new worklog's `follows` names the one ended. The claim,
+    and a `session` named, move into it, and an open wait ends. The holder's own claim that ran out
+    holds again, and warns `claim_had_expired`. 409 on an idea, a closed record, a record with no
+    claim of the holder's, and a worklog already at `step`, each naming the command that would
+    succeed or the holder. 422 on a pursuit, which holds no work.
+    """
+    refuse_claiming_for_another(caller, request.holder)
+    name_agent_session(request.session)
+    now = dt.datetime.now(dt.UTC)
+    return written(session, advance(session, record, request, now, effects), now, effects)
+
+
+@router.post('/{record}/adopt', response_model=schemas.ClaimWritten, status_code=status.HTTP_200_OK)
+def adopt_claim(record: RecordFromPath, request: schemas.ClaimAdopt, session: DbSession, caller: CurrentCaller, effects: Effects):
+    """Take over the claim that `from_session` holds, for a session that died, at `step` or the step its worklog performs.
+
+    In one transaction it ends that claim `adopted`, which checks nothing, and holds the record for
+    `holder` with a worklog following the one ended. Without `step`, the new worklog takes the step
+    of the old one where that is still open. A claim that ran out has already ended as expired at
+    its expiry, and keeps that ending. 409 where the record holds no claim, another session holds it
+    by then, or its worklog already ended with no `step` named. 422 on a pursuit, which holds no
+    work. No scope reaches this route, so a service client is refused it: only a person decides that
+    a session is dead.
+    """
+    name_agent_session(request.session)
+    now = dt.datetime.now(dt.UTC)
+    return written(session, adopt(session, record, request, now, effects), now, effects)
 
 
 @router.post('/{record}/release', response_model=schemas.ClaimWritten, status_code=status.HTTP_200_OK)

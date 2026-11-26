@@ -77,7 +77,7 @@
     "versionSummary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "written_by", "session", "worklog", "written_ts", "flow_id", "line_count"],
+      "required": ["version", "written_by", "session", "worklog", "written_ts", "flow_id", "line_count", "fields"],
       "properties": {
         "version": {"type": "integer", "minimum": 1},
         "written_by": {"type": "string"},
@@ -85,7 +85,8 @@
         "worklog": {"type": ["string", "null"]},
         "written_ts": {"type": "string", "format": "date-time"},
         "flow_id": {"type": ["string", "null"]},
-        "line_count": {"type": "integer", "minimum": 0}
+        "line_count": {"type": "integer", "minimum": 0},
+        "fields": {"description": "The JSON object written beside the version's text, null where the write sent none.", "type": ["object", "null"]}
       }
     },
     "document": {
@@ -116,7 +117,7 @@
           "description": "The latest version: its summary's fields, its body, and the body's lines as `slate comments add --line` numbers them.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["version", "written_by", "session", "worklog", "written_ts", "flow_id", "line_count", "body", "lines"],
+          "required": ["version", "written_by", "session", "worklog", "written_ts", "flow_id", "line_count", "fields", "body", "lines"],
           "properties": {
             "version": {"type": "integer", "minimum": 1},
             "written_by": {"type": "string"},
@@ -125,6 +126,7 @@
             "written_ts": {"type": "string", "format": "date-time"},
             "flow_id": {"type": ["string", "null"]},
             "line_count": {"type": "integer", "minimum": 0},
+            "fields": {"description": "The JSON object written beside the version's text, null where the write sent none.", "type": ["object", "null"]},
             "body": {"type": "string"},
             "lines": {"type": "array", "items": {"type": "string"}}
           }

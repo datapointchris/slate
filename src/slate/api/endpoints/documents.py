@@ -112,8 +112,9 @@ def write(
     """Write the document's next version, creating the document with 201 on its first.
 
     The version names the caller, the agent session writing it, and the worklog that session is in.
-    A session in no live worklog is a warning. A body matching the latest version writes nothing and
-    warns. Naming a kind other than the document's is a 409.
+    `fields` must be a JSON object, or 422. A session in no live worklog is a warning. A body and
+    fields both matching the latest version's write nothing and warn. Naming a kind other than the
+    document's is a 409.
     """
     number = resolve_record(session, record).number
     name_record(number)

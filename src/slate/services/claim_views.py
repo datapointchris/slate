@@ -64,6 +64,21 @@ def unended_claims(session: Session, numbers: Iterable[int]) -> dict[int, models
     return {claim.record_number: claim for claim in session.scalars(query).all()}
 
 
+def locked_unended_claim(session: Session, number: int) -> models.Claim | None:
+    """The record's unended claim, its row locked until the transaction ends, for a write that decides from it.
+
+    Every write on one record's claim reads it here, so two such writes take turns. The second
+    reads the claim as the first left it, its worklog included, rather than a copy from before.
+    """
+    query = (
+        select(models.Claim)
+        .where(models.Claim.record_number == number, models.Claim.ended_ts.is_(None))
+        .with_for_update(of=models.Claim)
+        .execution_options(populate_existing=True)
+    )
+    return session.scalars(query).one_or_none()
+
+
 def unended_claim_views(session: Session, numbers: Iterable[int], now: dt.datetime) -> dict[int, schemas.Claim]:
     return {number: claim_view(claim, now) for number, claim in unended_claims(session, numbers).items()}
 

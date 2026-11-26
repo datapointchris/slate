@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -112,5 +113,40 @@ func TestDocumentsShow_PrintsALineCommentUnderItsLineAndOneWhoseLineChangedAfter
 	if changed := strings.Index(printed, "Comments on lines not in version 2 (1)"); changed < strings.Index(printed, "  3  c moved") ||
 		!strings.Contains(printed[changed:], "it was on: c") {
 		t.Errorf("want the comment on c after the document, quoting its line:\n%s", printed)
+	}
+}
+
+// An API that predates fields ignores the key and answers 200, so only the
+// answer shows whether the fields were stored.
+func TestDocumentsWrite_FailsWhereTheVersionItGetsBackLacksTheFieldsItSent(t *testing.T) {
+	dir := t.TempDir()
+	plan, fields := dir+"/plan.md", dir+"/fields.json"
+	for path, content := range map[string]string{plan: "# Plan\n", fields: `{"go": true, "built_on": {"design": 4}}`} {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var sent map[string]json.RawMessage
+	var answer string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&sent)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"document":{"address":"412/plan","kind":"plan","version":{"version":2` + answer + `}},"side_effects":[],"warnings":[]}`))
+	}))
+	t.Cleanup(server.Close)
+	asService(t, serviceIDP(t).URL, server.URL, serviceSecret)
+
+	for _, run := range []struct{ answer, refused string }{
+		{"", "slate's API predates document fields"},
+		{`,"fields":{"built_on":{"design":4},"go":true}`, ""},
+	} {
+		answer = run.answer
+		_, err := runService(t, "documents", "write", "412", "plan", "--file", plan, "--fields", fields)
+		if run.refused == "" && err != nil || run.refused != "" && (err == nil || !strings.Contains(err.Error(), run.refused)) {
+			t.Errorf("answered with %q, the write returned %v, want %q", run.answer, err, run.refused)
+		}
+		if string(sent["fields"]) != `{"go":true,"built_on":{"design":4}}` {
+			t.Errorf("sent fields %s, want the file's object", sent["fields"])
+		}
 	}
 }
