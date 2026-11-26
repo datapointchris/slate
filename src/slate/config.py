@@ -91,7 +91,7 @@ class HardToReadSentencesSettings:
 
 
 class ReportInboxSettings:
-    """Where the API files the `flagged-text` report in a check's answer: an inbox that takes `POST /inbox/reports`.
+    """Where the API files the `flagged-text` report in a check's answer: an inbox that takes `POST /api/v1/inbox/reports`.
 
     The API signs in to it at `OIDC_ISSUER` as `client_id`, with the client-credentials grant. With
     any of the three unset, the API logs each report and files none.

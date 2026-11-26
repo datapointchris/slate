@@ -153,7 +153,7 @@ def scenario(find: Route) -> Iterator[Scenario]:
         ('POST', '/find'): find,
         ('GET', '/.well-known/openid-configuration'): discovery,
         ('POST', '/token'): lambda _r: (200, {'access_token': INBOX_TOKEN, 'token_type': 'Bearer', 'expires_in': 300}),
-        ('POST', '/inbox/reports'): lambda r: (201, json.loads(r.body)),
+        ('POST', '/api/v1/inbox/reports'): lambda r: (201, json.loads(r.body)),
     }
     with serving(routes) as (standin_url, standin), serving({('POST', '/v1/logs'): lambda _r: (200, b'')}) as (collector_url, collector):
         settings = copy.deepcopy(test_settings)
@@ -196,7 +196,7 @@ def test_a_scripts_flagged_title_is_written_and_its_report_filed_once():
     }
     [token] = run.posts_to('/token')
     assert parse_qs(token.body.decode()) == {'grant_type': ['client_credentials'], 'scope': ['fleet.inbox.record']}
-    [filed] = run.posts_to('/inbox/reports')
+    [filed] = run.posts_to('/api/v1/inbox/reports')
     assert filed.headers['authorization'] == f'Bearer {INBOX_TOKEN}'
     assert json.loads(filed.body) == [flagged_answer(json.loads(find.body))['flagged_text_report']]
     assert collected_records(run.collector) == []
@@ -220,4 +220,4 @@ def test_a_scripts_title_is_written_when_its_check_gets_no_answer_and_one_unansw
     }
     assert {name: attributes.get(name) for name in expected} == expected
     assert body == '[]'
-    assert run.posts_to('/inbox/reports') == []
+    assert run.posts_to('/api/v1/inbox/reports') == []

@@ -1,7 +1,7 @@
 """The `flagged-text` report in a check's answer, filed unchanged to the report inbox under the API's own client.
 
 The report is the whole of one inbox row, so it is sent as the one element of the
-`POST /inbox/reports` body. The API signs in with the client-credentials grant, and pyclilogin's
+`POST /api/v1/inbox/reports` body. The API signs in with the client-credentials grant, and pyclilogin's
 `ServiceTokenSource` keeps the token in memory until it lapses.
 
 A filing is tried three times. A refusal that a retry cannot change, such as a 400 or a 403, ends
@@ -91,7 +91,7 @@ class ReportFiler:
             return FailedFiling(str(error), retried=False)
         except LoginError as error:
             return FailedFiling(f'no token for {self.tokens.provider.client_id}: {error}', retried=True)
-        url = f'{self.api_url}/inbox/reports'
+        url = f'{self.api_url}/api/v1/inbox/reports'
         try:
             response = self.http.post(url, json=[report], headers={'Authorization': f'Bearer {token.access_token}'})
         except httpx2.HTTPError as error:
