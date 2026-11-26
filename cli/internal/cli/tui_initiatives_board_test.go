@@ -89,15 +89,23 @@ func TestTheClaimedSortPutsHeldInitiativesFirstThenTheMostClaimedIssues(t *testi
 	read.Initiatives[5].Claim = &api.Claim{Holder: "someone else", State: "expired"}
 	read.Initiatives[1].States.Running = 1
 	read.Initiatives[4].States.Running, read.Initiatives[4].States.Waiting = 1, 1
+	read.Initiatives[7].Claim = &api.Claim{Holder: "a third", State: api.ClaimStateLive}
 	read.Initiatives[8].States.Waiting = 1
 	board := &initiativesBoard{sort: slices.Index(boardSortLabels(), "claimed")}
-	ordered, _ := board.orderedAndShown(read)
-	got := make([]int, len(ordered))
-	for at, initiative := range ordered {
-		got[at] = initiative.Number
-	}
-	if want := []int{4, 5, 2, 1, 3, 6, 7, 9, 8}; !slices.Equal(got, want) {
-		t.Errorf("sorted by claimed, the board orders %v, want %v", got, want)
+	for grouping, want := range map[string][]int{
+		// Each tier sorts apart, so the held low 8 stays under every high initiative.
+		groupingTier: {4, 5, 2, 1, 3, 6, 7, 8, 9},
+		// A grouping with no tiers sorts the whole list, so every held initiative leads.
+		groupingRepo: {4, 8, 5, 2, 9, 1, 3, 6, 7},
+	} {
+		ordered, _ := board.orderedAndShown(read, grouping)
+		got := make([]int, len(ordered))
+		for at, initiative := range ordered {
+			got[at] = initiative.Number
+		}
+		if !slices.Equal(got, want) {
+			t.Errorf("sorted by claimed and grouped by %s, the board orders %v, want %v", grouping, got, want)
+		}
 	}
 }
 

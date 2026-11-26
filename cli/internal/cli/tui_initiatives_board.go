@@ -72,7 +72,7 @@ func (s boardScope) moved(steps int) boardScope {
 	return s
 }
 
-// boardSort is one order within a tier. A nil compare keeps the order the API lists them
+// boardSort is one order within a group. A nil compare keeps the order the API lists them
 // in, which holds each pinned initiative first.
 type boardSort struct {
 	label   string
@@ -385,7 +385,7 @@ func (b *initiativesBoard) readOnce(ctx context.Context) error {
 	if b.readFailure != nil {
 		return b.readFailure
 	}
-	opening := b.openingKey(b.initiatives.Value())
+	opening := b.openingKey(b.initiatives.Value(), b.opensAt)
 	b.cursor.Store(&opening)
 	b.cursorRow.Refresh(ctx)
 	return nil
@@ -445,12 +445,17 @@ func tierAt(tiers []boardTier, initiative api.BoardInitiative) int {
 }
 
 // orderedAndShown is the initiatives in the order the sort leaves them, and the numbers
-// the scope shows.
-func (b *initiativesBoard) orderedAndShown(read api.InitiativeBoard) ([]api.BoardInitiative, map[int]bool) {
+// the scope shows. Grouped by tier, the sort orders each tier. Every other grouping draws
+// no tiers, so the sort orders the whole list, and each group keeps that order.
+func (b *initiativesBoard) orderedAndShown(read api.InitiativeBoard, grouping string) ([]api.BoardInitiative, map[int]bool) {
 	ordered := slices.Clone(read.Initiatives)
 	tiers := boardTiers(read)
 	if compare := boardSorts[b.sort].compare; compare != nil {
+		byTier := cmp.Or(grouping, groupingTier) == groupingTier
 		slices.SortStableFunc(ordered, func(x, y api.BoardInitiative) int {
+			if !byTier {
+				return compare(&x, &y)
+			}
 			return cmp.Or(cmp.Compare(tierAt(tiers, x), tierAt(tiers, y)), compare(&x, &y))
 		})
 	}
@@ -475,9 +480,18 @@ func (b *initiativesBoard) orderedAndShown(read api.InitiativeBoard) ([]api.Boar
 	return ordered, shown
 }
 
-// openingKey is the first initiative showing, in the tiers' order.
-func (b *initiativesBoard) openingKey(read api.InitiativeBoard) string {
-	ordered, shown := b.orderedAndShown(read)
+// openingKey is the first initiative showing: in the tiers' order where the board is
+// grouped by tier, and in the sort's order otherwise.
+func (b *initiativesBoard) openingKey(read api.InitiativeBoard, grouping string) string {
+	ordered, shown := b.orderedAndShown(read, grouping)
+	if cmp.Or(grouping, groupingTier) != groupingTier {
+		for _, initiative := range ordered {
+			if shown[initiative.Number] {
+				return initiativeKey(initiative.Number)
+			}
+		}
+		return ""
+	}
 	for _, tier := range boardTiers(read) {
 		for _, initiative := range ordered {
 			if tier.holds(initiative) && shown[initiative.Number] {
@@ -526,7 +540,7 @@ func (b *initiativesBoard) Actions() []gotermboard.Action {
 			Applies: b.onRecord,
 		},
 		{
-			Keys: []string{"s"}, Label: "cycle the sort within a tier", Footer: "s sort",
+			Keys: []string{"s"}, Label: "cycle the sort within a group", Footer: "s sort",
 			Run: func(m *gotermboard.Model) tea.Cmd {
 				b.sort = (b.sort + 1) % len(boardSorts)
 				m.Rebuild()
@@ -569,7 +583,7 @@ type initiativesSnapshot struct {
 // Snapshot is what --json prints of the tab.
 func (b *initiativesBoard) Snapshot(time.Time) initiativesSnapshot {
 	read := b.initiatives.Value()
-	ordered, shown := b.orderedAndShown(read)
+	ordered, shown := b.orderedAndShown(read, b.opensAt)
 	numbers := []int{}
 	for _, initiative := range ordered {
 		if shown[initiative.Number] {
@@ -581,7 +595,7 @@ func (b *initiativesBoard) Snapshot(time.Time) initiativesSnapshot {
 		Grouping: b.opensAt, Shown: numbers, Board: read, Text: b.text.Value(),
 		Reads: []gotermboard.Status{b.initiatives.Status(), b.text.Status(), b.cursorRow.Status()},
 	}
-	if number, ok := numberFromKey(b.openingKey(read), initiativeKeyPrefix); ok {
+	if number, ok := numberFromKey(b.openingKey(read, b.opensAt), initiativeKeyPrefix); ok {
 		if progress, held := b.cursorRow.Value().progress[number]; held {
 			snapshot.CursorRow = &progress
 		}

@@ -66,7 +66,7 @@ func (b *initiativesBoard) Frame(now time.Time, grouping string) gotermboard.Fra
 	if !read.ReadTS.Equal(b.recordsReadAt) {
 		b.records, b.recordsReadAt = recordNumbers(read), read.ReadTS
 	}
-	ordered, shown := b.orderedAndShown(read)
+	ordered, shown := b.orderedAndShown(read, grouping)
 	showing := 0
 	for _, isShown := range shown {
 		if isShown {
@@ -74,7 +74,7 @@ func (b *initiativesBoard) Frame(now time.Time, grouping string) gotermboard.Fra
 		}
 	}
 	frame.Strip = []gotermboard.Line{b.stripLine(now, grouping, showing, read.Totals.InitiativeCount), {}}
-	frame.StartAt = b.openingKey(read)
+	frame.StartAt = b.openingKey(read, grouping)
 	frame.Groups = append(frame.Groups, totalGroup(read, now))
 	drawn := boardDraw{text: indexBoardText(b.text.Value()), rows: b.cursorRow.Value(), read: read, shown: shown, now: now}
 	switch grouping {

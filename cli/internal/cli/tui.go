@@ -141,7 +141,7 @@ func newTUICommand() *cobra.Command {
 			"pull request opens `prs tui` on it, and o opens it in the browser. d opens an\n" +
 			"initiative's or an issue's description, full screen where it runs past the\n" +
 			"screen. A claimed initiative or issue names its holder after its title. f adds\n" +
-			"summaries, s cycles the sort within a tier between\n" +
+			"summaries, s cycles the sort within a group between\n" +
 			strings.Join(boardSortLabels(), ", ") + ", and v cycles the grouping between\n" +
 			strings.Join(initiativeGroupings, ", ") + ". A pursuit's or a\n" +
 			"tag's line counts the closes of every initiative in it, including one completed\n" +

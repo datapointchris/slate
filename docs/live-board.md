@@ -62,12 +62,15 @@ as running work is yellow on the bar. So who is on what reads down the screen wi
 cursor, and the side panel adds when the claim expires and what it waits on. The board read
 carries each initiative's claim and each issue's holder, so the rows need no second read.
 
-`s` cycles the order within a tier between priority, latest close, most open, newest and
+`s` cycles the order within a group between priority, latest close, most open, newest and
 claimed. Claimed puts the initiatives that someone holds first, then those with the most claimed
-issues, which are the running and waiting ones.
+issues, which are the running and waiting ones. Grouped by tier, the sort orders each tier apart,
+so claimed work still reads against the priority it sits at. Every other grouping draws no tiers,
+so the sort orders the whole list. Grouped by initiative and sorted by claimed, every held
+initiative leads the board.
 
-- *Rejected:* a claimed grouping on `v`. A sort keeps the tiers, so claimed work still reads
-  against the priority it sits at.
+- *Rejected:* a claimed grouping on `v`. The claimed sort under a grouping with no tiers already
+  puts the held work first.
 
 ## A bar has one cell per issue
 
