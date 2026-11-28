@@ -134,17 +134,27 @@ func newNextCommand() *cobra.Command {
 	return cmd
 }
 
+// queueRepoRunes is the widest a REPO cell prints on a terminal. It fits one
+// long repo name, and cuts an initiative's list of repos, which would otherwise
+// pad the column for every row and push TITLE past the screen's edge.
+const queueRepoRunes = 24
+
 // printQueueTable prints queue rows of every kind. held adds the HOLDER column
-// the claimed rows are grouped by.
+// the claimed rows are grouped by. On a terminal the REPO cell is cut to
+// queueRepoRunes. Piped output keeps the whole list.
 func printQueueTable(out io.Writer, rows []api.QueueRow, held bool, now time.Time) {
-	p := gotermstyle.PaletteFor(out)
+	p, clip := gotermstyle.PaletteFor(out), clipsToTerminal(out)
 	header := []string{"#", "KIND", "STEP", "PRIORITY", "INITIATIVE", "REPO"}
+	repoColumn := len(header) - 1
 	if held {
 		header = slices.Insert(header, 1, "HOLDER")
 	}
 	cells := make([][]string, len(rows))
 	for i, row := range rows {
 		cells[i] = queueRowCells(row)
+		if clip {
+			cells[i][repoColumn] = cutText(cells[i][repoColumn], queueRepoRunes)
+		}
 		if held {
 			cells[i] = slices.Insert(cells[i], 1, strValue(row.Holder))
 		}
